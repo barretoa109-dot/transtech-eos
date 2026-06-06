@@ -51,6 +51,7 @@ export default function Home() {
             <a href="#enfoque">Enfoque</a>
             <a href="#proposito">Propósito</a>
             <a href="#planes">Planes</a>
+            <a href="#diagnostico">Diagnóstico</a>
           </div>
 
           <div className="flex gap-3">
@@ -78,9 +79,9 @@ export default function Home() {
           </h1>
 
           <p className="mt-8 max-w-3xl text-xl leading-relaxed text-slate-300">
-            TransTech EOS ayuda a personas, emprendedores y empresas a diagnosticar problemas,
-            crear planes de acción, ordenar procesos y automatizar tareas para crecer de forma
-            rentable, sostenida y medible.
+            TransTech EOS ayuda a personas físicas, emprendedores, comercios y empresas a diagnosticar problemas,
+            ordenar procesos, automatizar tareas, mejorar la toma de decisiones y crecer de forma rentable,
+            sostenible y medible.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-4">
@@ -100,12 +101,12 @@ export default function Home() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {[
-            ["Diagnóstico inteligente", "Identificamos problemas, oportunidades, bloqueos y prioridades reales."],
-            ["Gestión y organización", "Ordenamos objetivos, clientes, tareas, procesos, finanzas y seguimiento."],
-            ["Automatización con IA", "Reducimos tareas repetitivas y mejoramos respuestas, atención y productividad."],
-            ["Dashboard de progreso", "Visualizás avances, próximos pasos, metas, estado general y prioridades."],
-            ["Asesoría estratégica", "Recibís orientación clara para tomar mejores decisiones paso a paso."],
-            ["Seguimiento por WhatsApp", "Acompañamiento cercano, simple y directo desde el canal que más usás."],
+            ["Diagnóstico inteligente", "Analizamos tu situación actual, detectamos problemas reales, oportunidades y prioridades."],
+            ["Gestión y organización", "Ordenamos clientes, objetivos, tareas, procesos, finanzas, seguimiento y próximos pasos."],
+            ["Automatización con IA", "Reducimos tareas repetitivas, mejoramos respuestas y aumentamos tu capacidad operativa."],
+            ["Dashboard de progreso", "Visualizás avances, objetivos, métricas, estado general y acciones pendientes."],
+            ["Asesoría estratégica", "Recibís orientación clara para tomar mejores decisiones y avanzar paso a paso."],
+            ["Seguimiento por WhatsApp", "Acompañamiento directo, práctico y cercano desde el canal que más usás."],
           ].map(([titulo, texto]) => (
             <div key={titulo} className="rounded-3xl border border-cyan-400/20 bg-[#091633] p-8">
               <h3 className="text-2xl font-black text-cyan-300">{titulo}</h3>
@@ -121,10 +122,10 @@ export default function Home() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-4">
           {[
-            ["1", "Entendemos tu situación", "Analizamos el punto actual, ya sea personal, comercial o empresarial."],
-            ["2", "Detectamos lo importante", "EOS identifica qué frena tu crecimiento y qué debe ordenarse primero."],
-            ["3", "Creamos un plan claro", "Definimos acciones concretas, prioridades y objetivos alcanzables."],
-            ["4", "Medimos y mejoramos", "Hacemos seguimiento para que el avance sea real, sostenido y rentable."],
+            ["1", "Entendemos tu situación", "Vemos tu punto actual, tus problemas, tus recursos y tus objetivos."],
+            ["2", "Detectamos prioridades", "EOS identifica qué frena tu avance y qué se debe ordenar primero."],
+            ["3", "Creamos un plan claro", "Definimos acciones concretas, simples y medibles para avanzar."],
+            ["4", "Medimos y mejoramos", "Hacemos seguimiento para lograr crecimiento real y sostenido."],
           ].map(([num, titulo, texto]) => (
             <div key={num} className="rounded-3xl border border-white/10 bg-white/5 p-7">
               <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400 font-black text-slate-950">
@@ -143,12 +144,12 @@ export default function Home() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {[
-            ["Crecimiento sostenible", "No buscamos soluciones rápidas sin base. Buscamos crecimiento real y duradero."],
-            ["Rentabilidad", "Ayudamos a mejorar ingresos, costos, decisiones y uso del tiempo."],
-            ["Orden financiero", "Claridad sobre gastos, ingresos, deudas, prioridades y próximos movimientos."],
-            ["Procesos claros", "Convertimos el desorden operativo en sistemas simples y repetibles."],
-            ["Mejor atención al cliente", "Respuestas más rápidas, seguimiento y experiencia más profesional."],
-            ["Automatización inteligente", "La IA trabaja para ahorrar tiempo y aumentar capacidad operativa."],
+            ["Crecimiento sostenible", "Buscamos crecimiento real, ordenado y estable, no soluciones rápidas sin base."],
+            ["Rentabilidad", "Ayudamos a mejorar ingresos, costos, decisiones, procesos y uso del tiempo."],
+            ["Orden financiero", "Claridad sobre gastos, ingresos, deudas, presupuestos, prioridades y próximos movimientos."],
+            ["Procesos claros", "Convertimos el desorden operativo en sistemas simples, repetibles y fáciles de seguir."],
+            ["Mejor atención al cliente", "Respuestas más rápidas, mejor seguimiento y una experiencia más profesional."],
+            ["Automatización inteligente", "La IA trabaja para ahorrar tiempo, reducir errores y aumentar productividad."],
           ].map(([titulo, texto]) => (
             <div key={titulo} className="rounded-3xl bg-[#091633] p-8">
               <h3 className="text-2xl font-black text-cyan-300">{titulo}</h3>
@@ -164,9 +165,9 @@ export default function Home() {
           <h2 className="mt-4 text-5xl font-black">Ayudarte a salir adelante con un sistema claro</h2>
           <p className="mx-auto mt-8 max-w-4xl text-xl leading-relaxed text-slate-300">
             TransTech EOS existe para acompañar a personas físicas, emprendedores y empresas,
-            sin importar el estado en el que se encuentren actualmente. Nuestro propósito es
-            ayudarte a ordenar tu situación, entender qué está fallando, crear un camino de mejora
-            y crecer con más control, rentabilidad y estabilidad en el tiempo.
+            sin importar en qué situación estén actualmente. El objetivo es ayudarte a ordenar tu realidad,
+            entender qué está fallando, crear un camino de mejora y crecer con más control, rentabilidad
+            y estabilidad en el tiempo.
           </p>
         </div>
       </section>
@@ -177,10 +178,10 @@ export default function Home() {
 
         <div className="mt-14 grid gap-6 md:grid-cols-4">
           {[
-            ["Free", "Gs. 0", "5 mensajes gratis para probar EOS y conocer el sistema."],
-            ["Inicial", "Gs. 99.000/mes", "Para personas, emprendedores y pequeños negocios que necesitan orden y guía."],
-            ["Pro", "Gs. 250.000/mes", "Incluye dashboard, seguimiento, asesoría más completa y acompañamiento."],
-            ["Business", "A medida", "Para empresas que necesitan flujos, CRM, WhatsApp y automatizaciones personalizadas."],
+            ["Free", "Gs. 0", "5 mensajes gratis para probar EOS, conocer el sistema y entender cómo puede ayudarte."],
+            ["Inicial", "Gs. 99.000/mes", "Para personas, emprendedores y pequeños negocios que necesitan orden, guía y seguimiento básico."],
+            ["Pro", "Gs. 250.000/mes", "Incluye dashboard, seguimiento, asesoría más completa, análisis y acompañamiento continuo."],
+            ["Business", "A medida", "Para empresas que necesitan flujos personalizados, CRM, WhatsApp, reportes y automatizaciones avanzadas."],
           ].map(([plan, precio, texto]) => (
             <div key={plan} className="rounded-3xl border border-cyan-400/20 bg-[#091633] p-8">
               <h3 className="text-3xl font-black text-cyan-300">{plan}</h3>
