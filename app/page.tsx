@@ -1,167 +1,188 @@
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import { supabase } from "../lib/supabase";
-
-export default function Home() {
-  const [nombre, setNombre] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [problema, setProblema] = useState("");
-  const [enviando, setEnviando] = useState(false);
-
-  async function enviarLead() {
-    if (!nombre || !whatsapp || !problema) {
-      alert("Completá nombre, WhatsApp y el problema principal.");
-      return;
-    }
-
-    setEnviando(true);
-
-    const { error } = await supabase.from("leads").insert([
-      {
-        nombre,
-        whatsapp,
-        empresa,
-        problema,
-      },
-    ]);
-
-    setEnviando(false);
-
-    if (error) {
-      console.log(error);
-      alert("No se pudo enviar. Revisá Supabase.");
-      return;
-    }
-
-    alert("Solicitud enviada correctamente.");
-
-    setNombre("");
-    setWhatsapp("");
-    setEmpresa("");
-    setProblema("");
-  }
-
+export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[#020617] text-white">
-      <section className="max-w-7xl mx-auto px-6 py-8">
-        <nav className="flex items-center justify-between mb-20">
+    <main className="min-h-screen bg-[#020617] text-white overflow-hidden">
+      <section className="max-w-7xl mx-auto px-6 py-10">
+
+        <header className="flex justify-between items-center mb-20">
           <div>
-            <p className="text-cyan-400 font-bold">TransTech</p>
-            <h1 className="text-3xl font-black">EOS</h1>
+            <p className="text-cyan-400 font-bold text-xl">
+              TransTech EOS
+            </p>
           </div>
 
           <div className="flex gap-3">
-            <Link href="/login" className="px-5 py-3 rounded-xl bg-white/10 border border-white/10">
+            <a
+              href="/login"
+              className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700"
+            >
               Ingresar
-            </Link>
-            <Link href="/eos" className="px-5 py-3 rounded-xl bg-cyan-400 text-slate-950 font-bold">
-              Chat EOS
-            </Link>
-          </div>
-        </nav>
+            </a>
 
-        <div className="grid lg:grid-cols-2 gap-14 items-center">
+            <a
+              href="/eos"
+              className="px-5 py-3 rounded-xl bg-cyan-400 text-slate-950 font-bold"
+            >
+              Chat EOS
+            </a>
+          </div>
+        </header>
+
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+
           <div>
-            <p className="text-cyan-400 font-bold mb-4">
+            <p className="text-cyan-400 font-bold mb-3">
               Sistema empresarial inteligente
             </p>
 
-            <h2 className="text-5xl md:text-6xl font-black leading-tight mb-6">
-              Ordená, automatizá y hacé crecer tu negocio con IA.
-            </h2>
+            <h1 className="text-6xl font-black leading-tight mb-6">
+              Ordená,
+              <br />
+              automatizá y hacé
+              <br />
+              crecer tu negocio
+              <span className="text-cyan-400"> con IA.</span>
+            </h1>
 
-            <p className="text-slate-300 text-xl mb-8 leading-relaxed">
-              TransTech EOS es un sistema de diagnóstico, gestión y automatización
-              para empresas y emprendedores. Te ayuda a entender qué está fallando,
-              ordenar tus procesos, mejorar ventas y tomar mejores decisiones.
+            <p className="text-slate-400 text-xl leading-relaxed mb-8">
+              TransTech EOS analiza tu empresa, detecta problemas,
+              organiza procesos, mejora ventas y te acompaña
+              paso a paso para aumentar tu rentabilidad.
             </p>
 
-            <div className="grid sm:grid-cols-3 gap-4 mb-10">
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300 mb-2">Diagnóstico</h3>
-                <p className="text-sm text-slate-400">
-                  Detecta problemas reales de ventas, gestión y finanzas.
-                </p>
-              </div>
+            <div className="flex gap-4 flex-wrap">
+              <a
+                href="/login"
+                className="bg-cyan-400 text-slate-950 px-8 py-4 rounded-2xl font-black"
+              >
+                Comenzar gratis
+              </a>
 
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300 mb-2">Dashboard</h3>
-                <p className="text-sm text-slate-400">
-                  Visualizá tu avance, objetivos y próximos pasos.
-                </p>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300 mb-2">Chat EOS</h3>
-                <p className="text-sm text-slate-400">
-                  Asistente conectado para guiarte paso a paso.
-                </p>
-              </div>
+              <a
+                href="/eos"
+                className="border border-white/10 px-8 py-4 rounded-2xl"
+              >
+                Probar EOS
+              </a>
             </div>
 
-            <div className="flex flex-wrap gap-4">
-              <Link href="/login" className="px-7 py-4 rounded-2xl bg-cyan-400 text-slate-950 font-black">
-                Empezar ahora
-              </Link>
+            <div className="grid grid-cols-3 gap-4 mt-12">
+              <div className="bg-[#091633] rounded-3xl p-5">
+                <h3 className="text-cyan-400 font-bold">
+                  Diagnóstico
+                </h3>
+                <p className="text-slate-400 text-sm mt-2">
+                  Detecta problemas ocultos.
+                </p>
+              </div>
 
-              <Link href="/dashboard" className="px-7 py-4 rounded-2xl border border-white/20 font-bold">
-                Ver panel
-              </Link>
+              <div className="bg-[#091633] rounded-3xl p-5">
+                <h3 className="text-cyan-400 font-bold">
+                  Dashboard
+                </h3>
+                <p className="text-slate-400 text-sm mt-2">
+                  Visualizá objetivos y progreso.
+                </p>
+              </div>
+
+              <div className="bg-[#091633] rounded-3xl p-5">
+                <h3 className="text-cyan-400 font-bold">
+                  Chat EOS
+                </h3>
+                <p className="text-slate-400 text-sm mt-2">
+                  Asistente conectado con IA.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-8 shadow-2xl">
-            <p className="text-cyan-400 font-bold mb-2">Diagnóstico gratuito</p>
-            <h3 className="text-3xl font-black mb-3">
-              Contanos qué necesitás mejorar
-            </h3>
+          <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-8">
 
-            <p className="text-slate-400 mb-8">
-              Completá tus datos y EOS va a registrar tu solicitud para iniciar el análisis.
+            <p className="text-cyan-400 font-bold mb-2">
+              Diagnóstico gratuito
             </p>
 
-            <div className="space-y-4">
+            <h2 className="text-3xl font-black mb-2">
+              Contanos qué necesitás mejorar
+            </h2>
+
+            <p className="text-slate-400 mb-6">
+              Completá tus datos y EOS va a registrar tu solicitud
+              para iniciar el análisis.
+            </p>
+
+            <form className="space-y-4">
               <input
-                className="w-full p-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 outline-none"
                 placeholder="Nombre"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                className="w-full bg-slate-800 rounded-xl p-4 border border-white/10"
               />
 
               <input
-                className="w-full p-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 outline-none"
                 placeholder="WhatsApp"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
+                className="w-full bg-slate-800 rounded-xl p-4 border border-white/10"
               />
 
               <input
-                className="w-full p-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 outline-none"
                 placeholder="Empresa o negocio"
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value)}
+                className="w-full bg-slate-800 rounded-xl p-4 border border-white/10"
               />
 
               <textarea
-                className="w-full p-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 outline-none min-h-[130px]"
+                rows={4}
                 placeholder="¿Cuál es tu principal problema?"
-                value={problema}
-                onChange={(e) => setProblema(e.target.value)}
+                className="w-full bg-slate-800 rounded-xl p-4 border border-white/10"
               />
 
               <button
-                onClick={enviarLead}
-                disabled={enviando}
-                className="w-full bg-cyan-400 text-slate-950 py-4 rounded-xl font-black text-lg disabled:opacity-60"
+                type="button"
+                className="w-full bg-cyan-400 text-slate-950 font-black py-4 rounded-xl"
               >
-                {enviando ? "Enviando..." : "Enviar solicitud"}
+                Solicitar diagnóstico
               </button>
-            </div>
+            </form>
           </div>
+
         </div>
+
+        <section className="mt-32">
+          <h2 className="text-5xl font-black text-center mb-14">
+            Todo en un solo sistema
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-6">
+
+            <div className="bg-[#091633] p-8 rounded-3xl">
+              <h3 className="text-2xl font-bold mb-4">
+                Gestión
+              </h3>
+
+              <p className="text-slate-400">
+                Control de clientes, tareas, seguimiento y procesos.
+              </p>
+            </div>
+
+            <div className="bg-[#091633] p-8 rounded-3xl">
+              <h3 className="text-2xl font-bold mb-4">
+                Finanzas
+              </h3>
+
+              <p className="text-slate-400">
+                Organización financiera y análisis de rentabilidad.
+              </p>
+            </div>
+
+            <div className="bg-[#091633] p-8 rounded-3xl">
+              <h3 className="text-2xl font-bold mb-4">
+                Automatización
+              </h3>
+
+              <p className="text-slate-400">
+                IA trabajando para vos 24/7.
+              </p>
+            </div>
+
+          </div>
+        </section>
+
       </section>
     </main>
   );
