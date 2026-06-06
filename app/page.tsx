@@ -1,78 +1,90 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
 
 export default function Home() {
-  const [form, setForm] = useState({
-    nombre: "",
-    whatsapp: "",
-    tipo: "",
-    problema: "",
-  });
+  const [nombre, setNombre] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [problema, setProblema] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
-  const whatsappLink =
-    "https://wa.me/595982226912?text=Hola%20TransTech%20EOS%2C%20quiero%20solicitar%20un%20diagn%C3%B3stico%20gratuito.";
+  async function enviarLead() {
+    if (!nombre || !whatsapp || !problema) {
+      alert("Completá nombre, WhatsApp y tu principal necesidad.");
+      return;
+    }
 
-  const irLogin = () => {
-    window.location.href = "/login";
-  };
+    setEnviando(true);
 
-  const irEOS = () => {
-    window.location.href = "/eos";
-  };
+    const { error } = await supabase.from("leads").insert([
+      { nombre, whatsapp, empresa, problema },
+    ]);
 
-  const enviarDiagnostico = () => {
-    alert("Solicitud recibida. TransTech EOS te contactará para iniciar el diagnóstico.");
-  };
+    setEnviando(false);
+
+    if (error) {
+      alert("No se pudo registrar la solicitud. Probá nuevamente.");
+      console.log(error);
+      return;
+    }
+
+    alert("Diagnóstico solicitado correctamente.");
+    setNombre("");
+    setWhatsapp("");
+    setEmpresa("");
+    setProblema("");
+  }
 
   return (
     <main className="min-h-screen bg-[#020617] text-white">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#020617]/90 backdrop-blur">
+      <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#020617]/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div className="text-2xl font-black">
+          <a href="#" className="text-xl font-black">
             TransTech <span className="text-cyan-400">EOS</span>
-          </div>
+          </a>
 
-          <nav className="hidden gap-8 text-sm font-bold md:flex">
+          <div className="hidden gap-8 text-sm font-bold md:flex">
             <a href="#soluciones">Soluciones</a>
-            <a href="#como-funciona">Cómo funciona</a>
+            <a href="#funciona">Cómo funciona</a>
             <a href="#enfoque">Enfoque</a>
             <a href="#proposito">Propósito</a>
             <a href="#planes">Planes</a>
-          </nav>
+          </div>
 
           <div className="flex gap-3">
-            <button onClick={irLogin} className="rounded-full border border-white/15 px-5 py-3 font-bold">
+            <a href="/login" className="rounded-full border border-white/15 px-5 py-3 text-sm font-bold">
               Ingresar
-            </button>
-            <button onClick={irEOS} className="rounded-full bg-cyan-400 px-5 py-3 font-black text-[#020617]">
+            </a>
+            <a href="/eos" className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950">
               Chat EOS
-            </button>
-            <a href={whatsappLink} className="rounded-full bg-emerald-400 px-5 py-3 font-black text-[#020617]">
+            </a>
+            <a href="https://wa.me/595982226912" target="_blank" className="rounded-full bg-emerald-500 px-5 py-3 text-sm font-black">
               WhatsApp
             </a>
           </div>
         </div>
-      </header>
+      </nav>
 
-      <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-24 lg:grid-cols-2">
-        <div>
-          <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-5 py-2 text-sm font-bold text-cyan-300">
+      <section className="mx-auto max-w-7xl px-6 py-28">
+        <div className="max-w-4xl">
+          <div className="mb-7 inline-flex rounded-full border border-cyan-400/40 bg-cyan-400/10 px-5 py-2 text-sm font-bold text-cyan-300">
             Consultoría + IA + Automatización
-          </span>
+          </div>
 
-          <h1 className="mt-8 text-5xl font-black leading-tight md:text-7xl">
+          <h1 className="text-5xl font-black leading-tight md:text-7xl">
             Tu sistema inteligente para crecer con más orden, control y claridad.
           </h1>
 
-          <p className="mt-8 max-w-2xl text-xl leading-relaxed text-slate-300">
+          <p className="mt-8 max-w-3xl text-xl leading-relaxed text-slate-300">
             TransTech EOS ayuda a personas, emprendedores y empresas a diagnosticar problemas,
-            ordenar procesos, mejorar decisiones, automatizar tareas y crecer de forma rentable
-            y sostenible.
+            crear planes de acción, ordenar procesos y automatizar tareas para crecer de forma
+            rentable, sostenida y medible.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-4">
-            <a href="#diagnostico" className="rounded-full bg-cyan-400 px-8 py-4 font-black text-[#020617]">
+            <a href="#diagnostico" className="rounded-full bg-cyan-400 px-8 py-4 font-black text-slate-950">
               Solicitar diagnóstico gratuito
             </a>
             <a href="#planes" className="rounded-full border border-white/15 px-8 py-4 font-bold">
@@ -80,126 +92,101 @@ export default function Home() {
             </a>
           </div>
         </div>
-
-        <div className="rounded-[32px] border border-cyan-400/20 bg-[#091633] p-8">
-          <p className="font-bold text-cyan-300">Sistema EOS</p>
-          <h2 className="mt-4 text-4xl font-black">
-            Diagnóstico, gestión y automatización para avanzar paso a paso.
-          </h2>
-
-          <div className="mt-8 space-y-4">
-            {[
-              "Análisis del negocio o situación personal",
-              "Chat inteligente conectado a EOS",
-              "Dashboard con objetivos, avances y próximos pasos",
-              "Automatización de tareas, respuestas y seguimiento",
-              "Acompañamiento por WhatsApp",
-            ].map((item) => (
-              <div key={item} className="rounded-2xl bg-white/7 p-4 text-slate-200">
-                ✓ {item}
-              </div>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section id="soluciones" className="mx-auto max-w-7xl px-6 py-20">
-        <h2 className="text-center text-5xl font-black">Qué hace TransTech EOS</h2>
-        <p className="mx-auto mt-6 max-w-3xl text-center text-xl text-slate-300">
-          EOS no es solo una web. Es un sistema de diagnóstico, gestión y seguimiento diseñado para ayudarte
-          a ordenar tu realidad actual y convertirla en un plan de crecimiento.
-        </p>
+        <p className="text-center font-bold text-cyan-300">QUÉ HACEMOS</p>
+        <h2 className="mt-4 text-center text-5xl font-black">Todo en un solo sistema</h2>
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {[
-            ["Diagnóstico", "Detectamos problemas reales, puntos débiles, fugas de dinero, falta de procesos y oportunidades ocultas."],
-            ["Gestión", "Organizamos objetivos, tareas, prioridades, clientes, finanzas y seguimiento de avances."],
-            ["Automatización", "Creamos flujos con IA, WhatsApp, respuestas automáticas, recordatorios y reportes."],
-            ["Finanzas", "Ayudamos a ordenar ingresos, gastos, presupuesto, deudas, rentabilidad y decisiones económicas."],
-            ["Crecimiento", "Construimos un plan para mejorar ventas, eficiencia, atención al cliente y estabilidad."],
-            ["Acompañamiento", "EOS guía al usuario paso a paso, sin importar si recién empieza o si ya tiene un negocio funcionando."],
-          ].map(([title, text]) => (
-            <div key={title} className="rounded-3xl border border-cyan-400/15 bg-[#091633] p-8">
-              <h3 className="text-2xl font-black text-cyan-300">{title}</h3>
-              <p className="mt-4 text-slate-300">{text}</p>
+            ["Diagnóstico inteligente", "Identificamos problemas, oportunidades, bloqueos y prioridades reales."],
+            ["Gestión y organización", "Ordenamos objetivos, clientes, tareas, procesos, finanzas y seguimiento."],
+            ["Automatización con IA", "Reducimos tareas repetitivas y mejoramos respuestas, atención y productividad."],
+            ["Dashboard de progreso", "Visualizás avances, próximos pasos, metas, estado general y prioridades."],
+            ["Asesoría estratégica", "Recibís orientación clara para tomar mejores decisiones paso a paso."],
+            ["Seguimiento por WhatsApp", "Acompañamiento cercano, simple y directo desde el canal que más usás."],
+          ].map(([titulo, texto]) => (
+            <div key={titulo} className="rounded-3xl border border-cyan-400/20 bg-[#091633] p-8">
+              <h3 className="text-2xl font-black text-cyan-300">{titulo}</h3>
+              <p className="mt-4 text-lg leading-relaxed text-slate-300">{texto}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section id="como-funciona" className="mx-auto max-w-7xl px-6 py-20">
-        <h2 className="text-center text-5xl font-black">Cómo funciona</h2>
+      <section id="funciona" className="mx-auto max-w-7xl px-6 py-20">
+        <p className="text-center font-bold text-cyan-300">PROCESO</p>
+        <h2 className="mt-4 text-center text-5xl font-black">Cómo funciona</h2>
 
         <div className="mt-14 grid gap-6 md:grid-cols-4">
           {[
-            ["1", "Diagnóstico inicial", "Conocemos tu situación actual, tus problemas y tus objetivos."],
-            ["2", "Plan de acción", "EOS define prioridades, tareas y pasos claros para avanzar."],
-            ["3", "Dashboard y seguimiento", "Visualizás avances, objetivos, próximos pasos y estado general."],
-            ["4", "Automatización", "Implementamos procesos para ahorrar tiempo, ordenar y vender mejor."],
-          ].map(([num, title, text]) => (
-            <div key={num} className="rounded-3xl bg-white/5 p-7">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400 font-black text-[#020617]">
+            ["1", "Entendemos tu situación", "Analizamos el punto actual, ya sea personal, comercial o empresarial."],
+            ["2", "Detectamos lo importante", "EOS identifica qué frena tu crecimiento y qué debe ordenarse primero."],
+            ["3", "Creamos un plan claro", "Definimos acciones concretas, prioridades y objetivos alcanzables."],
+            ["4", "Medimos y mejoramos", "Hacemos seguimiento para que el avance sea real, sostenido y rentable."],
+          ].map(([num, titulo, texto]) => (
+            <div key={num} className="rounded-3xl border border-white/10 bg-white/5 p-7">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400 font-black text-slate-950">
                 {num}
               </div>
-              <h3 className="text-xl font-black">{title}</h3>
-              <p className="mt-3 text-slate-300">{text}</p>
+              <h3 className="text-xl font-black">{titulo}</h3>
+              <p className="mt-3 leading-relaxed text-slate-300">{texto}</p>
             </div>
           ))}
         </div>
       </section>
 
       <section id="enfoque" className="mx-auto max-w-7xl px-6 py-20">
-        <h2 className="text-center text-5xl font-black">En qué nos enfocamos</h2>
+        <p className="text-center font-bold text-cyan-300">ENFOQUE</p>
+        <h2 className="mt-4 text-center text-5xl font-black">En qué nos enfocamos</h2>
 
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {[
-            ["Crecimiento sostenible", "Que puedas avanzar sin depender del desorden ni de decisiones improvisadas."],
-            ["Rentabilidad", "Mejorar ingresos, controlar costos y entender qué realmente genera valor."],
-            ["Orden financiero", "Presupuesto, control de gastos, objetivos y salud financiera."],
-            ["Procesos claros", "Convertir tareas repetidas en sistemas simples y medibles."],
-            ["Mejor atención al cliente", "Responder mejor, dar seguimiento y no perder oportunidades."],
-            ["Automatización inteligente", "Usar IA para ahorrar tiempo y aumentar productividad."],
-          ].map(([title, text]) => (
-            <div key={title} className="rounded-3xl bg-[#091633] p-8">
-              <h3 className="text-2xl font-black text-cyan-300">{title}</h3>
-              <p className="mt-4 text-slate-300">{text}</p>
+            ["Crecimiento sostenible", "No buscamos soluciones rápidas sin base. Buscamos crecimiento real y duradero."],
+            ["Rentabilidad", "Ayudamos a mejorar ingresos, costos, decisiones y uso del tiempo."],
+            ["Orden financiero", "Claridad sobre gastos, ingresos, deudas, prioridades y próximos movimientos."],
+            ["Procesos claros", "Convertimos el desorden operativo en sistemas simples y repetibles."],
+            ["Mejor atención al cliente", "Respuestas más rápidas, seguimiento y experiencia más profesional."],
+            ["Automatización inteligente", "La IA trabaja para ahorrar tiempo y aumentar capacidad operativa."],
+          ].map(([titulo, texto]) => (
+            <div key={titulo} className="rounded-3xl bg-[#091633] p-8">
+              <h3 className="text-2xl font-black text-cyan-300">{titulo}</h3>
+              <p className="mt-4 leading-relaxed text-slate-300">{texto}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section id="proposito" className="mx-auto max-w-6xl px-6 py-20 text-center">
-        <div className="rounded-[36px] border border-cyan-400/20 bg-[#091633] p-10 md:p-16">
-          <h2 className="text-5xl font-black">Nuestro propósito</h2>
+      <section id="proposito" className="mx-auto max-w-7xl px-6 py-20">
+        <div className="rounded-[2rem] border border-cyan-400/20 bg-[#091633] p-10 text-center">
+          <p className="font-bold text-cyan-300">NUESTRO PROPÓSITO</p>
+          <h2 className="mt-4 text-5xl font-black">Ayudarte a salir adelante con un sistema claro</h2>
           <p className="mx-auto mt-8 max-w-4xl text-xl leading-relaxed text-slate-300">
-            Nuestro objetivo es que cada cliente pueda crecer de forma rentable, ordenada y sostenida
-            con el tiempo. No importa si está empezando, si tiene problemas, si necesita organizar sus
-            finanzas personales o si quiere escalar una empresa: EOS busca darle claridad, estructura,
-            seguimiento y herramientas reales para salir adelante.
+            TransTech EOS existe para acompañar a personas físicas, emprendedores y empresas,
+            sin importar el estado en el que se encuentren actualmente. Nuestro propósito es
+            ayudarte a ordenar tu situación, entender qué está fallando, crear un camino de mejora
+            y crecer con más control, rentabilidad y estabilidad en el tiempo.
           </p>
         </div>
       </section>
 
       <section id="planes" className="mx-auto max-w-7xl px-6 py-20">
-        <h2 className="text-center text-5xl font-black">Planes</h2>
+        <p className="text-center font-bold text-cyan-300">PLANES</p>
+        <h2 className="mt-4 text-center text-5xl font-black">Elegí cómo querés empezar</h2>
 
         <div className="mt-14 grid gap-6 md:grid-cols-4">
           {[
-            ["Free", "Gs. 0", "5 mensajes gratis para probar EOS.", ["Acceso inicial", "Chat limitado", "Prueba del sistema"]],
-            ["Inicial", "Gs. 99.000/mes", "Ideal para personas, emprendedores y pequeños negocios.", ["Diagnóstico", "Dashboard básico", "Seguimiento inicial"]],
-            ["Pro", "Gs. 250.000/mes", "Para quienes quieren más control, gestión y automatización.", ["Dashboard completo", "Chat EOS", "Seguimiento", "Automatizaciones"]],
-            ["Business", "A medida", "Para empresas que necesitan soluciones personalizadas.", ["CRM", "WhatsApp", "Flujos IA", "Automatización avanzada"]],
-          ].map(([name, price, desc, features]: any) => (
-            <div key={name} className="rounded-3xl border border-cyan-400/20 bg-[#091633] p-8">
-              <h3 className="text-3xl font-black text-cyan-300">{name}</h3>
-              <p className="mt-6 text-4xl font-black">{price}</p>
-              <p className="mt-5 text-slate-300">{desc}</p>
-              <ul className="mt-6 space-y-2 text-slate-300">
-                {features.map((f: string) => (
-                  <li key={f}>✓ {f}</li>
-                ))}
-              </ul>
-              <a href={whatsappLink} className="mt-8 block rounded-2xl bg-cyan-400 py-4 text-center font-black text-[#020617]">
+            ["Free", "Gs. 0", "5 mensajes gratis para probar EOS y conocer el sistema."],
+            ["Inicial", "Gs. 99.000/mes", "Para personas, emprendedores y pequeños negocios que necesitan orden y guía."],
+            ["Pro", "Gs. 250.000/mes", "Incluye dashboard, seguimiento, asesoría más completa y acompañamiento."],
+            ["Business", "A medida", "Para empresas que necesitan flujos, CRM, WhatsApp y automatizaciones personalizadas."],
+          ].map(([plan, precio, texto]) => (
+            <div key={plan} className="rounded-3xl border border-cyan-400/20 bg-[#091633] p-8">
+              <h3 className="text-3xl font-black text-cyan-300">{plan}</h3>
+              <p className="mt-6 text-4xl font-black">{precio}</p>
+              <p className="mt-5 leading-relaxed text-slate-300">{texto}</p>
+              <a href="#diagnostico" className="mt-8 block rounded-2xl bg-cyan-400 px-6 py-4 text-center font-black text-slate-950">
                 Elegir plan
               </a>
             </div>
@@ -208,26 +195,23 @@ export default function Home() {
       </section>
 
       <section id="diagnostico" className="mx-auto max-w-5xl px-6 py-24">
-        <div className="rounded-[36px] border border-cyan-400/20 bg-[#091633] p-10">
-          <h2 className="text-center text-5xl font-black">Solicitá tu diagnóstico gratuito</h2>
-          <p className="mx-auto mt-5 max-w-3xl text-center text-slate-300">
-            Completá tus datos y contanos qué necesitás mejorar. EOS puede ayudarte a ordenar,
-            diagnosticar y construir un plan de acción.
+        <div className="rounded-[2rem] border border-cyan-400/20 bg-[#091633] p-8 md:p-12">
+          <p className="font-bold text-cyan-300">DIAGNÓSTICO GRATUITO</p>
+          <h2 className="mt-4 text-5xl font-black">Contanos qué necesitás mejorar</h2>
+          <p className="mt-5 max-w-3xl text-lg leading-relaxed text-slate-300">
+            Completá tus datos y EOS va a registrar tu solicitud para iniciar el análisis.
+            Esta es la primera etapa para entender tu situación y recomendarte el mejor camino.
           </p>
 
           <div className="mt-10 grid gap-4">
-            <input className="rounded-2xl bg-white/10 p-4 outline-none" placeholder="Nombre" onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
-            <input className="rounded-2xl bg-white/10 p-4 outline-none" placeholder="WhatsApp" onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
-            <input className="rounded-2xl bg-white/10 p-4 outline-none" placeholder="Persona física, emprendimiento o empresa" onChange={(e) => setForm({ ...form, tipo: e.target.value })} />
-            <textarea className="min-h-32 rounded-2xl bg-white/10 p-4 outline-none" placeholder="¿Cuál es tu principal problema o meta?" onChange={(e) => setForm({ ...form, problema: e.target.value })} />
+            <input className="rounded-2xl border border-white/10 bg-white/10 p-4 outline-none" placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            <input className="rounded-2xl border border-white/10 bg-white/10 p-4 outline-none" placeholder="WhatsApp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            <input className="rounded-2xl border border-white/10 bg-white/10 p-4 outline-none" placeholder="Empresa, negocio o situación personal" value={empresa} onChange={(e) => setEmpresa(e.target.value)} />
+            <textarea className="min-h-32 rounded-2xl border border-white/10 bg-white/10 p-4 outline-none" placeholder="¿Cuál es tu principal problema o qué querés mejorar?" value={problema} onChange={(e) => setProblema(e.target.value)} />
 
-            <button onClick={enviarDiagnostico} className="rounded-2xl bg-cyan-400 py-4 font-black text-[#020617]">
-              Enviar diagnóstico
+            <button onClick={enviarLead} disabled={enviando} className="rounded-2xl bg-cyan-400 px-6 py-4 font-black text-slate-950 disabled:opacity-60">
+              {enviando ? "Enviando..." : "Solicitar diagnóstico gratuito"}
             </button>
-
-            <a href={whatsappLink} className="rounded-2xl bg-emerald-400 py-4 text-center font-black text-[#020617]">
-              Hablar por WhatsApp
-            </a>
           </div>
         </div>
       </section>
