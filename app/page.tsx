@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { supabase } from "../lib/supabase";
 
 export default function Home() {
@@ -12,7 +13,7 @@ export default function Home() {
 
   async function enviarLead() {
     if (!nombre || !whatsapp || !problema) {
-      alert("Completá nombre, WhatsApp y problema principal.");
+      alert("Completá nombre, WhatsApp y el problema principal.");
       return;
     }
 
@@ -30,8 +31,8 @@ export default function Home() {
     setEnviando(false);
 
     if (error) {
-      alert("Error al guardar. Revisá Supabase.");
       console.log(error);
+      alert("No se pudo enviar. Revisá Supabase.");
       return;
     }
 
@@ -45,67 +46,81 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#020617] text-white">
-      <section className="max-w-6xl mx-auto px-6 py-12">
-        <nav className="flex justify-between items-center mb-16">
+      <section className="max-w-7xl mx-auto px-6 py-8">
+        <nav className="flex items-center justify-between mb-20">
           <div>
-            <p className="text-cyan-400 font-bold text-lg">TransTech</p>
+            <p className="text-cyan-400 font-bold">TransTech</p>
             <h1 className="text-3xl font-black">EOS</h1>
           </div>
 
           <div className="flex gap-3">
-            <a href="/login" className="px-5 py-3 rounded-xl bg-white/10 border border-white/10">
+            <Link href="/login" className="px-5 py-3 rounded-xl bg-white/10 border border-white/10">
               Ingresar
-            </a>
-            <a href="/eos" className="px-5 py-3 rounded-xl bg-cyan-400 text-slate-950 font-bold">
+            </Link>
+            <Link href="/eos" className="px-5 py-3 rounded-xl bg-cyan-400 text-slate-950 font-bold">
               Chat EOS
-            </a>
+            </Link>
           </div>
         </nav>
 
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="grid lg:grid-cols-2 gap-14 items-center">
           <div>
-            <p className="text-cyan-400 font-bold mb-4">Asesor empresarial inteligente</p>
-
-            <h2 className="text-5xl md:text-6xl font-black leading-tight mb-6">
-              Ordená, diagnosticá y hacé crecer tu negocio con IA.
-            </h2>
-
-            <p className="text-slate-300 text-xl mb-8">
-              TransTech EOS ayuda a detectar problemas, mejorar ventas, organizar finanzas
-              y automatizar procesos desde una sola plataforma.
+            <p className="text-cyan-400 font-bold mb-4">
+              Sistema empresarial inteligente
             </p>
 
-            <div className="grid md:grid-cols-3 gap-4 mb-8">
+            <h2 className="text-5xl md:text-6xl font-black leading-tight mb-6">
+              Ordená, automatizá y hacé crecer tu negocio con IA.
+            </h2>
+
+            <p className="text-slate-300 text-xl mb-8 leading-relaxed">
+              TransTech EOS es un sistema de diagnóstico, gestión y automatización
+              para empresas y emprendedores. Te ayuda a entender qué está fallando,
+              ordenar tus procesos, mejorar ventas y tomar mejores decisiones.
+            </p>
+
+            <div className="grid sm:grid-cols-3 gap-4 mb-10">
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300">Diagnóstico</h3>
-                <p className="text-slate-400 text-sm mt-2">Analizamos tu situación actual.</p>
+                <h3 className="font-bold text-cyan-300 mb-2">Diagnóstico</h3>
+                <p className="text-sm text-slate-400">
+                  Detecta problemas reales de ventas, gestión y finanzas.
+                </p>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300">Dashboard</h3>
-                <p className="text-slate-400 text-sm mt-2">Visualizá avances y objetivos.</p>
+                <h3 className="font-bold text-cyan-300 mb-2">Dashboard</h3>
+                <p className="text-sm text-slate-400">
+                  Visualizá tu avance, objetivos y próximos pasos.
+                </p>
               </div>
 
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <h3 className="font-bold text-cyan-300">Chat EOS</h3>
-                <p className="text-slate-400 text-sm mt-2">Asistente conectado con n8n.</p>
+                <h3 className="font-bold text-cyan-300 mb-2">Chat EOS</h3>
+                <p className="text-sm text-slate-400">
+                  Asistente conectado para guiarte paso a paso.
+                </p>
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <a href="/dashboard" className="px-6 py-4 rounded-2xl bg-white text-slate-950 font-bold">
-                Ver dashboard
-              </a>
-              <a href="/login" className="px-6 py-4 rounded-2xl border border-white/20 font-bold">
-                Crear acceso
-              </a>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/login" className="px-7 py-4 rounded-2xl bg-cyan-400 text-slate-950 font-black">
+                Empezar ahora
+              </Link>
+
+              <Link href="/dashboard" className="px-7 py-4 rounded-2xl border border-white/20 font-bold">
+                Ver panel
+              </Link>
             </div>
           </div>
 
           <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-8 shadow-2xl">
-            <h3 className="text-3xl font-black mb-2">Solicitá un diagnóstico gratuito</h3>
+            <p className="text-cyan-400 font-bold mb-2">Diagnóstico gratuito</p>
+            <h3 className="text-3xl font-black mb-3">
+              Contanos qué necesitás mejorar
+            </h3>
+
             <p className="text-slate-400 mb-8">
-              Dejanos tus datos y EOS registra tu solicitud.
+              Completá tus datos y EOS va a registrar tu solicitud para iniciar el análisis.
             </p>
 
             <div className="space-y-4">
@@ -125,7 +140,7 @@ export default function Home() {
 
               <input
                 className="w-full p-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 outline-none"
-                placeholder="Empresa"
+                placeholder="Empresa o negocio"
                 value={empresa}
                 onChange={(e) => setEmpresa(e.target.value)}
               />
