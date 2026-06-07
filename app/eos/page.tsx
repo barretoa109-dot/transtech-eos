@@ -1,41 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { supabase } from "../../lib/supabase";
 
 type Mensaje = {
   rol: "usuario" | "eos";
   texto: string;
 };
 
+type Conversacion = {
+  id: string;
+  titulo: string | null;
+};
+
 export default function EOSPage() {
   const [mensaje, setMensaje] = useState("");
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
+  const [usuarioId, setUsuarioId] = useState("");
+  const [conversacionId, setConversacionId] = useState("");
+  const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
   const [cargando, setCargando] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const usuarioNombre = localStorage.getItem("usuario_nombre") || "Usuario";
-    const usuarioPlan = localStorage.getItem("usuario_plan") || "free";
-
-    setNombre(usuarioNombre);
-    setPlan(usuarioPlan);
-
-    const guardado = localStorage.getItem("eos_historial");
-
-    if (guardado) {
-      try {
-        setHistorial(JSON.parse(guardado));
-      } catch {
-        setHistorial([]);
-      }
-    }
+    iniciarEOS();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("eos_historial", JSON.stringify(historial));
-
     setTimeout(() => {
       chatRef.current?.scrollTo({
         top: chatRef.current.scrollHeight,
@@ -43,6 +36,105 @@ export default function EOSPage() {
       });
     }, 100);
   }, [historial]);
+
+  async function iniciarEOS() {
+    const uuid = localStorage.getItem("usuario_uuid");
+    const usuarioNombre = localStorage.getItem("usuario_nombre") || "Usuario";
+    const usuarioPlan = localStorage.getItem("usuario_plan") || "free";
+
+    setNombre(usuarioNombre);
+    setPlan(usuarioPlan);
+
+    if (!uuid) {
+      window.location.href = "/login";
+      return;
+    }
+
+    setUsuarioId(uuid);
+    await cargarConversaciones(uuid);
+  }
+
+  async function cargarConversaciones(uuid: string) {
+    const { data, error } = await supabase
+      .from("conversaciones")
+      .select("*")
+      .eq("usuario_id", uuid)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.log(error);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      await crearNuevaConversacion(uuid);
+      return;
+    }
+
+    setConversaciones(data);
+    setConversacionId(data[0].id);
+    await cargarMensajes(data[0].id);
+  }
+
+  async function crearNuevaConversacion(uuid = usuarioId) {
+    if (!uuid) return;
+
+    const { data, error } = await supabase
+      .from("conversaciones")
+      .insert([
+        {
+          usuario_id: uuid,
+          titulo: "Diagnóstico actual",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.log(error);
+      return;
+    }
+
+    setConversacionId(data.id);
+    setConversaciones((prev) => [data, ...prev]);
+    setHistorial([]);
+  }
+
+  async function cargarMensajes(idConversacion: string) {
+    const { data, error } = await supabase
+      .from("mensajes")
+      .select("*")
+      .eq("conversacion_id", idConversacion)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.log(error);
+      return;
+    }
+
+    const mensajesFormateados: Mensaje[] =
+  (data || []).map((m: any) => ({
+    rol:
+      m.remitente === "usuario"
+        ? ("usuario" as const)
+        : ("eos" as const),
+    texto: m.mensaje || "",
+  }));
+
+    setHistorial(mensajesFormateados);
+  }
+
+  async function guardarMensaje(remitente: "usuario" | "eos", texto: string) {
+    if (!conversacionId || !texto.trim()) return;
+
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: conversacionId,
+        remitente,
+        mensaje: texto,
+      },
+    ]);
+  }
 
   const limpiarRespuesta = (valor: any): string => {
     let texto = "";
@@ -85,7 +177,7 @@ export default function EOSPage() {
   };
 
   const enviarMensaje = async () => {
-    if (!mensaje.trim() || cargando) return;
+    if (!mensaje.trim() || cargando || !usuarioId || !conversacionId) return;
 
     const textoUsuario = mensaje.trim();
     const historialActual = historial;
@@ -99,6 +191,8 @@ export default function EOSPage() {
     setMensaje("");
     setCargando(true);
 
+    await guardarMensaje("usuario", textoUsuario);
+
     try {
       const response = await fetch(
         "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
@@ -106,6 +200,8 @@ export default function EOSPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            usuario_id: usuarioId,
+            conversacion_id: conversacionId,
             nombre,
             plan,
             mensaje: textoUsuario,
@@ -121,6 +217,8 @@ export default function EOSPage() {
 
       const respuestaLimpia = await obtenerRespuesta(response);
 
+      await guardarMensaje("eos", respuestaLimpia);
+
       setHistorial((prev) => [
         ...prev.slice(0, -1),
         {
@@ -131,11 +229,15 @@ export default function EOSPage() {
         },
       ]);
     } catch {
+      const errorTexto = "No pude conectarme. Probá nuevamente en unos segundos.";
+
+      await guardarMensaje("eos", errorTexto);
+
       setHistorial((prev) => [
         ...prev.slice(0, -1),
         {
           rol: "eos",
-          texto: "No pude conectarme. Probá nuevamente en unos segundos.",
+          texto: errorTexto,
         },
       ]);
     } finally {
@@ -143,9 +245,13 @@ export default function EOSPage() {
     }
   };
 
-  const nuevoChat = () => {
-    localStorage.removeItem("eos_historial");
-    setHistorial([]);
+  const nuevoChat = async () => {
+    await crearNuevaConversacion();
+  };
+
+  const abrirConversacion = async (id: string) => {
+    setConversacionId(id);
+    await cargarMensajes(id);
   };
 
   const sugerencias = [
@@ -173,9 +279,24 @@ export default function EOSPage() {
 
           <div style={styles.menuSection}>
             <p style={styles.menuTitle}>Conversaciones</p>
-            <div style={styles.chatItem}>Diagnóstico actual</div>
-            <div style={styles.chatItemMuted}>Crecimiento comercial</div>
-            <div style={styles.chatItemMuted}>Finanzas del negocio</div>
+
+            {conversaciones.length === 0 && (
+              <div style={styles.chatItemMuted}>Sin conversaciones todavía</div>
+            )}
+
+            {conversaciones.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => abrirConversacion(c.id)}
+                style={
+                  c.id === conversacionId
+                    ? styles.chatItem
+                    : styles.chatItemMutedButton
+                }
+              >
+                {c.titulo || "Conversación EOS"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -216,8 +337,8 @@ export default function EOSPage() {
                 <div style={styles.bigLogo}>E</div>
                 <h1 style={styles.welcomeTitle}>¿Qué querés mejorar hoy?</h1>
                 <p style={styles.welcomeText}>
-                  Contale a EOS qué está pasando en tu negocio. Primero va a
-                  entender tu situación y después te va a guiar paso a paso.
+                  Contale a EOS qué está pasando. Voy a ayudarte a diagnosticar,
+                  ordenar y avanzar paso a paso.
                 </p>
 
                 <div style={styles.suggestionsGrid}>
@@ -296,7 +417,7 @@ export default function EOSPage() {
           </div>
 
           <p style={styles.footerNote}>
-            EOS puede ayudarte a diagnosticar, ordenar y hacer crecer tu negocio.
+            EOS guarda tu proceso para acompañarte con seguimiento real.
           </p>
         </div>
       </section>
@@ -396,11 +517,16 @@ const styles: any = {
     marginBottom: "12px",
   },
   chatItem: {
+    width: "100%",
     background: "rgba(255,255,255,0.08)",
     borderRadius: "14px",
     padding: "13px",
     marginBottom: "8px",
     fontSize: "14px",
+    color: "white",
+    border: "none",
+    textAlign: "left",
+    cursor: "pointer",
   },
   chatItemMuted: {
     color: "#94a3b8",
@@ -408,6 +534,18 @@ const styles: any = {
     padding: "13px",
     marginBottom: "8px",
     fontSize: "14px",
+  },
+  chatItemMutedButton: {
+    width: "100%",
+    color: "#94a3b8",
+    background: "transparent",
+    border: "none",
+    borderRadius: "14px",
+    padding: "13px",
+    marginBottom: "8px",
+    fontSize: "14px",
+    textAlign: "left",
+    cursor: "pointer",
   },
   bottomSidebar: {
     display: "grid",
