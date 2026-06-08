@@ -303,7 +303,7 @@ const enviarMensaje = async (textoManual?: string) => {
     setCargando(false);
   }
 };};
-  const nuevoChat = async () => {
+    const nuevoChat = async () => {
     await crearNuevaConversacion();
   };
 
@@ -311,148 +311,7 @@ const enviarMensaje = async (textoManual?: string) => {
     setConversacionId(id);
     await cargarMensajes(id);
   };
-  function detectarObjetivo(textoUsuario: string, respuestaEOS: string) {
-    const texto = `${textoUsuario} ${respuestaEOS}`.toLowerCase();
 
-    if (texto.includes("venta") || texto.includes("clientes")) {
-      return "Aumentar ventas y conseguir más clientes";
-    }
-
-    if (texto.includes("finanza") || texto.includes("deuda") || texto.includes("gasto")) {
-      return "Ordenar finanzas y mejorar control económico";
-    }
-
-    if (texto.includes("negocio") || texto.includes("empresa") || texto.includes("emprendimiento")) {
-      return "Ordenar y hacer crecer el negocio";
-    }
-
-    if (texto.includes("automatizar") || texto.includes("proceso")) {
-      return "Automatizar procesos y ahorrar tiempo";
-    }
-
-    return "Mejorar situación actual con apoyo de EOS";
-  }
-
-  function generarTareas(textoUsuario: string) {
-    const texto = textoUsuario.toLowerCase();
-
-    if (texto.includes("venta") || texto.includes("clientes")) {
-      return [
-        "Identificar los productos o servicios más rentables",
-        "Definir el cliente ideal",
-        "Crear una oferta clara para atraer clientes",
-        "Medir cuántas consultas se convierten en ventas",
-      ];
-    }
-
-    if (texto.includes("finanza") || texto.includes("deuda") || texto.includes("gasto")) {
-      return [
-        "Listar ingresos y gastos actuales",
-        "Identificar deudas y pagos pendientes",
-        "Crear un presupuesto mensual básico",
-        "Definir una meta de ahorro o reducción de deuda",
-      ];
-    }
-
-    if (texto.includes("automatizar") || texto.includes("proceso")) {
-      return [
-        "Identificar tareas repetitivas",
-        "Elegir qué proceso automatizar primero",
-        "Definir canal principal de atención",
-        "Crear flujo básico de seguimiento",
-      ];
-    }
-
-    return [
-      "Definir el problema principal",
-      "Establecer un objetivo claro",
-      "Identificar las primeras acciones necesarias",
-      "Revisar avances con EOS",
-    ];
-  }
-
-  async function actualizarProgresoUsuario() {
-    if (!usuarioId) return;
-
-    const { data: tareasData } = await supabase
-      .from("tareas")
-      .select("*")
-      .eq("usuario_id", usuarioId);
-
-    const tareas = tareasData || [];
-    const completadas = tareas.filter((t: any) => t.completada === true).length;
-    const progreso = tareas.length > 0 ? Math.round((completadas / tareas.length) * 100) : 10;
-
-    await supabase
-      .from("usuarios")
-      .update({ progreso })
-      .eq("id", usuarioId);
-
-    return progreso;
-  }
-
-  async function crearEstructuraOperativa(textoUsuario: string, respuestaEOS: string) {
-    if (!usuarioId) return;
-
-    const objetivoTitulo = detectarObjetivo(textoUsuario, respuestaEOS);
-
-    const { data: objetivosActuales } = await supabase
-      .from("objetivos")
-      .select("*")
-      .eq("usuario_id", usuarioId)
-      .limit(1);
-
-    let objetivoId = objetivosActuales?.[0]?.id;
-
-    if (!objetivoId) {
-      const { data: nuevoObjetivo } = await supabase
-        .from("objetivos")
-        .insert([
-          {
-            usuario_id: usuarioId,
-            titulo: objetivoTitulo,
-            descripcion: `Objetivo detectado automáticamente por EOS según la conversación: ${textoUsuario}`,
-            porcentaje: 10,
-            estado: "Activo",
-          },
-        ])
-        .select()
-        .single();
-
-      objetivoId = nuevoObjetivo?.id;
-    }
-
-    const { data: tareasActuales } = await supabase
-      .from("tareas")
-      .select("*")
-      .eq("usuario_id", usuarioId)
-      .limit(1);
-
-    if (!tareasActuales || tareasActuales.length === 0) {
-      const tareasGeneradas = generarTareas(textoUsuario);
-
-      await supabase.from("tareas").insert(
-        tareasGeneradas.map((titulo) => ({
-          usuario_id: usuarioId,
-          titulo,
-          descripcion: `Tarea sugerida por EOS para avanzar en: ${objetivoTitulo}`,
-          completada: false,
-          prioridad: "Media",
-        }))
-      );
-    }
-
-    const progreso = await actualizarProgresoUsuario();
-
-    await supabase.from("seguimientos").insert([
-      {
-        usuario_id: usuarioId,
-        mensaje: `EOS registró un nuevo avance del proceso. Objetivo actual: ${objetivoTitulo}.`,
-        porcentaje: progreso || 10,
-        enviado: false,
-      },
-    ]);
-  }
   const sugerencias = [
     "Quiero aumentar mis ventas",
     "Necesito ordenar mis finanzas",
@@ -472,7 +331,7 @@ const enviarMensaje = async (textoManual?: string) => {
             </div>
           </div>
 
-          <button onClick={nuevoChat} style={styles.newButton}>
+          <button type="button" onClick={nuevoChat} style={styles.newButton}>
             + Nuevo diagnóstico
           </button>
 
@@ -485,6 +344,7 @@ const enviarMensaje = async (textoManual?: string) => {
 
             {conversaciones.map((c) => (
               <button
+                type="button"
                 key={c.id}
                 onClick={() => abrirConversacion(c.id)}
                 style={
@@ -543,6 +403,7 @@ const enviarMensaje = async (textoManual?: string) => {
                 <div style={styles.suggestionsGrid}>
                   {sugerencias.map((item) => (
                     <button
+                      type="button"
                       key={item}
                       onClick={() => enviarMensaje(item)}
                       style={styles.suggestionButton}
@@ -604,7 +465,8 @@ const enviarMensaje = async (textoManual?: string) => {
             />
 
             <button
-              onClick={enviarMensaje}
+              type="button"
+              onClick={() => enviarMensaje()}
               disabled={cargando}
               style={{
                 ...styles.sendButton,
