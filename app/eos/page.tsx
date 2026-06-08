@@ -190,107 +190,128 @@ export default function EOSPage() {
     }
   };
 
-  const enviarMensaje = async () => {
-    if (!mensaje.trim() || cargando || !usuarioId || !conversacionId) return;
+const enviarMensaje = async () => {
+  if (!mensaje.trim() || cargando) return;
 
-    const textoUsuario = mensaje.trim();
-    const historialActual = historial;
+  let conversacionActiva = conversacionId;
 
-    setHistorial((prev) => [
-      ...prev,
-      { rol: "usuario", texto: textoUsuario },
-      { rol: "eos", texto: "EOS está analizando tu situación..." },
+  if (!usuarioId) {
+    window.location.href = "/login";
+    return;
+  }
+
+  if (!conversacionActiva) {
+    const { data, error } = await supabase
+      .from("conversaciones")
+      .insert([
+        {
+          usuario_id: usuarioId,
+          titulo: "Diagnóstico actual",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.log("Error creando conversación:", error);
+      alert("No se pudo iniciar la conversación.");
+      return;
+    }
+
+    conversacionActiva = data.id;
+    setConversacionId(data.id);
+    setConversaciones((prev) => [data, ...prev]);
+  }
+
+  const textoUsuario = mensaje.trim();
+  const historialActual = historial;
+
+  setMensaje("");
+  setCargando(true);
+
+  setHistorial((prev) => [
+    ...prev,
+    { rol: "usuario", texto: textoUsuario },
+    { rol: "eos", texto: "EOS está analizando tu situación..." },
+  ]);
+
+  await supabase.from("mensajes").insert([
+    {
+      conversacion_id: conversacionActiva,
+      remitente: "usuario",
+      mensaje: textoUsuario,
+    },
+  ]);
+
+  try {
+    const response = await fetch(
+      "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          usuario_id: usuarioId,
+          conversacion_id: conversacionActiva,
+          nombre,
+          plan,
+          mensaje: textoUsuario,
+          historial: historialActual.slice(-10),
+          origen: "eos-web",
+        }),
+      }
+    );
+
+    const respuestaLimpia = await obtenerRespuesta(response);
+
+    if (!response.ok) {
+      console.log("Error n8n:", response.status, respuestaLimpia);
+      throw new Error("Error en n8n");
+    }
+
+    const respuestaFinal =
+      respuestaLimpia ||
+      "Estoy acá. Recibí tu mensaje, pero necesito que me cuentes un poco más para ayudarte bien.";
+
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: conversacionActiva,
+        remitente: "eos",
+        mensaje: respuestaFinal,
+      },
     ]);
 
-    setMensaje("");
-    setCargando(true);
+    crearEstructuraOperativa(textoUsuario, respuestaFinal).catch((error) => {
+      console.log("Error creando estructura operativa:", error);
+    });
 
-    await guardarMensaje("usuario", textoUsuario);
+    setHistorial((prev) => [
+      ...prev.slice(0, -1),
+      { rol: "eos", texto: respuestaFinal },
+    ]);
+  } catch (error) {
+    console.log("Error enviando mensaje:", error);
 
-    try {
-      const response = await fetch("https://n8n-production-6cdb.up.railway.app/webhook/eos-chat", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    usuario_id: usuarioId,
-    conversacion_id: conversacionId,
-    nombre,
-    plan,
-    mensaje: textoUsuario,
-    historial: historialActual.slice(-10),
-    origen: "eos-web",
-  }),
-});
+    const errorTexto =
+      "No pude conectarme con EOS en este momento. Verificá que el workflow esté publicado en n8n y probá nuevamente.";
 
-const rawText = await response.text();
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: conversacionActiva,
+        remitente: "eos",
+        mensaje: errorTexto,
+      },
+    ]);
 
-if (!response.ok) {
-  console.log("Error n8n:", response.status, rawText);
-  throw new Error("Error en n8n");
-}
-
-let respuestaLimpia = "";
-
-try {
-  const data = JSON.parse(rawText);
-
-  respuestaLimpia =
-    data?.respuesta ||
-    data?.text ||
-    data?.message ||
-    data?.output ||
-    rawText;
-} catch {
-  respuestaLimpia = rawText;
-}
-
-if (typeof respuestaLimpia !== "string") {
-  respuestaLimpia = JSON.stringify(respuestaLimpia);
-}
-
-respuestaLimpia = respuestaLimpia
-  .replace(/```json/g, "")
-  .replace(/```/g, "")
-  .trim();
-
-if (!respuestaLimpia || respuestaLimpia === "[object Object]") {
-  respuestaLimpia =
-    "Estoy acá. Recibí tu mensaje, pero necesito que me cuentes un poco más para ayudarte bien.";
-}
-
-      await guardarMensaje("eos", respuestaLimpia);
-
-crearEstructuraOperativa(textoUsuario, respuestaLimpia).catch((error) => {
-  console.log("Error creando estructura operativa:", error);
-});
-
-setHistorial((prev) => [
-        ...prev.slice(0, -1),
-        {
-          rol: "eos",
-          texto:
-            respuestaLimpia ||
-            "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.",
-        },
-      ]);
-    } catch {
-      const errorTexto = "No pude conectarme. Probá nuevamente en unos segundos.";
-
-      await guardarMensaje("eos", errorTexto);
-
-      setHistorial((prev) => [
-        ...prev.slice(0, -1),
-        {
-          rol: "eos",
-          texto: errorTexto,
-        },
-      ]);
-    } finally {
-      setCargando(false);
-    }
-  };
+    setHistorial((prev) => [
+      ...prev.slice(0, -1),
+      { rol: "eos", texto: errorTexto },
+    ]);
+  } finally {
+    setCargando(false);
+  }
+};
 
   const nuevoChat = async () => {
     await crearNuevaConversacion();
@@ -533,7 +554,10 @@ setHistorial((prev) => [
                   {sugerencias.map((item) => (
                     <button
                       key={item}
-                      onClick={() => setMensaje(item)}
+                      onClick={() => {
+  setMensaje(item);
+  setTimeout(() => enviarMensaje(), 50);
+}}
                       style={styles.suggestionButton}
                     >
                       {item}
