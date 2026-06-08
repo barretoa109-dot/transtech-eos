@@ -22,7 +22,7 @@ export default function EOSPage() {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
   const [cargando, setCargando] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     iniciarEOS();
@@ -62,7 +62,7 @@ export default function EOSPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.log(error);
+      console.log("Error cargando conversaciones:", error);
       return;
     }
 
@@ -76,8 +76,8 @@ export default function EOSPage() {
     await cargarMensajes(data[0].id);
   }
 
-  async function crearNuevaConversacion(uuid = usuarioId) {
-    if (!uuid) return;
+  async function crearNuevaConversacion(uuid = usuarioId): Promise<string | null> {
+    if (!uuid) return null;
 
     const { data, error } = await supabase
       .from("conversaciones")
@@ -90,14 +90,16 @@ export default function EOSPage() {
       .select()
       .single();
 
-    if (error) {
-      console.log(error);
-      return;
+    if (error || !data) {
+      console.log("Error creando conversación:", error);
+      return null;
     }
 
     setConversacionId(data.id);
     setConversaciones((prev) => [data, ...prev]);
     setHistorial([]);
+
+    return data.id;
   }
 
   async function cargarMensajes(idConversacion: string) {
@@ -108,202 +110,219 @@ export default function EOSPage() {
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.log(error);
+      console.log("Error cargando mensajes:", error);
       return;
     }
 
-    const mensajesFormateados: Mensaje[] =
-  (data || []).map((m: any) => ({
-    rol:
-      m.remitente === "usuario"
-        ? ("usuario" as const)
-        : ("eos" as const),
-    texto: m.mensaje || "",
-  }));
+    const mensajesFormateados: Mensaje[] = (data || []).map((m: any) => ({
+      rol:
+        m.remitente === "usuario" || m.rol === "usuario"
+          ? "usuario"
+          : "eos",
+      texto: m.mensaje || m.texto || "",
+    }));
 
     setHistorial(mensajesFormateados);
   }
 
-  async function guardarMensaje(remitente: "usuario" | "eos", texto: string) {
-    if (!conversacionId || !texto.trim()) return;
+  async function guardarMensaje(
+    idConversacion: string,
+    remitente: "usuario" | "eos",
+    texto: string
+  ) {
+    if (!idConversacion || !texto.trim()) return;
 
-    await supabase.from("mensajes").insert([
+    const { error } = await supabase.from("mensajes").insert([
       {
-        conversacion_id: conversacionId,
+        conversacion_id: idConversacion,
         remitente,
         mensaje: texto,
       },
     ]);
-  }
 
-const extraerTextoEOS = (valor: any): string => {
-  if (!valor) return "";
+    if (!error) return;
 
-  if (typeof valor === "string") return valor;
+    console.log("Primer formato de mensajes falló, probando formato alternativo:", error);
 
-  if (Array.isArray(valor)) {
-    return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
-  }
-
-  if (typeof valor === "object") {
-    return (
-      extraerTextoEOS(valor.respuesta) ||
-      extraerTextoEOS(valor.output) ||
-      extraerTextoEOS(valor.text) ||
-      extraerTextoEOS(valor.message) ||
-      extraerTextoEOS(valor.content) ||
-      extraerTextoEOS(valor.data) ||
-      extraerTextoEOS(valor.json) ||
-      extraerTextoEOS(valor.choices?.[0]?.message?.content) ||
-      extraerTextoEOS(valor.content?.[0]?.text) ||
-      extraerTextoEOS(valor.response?.body?.respuesta) ||
-      ""
-    );
-  }
-
-  return String(valor);
-};
-
-const extraerTextoEOS = (valor: any): string => {
-  let texto = extraerTextoEOS(valor);
-
-  if (!texto || texto === "[object Object]") {
-    return "";
-  }
-
-  return texto
-    .replace(/^=/, "")
-    .replace(/^```json/i, "")
-    .replace(/^```/, "")
-    .replace(/```$/, "")
-    .replace(/\\n/g, "\n")
-    .replace(/\\"/g, '"')
-    .trim();
-};
-
-const obtenerRespuesta = async (response: Response): Promise<string> => {
-  const texto = await response.text();
-
-  console.log("RESPUESTA CRUDA EOS:", texto);
-
-  if (!texto || texto.trim() === "") {
-    throw new Error("EOS respondió vacío");
-  }
-
-  try {
-    const data = JSON.parse(texto);
-    return limpiarRespuesta(data);
-  } catch {
-    return limpiarRespuesta(texto);
-  }
-};
-
-const enviarMensaje = async (textoManual?: string) => {
-  const textoFinal = textoManual || mensaje;
-
-  if (!textoFinal.trim() || cargando) return;
-
-  let conversacionActiva = conversacionId;
-
-  if (!conversacionActiva) {
-    await crearNuevaConversacion(usuarioId);
-    return;
-  }
-
-  const textoUsuario = textoFinal.trim();
-  const historialActual = historial;
-
-  setMensaje("");
-  setCargando(true);
-
-  setHistorial((prev) => [
-    ...prev,
-    { rol: "usuario", texto: textoUsuario },
-    {
-      rol: "eos",
-      texto: "Dame unos segundos, estoy revisando tu situación para responderte bien...",
-    },
-  ]);
-
-  await supabase.from("mensajes").insert([
-    {
-      conversacion_id: conversacionActiva,
-      remitente: "usuario",
-      mensaje: textoUsuario,
-    },
-  ]);
-
-  try {
-    const response = await fetch("/api/eos", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: idConversacion,
+        rol: remitente,
+        texto,
       },
-      body: JSON.stringify({
-        usuario_id: usuarioId,
-        conversacion_id: conversacionActiva,
-        nombre,
-        plan,
-        mensaje: textoUsuario,
-        historial: historialActual.slice(-10),
-        origen: "eos-web",
-      }),
-    });
+    ]);
+  }
 
-    const respuestaLimpia = await obtenerRespuesta(response);
+  function extraerTextoEOS(valor: any): string {
+    if (!valor) return "";
 
-    if (!response.ok) {
-      console.log("Error EOS:", response.status, respuestaLimpia);
-      throw new Error("Error en EOS");
+    if (typeof valor === "string") return valor;
+
+    if (Array.isArray(valor)) {
+      return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
     }
 
-    const respuestaFinal =
-      respuestaLimpia ||
-      "Te leo, Augusto. Contame un poco más de contexto para poder ayudarte mejor.";
+    if (typeof valor === "object") {
+      return (
+        extraerTextoEOS(valor.respuesta) ||
+        extraerTextoEOS(valor.output) ||
+        extraerTextoEOS(valor.text) ||
+        extraerTextoEOS(valor.message) ||
+        extraerTextoEOS(valor.content) ||
+        extraerTextoEOS(valor.data) ||
+        extraerTextoEOS(valor.json) ||
+        extraerTextoEOS(valor.choices?.[0]?.message?.content) ||
+        extraerTextoEOS(valor.content?.[0]?.text) ||
+        extraerTextoEOS(valor.response?.body?.respuesta) ||
+        ""
+      );
+    }
 
-    await supabase.from("mensajes").insert([
-      {
-        conversacion_id: conversacionActiva,
-        remitente: "eos",
-        mensaje: respuestaFinal,
-      },
-    ]);
-
-    await crearEstructuraOperativa(textoUsuario, respuestaFinal);
-
-    setHistorial((prev) => [
-      ...prev.slice(0, -1),
-      {
-        rol: "eos",
-        texto: respuestaFinal,
-      },
-    ]);
-  } catch (error) {
-    console.log("ERROR EOS:", error);
-
-    const respuestaError =
-      "Ahora mismo no pude conectarme bien. Probá de nuevo en unos segundos y lo seguimos desde acá.";
-
-    await supabase.from("mensajes").insert([
-      {
-        conversacion_id: conversacionActiva,
-        remitente: "eos",
-        mensaje: respuestaError,
-      },
-    ]);
-
-    setHistorial((prev) => [
-      ...prev.slice(0, -1),
-      {
-        rol: "eos",
-        texto: respuestaError,
-      },
-    ]);
-  } finally {
-    setCargando(false);
+    return String(valor);
   }
-};};
-    const nuevoChat = async () => {
+
+  function limpiarRespuesta(valor: any): string {
+    let texto = extraerTextoEOS(valor);
+
+    if (!texto || texto === "[object Object]") return "";
+
+    try {
+      const parsed = JSON.parse(texto);
+      const extraido = extraerTextoEOS(parsed);
+      if (extraido) texto = extraido;
+    } catch {
+      // Si no es JSON válido, seguimos con el texto original.
+    }
+
+    return texto
+      .replace(/^=/, "")
+      .replace(/^```json/i, "")
+      .replace(/^```/, "")
+      .replace(/```$/, "")
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .trim();
+  }
+
+  async function obtenerRespuesta(response: Response): Promise<string> {
+    const texto = await response.text();
+
+    console.log("RESPUESTA CRUDA EOS:", texto);
+
+    if (!texto || texto.trim() === "") {
+      throw new Error("EOS respondió vacío");
+    }
+
+    try {
+      const data = JSON.parse(texto);
+      return limpiarRespuesta(data);
+    } catch {
+      return limpiarRespuesta(texto);
+    }
+  }
+
+  async function enviarMensaje(textoManual?: string) {
+    const textoFinal = textoManual || mensaje;
+
+    if (!textoFinal.trim() || cargando) return;
+
+    if (!usuarioId) {
+      window.location.href = "/login";
+      return;
+    }
+
+    let conversacionActiva = conversacionId;
+
+    if (!conversacionActiva) {
+      const nuevaConversacionId = await crearNuevaConversacion(usuarioId);
+
+      if (!nuevaConversacionId) {
+        alert("No se pudo iniciar la conversación.");
+        return;
+      }
+
+      conversacionActiva = nuevaConversacionId;
+    }
+
+    const textoUsuario = textoFinal.trim();
+    const historialActual = historial;
+
+    setMensaje("");
+    setCargando(true);
+
+    setHistorial((prev) => [
+      ...prev,
+      { rol: "usuario", texto: textoUsuario },
+      {
+        rol: "eos",
+        texto: "Dame unos segundos, estoy revisando tu situación para responderte bien...",
+      },
+    ]);
+
+    await guardarMensaje(conversacionActiva, "usuario", textoUsuario);
+
+    try {
+      const response = await fetch("/api/eos", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          usuario_id: usuarioId,
+          conversacion_id: conversacionActiva,
+          nombre,
+          plan,
+          mensaje: textoUsuario,
+          historial: historialActual.slice(-10),
+          origen: "eos-web",
+        }),
+      });
+
+      const respuestaLimpia = await obtenerRespuesta(response);
+
+      if (!response.ok) {
+        console.log("Error EOS:", response.status, respuestaLimpia);
+        throw new Error("Error en EOS");
+      }
+
+      const respuestaFinal =
+        respuestaLimpia ||
+        "Te leo. Contame un poco más de contexto para poder ayudarte mejor.";
+
+      await guardarMensaje(conversacionActiva, "eos", respuestaFinal);
+
+      crearEstructuraOperativa(textoUsuario, respuestaFinal).catch((error) => {
+        console.log("Error creando estructura operativa:", error);
+      });
+
+      setHistorial((prev) => [
+        ...prev.slice(0, -1),
+        {
+          rol: "eos",
+          texto: respuestaFinal,
+        },
+      ]);
+    } catch (error) {
+      console.log("ERROR EOS:", error);
+
+      const respuestaError =
+        "Ahora mismo no pude conectarme bien. Probá de nuevo en unos segundos y lo seguimos desde acá.";
+
+      await guardarMensaje(conversacionActiva, "eos", respuestaError);
+
+      setHistorial((prev) => [
+        ...prev.slice(0, -1),
+        {
+          rol: "eos",
+          texto: respuestaError,
+        },
+      ]);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  const nuevoChat = async () => {
     await crearNuevaConversacion();
   };
 
@@ -311,6 +330,185 @@ const enviarMensaje = async (textoManual?: string) => {
     setConversacionId(id);
     await cargarMensajes(id);
   };
+
+  function detectarObjetivo(textoUsuario: string, respuestaEOS: string) {
+    const texto = `${textoUsuario} ${respuestaEOS}`.toLowerCase();
+
+    if (texto.includes("venta") || texto.includes("clientes")) {
+      return "Aumentar ventas y conseguir más clientes";
+    }
+
+    if (
+      texto.includes("finanza") ||
+      texto.includes("deuda") ||
+      texto.includes("gasto")
+    ) {
+      return "Ordenar finanzas y mejorar control económico";
+    }
+
+    if (
+      texto.includes("negocio") ||
+      texto.includes("empresa") ||
+      texto.includes("emprendimiento")
+    ) {
+      return "Ordenar y hacer crecer el negocio";
+    }
+
+    if (texto.includes("automatizar") || texto.includes("proceso")) {
+      return "Automatizar procesos y ahorrar tiempo";
+    }
+
+    return "Mejorar situación actual con apoyo de EOS";
+  }
+
+  function generarTareas(textoUsuario: string) {
+    const texto = textoUsuario.toLowerCase();
+
+    if (texto.includes("venta") || texto.includes("clientes")) {
+      return [
+        "Identificar los productos o servicios más rentables",
+        "Definir el cliente ideal",
+        "Crear una oferta clara para atraer clientes",
+        "Medir cuántas consultas se convierten en ventas",
+      ];
+    }
+
+    if (
+      texto.includes("finanza") ||
+      texto.includes("deuda") ||
+      texto.includes("gasto")
+    ) {
+      return [
+        "Listar ingresos y gastos actuales",
+        "Identificar deudas y pagos pendientes",
+        "Crear un presupuesto mensual básico",
+        "Definir una meta de ahorro o reducción de deuda",
+      ];
+    }
+
+    if (texto.includes("automatizar") || texto.includes("proceso")) {
+      return [
+        "Identificar tareas repetitivas",
+        "Elegir qué proceso automatizar primero",
+        "Definir canal principal de atención",
+        "Crear flujo básico de seguimiento",
+      ];
+    }
+
+    return [
+      "Definir el problema principal",
+      "Establecer un objetivo claro",
+      "Identificar las primeras acciones necesarias",
+      "Revisar avances con EOS",
+    ];
+  }
+
+  async function actualizarProgresoUsuario() {
+    if (!usuarioId) return;
+
+    const { data: tareasData } = await supabase
+      .from("tareas")
+      .select("*")
+      .eq("usuario_id", usuarioId);
+
+    const tareas = tareasData || [];
+    const completadas = tareas.filter((t: any) => t.completada === true).length;
+    const progreso =
+      tareas.length > 0 ? Math.round((completadas / tareas.length) * 100) : 10;
+
+    await supabase.from("usuarios").update({ progreso }).eq("id", usuarioId);
+
+    return progreso;
+  }
+
+  async function crearEstructuraOperativa(
+    textoUsuario: string,
+    respuestaEOS: string
+  ) {
+    if (!usuarioId) return;
+
+    const objetivoTitulo = detectarObjetivo(textoUsuario, respuestaEOS);
+
+    const { data: objetivosActuales } = await supabase
+      .from("objetivos")
+      .select("*")
+      .eq("usuario_id", usuarioId)
+      .limit(1);
+
+    let objetivoId = objetivosActuales?.[0]?.id;
+
+    if (!objetivoId) {
+      const { data: nuevoObjetivo, error: objetivoError } = await supabase
+        .from("objetivos")
+        .insert([
+          {
+            usuario_id: usuarioId,
+            titulo: objetivoTitulo,
+            descripcion: `Objetivo detectado automáticamente por EOS según la conversación: ${textoUsuario}`,
+            porcentaje: 10,
+            estado: "Activo",
+          },
+        ])
+        .select()
+        .single();
+
+      if (objetivoError) {
+        console.log("No se pudo crear objetivo completo, probando mínimo:", objetivoError);
+
+        const { data: objetivoMinimo } = await supabase
+          .from("objetivos")
+          .insert([
+            {
+              usuario_id: usuarioId,
+              titulo: objetivoTitulo,
+            },
+          ])
+          .select()
+          .single();
+
+        objetivoId = objetivoMinimo?.id;
+      } else {
+        objetivoId = nuevoObjetivo?.id;
+      }
+    }
+
+    const { data: tareasActuales } = await supabase
+      .from("tareas")
+      .select("*")
+      .eq("usuario_id", usuarioId)
+      .limit(1);
+
+    if (!tareasActuales || tareasActuales.length === 0) {
+      const tareasGeneradas = generarTareas(textoUsuario);
+
+      const { error: tareasError } = await supabase.from("tareas").insert(
+        tareasGeneradas.map((titulo) => ({
+          usuario_id: usuarioId,
+          titulo,
+          completada: false,
+        }))
+      );
+
+      if (tareasError) {
+        console.log("No se pudieron crear tareas:", tareasError);
+      }
+    }
+
+    const progreso = await actualizarProgresoUsuario();
+
+    const { error: seguimientoError } = await supabase.from("seguimientos").insert([
+      {
+        usuario_id: usuarioId,
+        mensaje: `EOS registró un nuevo avance del proceso. Objetivo actual: ${objetivoTitulo}.`,
+        porcentaje: progreso || 10,
+        enviado: false,
+      },
+    ]);
+
+    if (seguimientoError) {
+      console.log("No se pudo registrar seguimiento:", seguimientoError);
+    }
+  }
 
   const sugerencias = [
     "Quiero aumentar mis ventas",
