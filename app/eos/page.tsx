@@ -240,8 +240,7 @@ const enviarMensaje = async () => {
   ]);
 
   try {
-    const response = await fetch(
-      "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
+    const response = await fetch("/api/eos", {
       {
         method: "POST",
         headers: {
