@@ -178,74 +178,118 @@ const obtenerRespuesta = async (response: Response): Promise<string> => {
 
   console.log("RESPUESTA CRUDA N8N:", texto);
 
-  try {
-  const response = await fetch("/api/eos", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      usuario_id: usuarioId,
-      conversacion_id: conversacionActiva,
-      nombre,
-      plan,
-      mensaje: textoUsuario,
-      historial: historialActual.slice(-10),
-      origen: "eos-web",
-    }),
-  });
-
-  const respuestaLimpia = await obtenerRespuesta(response);
-
-  if (!response.ok) {
-    console.log("Error n8n:", response.status, respuestaLimpia);
-    throw new Error("Error en n8n");
+  if (!texto || texto.trim() === "") {
+    throw new Error("n8n respondió vacío");
   }
 
-  const respuestaFinal =
-    respuestaLimpia ||
-    "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
+  try {
+    const data = JSON.parse(texto);
+    return limpiarRespuesta(data);
+  } catch {
+    return limpiarRespuesta(texto);
+  }
+};
+
+const enviarMensaje = async () => {
+  if (!mensaje.trim() || cargando) return;
+
+  let conversacionActiva = conversacionId;
+
+  if (!conversacionActiva) {
+    await crearNuevaConversacion(usuarioId);
+    return;
+  }
+
+  const textoUsuario = mensaje.trim();
+  const historialActual = historial;
+
+  setMensaje("");
+  setCargando(true);
+
+  setHistorial((prev) => [
+    ...prev,
+    { rol: "usuario", texto: textoUsuario },
+    { rol: "eos", texto: "EOS está analizando tu situación..." },
+  ]);
 
   await supabase.from("mensajes").insert([
     {
       conversacion_id: conversacionActiva,
-      remitente: "eos",
-      mensaje: respuestaFinal,
+      remitente: "usuario",
+      mensaje: textoUsuario,
     },
   ]);
 
-  setHistorial((prev) => [
-    ...prev.slice(0, -1),
-    {
-      rol: "eos",
-      texto: respuestaFinal,
-    },
-  ]);
-} catch (error) {
-  console.log("ERROR EOS:", error);
+  try {
+    const response = await fetch("/api/eos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        usuario_id: usuarioId,
+        conversacion_id: conversacionActiva,
+        nombre,
+        plan,
+        mensaje: textoUsuario,
+        historial: historialActual.slice(-10),
+        origen: "eos-web",
+      }),
+    });
 
-  const respuestaError =
-    "No pude conectarme con EOS en este momento. Probá nuevamente en unos segundos.";
+    const respuestaLimpia = await obtenerRespuesta(response);
 
-  await supabase.from("mensajes").insert([
-    {
-      conversacion_id: conversacionActiva,
-      remitente: "eos",
-      mensaje: respuestaError,
-    },
-  ]);
+    if (!response.ok) {
+      console.log("Error n8n:", response.status, respuestaLimpia);
+      throw new Error("Error en n8n");
+    }
 
-  setHistorial((prev) => [
-    ...prev.slice(0, -1),
-    {
-      rol: "eos",
-      texto: respuestaError,
-    },
-  ]);
-} finally {
-  setCargando(false);
-}
+    const respuestaFinal =
+      respuestaLimpia ||
+      "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
 
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: conversacionActiva,
+        remitente: "eos",
+        mensaje: respuestaFinal,
+      },
+    ]);
+
+    await crearEstructuraOperativa(textoUsuario, respuestaFinal);
+
+    setHistorial((prev) => [
+      ...prev.slice(0, -1),
+      {
+        rol: "eos",
+        texto: respuestaFinal,
+      },
+    ]);
+  } catch (error) {
+    console.log("ERROR EOS:", error);
+
+    const respuestaError =
+      "No pude conectarme con EOS en este momento. Probá nuevamente en unos segundos.";
+
+    await supabase.from("mensajes").insert([
+      {
+        conversacion_id: conversacionActiva,
+        remitente: "eos",
+        mensaje: respuestaError,
+      },
+    ]);
+
+    setHistorial((prev) => [
+      ...prev.slice(0, -1),
+      {
+        rol: "eos",
+        texto: respuestaError,
+      },
+    ]);
+  } finally {
+    setCargando(false);
+  }
+};
   const nuevoChat = async () => {
     await crearNuevaConversacion();
   };
