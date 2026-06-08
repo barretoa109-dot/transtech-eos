@@ -39,23 +39,27 @@ export default function LoginPage() {
         const { data: nuevoUsuario, error: errorCrear } = await supabase
           .from("usuarios")
           .insert([
-            {
-              nombre: nombreFinal,
-              whatsapp: whatsappFinal,
-              plan: "free",
-              progreso: 0,
-              estado: "Activo",
-            },
-          ])
+  {
+    nombre: nombreFinal,
+    whatsapp: whatsappFinal,
+    plan: "free",
+  },
+])
           .select()
           .single();
 
-        if (errorCrear) {
-          console.log(errorCrear);
-          alert("No se pudo crear el usuario.");
-          setCargando(false);
-          return;
-        }
+       if (errorCrear) {
+  console.log(errorCrear);
+
+  alert(
+    `Error: ${errorCrear.message}
+Código: ${errorCrear.code}
+Detalle: ${errorCrear.details || "Sin detalle"}`
+  );
+
+  setCargando(false);
+  return;
+}
 
         usuario = nuevoUsuario;
       }
