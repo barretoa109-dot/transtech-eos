@@ -208,28 +208,57 @@ export default function EOSPage() {
     await guardarMensaje("usuario", textoUsuario);
 
     try {
-      const response = await fetch(
-        "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            usuario_id: usuarioId,
-            conversacion_id: conversacionId,
-            nombre,
-            plan,
-            mensaje: textoUsuario,
-            historial: historialActual.slice(-10),
-            origen: "eos-web",
-          }),
-        }
-      );
+      const response = await fetch(WEBHOOK_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    usuario_id: usuarioId,
+    conversacion_id: conversacionId,
+    nombre,
+    plan,
+    mensaje: textoUsuario,
+    historial: historialActual.slice(-10),
+    origen: "eos-web",
+  }),
+});
 
-      if (!response.ok) {
-        throw new Error("Error en n8n");
-      }
+const rawText = await response.text();
 
-      const respuestaLimpia = await obtenerRespuesta(response);
+if (!response.ok) {
+  console.log("Error n8n:", response.status, rawText);
+  throw new Error("Error en n8n");
+}
+
+let respuestaLimpia = "";
+
+try {
+  const data = JSON.parse(rawText);
+
+  respuestaLimpia =
+    data?.respuesta ||
+    data?.text ||
+    data?.message ||
+    data?.output ||
+    rawText;
+} catch {
+  respuestaLimpia = rawText;
+}
+
+if (typeof respuestaLimpia !== "string") {
+  respuestaLimpia = JSON.stringify(respuestaLimpia);
+}
+
+respuestaLimpia = respuestaLimpia
+  .replace(/```json/g, "")
+  .replace(/```/g, "")
+  .trim();
+
+if (!respuestaLimpia || respuestaLimpia === "[object Object]") {
+  respuestaLimpia =
+    "Estoy acá. Recibí tu mensaje, pero necesito que me cuentes un poco más para ayudarte bien.";
+}
 
       await guardarMensaje("eos", respuestaLimpia);
 
