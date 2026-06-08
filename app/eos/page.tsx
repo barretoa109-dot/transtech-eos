@@ -208,7 +208,7 @@ export default function EOSPage() {
     await guardarMensaje("usuario", textoUsuario);
 
     try {
-      const response = await fetch(https://n8n-production-6cdb.up.railway.app/webhook/eos-chat, {
+      const response = await fetch("https://n8n-production-6cdb.up.railway.app/webhook/eos-chat", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
