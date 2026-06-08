@@ -136,31 +136,39 @@ export default function EOSPage() {
     ]);
   }
 
-const limpiarRespuesta = (valor: any): string => {
+const extraerTextoEOS = (valor: any): string => {
   if (!valor) return "";
 
-  let texto =
-    typeof valor === "string"
-      ? valor
-      : valor.respuesta ||
-        valor.output ||
-        valor.text ||
-        valor.message ||
-        valor.content ||
-        valor.data?.respuesta ||
-        valor.data?.output ||
-        valor.data?.text ||
-        valor[0]?.respuesta ||
-        valor[0]?.output ||
-        valor[0]?.text ||
-        valor[0]?.json?.respuesta ||
-        valor[0]?.json?.output ||
-        valor[0]?.json?.text ||
-        valor[0]?.content?.[0]?.text ||
-        "";
+  if (typeof valor === "string") return valor;
 
-  if (typeof texto !== "string") {
-    texto = JSON.stringify(texto);
+  if (Array.isArray(valor)) {
+    return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
+  }
+
+  if (typeof valor === "object") {
+    return (
+      extraerTextoEOS(valor.respuesta) ||
+      extraerTextoEOS(valor.output) ||
+      extraerTextoEOS(valor.text) ||
+      extraerTextoEOS(valor.message) ||
+      extraerTextoEOS(valor.content) ||
+      extraerTextoEOS(valor.data) ||
+      extraerTextoEOS(valor.json) ||
+      extraerTextoEOS(valor.choices?.[0]?.message?.content) ||
+      extraerTextoEOS(valor.content?.[0]?.text) ||
+      extraerTextoEOS(valor.response?.body?.respuesta) ||
+      ""
+    );
+  }
+
+  return String(valor);
+};
+
+const extraerTextoEOS = (valor: any): string => {
+  let texto = extraerTextoEOS(valor);
+
+  if (!texto || texto === "[object Object]") {
+    return "";
   }
 
   return texto
@@ -176,10 +184,10 @@ const limpiarRespuesta = (valor: any): string => {
 const obtenerRespuesta = async (response: Response): Promise<string> => {
   const texto = await response.text();
 
-  console.log("RESPUESTA CRUDA N8N:", texto);
+  console.log("RESPUESTA CRUDA EOS:", texto);
 
   if (!texto || texto.trim() === "") {
-    throw new Error("n8n respondió vacío");
+    throw new Error("EOS respondió vacío");
   }
 
   try {
@@ -190,8 +198,10 @@ const obtenerRespuesta = async (response: Response): Promise<string> => {
   }
 };
 
-const enviarMensaje = async () => {
-  if (!mensaje.trim() || cargando) return;
+const enviarMensaje = async (textoManual?: string) => {
+  const textoFinal = textoManual || mensaje;
+
+  if (!textoFinal.trim() || cargando) return;
 
   let conversacionActiva = conversacionId;
 
@@ -200,7 +210,7 @@ const enviarMensaje = async () => {
     return;
   }
 
-  const textoUsuario = mensaje.trim();
+  const textoUsuario = textoFinal.trim();
   const historialActual = historial;
 
   setMensaje("");
@@ -209,7 +219,10 @@ const enviarMensaje = async () => {
   setHistorial((prev) => [
     ...prev,
     { rol: "usuario", texto: textoUsuario },
-    { rol: "eos", texto: "EOS está analizando tu situación..." },
+    {
+      rol: "eos",
+      texto: "Dame unos segundos, estoy revisando tu situación para responderte bien...",
+    },
   ]);
 
   await supabase.from("mensajes").insert([
@@ -240,13 +253,13 @@ const enviarMensaje = async () => {
     const respuestaLimpia = await obtenerRespuesta(response);
 
     if (!response.ok) {
-      console.log("Error n8n:", response.status, respuestaLimpia);
-      throw new Error("Error en n8n");
+      console.log("Error EOS:", response.status, respuestaLimpia);
+      throw new Error("Error en EOS");
     }
 
     const respuestaFinal =
       respuestaLimpia ||
-      "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
+      "Te leo, Augusto. Contame un poco más de contexto para poder ayudarte mejor.";
 
     await supabase.from("mensajes").insert([
       {
@@ -269,7 +282,7 @@ const enviarMensaje = async () => {
     console.log("ERROR EOS:", error);
 
     const respuestaError =
-      "No pude conectarme con EOS en este momento. Probá nuevamente en unos segundos.";
+      "Ahora mismo no pude conectarme bien. Probá de nuevo en unos segundos y lo seguimos desde acá.";
 
     await supabase.from("mensajes").insert([
       {
@@ -289,7 +302,7 @@ const enviarMensaje = async () => {
   } finally {
     setCargando(false);
   }
-};
+};};
   const nuevoChat = async () => {
     await crearNuevaConversacion();
   };
@@ -531,10 +544,7 @@ const enviarMensaje = async () => {
                   {sugerencias.map((item) => (
                     <button
                       key={item}
-                      onClick={() => {
-  setMensaje(item);
-  setTimeout(() => enviarMensaje(), 50);
-}}
+                      onClick={() => enviarMensaje(item)}
                       style={styles.suggestionButton}
                     >
                       {item}
