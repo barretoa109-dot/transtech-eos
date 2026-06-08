@@ -241,7 +241,6 @@ const enviarMensaje = async () => {
 
   try {
     const response = await fetch("/api/eos", {
-      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
