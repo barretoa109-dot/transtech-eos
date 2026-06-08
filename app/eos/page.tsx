@@ -179,112 +179,72 @@ const obtenerRespuesta = async (response: Response): Promise<string> => {
   console.log("RESPUESTA CRUDA N8N:", texto);
 
   try {
-    const data = JSON.parse(texto);
-    console.log("RESPUESTA JSON N8N:", data);
-    return limpiarRespuesta(data);
-  } catch {
-    return limpiarRespuesta(texto);
-  }
-};
-const enviarMensaje = async () => {
-  if (!mensaje.trim() || cargando) return;
+  const response = await fetch("/api/eos", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      usuario_id: usuarioId,
+      conversacion_id: conversacionActiva,
+      nombre,
+      plan,
+      mensaje: textoUsuario,
+      historial: historialActual.slice(-10),
+      origen: "eos-web",
+    }),
+  });
 
-  let conversacionActiva = conversacionId;
+  const respuestaLimpia = await obtenerRespuesta(response);
 
-  if (!usuarioId) {
-    window.location.href = "/login";
-    return;
-  }
-
-  if (!conversacionActiva) {
-    const { data, error } = await supabase
-      .from("conversaciones")
-      .insert([
-        {
-          usuario_id: usuarioId,
-          titulo: "Diagnóstico actual",
-        },
-      ])
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.log("Error creando conversación:", error);
-      alert("No se pudo iniciar la conversación.");
-      return;
-    }
-
-    conversacionActiva = data.id;
-    setConversacionId(data.id);
-    setConversaciones((prev) => [data, ...prev]);
+  if (!response.ok) {
+    console.log("Error n8n:", response.status, respuestaLimpia);
+    throw new Error("Error en n8n");
   }
 
-  const textoUsuario = mensaje.trim();
-  const historialActual = historial;
-
-  setMensaje("");
-  setCargando(true);
-
-  setHistorial((prev) => [
-    ...prev,
-    { rol: "usuario", texto: textoUsuario },
-    { rol: "eos", texto: "EOS está analizando tu situación..." },
-  ]);
+  const respuestaFinal =
+    respuestaLimpia ||
+    "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
 
   await supabase.from("mensajes").insert([
     {
       conversacion_id: conversacionActiva,
-      remitente: "usuario",
-      mensaje: textoUsuario,
+      remitente: "eos",
+      mensaje: respuestaFinal,
     },
   ]);
 
-  try {
-    const response = await fetch("/api/eos", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          usuario_id: usuarioId,
-          conversacion_id: conversacionActiva,
-          nombre,
-          plan,
-          mensaje: textoUsuario,
-          historial: historialActual.slice(-10),
-          origen: "eos-web",
-        }),
-      }
-    );
+  setHistorial((prev) => [
+    ...prev.slice(0, -1),
+    {
+      rol: "eos",
+      texto: respuestaFinal,
+    },
+  ]);
+} catch (error) {
+  console.log("ERROR EOS:", error);
 
-    const respuestaLimpia = await obtenerRespuesta(response);
+  const respuestaError =
+    "No pude conectarme con EOS en este momento. Probá nuevamente en unos segundos.";
 
-    if (!response.ok) {
-      console.log("Error n8n:", response.status, respuestaLimpia);
-      throw new Error("Error en n8n");
-    }
+  await supabase.from("mensajes").insert([
+    {
+      conversacion_id: conversacionActiva,
+      remitente: "eos",
+      mensaje: respuestaError,
+    },
+  ]);
 
-const respuestaFinal =
-  respuestaLimpia ||
-  "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
-
-await supabase.from("mensajes").insert([
-  {
-    conversacion_id: conversacionActiva,
-    remitente: "eos",
-    mensaje: respuestaFinal,
-  },
-]);
-
-setHistorial((prev) => [
-  ...prev.slice(0, -1),
-  {
-    rol: "eos",
-    texto: respuestaFinal,
-  },
-]);  setCargando(false);
+  setHistorial((prev) => [
+    ...prev.slice(0, -1),
+    {
+      rol: "eos",
+      texto: respuestaError,
+    },
+  ]);
+} finally {
+  setCargando(false);
 }
-};
 
   const nuevoChat = async () => {
     await crearNuevaConversacion();
