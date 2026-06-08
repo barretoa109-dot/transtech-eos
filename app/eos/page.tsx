@@ -287,26 +287,32 @@ if (!respuestaFinal) {
       { rol: "eos", texto: respuestaFinal },
     ]);
   } catch (error) {
-    console.log("Error enviando mensaje:", error);
+  console.log("ERROR REAL EOS:", error);
 
-    const errorTexto =
-      "No pude conectarme con EOS en este momento. Verificá que el workflow esté publicado en n8n y probá nuevamente.";
+  const errorTexto =
+    error instanceof Error ? error.message : "Error desconocido";
 
-    await supabase.from("mensajes").insert([
-      {
-        conversacion_id: conversacionActiva,
-        remitente: "eos",
-        mensaje: errorTexto,
-      },
-    ]);
+  const respuestaError =
+    "Error técnico EOS: " + errorTexto;
 
-    setHistorial((prev) => [
-      ...prev.slice(0, -1),
-      { rol: "eos", texto: errorTexto },
-    ]);
-  } finally {
-    setCargando(false);
-  }
+  await supabase.from("mensajes").insert([
+    {
+      conversacion_id: conversacionActiva,
+      remitente: "eos",
+      mensaje: respuestaError,
+    },
+  ]);
+
+  setHistorial((prev) => [
+    ...prev.slice(0, -1),
+    {
+      rol: "eos",
+      texto: respuestaError,
+    },
+  ]);
+} finally {
+  setCargando(false);
+}
 };
 
   const nuevoChat = async () => {
