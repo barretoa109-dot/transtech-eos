@@ -11,6 +11,8 @@ export default function DashboardPage() {
   const [seguimientos, setSeguimientos] = useState<any[]>([]);
   const [mensajes, setMensajes] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+const [contexto, setContexto] = useState<any>(null);
+const [ultimaActividad, setUltimaActividad] = useState("Sin actividad reciente");
 
   useEffect(() => {
     cargarDatos();
@@ -47,7 +49,13 @@ export default function DashboardPage() {
       .eq("usuario_id", usuarioId)
       .order("created_at", { ascending: false })
       .limit(5);
+const { data: contextoData } = await supabase
+  .from("eos_contexto")
+  .select("*")
+  .eq("user_id", usuarioId)
+  .limit(1);
 
+setContexto(contextoData?.[0] || null);
     const { data: conversacionesData } = await supabase
       .from("conversaciones")
       .select("id")
@@ -63,6 +71,9 @@ export default function DashboardPage() {
         .limit(5);
 
       setMensajes(mensajesData || []);
+if (mensajesData && mensajesData.length > 0) {
+  setUltimaActividad(mensajesData[0]?.mensaje || "Actividad registrada");
+}
     }
 
     setObjetivos(objetivosData || []);
@@ -92,6 +103,27 @@ export default function DashboardPage() {
   const proximaTarea =
     tareas.find((t) => !t.completada)?.titulo ||
     "Hablá con EOS para definir tu próximo paso.";
+const diagnosticoActual =
+  contexto?.diagnostico_actual ||
+  contexto?.ultimo_resumen ||
+  "EOS todavía no generó un diagnóstico detallado.";
+
+const problemaPrincipal =
+  contexto?.problema_principal ||
+  "Todavía no se detectó un problema principal.";
+
+const accionesRecomendadas =
+  contexto?.acciones_recomendadas ||
+  "Hablá con EOS para generar acciones recomendadas.";
+
+const estadoProceso =
+  progreso === 0
+    ? "Diagnóstico inicial"
+    : progreso < 50
+    ? "En progreso"
+    : progreso < 100
+    ? "Avance sólido"
+    : "Completado";
 
   return (
     <main className="min-h-screen bg-[#020617] text-white p-8">
@@ -125,6 +157,31 @@ export default function DashboardPage() {
               <Card titulo="Completadas" valor={tareasCompletadas} />
               <Card titulo="Avance general" valor={`${progreso}%`} />
             </div>
+<section className="grid lg:grid-cols-3 gap-6">
+  <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-6">
+    <p className="text-cyan-400 font-bold mb-2">Estado del proceso</p>
+    <h2 className="text-3xl font-black">{estadoProceso}</h2>
+    <p className="text-slate-400 mt-3">
+      EOS interpreta tu avance según tareas, objetivos y seguimiento.
+    </p>
+  </div>
+
+  <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-6">
+    <p className="text-cyan-400 font-bold mb-2">Problema principal</p>
+    <h2 className="text-xl font-black">{problemaPrincipal}</h2>
+    <p className="text-slate-400 mt-3">
+      Este punto se actualiza con la memoria de EOS.
+    </p>
+  </div>
+
+  <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-6">
+    <p className="text-cyan-400 font-bold mb-2">Última actividad</p>
+    <h2 className="text-xl font-black line-clamp-3">{ultimaActividad}</h2>
+    <p className="text-slate-400 mt-3">
+      Último movimiento registrado en tu proceso.
+    </p>
+  </div>
+</section>
 
             <section className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-8">
               <p className="text-cyan-400 font-bold mb-2">Objetivo principal</p>
@@ -140,7 +197,20 @@ export default function DashboardPage() {
               </p>
             </section>
 
-            <section className="grid lg:grid-cols-2 gap-6">
+<section className="grid lg:grid-cols-2 gap-6">
+  <Box titulo="Diagnóstico actual de EOS">
+    <div className="bg-slate-800/70 p-4 rounded-2xl">
+      <p className="text-slate-300 whitespace-pre-line">{diagnosticoActual}</p>
+    </div>
+  </Box>
+
+  <Box titulo="Acciones recomendadas">
+    <div className="bg-slate-800/70 p-4 rounded-2xl">
+      <p className="text-slate-300 whitespace-pre-line">{accionesRecomendadas}</p>
+    </div>
+  </Box>
+</section>            
+<section className="grid lg:grid-cols-2 gap-6">
               <Box titulo="Objetivos activos">
                 {objetivos.length === 0 ? (
                   <Empty texto="Hablá con EOS para crear tu primer objetivo." />
