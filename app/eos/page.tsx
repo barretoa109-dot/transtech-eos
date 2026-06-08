@@ -264,54 +264,25 @@ const enviarMensaje = async () => {
       throw new Error("Error en n8n");
     }
 
-const respuestaFinal = respuestaLimpia;
+const respuestaFinal =
+  respuestaLimpia ||
+  "Recibí tu mensaje. Necesito un poco más de contexto para ayudarte bien.";
 
-if (!respuestaFinal) {
-  throw new Error("n8n respondió vacío");
-}
+await supabase.from("mensajes").insert([
+  {
+    conversacion_id: conversacionActiva,
+    remitente: "eos",
+    mensaje: respuestaFinal,
+  },
+]);
 
-    await supabase.from("mensajes").insert([
-      {
-        conversacion_id: conversacionActiva,
-        remitente: "eos",
-        mensaje: respuestaFinal,
-      },
-    ]);
-
-    crearEstructuraOperativa(textoUsuario, respuestaFinal).catch((error) => {
-      console.log("Error creando estructura operativa:", error);
-    });
-
-    setHistorial((prev) => [
-      ...prev.slice(0, -1),
-      { rol: "eos", texto: respuestaFinal },
-    ]);
-  } catch (error) {
-  console.log("ERROR REAL EOS:", error);
-
-  const errorTexto =
-    error instanceof Error ? error.message : "Error desconocido";
-
-  const respuestaError =
-    "Error técnico EOS: " + errorTexto;
-
-  await supabase.from("mensajes").insert([
-    {
-      conversacion_id: conversacionActiva,
-      remitente: "eos",
-      mensaje: respuestaError,
-    },
-  ]);
-
-  setHistorial((prev) => [
-    ...prev.slice(0, -1),
-    {
-      rol: "eos",
-      texto: respuestaError,
-    },
-  ]);
-} finally {
-  setCargando(false);
+setHistorial((prev) => [
+  ...prev.slice(0, -1),
+  {
+    rol: "eos",
+    texto: respuestaFinal,
+  },
+]);  setCargando(false);
 }
 };
 
