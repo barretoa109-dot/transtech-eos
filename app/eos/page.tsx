@@ -136,60 +136,56 @@ export default function EOSPage() {
     ]);
   }
 
-  const limpiarRespuesta = (valor: any): string => {
-    let texto = "";
+const limpiarRespuesta = (valor: any): string => {
+  if (!valor) return "";
 
-    if (typeof valor === "string") {
-      texto = valor;
-    } else if (valor?.respuesta) {
-      texto = valor.respuesta;
-    } else if (valor?.text) {
-      texto = valor.text;
-    } else if (valor?.message) {
-      texto = valor.message;
-    } else if (valor?.output) {
-      texto = valor.output;
-    } else {
-      texto = JSON.stringify(valor || "");
-    }
+  let texto =
+    typeof valor === "string"
+      ? valor
+      : valor.respuesta ||
+        valor.output ||
+        valor.text ||
+        valor.message ||
+        valor.content ||
+        valor.data?.respuesta ||
+        valor.data?.output ||
+        valor.data?.text ||
+        valor[0]?.respuesta ||
+        valor[0]?.output ||
+        valor[0]?.text ||
+        valor[0]?.json?.respuesta ||
+        valor[0]?.json?.output ||
+        valor[0]?.json?.text ||
+        valor[0]?.content?.[0]?.text ||
+        "";
 
-    try {
-      const parsed = JSON.parse(texto);
-      if (parsed?.respuesta) texto = parsed.respuesta;
-    } catch {}
+  if (typeof texto !== "string") {
+    texto = JSON.stringify(texto);
+  }
 
-    return texto
-      .replace(/^=/, "")
-      .replace(/^```json/i, "")
-      .replace(/^```/, "")
-      .replace(/```$/, "")
-      .replace(/\\n/g, "\n")
-      .replace(/\\"/g, '"')
-      .replace(/^\s*{\s*"respuesta"\s*:\s*"/, "")
-      .replace(/"\s*}\s*$/, "")
-      .trim();
-  };
+  return texto
+    .replace(/^=/, "")
+    .replace(/^```json/i, "")
+    .replace(/^```/, "")
+    .replace(/```$/, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '"')
+    .trim();
+};
 
-  const obtenerRespuesta = async (response: Response): Promise<string> => {
-    const texto = await response.text();
+const obtenerRespuesta = async (response: Response): Promise<string> => {
+  const texto = await response.text();
 
-    try {
-      const data = JSON.parse(texto);
+  console.log("RESPUESTA CRUDA N8N:", texto);
 
-      const respuesta =
-        data?.respuesta ||
-        data?.text ||
-        data?.message ||
-        data?.output ||
-        data?.data?.respuesta ||
-        texto;
-
-      return limpiarRespuesta(respuesta);
-    } catch {
-      return limpiarRespuesta(texto);
-    }
-  };
-
+  try {
+    const data = JSON.parse(texto);
+    console.log("RESPUESTA JSON N8N:", data);
+    return limpiarRespuesta(data);
+  } catch {
+    return limpiarRespuesta(texto);
+  }
+};
 const enviarMensaje = async () => {
   if (!mensaje.trim() || cargando) return;
 
@@ -270,9 +266,11 @@ const enviarMensaje = async () => {
       throw new Error("Error en n8n");
     }
 
-    const respuestaFinal =
-      respuestaLimpia ||
-      "Estoy acá. Recibí tu mensaje, pero necesito que me cuentes un poco más para ayudarte bien.";
+const respuestaFinal = respuestaLimpia;
+
+if (!respuestaFinal) {
+  throw new Error("n8n respondió vacío");
+}
 
     await supabase.from("mensajes").insert([
       {
