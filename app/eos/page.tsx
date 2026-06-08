@@ -143,6 +143,12 @@ export default function EOSPage() {
       texto = valor;
     } else if (valor?.respuesta) {
       texto = valor.respuesta;
+    } else if (valor?.text) {
+      texto = valor.text;
+    } else if (valor?.message) {
+      texto = valor.message;
+    } else if (valor?.output) {
+      texto = valor.output;
     } else {
       texto = JSON.stringify(valor || "");
     }
@@ -164,34 +170,24 @@ export default function EOSPage() {
       .trim();
   };
 
-const obtenerRespuesta = async (response: Response): Promise<string> => {
-  const texto = await response.text();
-
-  try {
-    const data = JSON.parse(texto);
-
-    const respuesta =
-      data?.respuesta ||
-      data?.text ||
-      data?.message ||
-      data?.output ||
-      data?.data?.respuesta ||
-      "";
-
-    return limpiarRespuesta(respuesta || texto);
-  } catch {
-    return limpiarRespuesta(texto);
-  }
-};
-    const contentType = response.headers.get("content-type") || "";
-
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      return limpiarRespuesta(data?.respuesta ?? data);
-    }
-
+  const obtenerRespuesta = async (response: Response): Promise<string> => {
     const texto = await response.text();
-    return limpiarRespuesta(texto);
+
+    try {
+      const data = JSON.parse(texto);
+
+      const respuesta =
+        data?.respuesta ||
+        data?.text ||
+        data?.message ||
+        data?.output ||
+        data?.data?.respuesta ||
+        texto;
+
+      return limpiarRespuesta(respuesta);
+    } catch {
+      return limpiarRespuesta(texto);
+    }
   };
 
   const enviarMensaje = async () => {
