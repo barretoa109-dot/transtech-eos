@@ -1,3 +1,41 @@
+function buscarTexto(valor: any): string {
+  if (!valor) return "";
+
+  if (typeof valor === "string") return valor;
+
+  if (Array.isArray(valor)) {
+    for (const item of valor) {
+      const encontrado = buscarTexto(item);
+      if (encontrado) return encontrado;
+    }
+  }
+
+  if (typeof valor === "object") {
+    const campos = [
+      "respuesta",
+      "text",
+      "message",
+      "output",
+      "content",
+      "data",
+      "body",
+      "json",
+    ];
+
+    for (const campo of campos) {
+      const encontrado = buscarTexto(valor[campo]);
+      if (encontrado) return encontrado;
+    }
+
+    for (const key of Object.keys(valor)) {
+      const encontrado = buscarTexto(valor[key]);
+      if (encontrado) return encontrado;
+    }
+  }
+
+  return "";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -15,29 +53,13 @@ export async function POST(req: Request) {
 
     const rawText = await response.text();
 
-    console.log("RESPUESTA CRUDA N8N:", rawText);
-
     let respuesta = "";
 
     try {
       const data = JSON.parse(rawText);
-
-      respuesta =
-        data?.respuesta ||
-        data?.output ||
-        data?.text ||
-        data?.message ||
-        data?.content?.[0]?.text ||
-        data?.[0]?.respuesta ||
-        data?.[0]?.output ||
-        data?.[0]?.text ||
-        "";
+      respuesta = buscarTexto(data);
     } catch {
       respuesta = rawText;
-    }
-
-    if (typeof respuesta !== "string") {
-      respuesta = JSON.stringify(respuesta);
     }
 
     respuesta = respuesta
@@ -45,24 +67,21 @@ export async function POST(req: Request) {
       .replace(/^```/, "")
       .replace(/```$/, "")
       .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
       .trim();
 
     if (!respuesta || respuesta === "[object Object]") {
-      respuesta =
-        "Te leo. Contame un poco más de contexto y lo vemos paso a paso.";
+      respuesta = `DEBUG: n8n devolvió vacío o sin texto. Respuesta cruda: ${rawText}`;
     }
 
-    return Response.json(
-      { respuesta },
-      { status: response.ok ? 200 : response.status }
-    );
+    return Response.json({ respuesta });
   } catch (error) {
     console.log("Error proxy EOS:", error);
 
     return Response.json(
       {
         respuesta:
-          "Ahora mismo no pude conectarme bien. Probá nuevamente en unos segundos.",
+          "No pude conectarme con EOS en este momento. Probá nuevamente.",
       },
       { status: 500 }
     );
