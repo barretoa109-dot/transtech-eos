@@ -33,7 +33,7 @@ export async function GET(request) {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${nombre}.csv"`,
+      "Content-Disposition": `inline; filename="${nombre}.csv"`,
       "Cache-Control": "no-store",
     },
   });
