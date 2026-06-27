@@ -1,18 +1,3 @@
-import { NextResponse } from "next/server";
-
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-export async function GET(request) {
-  return new Response("FUNCIONA DESCARGAR", {
-    status: 200,
-    headers: {
-      "Content-Type": "text/plain",
-    },
-  });
-}
-import { NextResponse } from "next/server";
-
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
@@ -22,10 +7,7 @@ export async function GET(request) {
   const nombre = searchParams.get("nombre") || "planilla_eos";
 
   if (tipo !== "excel") {
-    return NextResponse.json(
-      { error: "Tipo de archivo no soportado" },
-      { status: 400 }
-    );
+    return new Response("Tipo de archivo no soportado", { status: 400 });
   }
 
   const filas = [
