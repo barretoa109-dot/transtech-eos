@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function GET(request) {
+  return new Response("FUNCIONA DESCARGAR", {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain",
+    },
+  });
+}
+import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
