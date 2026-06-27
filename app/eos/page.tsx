@@ -635,7 +635,36 @@ export default function EOSPage() {
                   <div style={styles.messageMeta}>
                     {item.rol === "usuario" ? nombre : "EOS"}
                   </div>
-                  <div style={styles.messageText}>{item.texto}</div>
+                  <div style={styles.messageText}>
+  {item.texto.split("\n").map((linea, i) => {
+    const texto = linea.trim();
+
+    if (texto.startsWith("http://") || texto.startsWith("https://")) {
+      return (
+        <div key={i} style={{ marginTop: 10 }}>
+          <a
+            href={texto}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#22d3ee",
+              fontWeight: 700,
+              textDecoration: "underline",
+            }}
+          >
+            📥 Descargar archivo
+          </a>
+        </div>
+      );
+    }
+
+    return (
+      <div key={i}>
+        {linea}
+      </div>
+    );
+  })}
+</div>
                 </div>
 
                 {item.rol === "usuario" && (
