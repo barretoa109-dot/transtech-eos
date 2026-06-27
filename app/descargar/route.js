@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
 
@@ -8,12 +10,12 @@ export async function GET(request) {
 
   if (tipo !== "excel") {
     return NextResponse.json(
-      { error: "Tipo de archivo no soportado todavía" },
+      { error: "Tipo de archivo no soportado" },
       { status: 400 }
     );
   }
 
-  const csv = [
+  const filas = [
     ["Fecha", "Categoría", "Descripción", "Monto", "Forma de pago", "Observación"],
     ["2026-06-27", "Ingresos", "Venta del día", "0", "Efectivo/Transferencia", ""],
     ["2026-06-27", "Costos variables", "Compra de mercadería", "0", "Transferencia", ""],
@@ -24,19 +26,20 @@ export async function GET(request) {
     ["Total costos variables", '=SUMIF(B:B,"Costos variables",D:D)'],
     ["Total costos fijos", '=SUMIF(B:B,"Costos fijos",D:D)'],
     ["Resultado", "=B7-B8-B9"],
-  ]
+  ];
+
+  const csv = filas
     .map((row) =>
-      row
-        .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-        .join(",")
+      row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
     )
     .join("\n");
 
-  return new NextResponse(csv, {
+  return new Response(csv, {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${nombre}.csv"`,
+      "Cache-Control": "no-store",
     },
   });
 }
