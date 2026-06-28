@@ -639,7 +639,11 @@ export default function EOSPage() {
   {item.texto.split("\n").map((linea, i) => {
     const texto = linea.trim();
 
-    if (texto.startsWith("http://") || texto.startsWith("https://")) {
+    if (
+  texto.startsWith("http://") ||
+  texto.startsWith("https://") ||
+  texto.startsWith("/descargar")
+) {
       return (
         <div key={i} style={{ marginTop: 10 }}>
           <a
