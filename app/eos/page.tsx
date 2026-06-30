@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 type Mensaje = {
@@ -12,6 +12,7 @@ type Conversacion = {
   id: string;
   titulo: string | null;
 };
+
 type Briefing = {
   saludo: string;
   resumen: string;
@@ -21,6 +22,7 @@ type Briefing = {
   recomendacion_principal: string;
   score: number;
 };
+
 export default function EOSPage() {
   const [mensaje, setMensaje] = useState("");
   const [nombre, setNombre] = useState("Usuario");
@@ -32,6 +34,22 @@ export default function EOSPage() {
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [cargando, setCargando] = useState(false);
   const chatRef = useRef<HTMLDivElement | null>(null);
+
+  const briefingVisible = useMemo<Briefing>(() => {
+    return (
+      briefing || {
+        saludo: `Hola ${nombre}. EOS está listo para ayudarte.`,
+        resumen:
+          "Cuando converses con EOS, este bloque mostrará tu resumen inteligente, prioridades, score y recomendación principal.",
+        prioridad_1: "Definir qué querés mejorar",
+        prioridad_2: "Registrar información importante",
+        prioridad_3: "Crear una acción concreta",
+        recomendacion_principal:
+          "Contale a EOS tu situación actual para empezar a construir tu sistema inteligente.",
+        score: 0,
+      }
+    );
+  }, [briefing, nombre]);
 
   useEffect(() => {
     iniciarEOS();
@@ -63,18 +81,20 @@ export default function EOSPage() {
     await cargarConversaciones(uuid);
     await cargarBriefing(uuid);
   }
-async function cargarBriefing(uuid: string) {
-  try {
-    const response = await fetch(`/api/briefing?usuario_id=${uuid}`);
-    const data = await response.json();
 
-    if (data?.briefing) {
-      setBriefing(data.briefing);
+  async function cargarBriefing(uuid: string) {
+    try {
+      const response = await fetch(`/api/briefing?usuario_id=${uuid}`);
+      const data = await response.json();
+
+      if (data?.briefing) {
+        setBriefing(data.briefing);
+      }
+    } catch (error) {
+      console.log("Error cargando briefing:", error);
     }
-  } catch (error) {
-    console.log("Error cargando briefing:", error);
   }
-}
+
   async function cargarConversaciones(uuid: string) {
     const { data, error } = await supabase
       .from("conversaciones")
@@ -102,12 +122,7 @@ async function cargarBriefing(uuid: string) {
 
     const { data, error } = await supabase
       .from("conversaciones")
-      .insert([
-        {
-          usuario_id: uuid,
-          titulo: "Diagnóstico actual",
-        },
-      ])
+      .insert([{ usuario_id: uuid, titulo: "Diagnóstico actual" }])
       .select()
       .single();
 
@@ -136,10 +151,7 @@ async function cargarBriefing(uuid: string) {
     }
 
     const mensajesFormateados: Mensaje[] = (data || []).map((m: any) => ({
-      rol:
-        m.remitente === "usuario" || m.rol === "usuario"
-          ? "usuario"
-          : "eos",
+      rol: m.remitente === "usuario" || m.rol === "usuario" ? "usuario" : "eos",
       texto: m.mensaje || m.texto || "",
     }));
 
@@ -154,34 +166,20 @@ async function cargarBriefing(uuid: string) {
     if (!idConversacion || !texto.trim()) return;
 
     const { error } = await supabase.from("mensajes").insert([
-      {
-        conversacion_id: idConversacion,
-        remitente,
-        mensaje: texto,
-      },
+      { conversacion_id: idConversacion, remitente, mensaje: texto },
     ]);
 
     if (!error) return;
 
-    console.log("Primer formato de mensajes falló, probando formato alternativo:", error);
-
     await supabase.from("mensajes").insert([
-      {
-        conversacion_id: idConversacion,
-        rol: remitente,
-        texto,
-      },
+      { conversacion_id: idConversacion, rol: remitente, texto },
     ]);
   }
 
   function extraerTextoEOS(valor: any): string {
     if (!valor) return "";
-
     if (typeof valor === "string") return valor;
-
-    if (Array.isArray(valor)) {
-      return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
-    }
+    if (Array.isArray(valor)) return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
 
     if (typeof valor === "object") {
       return (
@@ -193,7 +191,6 @@ async function cargarBriefing(uuid: string) {
         extraerTextoEOS(valor.data) ||
         extraerTextoEOS(valor.json) ||
         extraerTextoEOS(valor.choices?.[0]?.message?.content) ||
-        extraerTextoEOS(valor.content?.[0]?.text) ||
         extraerTextoEOS(valor.response?.body?.respuesta) ||
         ""
       );
@@ -211,9 +208,7 @@ async function cargarBriefing(uuid: string) {
       const parsed = JSON.parse(texto);
       const extraido = extraerTextoEOS(parsed);
       if (extraido) texto = extraido;
-    } catch {
-      // Si no es JSON válido, seguimos con el texto original.
-    }
+    } catch {}
 
     return texto
       .replace(/^=/, "")
@@ -227,8 +222,6 @@ async function cargarBriefing(uuid: string) {
 
   async function obtenerRespuesta(response: Response): Promise<string> {
     const texto = await response.text();
-
-    console.log("RESPUESTA CRUDA EOS:", texto);
 
     if (!texto || texto.trim() === "") {
       throw new Error("EOS respondió vacío");
@@ -256,12 +249,10 @@ async function cargarBriefing(uuid: string) {
 
     if (!conversacionActiva) {
       const nuevaConversacionId = await crearNuevaConversacion(usuarioId);
-
       if (!nuevaConversacionId) {
         alert("No se pudo iniciar la conversación.");
         return;
       }
-
       conversacionActiva = nuevaConversacionId;
     }
 
@@ -274,10 +265,7 @@ async function cargarBriefing(uuid: string) {
     setHistorial((prev) => [
       ...prev,
       { rol: "usuario", texto: textoUsuario },
-      {
-        rol: "eos",
-        texto: "Dame unos segundos, estoy revisando tu situación para responderte bien...",
-      },
+      { rol: "eos", texto: "Estoy analizando tu situación..." },
     ]);
 
     await guardarMensaje(conversacionActiva, "usuario", textoUsuario);
@@ -285,9 +273,7 @@ async function cargarBriefing(uuid: string) {
     try {
       const response = await fetch("/api/eos", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           usuario_id: usuarioId,
           conversacion_id: conversacionActiva,
@@ -301,276 +287,101 @@ async function cargarBriefing(uuid: string) {
 
       const respuestaLimpia = await obtenerRespuesta(response);
 
-      if (!response.ok) {
-        console.log("Error EOS:", response.status, respuestaLimpia);
-        throw new Error("Error en EOS");
-      }
+      if (!response.ok) throw new Error("Error en EOS");
 
       const respuestaFinal =
-        respuestaLimpia ||
-        "Te leo. Contame un poco más de contexto para poder ayudarte mejor.";
+        respuestaLimpia || "Te leo. Contame un poco más de contexto para ayudarte mejor.";
 
       await guardarMensaje(conversacionActiva, "eos", respuestaFinal);
 
-      crearEstructuraOperativa(textoUsuario, respuestaFinal).catch((error) => {
-        console.log("Error creando estructura operativa:", error);
-      });
-
       setHistorial((prev) => [
         ...prev.slice(0, -1),
-        {
-          rol: "eos",
-          texto: respuestaFinal,
-        },
+        { rol: "eos", texto: respuestaFinal },
       ]);
+
+      await cargarBriefing(usuarioId);
     } catch (error) {
       console.log("ERROR EOS:", error);
 
       const respuestaError =
-        "Ahora mismo no pude conectarme bien. Probá de nuevo en unos segundos y lo seguimos desde acá.";
+        "Ahora mismo no pude conectarme bien. Probá de nuevo en unos segundos.";
 
       await guardarMensaje(conversacionActiva, "eos", respuestaError);
 
       setHistorial((prev) => [
         ...prev.slice(0, -1),
-        {
-          rol: "eos",
-          texto: respuestaError,
-        },
+        { rol: "eos", texto: respuestaError },
       ]);
     } finally {
       setCargando(false);
     }
   }
 
-  const nuevoChat = async () => {
-    await crearNuevaConversacion();
-  };
-
-  const abrirConversacion = async (id: string) => {
-    setConversacionId(id);
-    await cargarMensajes(id);
-  };
-
-  function detectarObjetivo(textoUsuario: string, respuestaEOS: string) {
-    const texto = `${textoUsuario} ${respuestaEOS}`.toLowerCase();
-
-    if (texto.includes("venta") || texto.includes("clientes")) {
-      return "Aumentar ventas y conseguir más clientes";
-    }
-
-    if (
-      texto.includes("finanza") ||
-      texto.includes("deuda") ||
-      texto.includes("gasto")
-    ) {
-      return "Ordenar finanzas y mejorar control económico";
-    }
-
-    if (
-      texto.includes("negocio") ||
-      texto.includes("empresa") ||
-      texto.includes("emprendimiento")
-    ) {
-      return "Ordenar y hacer crecer el negocio";
-    }
-
-    if (texto.includes("automatizar") || texto.includes("proceso")) {
-      return "Automatizar procesos y ahorrar tiempo";
-    }
-
-    return "Mejorar situación actual con apoyo de EOS";
-  }
-
-  function generarTareas(textoUsuario: string) {
-    const texto = textoUsuario.toLowerCase();
-
-    if (texto.includes("venta") || texto.includes("clientes")) {
-      return [
-        "Identificar los productos o servicios más rentables",
-        "Definir el cliente ideal",
-        "Crear una oferta clara para atraer clientes",
-        "Medir cuántas consultas se convierten en ventas",
-      ];
-    }
-
-    if (
-      texto.includes("finanza") ||
-      texto.includes("deuda") ||
-      texto.includes("gasto")
-    ) {
-      return [
-        "Listar ingresos y gastos actuales",
-        "Identificar deudas y pagos pendientes",
-        "Crear un presupuesto mensual básico",
-        "Definir una meta de ahorro o reducción de deuda",
-      ];
-    }
-
-    if (texto.includes("automatizar") || texto.includes("proceso")) {
-      return [
-        "Identificar tareas repetitivas",
-        "Elegir qué proceso automatizar primero",
-        "Definir canal principal de atención",
-        "Crear flujo básico de seguimiento",
-      ];
-    }
-
-    return [
-      "Definir el problema principal",
-      "Establecer un objetivo claro",
-      "Identificar las primeras acciones necesarias",
-      "Revisar avances con EOS",
-    ];
-  }
-
-  async function actualizarProgresoUsuario() {
-    if (!usuarioId) return;
-
-    const { data: tareasData } = await supabase
-      .from("tareas")
-      .select("*")
-      .eq("usuario_id", usuarioId);
-
-    const tareas = tareasData || [];
-    const completadas = tareas.filter((t: any) => t.completada === true).length;
-    const progreso =
-      tareas.length > 0 ? Math.round((completadas / tareas.length) * 100) : 10;
-
-    await supabase.from("usuarios").update({ progreso }).eq("id", usuarioId);
-
-    return progreso;
-  }
-
-  async function crearEstructuraOperativa(
-    textoUsuario: string,
-    respuestaEOS: string
-  ) {
-    if (!usuarioId) return;
-
-    const objetivoTitulo = detectarObjetivo(textoUsuario, respuestaEOS);
-
-    const { data: objetivosActuales } = await supabase
-      .from("objetivos")
-      .select("*")
-      .eq("usuario_id", usuarioId)
-      .limit(1);
-
-    let objetivoId = objetivosActuales?.[0]?.id;
-
-    if (!objetivoId) {
-      const { data: nuevoObjetivo, error: objetivoError } = await supabase
-        .from("objetivos")
-        .insert([
-          {
-            usuario_id: usuarioId,
-            titulo: objetivoTitulo,
-            descripcion: `Objetivo detectado automáticamente por EOS según la conversación: ${textoUsuario}`,
-            porcentaje: 10,
-            estado: "Activo",
-          },
-        ])
-        .select()
-        .single();
-
-      if (objetivoError) {
-        console.log("No se pudo crear objetivo completo, probando mínimo:", objetivoError);
-
-        const { data: objetivoMinimo } = await supabase
-          .from("objetivos")
-          .insert([
-            {
-              usuario_id: usuarioId,
-              titulo: objetivoTitulo,
-            },
-          ])
-          .select()
-          .single();
-
-        objetivoId = objetivoMinimo?.id;
-      } else {
-        objetivoId = nuevoObjetivo?.id;
-      }
-    }
-
-    const { data: tareasActuales } = await supabase
-      .from("tareas")
-      .select("*")
-      .eq("usuario_id", usuarioId)
-      .limit(1);
-
-    if (!tareasActuales || tareasActuales.length === 0) {
-      const tareasGeneradas = generarTareas(textoUsuario);
-
-      const { error: tareasError } = await supabase.from("tareas").insert(
-        tareasGeneradas.map((titulo) => ({
-          usuario_id: usuarioId,
-          titulo,
-          completada: false,
-        }))
-      );
-
-      if (tareasError) {
-        console.log("No se pudieron crear tareas:", tareasError);
-      }
-    }
-
-    const progreso = await actualizarProgresoUsuario();
-
-    const { error: seguimientoError } = await supabase.from("seguimientos").insert([
-      {
-        usuario_id: usuarioId,
-        mensaje: `EOS registró un nuevo avance del proceso. Objetivo actual: ${objetivoTitulo}.`,
-        porcentaje: progreso || 10,
-        enviado: false,
-      },
-    ]);
-
-    if (seguimientoError) {
-      console.log("No se pudo registrar seguimiento:", seguimientoError);
-    }
-  }
-
   const sugerencias = [
+    "Quiero ordenar mis finanzas",
     "Quiero aumentar mis ventas",
-    "Necesito ordenar mis finanzas",
-    "Quiero conseguir más clientes",
-    "No sé por dónde empezar",
+    "Generame un Excel para mi negocio",
+    "Necesito organizar mi vida personal",
   ];
+
+  function renderTexto(textoCompleto: string) {
+    return textoCompleto.split("\n").map((linea, i) => {
+      const texto = linea.trim();
+
+      if (
+        texto.startsWith("http://") ||
+        texto.startsWith("https://") ||
+        texto.startsWith("/descargar")
+      ) {
+        return (
+          <div key={i} style={styles.downloadCard}>
+            <div>
+              <strong>Archivo generado por EOS</strong>
+              <p>Tu documento está listo para descargar.</p>
+            </div>
+            <a href={texto} target="_blank" rel="noopener noreferrer" style={styles.downloadButton}>
+              Descargar
+            </a>
+          </div>
+        );
+      }
+
+      return <div key={i}>{linea}</div>;
+    });
+  }
 
   return (
     <main style={styles.main}>
       <aside style={styles.sidebar}>
         <div>
-          <div style={styles.logoBox}>
-            <div style={styles.logoIcon}>E</div>
+          <div style={styles.brandBox}>
+            <div style={styles.logo}>E</div>
             <div>
-              <p style={styles.brand}>TransTech</p>
-              <h1 style={styles.logoText}>EOS</h1>
+              <p style={styles.brandSmall}>TransTech</p>
+              <h1 style={styles.brandTitle}>EOS</h1>
             </div>
           </div>
 
-          <button type="button" onClick={nuevoChat} style={styles.newButton}>
-            + Nuevo diagnóstico
+          <button type="button" onClick={() => crearNuevaConversacion()} style={styles.newChat}>
+            + Nuevo chat
           </button>
 
-          <div style={styles.menuSection}>
+          <div style={styles.menu}>
             <p style={styles.menuTitle}>Conversaciones</p>
 
             {conversaciones.length === 0 && (
-              <div style={styles.chatItemMuted}>Sin conversaciones todavía</div>
+              <div style={styles.emptySide}>Sin conversaciones todavía</div>
             )}
 
             {conversaciones.map((c) => (
               <button
                 type="button"
                 key={c.id}
-                onClick={() => abrirConversacion(c.id)}
-                style={
-                  c.id === conversacionId
-                    ? styles.chatItem
-                    : styles.chatItemMutedButton
-                }
+                onClick={() => {
+                  setConversacionId(c.id);
+                  cargarMensajes(c.id);
+                }}
+                style={c.id === conversacionId ? styles.chatActive : styles.chatMuted}
               >
                 {c.titulo || "Conversación EOS"}
               </button>
@@ -578,90 +389,76 @@ async function cargarBriefing(uuid: string) {
           </div>
         </div>
 
-        <div style={styles.bottomSidebar}>
-          <div style={styles.profileCard}>
-            <small style={styles.label}>Usuario</small>
+        <div style={styles.sideBottom}>
+          <a href="/dashboard" style={styles.sideLink}>Dashboard</a>
+          <a href="/" style={styles.sideLink}>Inicio</a>
+
+          <div style={styles.profile}>
+            <small>Usuario</small>
             <strong>{nombre}</strong>
+            <span>Plan {plan}</span>
           </div>
-
-          <div style={styles.profileCard}>
-            <small style={styles.label}>Plan actual</small>
-            <strong>{plan}</strong>
-          </div>
-
-          <a href="/dashboard" style={styles.backButton}>
-            ← Volver al panel
-          </a>
         </div>
       </aside>
 
       <section style={styles.content}>
         <header style={styles.header}>
           <div>
-            <p style={styles.headerLabel}>EOS</p>
-            <h2 style={styles.headerTitle}>Asesor empresarial inteligente</h2>
+            <p style={styles.headerEyebrow}>EOS OS</p>
+            <h2 style={styles.headerTitle}>Asistente inteligente</h2>
           </div>
 
-          <div style={styles.statusPill}>
-            <span style={styles.statusDot}></span>
+          <div style={styles.status}>
+            <span style={styles.dot} />
             Activo
           </div>
         </header>
 
         <div ref={chatRef} style={styles.chatArea}>
-  <div style={styles.chatContainer}>
-    {briefing && (
-      <div style={styles.briefingCard}>
-        <div style={styles.briefingHeader}>
-          <div>
-            <p style={styles.briefingLabel}>Resumen inteligente EOS</p>
-            <h2 style={styles.briefingTitle}>{briefing.saludo}</h2>
-          </div>
+          <div style={styles.chatContainer}>
+            <section style={styles.briefing}>
+              <div style={styles.briefingTop}>
+                <div>
+                  <p style={styles.briefingLabel}>Daily Briefing</p>
+                  <h2 style={styles.briefingTitle}>{briefingVisible.saludo}</h2>
+                </div>
 
-          <div style={styles.scoreBox}>
-            <span style={styles.scoreNumber}>{briefing.score || 0}</span>
-            <span style={styles.scoreText}>Score</span>
-          </div>
-        </div>
+                <div style={styles.score}>
+                  <strong>{briefingVisible.score || 0}</strong>
+                  <span>Score</span>
+                </div>
+              </div>
 
-        <p style={styles.briefingSummary}>
-          {briefing.resumen || "EOS está preparando tu contexto inteligente."}
-        </p>
+              <p style={styles.briefingText}>{briefingVisible.resumen}</p>
 
-        <div style={styles.priorityGrid}>
-          <div style={styles.priorityCard}>1. {briefing.prioridad_1}</div>
-          <div style={styles.priorityCard}>2. {briefing.prioridad_2}</div>
-          <div style={styles.priorityCard}>3. {briefing.prioridad_3}</div>
-        </div>
+              <div style={styles.priorities}>
+                <div>{briefingVisible.prioridad_1}</div>
+                <div>{briefingVisible.prioridad_2}</div>
+                <div>{briefingVisible.prioridad_3}</div>
+              </div>
 
-        <div style={styles.recommendationBox}>
-          {briefing.recomendacion_principal}
-        </div>
-      </div>
-    )}
+              <div style={styles.recommendation}>
+                {briefingVisible.recomendacion_principal}
+              </div>
+            </section>
 
-    {historial.length === 0 && (
-              <div style={styles.welcomeBox}>
+            {historial.length === 0 && (
+              <section style={styles.welcome}>
                 <div style={styles.bigLogo}>E</div>
-                <h1 style={styles.welcomeTitle}>¿Qué querés mejorar hoy?</h1>
-                <p style={styles.welcomeText}>
-                  Contale a EOS qué está pasando. Voy a ayudarte a diagnosticar,
-                  ordenar y avanzar paso a paso.
+                <h1>¿Qué querés mejorar hoy?</h1>
+                <p>
+                  EOS puede ayudarte con finanzas personales, negocios, documentos,
+                  tareas, objetivos, clientes y seguimiento.
                 </p>
 
-                <div style={styles.suggestionsGrid}>
-                  {sugerencias.map((item) => (
-                    <button
-                      type="button"
-                      key={item}
-                      onClick={() => enviarMensaje(item)}
-                      style={styles.suggestionButton}
-                    >
-                      {item}
+                <div style={styles.suggestions}>
+                  {sugerencias.map((s) => (
+                    <button key={s} onClick={() => enviarMensaje(s)} style={styles.suggestion}>
+                      {s}
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
 
             {historial.map((item, index) => (
@@ -669,57 +466,19 @@ async function cargarBriefing(uuid: string) {
                 key={index}
                 style={{
                   ...styles.messageRow,
-                  justifyContent:
-                    item.rol === "usuario" ? "flex-end" : "flex-start",
+                  justifyContent: item.rol === "usuario" ? "flex-end" : "flex-start",
                 }}
               >
                 {item.rol === "eos" && <Avatar letra="E" />}
 
                 <div
                   style={{
-                    ...styles.messageBubble,
-                    ...(item.rol === "usuario"
-                      ? styles.userBubble
-                      : styles.eosBubble),
+                    ...styles.bubble,
+                    ...(item.rol === "usuario" ? styles.userBubble : styles.eosBubble),
                   }}
                 >
-                  <div style={styles.messageMeta}>
-                    {item.rol === "usuario" ? nombre : "EOS"}
-                  </div>
-                  <div style={styles.messageText}>
-  {item.texto.split("\n").map((linea, i) => {
-    const texto = linea.trim();
-
-    if (
-  texto.startsWith("http://") ||
-  texto.startsWith("https://") ||
-  texto.startsWith("/descargar")
-) {
-      return (
-        <div key={i} style={{ marginTop: 10 }}>
-          <a
-            href={texto}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: "#22d3ee",
-              fontWeight: 700,
-              textDecoration: "underline",
-            }}
-          >
-            📥 Descargar archivo
-          </a>
-        </div>
-      );
-    }
-
-    return (
-      <div key={i}>
-        {linea}
-      </div>
-    );
-  })}
-</div>
+                  <div style={styles.meta}>{item.rol === "usuario" ? nombre : "EOS"}</div>
+                  <div style={styles.messageText}>{renderTexto(item.texto)}</div>
                 </div>
 
                 {item.rol === "usuario" && (
@@ -746,21 +505,13 @@ async function cargarBriefing(uuid: string) {
               style={styles.textarea}
             />
 
-            <button
-              type="button"
-              onClick={() => enviarMensaje()}
-              disabled={cargando}
-              style={{
-                ...styles.sendButton,
-                opacity: cargando ? 0.6 : 1,
-              }}
-            >
-              {cargando ? "..." : "➜"}
+            <button onClick={() => enviarMensaje()} disabled={cargando} style={styles.send}>
+              {cargando ? "..." : "↑"}
             </button>
           </div>
 
-          <p style={styles.footerNote}>
-            EOS guarda tu proceso para acompañarte con seguimiento real.
+          <p style={styles.note}>
+            EOS puede cometer errores. Usalo como apoyo para decidir mejor.
           </p>
         </div>
       </section>
@@ -772,17 +523,16 @@ function Avatar({ letra, usuario }: { letra: string; usuario?: boolean }) {
   return (
     <div
       style={{
-        width: "38px",
-        height: "38px",
-        borderRadius: "999px",
-        background: usuario ? "#1e293b" : "#22d3ee",
-        color: usuario ? "#ffffff" : "#020617",
+        width: 36,
+        height: 36,
+        borderRadius: 999,
+        background: usuario ? "#e2e8f0" : "#22d3ee",
+        color: "#020617",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 900,
         flexShrink: 0,
-        border: usuario ? "1px solid rgba(255,255,255,0.12)" : "none",
       }}
     >
       {letra}
@@ -792,384 +542,289 @@ function Avatar({ letra, usuario }: { letra: string; usuario?: boolean }) {
 
 const styles: any = {
   main: {
-    minHeight: "100vh",
-    background: "#020617",
-    color: "white",
+    height: "100vh",
     display: "flex",
-    fontFamily:
-      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+    background: "#f8fbff",
+    color: "#0f172a",
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
   },
   sidebar: {
-    width: "300px",
-    background:
-      "linear-gradient(180deg, rgba(7,18,38,1) 0%, rgba(3,7,18,1) 100%)",
-    borderRight: "1px solid rgba(255,255,255,0.08)",
-    padding: "22px",
+    width: 300,
+    background: "#ffffff",
+    borderRight: "1px solid #e2e8f0",
+    padding: 20,
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
   },
-  logoBox: {
-    display: "flex",
-    gap: "14px",
-    alignItems: "center",
-  },
-  logoIcon: {
-    width: "46px",
-    height: "46px",
-    borderRadius: "16px",
+  brandBox: { display: "flex", alignItems: "center", gap: 12 },
+  logo: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     background: "#22d3ee",
-    color: "#020617",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 900,
-    fontSize: "22px",
   },
-  brand: {
-    color: "#22d3ee",
-    fontWeight: 800,
-    margin: 0,
-    fontSize: "14px",
+  brandSmall: { margin: 0, color: "#0891b2", fontWeight: 900 },
+  brandTitle: { margin: 0, fontSize: 30, fontWeight: 900 },
+  newChat: {
+    marginTop: 28,
+    width: "100%",
+    border: "none",
+    background: "#071226",
+    color: "white",
+    borderRadius: 18,
+    padding: 15,
+    fontWeight: 900,
+    cursor: "pointer",
+    textAlign: "left",
   },
-  logoText: {
-    margin: 0,
-    fontSize: "30px",
+  menu: { marginTop: 28 },
+  menuTitle: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: ".1em",
+    color: "#64748b",
     fontWeight: 900,
   },
-  newButton: {
-    marginTop: "30px",
+  emptySide: { color: "#94a3b8", padding: 12 },
+  chatActive: {
     width: "100%",
-    background: "rgba(34,211,238,0.08)",
-    border: "1px solid rgba(34,211,238,0.28)",
-    color: "#e0faff",
-    borderRadius: "16px",
-    padding: "15px",
-    cursor: "pointer",
+    border: "none",
+    background: "#e0f7ff",
+    color: "#075985",
+    borderRadius: 14,
+    padding: 13,
     textAlign: "left",
+    marginBottom: 8,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  chatMuted: {
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: "#64748b",
+    borderRadius: 14,
+    padding: 13,
+    textAlign: "left",
+    marginBottom: 8,
+    cursor: "pointer",
+  },
+  sideBottom: { display: "grid", gap: 10 },
+  sideLink: {
+    textDecoration: "none",
+    color: "#0f172a",
+    border: "1px solid #e2e8f0",
+    borderRadius: 14,
+    padding: 13,
     fontWeight: 800,
   },
-  menuSection: {
-    marginTop: "30px",
-  },
-  menuTitle: {
-    color: "#64748b",
-    fontSize: "12px",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: "12px",
-  },
-  chatItem: {
-    width: "100%",
-    background: "rgba(255,255,255,0.08)",
-    borderRadius: "14px",
-    padding: "13px",
-    marginBottom: "8px",
-    fontSize: "14px",
-    color: "white",
-    border: "none",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  chatItemMuted: {
-    color: "#94a3b8",
-    borderRadius: "14px",
-    padding: "13px",
-    marginBottom: "8px",
-    fontSize: "14px",
-  },
-  chatItemMutedButton: {
-    width: "100%",
-    color: "#94a3b8",
-    background: "transparent",
-    border: "none",
-    borderRadius: "14px",
-    padding: "13px",
-    marginBottom: "8px",
-    fontSize: "14px",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  bottomSidebar: {
+  profile: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 18,
+    padding: 15,
     display: "grid",
-    gap: "12px",
-  },
-  profileCard: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "18px",
-    padding: "16px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "4px",
-  },
-  label: {
-    color: "#94a3b8",
-  },
-  backButton: {
-    color: "#cbd5e1",
-    textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: "16px",
-    padding: "15px",
+    gap: 4,
   },
   content: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     height: "100vh",
-    background:
-      "radial-gradient(circle at top center, rgba(34,211,238,0.08), transparent 35%), #020617",
   },
   header: {
-    height: "72px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    height: 72,
+    background: "rgba(255,255,255,.82)",
+    backdropFilter: "blur(16px)",
+    borderBottom: "1px solid #e2e8f0",
+    padding: "0 32px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "0 32px",
   },
-  headerLabel: {
-    color: "#22d3ee",
-    fontWeight: 900,
-    margin: 0,
-  },
-  headerTitle: {
-    margin: "2px 0 0",
-    fontSize: "15px",
-    color: "#cbd5e1",
-    fontWeight: 500,
-  },
-  statusPill: {
-    border: "1px solid rgba(52,211,153,0.25)",
-    background: "rgba(52,211,153,0.08)",
-    color: "#6ee7b7",
-    borderRadius: "999px",
-    padding: "8px 13px",
-    fontSize: "13px",
-    fontWeight: 800,
+  headerEyebrow: { margin: 0, color: "#0891b2", fontWeight: 900 },
+  headerTitle: { margin: 0, fontSize: 18 },
+  status: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: 8,
+    border: "1px solid #bbf7d0",
+    background: "#f0fdf4",
+    color: "#15803d",
+    borderRadius: 999,
+    padding: "8px 13px",
+    fontWeight: 900,
+    fontSize: 13,
   },
-  statusDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "999px",
-    background: "#34d399",
+  dot: { width: 8, height: 8, borderRadius: 999, background: "#22c55e" },
+  chatArea: { flex: 1, overflowY: "auto", padding: "32px 24px" },
+  chatContainer: { maxWidth: 920, margin: "0 auto" },
+  briefing: {
+    background: "linear-gradient(135deg, #ffffff, #ecfeff)",
+    border: "1px solid #bae6fd",
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 34,
+    boxShadow: "0 20px 60px rgba(8,47,73,.08)",
   },
-  chatArea: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "38px 24px",
+  briefingTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 20,
+    alignItems: "center",
   },
-  chatContainer: {
-    maxWidth: "900px",
-    margin: "0 auto",
+  briefingLabel: {
+    margin: 0,
+    color: "#0891b2",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: ".12em",
+    fontWeight: 900,
   },
-  welcomeBox: {
-    minHeight: "58vh",
+  briefingTitle: { margin: "6px 0 0", fontSize: 23 },
+  briefingText: { color: "#475569", lineHeight: 1.7 },
+  score: {
+    width: 82,
+    height: 82,
+    borderRadius: 24,
+    background: "#071226",
+    color: "white",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
+  },
+  priorities: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+    gap: 12,
+    marginTop: 16,
+  },
+  recommendation: {
+    marginTop: 16,
+    background: "#cffafe",
+    color: "#075985",
+    borderRadius: 18,
+    padding: 15,
+    fontWeight: 800,
+  },
+  welcome: {
     textAlign: "center",
+    padding: "50px 0",
   },
   bigLogo: {
-    width: "70px",
-    height: "70px",
-    borderRadius: "24px",
+    margin: "0 auto 20px",
+    width: 70,
+    height: 70,
+    borderRadius: 24,
     background: "#22d3ee",
-    color: "#020617",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    fontSize: 34,
     fontWeight: 900,
-    fontSize: "36px",
-    boxShadow: "0 0 60px rgba(34,211,238,0.35)",
-    marginBottom: "22px",
   },
-  welcomeTitle: {
-    fontSize: "44px",
-    fontWeight: 900,
-    margin: 0,
-  },
-  welcomeText: {
-    color: "#94a3b8",
-    maxWidth: "620px",
-    lineHeight: 1.7,
-    marginTop: "14px",
-  },
-  suggestionsGrid: {
+  suggestions: {
+    marginTop: 26,
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "12px",
-    marginTop: "30px",
-    width: "100%",
-    maxWidth: "620px",
+    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+    gap: 12,
   },
-  suggestionButton: {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    color: "#e2e8f0",
-    borderRadius: "18px",
-    padding: "16px",
-    cursor: "pointer",
+  suggestion: {
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    borderRadius: 18,
+    padding: 16,
+    fontWeight: 800,
     textAlign: "left",
-    fontWeight: 700,
+    cursor: "pointer",
   },
-  messageRow: {
-    display: "flex",
-    gap: "12px",
-    marginBottom: "28px",
-  },
-  messageBubble: {
+  messageRow: { display: "flex", gap: 12, marginBottom: 24 },
+  bubble: {
     maxWidth: "76%",
-    padding: "17px 20px",
-    borderRadius: "24px",
+    padding: "16px 19px",
+    borderRadius: 24,
     lineHeight: 1.65,
-    boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
   },
   eosBubble: {
-    background: "rgba(15,23,42,0.95)",
-    color: "#f8fafc",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    color: "#0f172a",
   },
   userBubble: {
-    background: "linear-gradient(135deg, #22d3ee, #06b6d4)",
-    color: "#020617",
+    background: "#071226",
+    color: "white",
   },
-  messageMeta: {
-    fontSize: "12px",
-    opacity: 0.65,
+  meta: {
+    fontSize: 12,
     fontWeight: 900,
-    marginBottom: "5px",
+    opacity: 0.6,
+    marginBottom: 5,
   },
-  messageText: {
-    whiteSpace: "pre-line",
-    fontSize: "16px",
+  messageText: { whiteSpace: "pre-line", fontSize: 16 },
+  downloadCard: {
+    marginTop: 12,
+    background: "#ecfeff",
+    border: "1px solid #bae6fd",
+    borderRadius: 18,
+    padding: 15,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+  },
+  downloadButton: {
+    background: "#071226",
+    color: "white",
+    textDecoration: "none",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontWeight: 900,
   },
   inputArea: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    padding: "20px",
-    background: "rgba(2,6,23,0.9)",
-    backdropFilter: "blur(16px)",
+    background: "rgba(255,255,255,.88)",
+    borderTop: "1px solid #e2e8f0",
+    padding: 18,
   },
   inputBox: {
-    maxWidth: "900px",
+    maxWidth: 920,
     margin: "0 auto",
     display: "flex",
-    gap: "12px",
-    background: "#071226",
-    border: "1px solid rgba(34,211,238,0.18)",
-    borderRadius: "24px",
-    padding: "12px",
-    boxShadow: "0 0 40px rgba(34,211,238,0.08)",
+    gap: 10,
+    background: "white",
+    border: "1px solid #cbd5e1",
+    borderRadius: 24,
+    padding: 10,
+    boxShadow: "0 18px 50px rgba(15,23,42,.08)",
   },
   textarea: {
     flex: 1,
     resize: "none",
-    background: "transparent",
     border: "none",
     outline: "none",
-    color: "white",
-    fontSize: "16px",
-    padding: "13px",
-    minHeight: "48px",
+    padding: 13,
+    fontSize: 16,
+    minHeight: 48,
   },
-  sendButton: {
-    width: "52px",
-    height: "52px",
+  send: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    border: "none",
     background: "#22d3ee",
     color: "#020617",
-    border: "none",
-    borderRadius: "18px",
     fontWeight: 900,
+    fontSize: 22,
     cursor: "pointer",
-    fontSize: "22px",
   },
- footerNote: {
-  textAlign: "center",
-  color: "#64748b",
-  fontSize: "12px",
-  marginTop: "10px",
-},
-briefingCard: {
-  background:
-    "linear-gradient(135deg, rgba(34,211,238,0.12), rgba(15,23,42,0.96))",
-  border: "1px solid rgba(34,211,238,0.22)",
-  borderRadius: "28px",
-  padding: "24px",
-  marginBottom: "32px",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
-},
-briefingHeader: {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "20px",
-  alignItems: "center",
-},
-briefingLabel: {
-  margin: 0,
-  color: "#22d3ee",
-  fontSize: "12px",
-  textTransform: "uppercase",
-  letterSpacing: "0.12em",
-  fontWeight: 900,
-},
-briefingTitle: {
-  margin: "6px 0 0",
-  fontSize: "22px",
-  color: "#f8fafc",
-},
-scoreBox: {
-  width: "82px",
-  height: "82px",
-  borderRadius: "24px",
-  background: "rgba(2,6,23,0.75)",
-  border: "1px solid rgba(34,211,238,0.22)",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-},
-scoreNumber: {
-  color: "#22d3ee",
-  fontSize: "28px",
-  fontWeight: 900,
-},
-scoreText: {
-  color: "#94a3b8",
-  fontSize: "11px",
-  fontWeight: 800,
-},
-briefingSummary: {
-  color: "#cbd5e1",
-  lineHeight: 1.7,
-  marginTop: "18px",
-},
-priorityGrid: {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: "12px",
-  marginTop: "18px",
-},
-priorityCard: {
-  background: "rgba(2,6,23,0.55)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "18px",
-  padding: "14px",
-  color: "#e2e8f0",
-  fontSize: "14px",
-  lineHeight: 1.5,
-},
-recommendationBox: {
-  marginTop: "16px",
-  background: "rgba(34,211,238,0.09)",
-  border: "1px solid rgba(34,211,238,0.2)",
-  borderRadius: "18px",
-  padding: "15px",
-  color: "#a5f3fc",
-  fontWeight: 700,
-},
+  note: {
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: 12,
+    marginTop: 8,
+  },
 };
