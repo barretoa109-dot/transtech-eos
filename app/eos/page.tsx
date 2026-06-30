@@ -12,7 +12,15 @@ type Conversacion = {
   id: string;
   titulo: string | null;
 };
-
+type Briefing = {
+  saludo: string;
+  resumen: string;
+  prioridad_1: string;
+  prioridad_2: string;
+  prioridad_3: string;
+  recomendacion_principal: string;
+  score: number;
+};
 export default function EOSPage() {
   const [mensaje, setMensaje] = useState("");
   const [nombre, setNombre] = useState("Usuario");
@@ -21,6 +29,7 @@ export default function EOSPage() {
   const [conversacionId, setConversacionId] = useState("");
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [cargando, setCargando] = useState(false);
   const chatRef = useRef<HTMLDivElement | null>(null);
 
@@ -52,8 +61,20 @@ export default function EOSPage() {
 
     setUsuarioId(uuid);
     await cargarConversaciones(uuid);
+    await cargarBriefing(uuid);
   }
+async function cargarBriefing(uuid: string) {
+  try {
+    const response = await fetch(`/api/briefing?usuario_id=${uuid}`);
+    const data = await response.json();
 
+    if (data?.briefing) {
+      setBriefing(data.briefing);
+    }
+  } catch (error) {
+    console.log("Error cargando briefing:", error);
+  }
+}
   async function cargarConversaciones(uuid: string) {
     const { data, error } = await supabase
       .from("conversaciones")
@@ -588,8 +609,38 @@ export default function EOSPage() {
         </header>
 
         <div ref={chatRef} style={styles.chatArea}>
-          <div style={styles.chatContainer}>
-            {historial.length === 0 && (
+  <div style={styles.chatContainer}>
+    {briefing && (
+      <div style={styles.briefingCard}>
+        <div style={styles.briefingHeader}>
+          <div>
+            <p style={styles.briefingLabel}>Resumen inteligente EOS</p>
+            <h2 style={styles.briefingTitle}>{briefing.saludo}</h2>
+          </div>
+
+          <div style={styles.scoreBox}>
+            <span style={styles.scoreNumber}>{briefing.score || 0}</span>
+            <span style={styles.scoreText}>Score</span>
+          </div>
+        </div>
+
+        <p style={styles.briefingSummary}>
+          {briefing.resumen || "EOS está preparando tu contexto inteligente."}
+        </p>
+
+        <div style={styles.priorityGrid}>
+          <div style={styles.priorityCard}>1. {briefing.prioridad_1}</div>
+          <div style={styles.priorityCard}>2. {briefing.prioridad_2}</div>
+          <div style={styles.priorityCard}>3. {briefing.prioridad_3}</div>
+        </div>
+
+        <div style={styles.recommendationBox}>
+          {briefing.recomendacion_principal}
+        </div>
+      </div>
+    )}
+
+    {historial.length === 0 && (
               <div style={styles.welcomeBox}>
                 <div style={styles.bigLogo}>E</div>
                 <h1 style={styles.welcomeTitle}>¿Qué querés mejorar hoy?</h1>
@@ -1037,10 +1088,88 @@ const styles: any = {
     cursor: "pointer",
     fontSize: "22px",
   },
-  footerNote: {
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: "12px",
-    marginTop: "10px",
-  },
+ footerNote: {
+  textAlign: "center",
+  color: "#64748b",
+  fontSize: "12px",
+  marginTop: "10px",
+},
+briefingCard: {
+  background:
+    "linear-gradient(135deg, rgba(34,211,238,0.12), rgba(15,23,42,0.96))",
+  border: "1px solid rgba(34,211,238,0.22)",
+  borderRadius: "28px",
+  padding: "24px",
+  marginBottom: "32px",
+  boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+},
+briefingHeader: {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "20px",
+  alignItems: "center",
+},
+briefingLabel: {
+  margin: 0,
+  color: "#22d3ee",
+  fontSize: "12px",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  fontWeight: 900,
+},
+briefingTitle: {
+  margin: "6px 0 0",
+  fontSize: "22px",
+  color: "#f8fafc",
+},
+scoreBox: {
+  width: "82px",
+  height: "82px",
+  borderRadius: "24px",
+  background: "rgba(2,6,23,0.75)",
+  border: "1px solid rgba(34,211,238,0.22)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+},
+scoreNumber: {
+  color: "#22d3ee",
+  fontSize: "28px",
+  fontWeight: 900,
+},
+scoreText: {
+  color: "#94a3b8",
+  fontSize: "11px",
+  fontWeight: 800,
+},
+briefingSummary: {
+  color: "#cbd5e1",
+  lineHeight: 1.7,
+  marginTop: "18px",
+},
+priorityGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: "12px",
+  marginTop: "18px",
+},
+priorityCard: {
+  background: "rgba(2,6,23,0.55)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "18px",
+  padding: "14px",
+  color: "#e2e8f0",
+  fontSize: "14px",
+  lineHeight: 1.5,
+},
+recommendationBox: {
+  marginTop: "16px",
+  background: "rgba(34,211,238,0.09)",
+  border: "1px solid rgba(34,211,238,0.2)",
+  borderRadius: "18px",
+  padding: "15px",
+  color: "#a5f3fc",
+  fontWeight: 700,
+},
 };
