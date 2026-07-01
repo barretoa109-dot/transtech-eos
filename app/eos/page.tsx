@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 type Mensaje = { rol: "usuario" | "eos"; texto: string };
-type Conversacion = { id: string; titulo: string | null };
+type Conversacion = { id: string; titulo: string | null; created_at?: string };
 
 type Briefing = {
   saludo?: string;
@@ -16,7 +16,7 @@ type Briefing = {
   score?: number;
 };
 
-type Vista = "chat" | "briefing" | "historial" | "archivos" | "perfil";
+type Vista = "chat" | "briefing" | "dashboard" | "perfil";
 
 export default function EOSPage() {
   const [mensaje, setMensaje] = useState("");
@@ -173,6 +173,24 @@ export default function EOSPage() {
       .insert([{ conversacion_id: idConversacion, rol: remitente, texto }]);
   }
 
+  async function actualizarTituloConversacion(idConversacion: string, textoUsuario: string) {
+    const tituloLimpio = textoUsuario
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 42);
+
+    const titulo = textoUsuario.length > 42 ? `${tituloLimpio}...` : tituloLimpio;
+
+    await supabase
+      .from("conversaciones")
+      .update({ titulo })
+      .eq("id", idConversacion);
+
+    setConversaciones((prev) =>
+      prev.map((c) => (c.id === idConversacion ? { ...c, titulo } : c))
+    );
+  }
+
   function extraerTextoEOS(valor: any): string {
     if (!valor) return "";
     if (typeof valor === "string") return valor;
@@ -219,7 +237,6 @@ export default function EOSPage() {
 
   async function obtenerRespuesta(response: Response) {
     const texto = await response.text();
-
     if (!texto || texto.trim() === "") throw new Error("EOS respondió vacío");
 
     try {
@@ -262,6 +279,17 @@ export default function EOSPage() {
 
     await guardarMensaje(conversacionActiva, "usuario", textoUsuario);
 
+    const conversacionActual = conversaciones.find((c) => c.id === conversacionActiva);
+
+    if (
+      !conversacionActual?.titulo ||
+      conversacionActual.titulo === "Nuevo chat" ||
+      conversacionActual.titulo === "Nuevo proceso EOS" ||
+      conversacionActual.titulo === "Diagnóstico actual"
+    ) {
+      await actualizarTituloConversacion(conversacionActiva, textoUsuario);
+    }
+
     try {
       const response = await fetch("/api/eos", {
         method: "POST",
@@ -278,7 +306,6 @@ export default function EOSPage() {
       });
 
       const respuestaLimpia = await obtenerRespuesta(response);
-
       if (!response.ok) throw new Error("Error en EOS");
 
       const respuestaFinal =
@@ -344,7 +371,11 @@ export default function EOSPage() {
       <aside style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
           <div style={styles.brand}>
-            <div style={styles.logo}>E</div>
+            <div style={styles.logoWrap}>
+              <div style={styles.logoGlow} />
+              <div style={styles.logo}>E</div>
+            </div>
+
             <div>
               <div style={styles.brandSmall}>TransTech</div>
               <div style={styles.brandTitle}>EOS</div>
@@ -352,13 +383,13 @@ export default function EOSPage() {
           </div>
 
           <button onClick={() => crearNuevaConversacion()} style={styles.newChat}>
-            Nuevo chat
+            + Nuevo chat
           </button>
 
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar chats..."
+            placeholder="Buscar conversaciones..."
             style={styles.search}
           />
 
@@ -366,17 +397,11 @@ export default function EOSPage() {
             <button onClick={() => setVista("chat")} style={vista === "chat" ? styles.navActive : styles.navItem}>
               Inicio
             </button>
-            <button onClick={() => setVista("historial")} style={vista === "historial" ? styles.navActive : styles.navItem}>
-              Historial
-            </button>
             <button onClick={() => setVista("briefing")} style={vista === "briefing" ? styles.navActive : styles.navItem}>
               Briefing
             </button>
-            <button onClick={() => setVista("archivos")} style={vista === "archivos" ? styles.navActive : styles.navItem}>
-              Archivos
-            </button>
-            <button onClick={() => setVista("perfil")} style={vista === "perfil" ? styles.navActive : styles.navItem}>
-              Perfil
+            <button onClick={() => setVista("dashboard")} style={vista === "dashboard" ? styles.navActive : styles.navItem}>
+              Dashboard
             </button>
           </nav>
         </div>
@@ -385,7 +410,7 @@ export default function EOSPage() {
           <p style={styles.sectionTitle}>Recientes</p>
 
           {conversacionesFiltradas.length === 0 && (
-            <p style={styles.empty}>No hay conversaciones.</p>
+            <p style={styles.empty}>Todavía no hay conversaciones.</p>
           )}
 
           {conversacionesFiltradas.map((c) => (
@@ -402,28 +427,18 @@ export default function EOSPage() {
           ))}
         </div>
 
-        <div style={styles.userBox}>
+        <button onClick={() => setVista("perfil")} style={styles.userBox}>
           <div style={styles.userAvatar}>{nombre.charAt(0).toUpperCase()}</div>
-          <div>
+          <div style={styles.userText}>
             <strong>{nombre}</strong>
             <span>Plan {plan}</span>
           </div>
-        </div>
+        </button>
       </aside>
 
       <section style={styles.content}>
         <header style={styles.topbar}>
-          <div>
-            <p style={styles.eyebrow}>EOS OS</p>
-            <h1 style={styles.title}>
-              {vista === "chat" && "Chat"}
-              {vista === "historial" && "Historial"}
-              {vista === "briefing" && "Briefing"}
-              {vista === "archivos" && "Archivos"}
-              {vista === "perfil" && "Perfil"}
-            </h1>
-          </div>
-
+          <div />
           <div style={styles.status}>
             <span style={styles.dot} />
             Activo
@@ -514,29 +529,11 @@ export default function EOSPage() {
           </>
         )}
 
-        {vista === "historial" && (
-          <Panel>
-            <h2>Conversaciones recientes</h2>
-            {conversacionesFiltradas.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => {
-                  setConversacionId(c.id);
-                  cargarMensajes(c.id);
-                }}
-                style={styles.panelButton}
-              >
-                {c.titulo || "Nuevo chat"}
-              </button>
-            ))}
-          </Panel>
-        )}
-
         {vista === "briefing" && (
           <Panel>
-            <div style={styles.briefingHeader}>
+            <div style={styles.panelTop}>
               <div>
-                <p style={styles.eyebrow}>Daily Briefing</p>
+                <p style={styles.eyebrow}>Briefing</p>
                 <h2>{briefingVisible.saludo}</h2>
               </div>
               <div style={styles.score}>{briefingVisible.score}</div>
@@ -556,21 +553,45 @@ export default function EOSPage() {
           </Panel>
         )}
 
-        {vista === "archivos" && (
+        {vista === "dashboard" && (
           <Panel>
-            <h2>Archivos generados</h2>
+            <p style={styles.eyebrow}>Dashboard</p>
+            <h2>Resumen EOS</h2>
             <p style={styles.panelText}>
-              Cuando EOS genere documentos, Excel, reportes o archivos, aparecerán en el chat y próximamente también acá.
+              Acá vas a ver el estado general del usuario, objetivos activos,
+              avances, archivos generados y próximos pasos.
             </p>
+
+            <div style={styles.cardGrid}>
+              <div style={styles.metricCard}>
+                <span>Score</span>
+                <strong>{briefingVisible.score || 0}</strong>
+              </div>
+              <div style={styles.metricCard}>
+                <span>Conversaciones</span>
+                <strong>{conversaciones.length}</strong>
+              </div>
+              <div style={styles.metricCard}>
+                <span>Plan</span>
+                <strong>{plan}</strong>
+              </div>
+            </div>
           </Panel>
         )}
 
         {vista === "perfil" && (
           <Panel>
-            <h2>Perfil EOS</h2>
-            <p style={styles.panelText}>Usuario: {nombre}</p>
-            <p style={styles.panelText}>Plan actual: {plan}</p>
-            <p style={styles.panelText}>Estado: activo</p>
+            <p style={styles.eyebrow}>Perfil</p>
+            <h2>{nombre}</h2>
+
+            <div style={styles.profileBox}>
+              <div style={styles.bigAvatar}>{nombre.charAt(0).toUpperCase()}</div>
+              <div>
+                <h3>{nombre}</h3>
+                <p>Plan actual: {plan}</p>
+                <p>Estado: EOS activo</p>
+              </div>
+            </div>
           </Panel>
         )}
       </section>
@@ -613,36 +634,55 @@ const styles: any = {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 20,
+  },
+  logoWrap: {
+    position: "relative",
+    width: 44,
+    height: 44,
+  },
+  logoGlow: {
+    position: "absolute",
+    inset: -4,
+    background: "linear-gradient(135deg,#22d3ee,#0ea5e9)",
+    opacity: 0.25,
+    filter: "blur(10px)",
+    borderRadius: 16,
   },
   logo: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    background: "#22d3ee",
+    position: "relative",
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    background: "linear-gradient(135deg,#22d3ee,#38bdf8)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 900,
+    fontSize: 20,
+    color: "#06202a",
+    boxShadow: "0 10px 24px rgba(34,211,238,.25)",
   },
   brandSmall: {
     fontSize: 13,
     color: "#0891b2",
     fontWeight: 800,
+    lineHeight: 1,
   },
   brandTitle: {
-    fontSize: 26,
+    fontSize: 29,
     fontWeight: 900,
-    lineHeight: 1,
+    lineHeight: 1.05,
+    letterSpacing: "-0.04em",
   },
   newChat: {
     width: "100%",
     border: "1px solid #d1d5db",
     background: "#ffffff",
-    borderRadius: 12,
-    padding: "12px 14px",
+    borderRadius: 14,
+    padding: "13px 14px",
     textAlign: "left",
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer",
     marginBottom: 10,
   },
@@ -650,34 +690,37 @@ const styles: any = {
     width: "100%",
     border: "1px solid #e5e7eb",
     background: "#ffffff",
-    borderRadius: 12,
-    padding: "12px 14px",
+    borderRadius: 14,
+    padding: "13px 14px",
     outline: "none",
-    marginBottom: 14,
+    marginBottom: 16,
+    fontFamily: "Arial, Helvetica, sans-serif",
   },
   nav: {
     display: "grid",
-    gap: 4,
+    gap: 5,
   },
   navItem: {
     border: "none",
     background: "transparent",
     color: "#374151",
-    borderRadius: 10,
-    padding: "10px 12px",
+    borderRadius: 12,
+    padding: "11px 12px",
     textAlign: "left",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: 15,
   },
   navActive: {
     border: "none",
     background: "#e0f7ff",
     color: "#075985",
-    borderRadius: 10,
-    padding: "10px 12px",
+    borderRadius: 12,
+    padding: "11px 12px",
     textAlign: "left",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 900,
+    fontSize: 15,
   },
   history: {
     flex: 1,
@@ -690,8 +733,8 @@ const styles: any = {
     color: "#6b7280",
     fontSize: 11,
     textTransform: "uppercase",
-    letterSpacing: ".08em",
-    fontWeight: 800,
+    letterSpacing: ".1em",
+    fontWeight: 900,
   },
   empty: {
     color: "#9ca3af",
@@ -702,42 +745,60 @@ const styles: any = {
     border: "none",
     background: "transparent",
     color: "#4b5563",
-    borderRadius: 10,
-    padding: "10px 12px",
+    borderRadius: 12,
+    padding: "11px 12px",
     textAlign: "left",
     cursor: "pointer",
-    marginBottom: 3,
+    marginBottom: 4,
+    fontSize: 15,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   chatActive: {
     width: "100%",
     border: "none",
     background: "#ffffff",
     color: "#111827",
-    borderRadius: 10,
-    padding: "10px 12px",
+    borderRadius: 12,
+    padding: "11px 12px",
     textAlign: "left",
     cursor: "pointer",
-    fontWeight: 700,
-    marginBottom: 3,
+    fontWeight: 800,
+    marginBottom: 4,
+    fontSize: 15,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    boxShadow: "0 8px 20px rgba(15,23,42,.05)",
   },
   userBox: {
     flexShrink: 0,
     padding: 16,
+    border: "none",
     borderTop: "1px solid #e5e7eb",
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 11,
     background: "#f7f7f8",
+    cursor: "pointer",
+    textAlign: "left",
   },
   userAvatar: {
-    width: 34,
-    height: 34,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     background: "#22d3ee",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: 900,
+    color: "#06202a",
+  },
+  userText: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
   },
   content: {
     height: "100vh",
@@ -747,26 +808,13 @@ const styles: any = {
     background: "#ffffff",
   },
   topbar: {
-    height: 64,
-    borderBottom: "1px solid #e5e7eb",
+    height: 54,
+    borderBottom: "1px solid #eeeeee",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     padding: "0 28px",
     flexShrink: 0,
-  },
-  eyebrow: {
-    margin: 0,
-    color: "#0891b2",
-    fontSize: 12,
-    fontWeight: 800,
-    letterSpacing: ".08em",
-    textTransform: "uppercase",
-  },
-  title: {
-    margin: 0,
-    fontSize: 18,
-    fontWeight: 500,
   },
   status: {
     display: "flex",
@@ -776,7 +824,7 @@ const styles: any = {
     background: "#f0fdf4",
     color: "#15803d",
     borderRadius: 999,
-    padding: "8px 12px",
+    padding: "8px 13px",
     fontWeight: 700,
     fontSize: 14,
   },
@@ -807,13 +855,14 @@ const styles: any = {
     width: 64,
     height: 64,
     borderRadius: 20,
-    background: "#22d3ee",
+    background: "linear-gradient(135deg,#22d3ee,#38bdf8)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 30,
     fontWeight: 900,
     marginBottom: 20,
+    color: "#06202a",
   },
   quickGrid: {
     marginTop: 24,
@@ -846,6 +895,7 @@ const styles: any = {
     justifyContent: "center",
     fontWeight: 900,
     flexShrink: 0,
+    color: "#06202a",
   },
   bubble: {
     maxWidth: "78%",
@@ -955,26 +1005,23 @@ const styles: any = {
     padding: "42px 24px",
     overflowY: "auto",
   },
-  panelButton: {
-    width: "100%",
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-    borderRadius: 14,
-    padding: 16,
-    textAlign: "left",
-    cursor: "pointer",
-    marginBottom: 10,
-    fontWeight: 700,
+  eyebrow: {
+    margin: 0,
+    color: "#0891b2",
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: ".1em",
+    textTransform: "uppercase",
   },
-  panelText: {
-    color: "#4b5563",
-    lineHeight: 1.7,
-  },
-  briefingHeader: {
+  panelTop: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 20,
+  },
+  panelText: {
+    color: "#4b5563",
+    lineHeight: 1.7,
   },
   score: {
     width: 58,
@@ -986,6 +1033,7 @@ const styles: any = {
     justifyContent: "center",
     fontWeight: 900,
     fontSize: 22,
+    color: "#06202a",
   },
   cardGrid: {
     display: "grid",
@@ -1008,5 +1056,36 @@ const styles: any = {
     padding: 16,
     color: "#075985",
     fontWeight: 700,
+  },
+  metricCard: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    padding: 18,
+    background: "#ffffff",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  profileBox: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 20,
+    padding: 22,
+    display: "flex",
+    alignItems: "center",
+    gap: 18,
+    background: "#ffffff",
+    boxShadow: "0 12px 35px rgba(0,0,0,.04)",
+  },
+  bigAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 24,
+    background: "linear-gradient(135deg,#22d3ee,#38bdf8)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    fontSize: 30,
+    color: "#06202a",
   },
 };
