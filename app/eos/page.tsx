@@ -113,26 +113,32 @@ export default function EOSPage() {
   }
 
   async function crearNuevaConversacion(uuid = usuarioId) {
-    if (!uuid) return null;
+  if (!uuid) return null;
 
-    const { data, error } = await supabase
-      .from("conversaciones")
-      .insert([{ usuario_id: uuid, titulo: "Nuevo chat" }])
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from("conversaciones")
+    .insert([{ usuario_id: uuid, titulo: "Nuevo chat" }])
+    .select()
+    .single();
 
-    if (error || !data) {
-      console.log("Error creando conversación:", error);
-      return null;
-    }
-
-    setConversacionId(data.id);
-    setConversaciones((prev) => [data, ...prev]);
-    setHistorial([]);
-    setVista("chat");
-
-    return data.id;
+  if (error || !data) {
+    console.log("Error creando conversación:", error);
+    return null;
   }
+
+  setConversacionId(data.id);
+  setConversaciones((prev) => [data, ...prev]);
+  setVista("chat");
+
+  setHistorial([
+    {
+      rol: "eos",
+      texto: `Hola ${nombre}. Soy EOS.\n\nEste es un nuevo chat. Contame qué querés trabajar hoy: finanzas, negocio, documentos, objetivos, tareas o decisiones importantes.`,
+    },
+  ]);
+
+  return data.id;
+}
 
   async function cargarMensajes(idConversacion: string) {
     const { data, error } = await supabase
@@ -174,22 +180,43 @@ export default function EOSPage() {
   }
 
   async function actualizarTituloConversacion(idConversacion: string, textoUsuario: string) {
-    const tituloLimpio = textoUsuario
+  const texto = textoUsuario.toLowerCase();
+
+  let titulo = "Nueva conversación EOS";
+
+  if (texto.includes("excel") || texto.includes("planilla") || texto.includes("archivo")) {
+    titulo = "Documento profesional";
+  } else if (texto.includes("finanza") || texto.includes("gasto") || texto.includes("deuda") || texto.includes("ahorro")) {
+    titulo = "Plan financiero";
+  } else if (texto.includes("negocio") || texto.includes("venta") || texto.includes("empresa") || texto.includes("cliente")) {
+    titulo = "Estrategia de negocio";
+  } else if (texto.includes("objetivo") || texto.includes("tarea") || texto.includes("organizar")) {
+    titulo = "Objetivos y organización";
+  } else if (texto.includes("hola") || texto.includes("buenas")) {
+    titulo = "Inicio con EOS";
+  } else {
+    const palabras = textoUsuario
+      .replace(/[¿?¡!.,]/g, "")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 42);
+      .split(" ")
+      .filter(Boolean);
 
-    const titulo = textoUsuario.length > 42 ? `${tituloLimpio}...` : tituloLimpio;
+    titulo = palabras.slice(0, 6).join(" ");
 
-    await supabase
-      .from("conversaciones")
-      .update({ titulo })
-      .eq("id", idConversacion);
-
-    setConversaciones((prev) =>
-      prev.map((c) => (c.id === idConversacion ? { ...c, titulo } : c))
-    );
+    if (titulo.length < 8) titulo = "Conversación EOS";
+    if (titulo.length > 48) titulo = titulo.slice(0, 48) + "...";
   }
+
+  await supabase
+    .from("conversaciones")
+    .update({ titulo })
+    .eq("id", idConversacion);
+
+  setConversaciones((prev) =>
+    prev.map((c) => (c.id === idConversacion ? { ...c, titulo } : c))
+  );
+}
 
   function extraerTextoEOS(valor: any): string {
     if (!valor) return "";
@@ -300,8 +327,11 @@ export default function EOSPage() {
           nombre,
           plan,
           mensaje: textoUsuario,
-          historial: historialActual.slice(-10),
-          origen: "eos-web",
+          historial: historialActual
+  .filter((m) => !m.texto.includes("Este es un nuevo chat"))
+  .slice(-10),
+nuevo_chat: historialActual.length <= 1,
+origen: "eos-web",
         }),
       });
 
@@ -530,70 +560,126 @@ export default function EOSPage() {
         )}
 
         {vista === "briefing" && (
-          <Panel>
-            <div style={styles.panelTop}>
-              <div>
-                <p style={styles.eyebrow}>Briefing</p>
-                <h2>{briefingVisible.saludo}</h2>
-              </div>
-              <div style={styles.score}>{briefingVisible.score}</div>
-            </div>
+  <Panel>
+    <div style={styles.panelTop}>
+      <div>
+        <p style={styles.eyebrow}>Briefing inteligente</p>
+        <h2>{briefingVisible.saludo}</h2>
+      </div>
+      <div style={styles.score}>{briefingVisible.score}</div>
+    </div>
 
-            <p style={styles.panelText}>{briefingVisible.resumen}</p>
+    <div style={styles.briefingHero}>
+      <h3>Resumen actual</h3>
+      <p>{briefingVisible.resumen}</p>
+    </div>
 
-            <div style={styles.cardGrid}>
-              <div style={styles.card}>{briefingVisible.prioridad_1}</div>
-              <div style={styles.card}>{briefingVisible.prioridad_2}</div>
-              <div style={styles.card}>{briefingVisible.prioridad_3}</div>
-            </div>
+    <div style={styles.cardGrid}>
+      <div style={styles.card}>
+        <span>Prioridad 1</span>
+        <strong>{briefingVisible.prioridad_1}</strong>
+      </div>
+      <div style={styles.card}>
+        <span>Prioridad 2</span>
+        <strong>{briefingVisible.prioridad_2}</strong>
+      </div>
+      <div style={styles.card}>
+        <span>Prioridad 3</span>
+        <strong>{briefingVisible.prioridad_3}</strong>
+      </div>
+    </div>
 
-            <div style={styles.recommendation}>
-              {briefingVisible.recomendacion_principal}
-            </div>
-          </Panel>
-        )}
+    <div style={styles.recommendation}>
+      <strong>Recomendación principal</strong>
+      <p>{briefingVisible.recomendacion_principal}</p>
+    </div>
+
+    <div style={styles.timelineBox}>
+      <h3>Próximos pasos sugeridos</h3>
+      <p>1. Contar a EOS el contexto actual.</p>
+      <p>2. Definir una meta concreta.</p>
+      <p>3. Pedir un plan, documento o tablero de apoyo.</p>
+    </div>
+  </Panel>
+)}
 
         {vista === "dashboard" && (
-          <Panel>
-            <p style={styles.eyebrow}>Dashboard</p>
-            <h2>Resumen EOS</h2>
-            <p style={styles.panelText}>
-              Acá vas a ver el estado general del usuario, objetivos activos,
-              avances, archivos generados y próximos pasos.
-            </p>
+  <Panel>
+    <p style={styles.eyebrow}>Dashboard EOS</p>
+    <h2>Centro de control</h2>
+    <p style={styles.panelText}>
+      Vista general del estado del usuario dentro de EOS: conversaciones, score, plan,
+      actividad y próximos módulos inteligentes.
+    </p>
 
-            <div style={styles.cardGrid}>
-              <div style={styles.metricCard}>
-                <span>Score</span>
-                <strong>{briefingVisible.score || 0}</strong>
-              </div>
-              <div style={styles.metricCard}>
-                <span>Conversaciones</span>
-                <strong>{conversaciones.length}</strong>
-              </div>
-              <div style={styles.metricCard}>
-                <span>Plan</span>
-                <strong>{plan}</strong>
-              </div>
-            </div>
-          </Panel>
-        )}
+    <div style={styles.cardGrid}>
+      <div style={styles.metricCard}>
+        <span>EOS Score</span>
+        <strong>{briefingVisible.score || 0}</strong>
+        <small>Estado inteligente</small>
+      </div>
+      <div style={styles.metricCard}>
+        <span>Conversaciones</span>
+        <strong>{conversaciones.length}</strong>
+        <small>Procesos registrados</small>
+      </div>
+      <div style={styles.metricCard}>
+        <span>Plan</span>
+        <strong>{plan}</strong>
+        <small>Acceso actual</small>
+      </div>
+    </div>
+
+    <div style={styles.dashboardGrid}>
+      <div style={styles.dashboardBlock}>
+        <h3>Actividad reciente</h3>
+        <p>Último chat activo: {conversaciones[0]?.titulo || "Sin actividad reciente"}</p>
+        <p>Mensajes cargados: {historial.length}</p>
+      </div>
+
+      <div style={styles.dashboardBlock}>
+        <h3>Capacidades activas</h3>
+        <p>Chat inteligente</p>
+        <p>Generación de archivos</p>
+        <p>Briefing diario</p>
+        <p>Historial de conversaciones</p>
+      </div>
+    </div>
+  </Panel>
+)}
 
         {vista === "perfil" && (
-          <Panel>
-            <p style={styles.eyebrow}>Perfil</p>
-            <h2>{nombre}</h2>
+  <Panel>
+    <p style={styles.eyebrow}>Perfil EOS</p>
+    <h2>{nombre}</h2>
 
-            <div style={styles.profileBox}>
-              <div style={styles.bigAvatar}>{nombre.charAt(0).toUpperCase()}</div>
-              <div>
-                <h3>{nombre}</h3>
-                <p>Plan actual: {plan}</p>
-                <p>Estado: EOS activo</p>
-              </div>
-            </div>
-          </Panel>
-        )}
+    <div style={styles.profileBox}>
+      <div style={styles.bigAvatar}>{nombre.charAt(0).toUpperCase()}</div>
+      <div>
+        <h3>{nombre}</h3>
+        <p>Plan actual: {plan}</p>
+        <p>Estado: EOS activo</p>
+        <p>Usuario ID: {usuarioId || "No disponible"}</p>
+      </div>
+    </div>
+
+    <div style={styles.dashboardGrid}>
+      <div style={styles.dashboardBlock}>
+        <h3>Uso del sistema</h3>
+        <p>Conversaciones: {conversaciones.length}</p>
+        <p>Mensajes en chat actual: {historial.length}</p>
+      </div>
+
+      <div style={styles.dashboardBlock}>
+        <h3>Funciones disponibles</h3>
+        <p>Asesor EOS</p>
+        <p>Briefing inteligente</p>
+        <p>Documentos profesionales</p>
+        <p>Dashboard básico</p>
+      </div>
+    </div>
+  </Panel>
+)}
       </section>
     </main>
   );
@@ -1088,4 +1174,34 @@ const styles: any = {
     fontSize: 30,
     color: "#06202a",
   },
+briefingHero: {
+  marginTop: 24,
+  border: "1px solid #e5e7eb",
+  borderRadius: 18,
+  padding: 20,
+  background: "#ffffff",
+  boxShadow: "0 10px 30px rgba(0,0,0,.035)",
+},
+timelineBox: {
+  marginTop: 18,
+  border: "1px solid #e5e7eb",
+  borderRadius: 18,
+  padding: 20,
+  background: "#f9fafb",
+  lineHeight: 1.8,
+},
+dashboardGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 14,
+  marginTop: 18,
+},
+dashboardBlock: {
+  border: "1px solid #e5e7eb",
+  borderRadius: 18,
+  padding: 20,
+  background: "#ffffff",
+  boxShadow: "0 10px 30px rgba(0,0,0,.035)",
+  lineHeight: 1.7,
+},
 };
