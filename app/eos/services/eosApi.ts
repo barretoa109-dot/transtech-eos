@@ -68,23 +68,34 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
     };
   }
 
-  const archivoUrl = String(
-    data?.archivo_url ||
-      data?.archivoUrl ||
-      data?.download_url ||
-      data?.url ||
-      ""
-  ).trim();
+  const textoRespuestaOriginal = String(
+  data?.respuesta ||
+    data?.output ||
+    data?.text ||
+    data?.message ||
+    ""
+);
+
+const urlEncontrada =
+  textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
+
+const archivoUrl = String(
+  data?.archivo_url ||
+    data?.archivoUrl ||
+    data?.download_url ||
+    data?.url ||
+    urlEncontrada ||
+    ""
+).trim();
 
   const respuesta = limpiarTexto(
-    String(
-      data?.respuesta ||
-        data?.output ||
-        data?.text ||
-        data?.message ||
-        (archivoUrl ? "Tu archivo ya está listo para descargar." : "Listo.")
-    )
-  );
+  textoRespuestaOriginal
+    .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
+    .trim() ||
+    (archivoUrl
+      ? "Tu archivo ya está listo para descargar."
+      : "Listo.")
+);
 
   return {
     respuesta,
