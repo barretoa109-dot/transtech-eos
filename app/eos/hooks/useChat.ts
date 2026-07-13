@@ -76,23 +76,38 @@ export function useChat({
     await actualizarTituloSiHaceFalta(conversacionActiva, textoUsuario);
 
     try {
-      const respuestaFinal = await enviarMensajeAEOS({
-        usuarioId,
-        conversacionId: conversacionActiva,
-        nombre,
-        plan,
-        mensaje: textoUsuario,
-        historial: historialActual,
-        nuevoChat: historialActual.length <= 1,
-        imagen: imagenActual,
-      });
+      const resultadoEOS = await enviarMensajeAEOS({
+  usuarioId,
+  conversacionId: conversacionActiva,
+  nombre,
+  plan,
+  mensaje: textoUsuario,
+  historial: historialActual,
+  nuevoChat: historialActual.length <= 1,
+  imagen: imagenActual,
+});
 
-      await guardarMensaje(conversacionActiva, "eos", respuestaFinal);
+const textoEOS =
+  resultadoEOS.respuesta ||
+  (resultadoEOS.archivo_url
+    ? "Tu archivo ya está listo para descargar."
+    : "Listo.");
 
-      setHistorial((prev) => [
-        ...prev.slice(0, -1),
-        { rol: "eos", texto: respuestaFinal },
-      ]);
+await guardarMensaje(conversacionActiva, "eos", textoEOS);
+
+const mensajeEOS = {
+  rol: "eos" as const,
+  texto: textoEOS,
+  archivo_url: resultadoEOS.archivo_url || "",
+  archivo_tipo: resultadoEOS.archivo_tipo || "",
+  tipo: resultadoEOS.tipo || "texto",
+  accion: resultadoEOS.accion || "RESPONDER",
+};
+
+setHistorial((prev) => [
+  ...prev.slice(0, -1),
+  mensajeEOS,
+]);
 
       await cargarBriefing(usuarioId);
     } catch (error) {

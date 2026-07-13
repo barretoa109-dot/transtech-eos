@@ -11,44 +11,19 @@ type EnviarEOSParams = {
   imagen?: ImagenAdjunta | null;
 };
 
-function extraerTextoEOS(valor: any): string {
-  if (!valor) return "";
-  if (typeof valor === "string") return valor;
+export type RespuestaEOS = {
+  respuesta: string;
+  tipo: string;
+  accion: string;
+  archivo_url: string;
+  archivo_tipo: string;
+  metadata: Record<string, unknown>;
+};
 
-  if (Array.isArray(valor)) {
-    return valor.map(extraerTextoEOS).filter(Boolean).join("\n\n");
-  }
+function limpiarTexto(valor: unknown): string {
+  if (typeof valor !== "string") return "";
 
-  if (typeof valor === "object") {
-    return (
-      extraerTextoEOS(valor.respuesta) ||
-      extraerTextoEOS(valor.output) ||
-      extraerTextoEOS(valor.text) ||
-      extraerTextoEOS(valor.message) ||
-      extraerTextoEOS(valor.content) ||
-      extraerTextoEOS(valor.data) ||
-      extraerTextoEOS(valor.json) ||
-      extraerTextoEOS(valor.choices?.[0]?.message?.content) ||
-      extraerTextoEOS(valor.response?.body?.respuesta) ||
-      ""
-    );
-  }
-
-  return String(valor);
-}
-
-function limpiarRespuesta(valor: any): string {
-  let texto = extraerTextoEOS(valor);
-
-  if (!texto || texto === "[object Object]") return "";
-
-  try {
-    const parsed = JSON.parse(texto);
-    const extraido = extraerTextoEOS(parsed);
-    if (extraido) texto = extraido;
-  } catch {}
-
-  return texto
+  return valor
     .replace(/^=/, "")
     .replace(/^```json/i, "")
     .replace(/^```/, "")
@@ -58,10 +33,84 @@ function limpiarRespuesta(valor: any): string {
     .trim();
 }
 
-export async function enviarMensajeAEOS(params: EnviarEOSParams) {
+function normalizarRespuesta(valor: unknown): RespuestaEOS {
+  let data: any = valor;
+
+  if (typeof data === "string") {
+    const texto = data.trim();
+
+    try {
+      data = JSON.parse(texto);
+    } catch {
+      return {
+        respuesta: limpiarTexto(texto),
+        tipo: "texto",
+        accion: "RESPONDER",
+        archivo_url: "",
+        archivo_tipo: "",
+        metadata: {},
+      };
+    }
+  }
+
+  if (data?.body && typeof data.body === "object") {
+    data = data.body;
+  }
+
+  if (data?.response?.body && typeof data.response.body === "object") {
+    data = data.response.body;
+  }
+
+  if (typeof data?.data === "object" && data.data !== null) {
+    data = {
+      ...data,
+      ...data.data,
+    };
+  }
+
+  const archivoUrl = String(
+    data?.archivo_url ||
+      data?.archivoUrl ||
+      data?.download_url ||
+      data?.url ||
+      ""
+  ).trim();
+
+  const respuesta = limpiarTexto(
+    String(
+      data?.respuesta ||
+        data?.output ||
+        data?.text ||
+        data?.message ||
+        (archivoUrl ? "Tu archivo ya está listo para descargar." : "Listo.")
+    )
+  );
+
+  return {
+    respuesta,
+    tipo: archivoUrl ? "archivo" : String(data?.tipo || "texto"),
+    accion: archivoUrl
+      ? String(data?.accion || "GENERAR_ARCHIVO")
+      : String(data?.accion || "RESPONDER"),
+    archivo_url: archivoUrl,
+    archivo_tipo: archivoUrl
+      ? String(data?.archivo_tipo || data?.archivoTipo || "excel")
+      : "",
+    metadata:
+      data?.metadata && typeof data.metadata === "object"
+        ? data.metadata
+        : {},
+  };
+}
+
+export async function enviarMensajeAEOS(
+  params: EnviarEOSParams
+): Promise<RespuestaEOS> {
   const response = await fetch("/api/eos", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       usuario_id: params.usuarioId,
       conversacion_id: params.conversacionId,
@@ -79,21 +128,23 @@ export async function enviarMensajeAEOS(params: EnviarEOSParams) {
 
   const raw = await response.text();
 
-  if (!raw || raw.trim() === "") {
+  if (!raw.trim()) {
     throw new Error("EOS respondió vacío");
   }
 
-  const respuesta = (() => {
-    try {
-      return limpiarRespuesta(JSON.parse(raw));
-    } catch {
-      return limpiarRespuesta(raw);
-    }
-  })();
+  let contenido: unknown = raw;
 
-  if (!response.ok) {
-    throw new Error(respuesta || "Error en EOS");
+  try {
+    contenido = JSON.parse(raw);
+  } catch {
+    contenido = raw;
   }
 
-  return respuesta;
+  const resultado = normalizarRespuesta(contenido);
+
+  if (!response.ok) {
+    throw new Error(resultado.respuesta || "Error en EOS");
+  }
+
+  return resultado;
 }
