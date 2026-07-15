@@ -141,21 +141,22 @@ export default function Home() {
       {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-          <a href="/" className="flex items-center gap-3">
-            <div className="relative h-11 w-14 overflow-hidden">
-              <Image
-                src="/transtech-logo.png"
-                alt="Logo de TRANSTECH"
-                fill
-                priority
-                className="object-contain mix-blend-multiply"
-              />
-            </div>
+          <a href="/" className="flex items-center gap-4">
+  <div className="relative h-14 w-16 shrink-0">
+    <Image
+      src="/transtech-logo.png"
+      alt="Logo oficial de TRANSTECH"
+      fill
+      priority
+      sizes="64px"
+      className="object-contain object-center mix-blend-multiply"
+    />
+  </div>
 
-            <p className="text-xl font-black leading-none tracking-tight text-[#071226]">
-              TRANSTECH
-            </p>
-          </a>
+  <p className="text-[24px] font-black leading-none tracking-[-0.035em] text-[#071226]">
+    TRANSTECH
+  </p>
+</a>
 
           <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
             <a href="#empresa" className="transition hover:text-blue-600">
@@ -194,57 +195,72 @@ export default function Home() {
       </header>
 
       {/* HERO */}
-      <section className="relative overflow-hidden border-b border-slate-200 bg-[#F7FAFC]">
-        <div className="absolute left-1/2 top-20 h-[620px] w-[620px] -translate-x-1/2 rounded-full bg-blue-300/20 blur-3xl" />
+<section className="relative overflow-hidden border-b border-slate-200 bg-white">
+  {/* Iluminación azul del fondo */}
+  <div className="pointer-events-none absolute inset-0">
+    <div className="absolute -left-40 bottom-[-180px] h-[650px] w-[650px] rounded-full bg-blue-500/25 blur-[110px]" />
 
-        <div className="relative mx-auto flex min-h-[760px] max-w-7xl flex-col items-center justify-center px-6 py-24 text-center md:px-8">
-          <div className="relative mb-8 h-24 w-36 overflow-hidden md:h-28 md:w-44">
-            <Image
-              src="/transtech-logo.png"
-              alt="Logo oficial de TRANSTECH"
-              fill
-              priority
-              className="object-contain mix-blend-multiply"
-            />
-          </div>
+    <div className="absolute -right-40 top-[-170px] h-[620px] w-[620px] rounded-full bg-blue-300/25 blur-[120px]" />
 
-          <div className="inline-flex items-center rounded-full border border-blue-200 bg-white px-5 py-2 text-xs font-black tracking-[0.14em] text-blue-700 shadow-sm">
-            EMPRESA PARAGUAYA DE TECNOLOGÍA
-          </div>
+    <div className="absolute left-[38%] top-[20%] h-[480px] w-[480px] rounded-full bg-blue-100/25 blur-[130px]" />
+  </div>
 
-          <h1 className="mt-8 max-w-5xl text-5xl font-black leading-[0.96] tracking-[-0.055em] text-slate-950 md:text-7xl lg:text-[82px]">
-            Tecnología inteligente para transformar la forma de trabajar.
-          </h1>
+  {/* Logo gigante decorativo de fondo */}
+  <div className="pointer-events-none absolute bottom-[70px] left-[-40px] hidden h-[520px] w-[570px] opacity-[0.055] lg:block">
+    <Image
+      src="/transtech-logo.png"
+      alt=""
+      fill
+      priority
+      sizes="570px"
+      className="object-contain object-left mix-blend-multiply"
+    />
+  </div>
 
-          <p className="mt-8 max-w-3xl text-lg leading-8 text-slate-600 md:text-xl">
-            En TRANSTECH desarrollamos soluciones de inteligencia artificial,
-            automatización y gestión para ayudar a personas y empresas a tomar
-            mejores decisiones, optimizar procesos y crecer con mayor control.
-          </p>
+  <div className="relative mx-auto flex min-h-[740px] max-w-7xl items-center justify-center px-6 py-24 md:px-8 lg:min-h-[760px]">
+    <div className="mx-auto flex w-full max-w-[930px] flex-col items-center text-center">
+      <div className="inline-flex items-center rounded-full border border-blue-300 bg-white/85 px-5 py-2 text-xs font-black tracking-[0.16em] text-[#2563EB] shadow-sm backdrop-blur">
+        EMPRESA PARAGUAYA DE TECNOLOGÍA
+      </div>
 
-          <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <a
-              href="#eos"
-              className="rounded-full bg-[#2563EB] px-8 py-4 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
-            >
-              Conocer EOS
-            </a>
+      <h1 className="mt-9 text-[48px] font-black leading-[0.99] tracking-[-0.055em] text-[#071226] sm:text-6xl md:text-7xl lg:text-[74px]">
+        Tecnología inteligente
+        <br />
+        para transformar
+        <br />
+        la forma de trabajar.
+      </h1>
 
-            <a
-              href="#empresa"
-              className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300"
-            >
-              Conocer TRANSTECH
-            </a>
-          </div>
+      <div className="mt-8 h-1 w-14 rounded-full bg-[#2563EB]" />
 
-          <div className="mt-16 grid w-full max-w-4xl grid-cols-3 border-t border-slate-200 pt-9">
-            <Dato valor="IA" texto="APLICADA" />
-            <Dato valor="24/7" texto="DISPONIBILIDAD" />
-            <Dato valor="360°" texto="GESTIÓN" />
-          </div>
-        </div>
-      </section>
+      <p className="mt-7 max-w-[760px] text-lg leading-8 text-slate-600 md:text-[20px] md:leading-9">
+        En{" "}
+        <strong className="font-black text-slate-700">
+          TRANSTECH
+        </strong>{" "}
+        desarrollamos soluciones de inteligencia artificial, automatización y
+        gestión para ayudar a personas y empresas a tomar mejores decisiones,
+        optimizar procesos y crecer con mayor control.
+      </p>
+
+      <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a
+          href="#empresa"
+          className="inline-flex min-w-[245px] items-center justify-center rounded-full bg-[#2563EB] px-8 py-4 font-black text-white shadow-[0_16px_35px_rgba(37,99,235,0.28)] transition duration-200 hover:-translate-y-1 hover:bg-[#1747C9]"
+        >
+          Conocer TRANSTECH
+        </a>
+
+        <a
+          href="/eos"
+          className="inline-flex min-w-[190px] items-center justify-center rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-[#071226] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition duration-200 hover:-translate-y-1 hover:border-blue-300"
+        >
+          Probar EOS
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* TRANSTECH INTELLIGENCE */}
       <section className="bg-white py-24 md:py-32">
@@ -579,31 +595,8 @@ export default function Home() {
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
               Analizaremos tu situación y te indicaremos qué solución de
               TRANSTECH o EOS puede generar mayor impacto.
-            </p>
-
-            <div className="mt-10 rounded-[2rem] bg-[#071226] p-7 text-white shadow-xl">
-              <div className="flex items-center gap-5">
-                <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-white p-2">
-                  <div className="relative h-full w-full">
-                    <Image
-                      src="/transtech-logo.png"
-                      alt="Logo de TRANSTECH"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xl font-black tracking-tight">
-                    TRANSTECH
-                  </p>
-
-                  <p className="mt-1 text-xs font-bold tracking-[0.15em] text-blue-300">
-                    TECNOLOGÍA E INTELIGENCIA
-                  </p>
-                </div>
-              </div>
+            </p>}
+          </div>
 
               <p className="mt-5 leading-7 text-slate-300">
                 Inteligencia artificial, automatización y gestión para personas
