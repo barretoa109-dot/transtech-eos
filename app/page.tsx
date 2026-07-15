@@ -582,7 +582,7 @@ export default function Home() {
 
       {/* CONTACTO */}
       <section id="contacto" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div>
             <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               CONTACTO
@@ -595,10 +595,31 @@ export default function Home() {
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
               Analizaremos tu situación y te indicaremos qué solución de
               TRANSTECH o EOS puede generar mayor impacto.
-            </p>}
-          </div>
+            </p>
 
-              <p className="mt-5 leading-7 text-slate-300">
+            <div className="mt-10 rounded-[2rem] border border-blue-100 bg-gradient-to-br from-[#F8FBFF] to-[#EAF2FF] p-7 shadow-[0_18px_50px_rgba(37,99,235,0.10)]">
+              <div className="flex items-center gap-4">
+                <div className="relative h-14 w-16 shrink-0">
+                  <Image
+                    src="/transtech-logo.png"
+                    alt="Logo de TRANSTECH"
+                    fill
+                    sizes="64px"
+                    className="object-contain"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-xl font-black tracking-tight text-[#071226]">
+                    TRANSTECH
+                  </p>
+                  <p className="mt-1 text-xs font-black tracking-[0.15em] text-blue-600">
+                    TECNOLOGÍA E INTELIGENCIA
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-5 leading-7 text-slate-600">
                 Inteligencia artificial, automatización y gestión para personas
                 y empresas.
               </p>
@@ -611,12 +632,15 @@ export default function Home() {
                 placeholder="Nombre y apellido"
                 value={nombre}
                 onChange={setNombre}
+                autoComplete="name"
               />
 
               <Campo
                 placeholder="WhatsApp"
                 value={whatsapp}
                 onChange={setWhatsapp}
+                type="tel"
+                autoComplete="tel"
               />
 
               <Campo
@@ -738,13 +762,19 @@ function Campo({
   placeholder,
   value,
   onChange,
+  type = "text",
+  autoComplete,
 }: {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  type?: "text" | "tel";
+  autoComplete?: string;
 }) {
   return (
     <input
+      type={type}
+      autoComplete={autoComplete}
       className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
       placeholder={placeholder}
       value={value}
@@ -753,19 +783,6 @@ function Campo({
   );
 }
 
-function Dato({ valor, texto }: { valor: string; texto: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center">
-      <p className="text-2xl font-black leading-none text-slate-950 md:text-3xl">
-        {valor}
-      </p>
-
-      <p className="mt-3 text-xs font-black tracking-wide text-slate-400 md:text-sm">
-        {texto}
-      </p>
-    </div>
-  );
-}
 
 function Valor({ titulo, texto }: { titulo: string; texto: string }) {
   return (
