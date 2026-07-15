@@ -4,8 +4,6 @@ import Image from "next/image";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 
-const BLUE = "#2563EB";
-
 const servicios = [
   {
     numero: "01",
@@ -74,6 +72,29 @@ const sectores = [
   "Empresas",
 ];
 
+const ventajasIntelligence = [
+  {
+    numero: "01",
+    titulo: "Decisiones basadas en contexto",
+    texto: "Información interpretada antes de ejecutar.",
+  },
+  {
+    numero: "02",
+    titulo: "Automatización inteligente",
+    texto: "Menos tareas repetitivas y mayor productividad.",
+  },
+  {
+    numero: "03",
+    titulo: "Documentos en segundos",
+    texto: "Archivos profesionales listos para utilizar.",
+  },
+  {
+    numero: "04",
+    titulo: "Información centralizada",
+    texto: "Datos organizados, medibles y disponibles.",
+  },
+];
+
 export default function Home() {
   const [nombre, setNombre] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -117,16 +138,17 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#F7FAFC] text-[#071226]">
+      {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
           <a href="/" className="flex items-center gap-3">
-            <div className="relative h-11 w-14">
+            <div className="relative h-11 w-14 overflow-hidden">
               <Image
                 src="/transtech-logo.png"
                 alt="Logo de TRANSTECH"
                 fill
                 priority
-                className="object-contain"
+                className="object-contain mix-blend-multiply"
               />
             </div>
 
@@ -163,7 +185,7 @@ export default function Home() {
 
             <a
               href="/eos"
-              className="rounded-full bg-[#071226] px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-slate-800"
+              className="rounded-full bg-[#071226] px-5 py-3 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
             >
               Probar EOS
             </a>
@@ -171,18 +193,18 @@ export default function Home() {
         </div>
       </header>
 
-      {/* HERO CENTRALIZADO */}
+      {/* HERO */}
       <section className="relative overflow-hidden border-b border-slate-200 bg-[#F7FAFC]">
-        <div className="absolute left-1/2 top-24 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-blue-300/20 blur-3xl" />
+        <div className="absolute left-1/2 top-20 h-[620px] w-[620px] -translate-x-1/2 rounded-full bg-blue-300/20 blur-3xl" />
 
         <div className="relative mx-auto flex min-h-[760px] max-w-7xl flex-col items-center justify-center px-6 py-24 text-center md:px-8">
-          <div className="relative mb-8 h-24 w-36 md:h-28 md:w-44">
+          <div className="relative mb-8 h-24 w-36 overflow-hidden md:h-28 md:w-44">
             <Image
               src="/transtech-logo.png"
-              alt="Logo de TRANSTECH"
+              alt="Logo oficial de TRANSTECH"
               fill
               priority
-              className="object-contain"
+              className="object-contain mix-blend-multiply"
             />
           </div>
 
@@ -210,13 +232,13 @@ export default function Home() {
 
             <a
               href="#empresa"
-              className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:border-blue-300"
+              className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300"
             >
               Conocer TRANSTECH
             </a>
           </div>
 
-          <div className="mt-16 grid w-full max-w-4xl grid-cols-3 gap-4 border-t border-slate-200 pt-8 text-left">
+          <div className="mt-16 grid w-full max-w-4xl grid-cols-3 border-t border-slate-200 pt-9">
             <Dato valor="IA" texto="APLICADA" />
             <Dato valor="24/7" texto="DISPONIBILIDAD" />
             <Dato valor="360°" texto="GESTIÓN" />
@@ -224,61 +246,89 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TRANSTECH INTELLIGENCE MOVIDO FUERA DEL HERO */}
-      <section className="bg-white py-24 md:py-28">
+      {/* TRANSTECH INTELLIGENCE */}
+      <section className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="relative overflow-hidden rounded-[2.5rem] border border-blue-100 bg-gradient-to-br from-white via-blue-50 to-blue-100 p-8 shadow-2xl shadow-blue-900/10 md:p-14">
-            <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-300/25 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[2.8rem] border border-blue-100 bg-gradient-to-br from-white via-[#F3F7FF] to-[#DCEAFF] shadow-[0_30px_80px_rgba(37,99,235,0.13)]">
+            <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-blue-200/30 blur-3xl" />
 
-            <div className="relative grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="relative grid gap-12 p-8 md:p-14 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
               <div>
-                <div className="relative h-24 w-36 md:h-28 md:w-44">
+                <div className="relative h-24 w-36 overflow-hidden md:h-28 md:w-44">
                   <Image
                     src="/transtech-logo.png"
-                    alt="Logo de TRANSTECH"
+                    alt="Logo de TRANSTECH Intelligence"
                     fill
-                    className="object-contain object-left"
+                    className="object-contain object-left mix-blend-multiply"
                   />
                 </div>
 
-                <p className="mt-7 text-xs font-black tracking-[0.18em] text-blue-600">
-                  TRANSTECH INTELLIGENCE
-                </p>
+                <div className="mt-7 inline-flex items-center gap-3 rounded-full border border-blue-200 bg-white/80 px-4 py-2 shadow-sm backdrop-blur">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#2563EB] shadow-[0_0_12px_rgba(37,99,235,0.8)]" />
 
-                <h2 className="mt-4 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
+                  <p className="text-xs font-black tracking-[0.18em] text-[#2563EB]">
+                    TRANSTECH INTELLIGENCE
+                  </p>
+                </div>
+
+                <h2 className="mt-6 max-w-xl text-4xl font-black leading-[0.98] tracking-[-0.05em] text-slate-950 md:text-6xl">
                   Tecnología que entiende, ejecuta y mejora.
                 </h2>
 
-                <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-                  Tecnología desarrollada para resolver problemas reales,
-                  automatizar procesos y convertir información en decisiones
-                  concretas.
+                <p className="mt-7 max-w-xl text-lg leading-8 text-slate-600">
+                  Un ecosistema tecnológico diseñado para interpretar
+                  necesidades, automatizar operaciones y convertir información
+                  en decisiones concretas.
                 </p>
+
+                <div className="mt-8 flex items-center gap-4">
+                  <div className="h-px w-16 bg-blue-500" />
+
+                  <p className="text-sm font-black uppercase tracking-[0.12em] text-blue-700">
+                    Inteligencia aplicada
+                  </p>
+                </div>
               </div>
 
-              <div className="grid gap-4">
-                {[
-                  "Decisiones basadas en contexto",
-                  "Automatización de tareas repetitivas",
-                  "Documentos generados en segundos",
-                  "Información centralizada y medible",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-white/90 p-5 shadow-sm"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 font-black text-blue-600">
-                      ✓
-                    </span>
+              <div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {ventajasIntelligence.map((item) => (
+                    <article
+                      key={item.numero}
+                      className="group rounded-[1.7rem] border border-white/80 bg-white/85 p-6 shadow-[0_12px_30px_rgba(15,23,42,0.07)] backdrop-blur transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 font-black text-[#2563EB]">
+                          ✓
+                        </span>
 
-                    <p className="font-black text-slate-900">{item}</p>
-                  </div>
-                ))}
+                        <span className="text-xs font-black tracking-widest text-slate-300">
+                          {item.numero}
+                        </span>
+                      </div>
 
-                <div className="rounded-2xl border border-blue-200 bg-blue-600 p-5 text-white">
-                  <p className="leading-7">
-                    No desarrollamos tecnología para impresionar. La
-                    desarrollamos para resolver problemas reales.
+                      <h3 className="mt-6 text-lg font-black leading-6 text-slate-950">
+                        {item.titulo}
+                      </h3>
+
+                      <p className="mt-3 text-sm leading-6 text-slate-500">
+                        {item.texto}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="relative mt-5 overflow-hidden rounded-[1.7rem] bg-gradient-to-r from-[#2563EB] to-[#1747C9] p-6 text-white shadow-xl shadow-blue-500/20">
+                  <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full border border-white/20" />
+
+                  <p className="relative text-lg font-black leading-7">
+                    No desarrollamos tecnología para impresionar.
+                  </p>
+
+                  <p className="relative mt-2 leading-7 text-blue-100">
+                    La desarrollamos para resolver problemas reales, producir
+                    resultados y mejorar continuamente.
                   </p>
                 </div>
               </div>
@@ -287,8 +337,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* EMPRESA */}
       <section id="empresa" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[.85fr_1.15fr]">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr]">
           <div>
             <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               SOBRE NOSOTROS
@@ -336,6 +387,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* SERVICIOS */}
       <section
         id="servicios"
         className="border-y border-slate-200 bg-[#F7FAFC] py-24 md:py-32"
@@ -381,6 +433,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* EOS */}
       <section id="eos" className="bg-[#071226] py-24 text-white md:py-32">
         <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 md:px-8 lg:grid-cols-2">
           <div>
@@ -443,6 +496,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* METODOLOGÍA */}
       <section id="metodologia" className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
           <div className="mx-auto max-w-4xl text-center">
@@ -476,6 +530,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* SECTORES */}
       <section className="border-y border-slate-200 bg-[#F7FAFC] py-24">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
           <div className="grid items-center gap-12 lg:grid-cols-2">
@@ -509,8 +564,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* CONTACTO */}
       <section id="contacto" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[.85fr_1.15fr]">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr]">
           <div>
             <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               CONTACTO
@@ -525,21 +581,31 @@ export default function Home() {
               TRANSTECH o EOS puede generar mayor impacto.
             </p>
 
-            <div className="mt-10 rounded-[2rem] bg-[#071226] p-7 text-white">
-              <div className="flex items-center gap-4">
-                <div className="relative h-12 w-16">
-                  <Image
-                    src="/transtech-logo.png"
-                    alt="Logo de TRANSTECH"
-                    fill
-                    className="object-contain brightness-0 invert"
-                  />
+            <div className="mt-10 rounded-[2rem] bg-[#071226] p-7 text-white shadow-xl">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-white p-2">
+                  <div className="relative h-full w-full">
+                    <Image
+                      src="/transtech-logo.png"
+                      alt="Logo de TRANSTECH"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
                 </div>
 
-                <p className="text-lg font-black">TRANSTECH</p>
+                <div>
+                  <p className="text-xl font-black tracking-tight">
+                    TRANSTECH
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold tracking-[0.15em] text-blue-300">
+                    TECNOLOGÍA E INTELIGENCIA
+                  </p>
+                </div>
               </div>
 
-              <p className="mt-4 leading-7 text-slate-300">
+              <p className="mt-5 leading-7 text-slate-300">
                 Inteligencia artificial, automatización y gestión para personas
                 y empresas.
               </p>
@@ -595,24 +661,35 @@ export default function Home() {
         </div>
       </section>
 
+      {/* FOOTER */}
       <footer className="bg-[#071226] px-6 py-14 text-white">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-12 border-b border-white/10 pb-12 md:grid-cols-[1.5fr_1fr_1fr]">
             <div>
-              <div className="flex items-center gap-4">
-                <div className="relative h-12 w-16">
-                  <Image
-                    src="/transtech-logo.png"
-                    alt="Logo de TRANSTECH"
-                    fill
-                    className="object-contain brightness-0 invert"
-                  />
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-white p-2">
+                  <div className="relative h-full w-full">
+                    <Image
+                      src="/transtech-logo.png"
+                      alt="Logo de TRANSTECH"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
                 </div>
 
-                <p className="text-2xl font-black">TRANSTECH</p>
+                <div>
+                  <p className="text-2xl font-black tracking-tight">
+                    TRANSTECH
+                  </p>
+
+                  <p className="mt-1 text-xs font-bold tracking-[0.15em] text-blue-300">
+                    INTELLIGENT TECHNOLOGY
+                  </p>
+                </div>
               </div>
 
-              <p className="mt-4 max-w-md leading-7 text-slate-400">
+              <p className="mt-5 max-w-md leading-7 text-slate-400">
                 Tecnología, inteligencia artificial y automatización para
                 transformar la forma en que personas y empresas trabajan.
               </p>
@@ -622,10 +699,18 @@ export default function Home() {
               <p className="font-black text-blue-300">Empresa</p>
 
               <div className="mt-4 grid gap-3 text-slate-400">
-                <a href="#empresa">Sobre nosotros</a>
-                <a href="#servicios">Servicios</a>
-                <a href="#metodologia">Metodología</a>
-                <a href="#contacto">Contacto</a>
+                <a href="#empresa" className="transition hover:text-white">
+                  Sobre nosotros
+                </a>
+                <a href="#servicios" className="transition hover:text-white">
+                  Servicios
+                </a>
+                <a href="#metodologia" className="transition hover:text-white">
+                  Metodología
+                </a>
+                <a href="#contacto" className="transition hover:text-white">
+                  Contacto
+                </a>
               </div>
             </div>
 
@@ -633,9 +718,15 @@ export default function Home() {
               <p className="font-black text-blue-300">Productos</p>
 
               <div className="mt-4 grid gap-3 text-slate-400">
-                <a href="#eos">EOS</a>
-                <a href="/eos">Abrir EOS</a>
-                <a href="/login">Iniciar sesión</a>
+                <a href="#eos" className="transition hover:text-white">
+                  EOS
+                </a>
+                <a href="/eos" className="transition hover:text-white">
+                  Abrir EOS
+                </a>
+                <a href="/login" className="transition hover:text-white">
+                  Iniciar sesión
+                </a>
               </div>
             </div>
           </div>
@@ -671,10 +762,12 @@ function Campo({
 
 function Dato({ valor, texto }: { valor: string; texto: string }) {
   return (
-    <div>
-      <p className="text-2xl font-black text-slate-950 md:text-3xl">{valor}</p>
+    <div className="flex flex-col items-center justify-center text-center">
+      <p className="text-2xl font-black leading-none text-slate-950 md:text-3xl">
+        {valor}
+      </p>
 
-      <p className="mt-2 text-xs font-black tracking-wide text-slate-400 md:text-sm">
+      <p className="mt-3 text-xs font-black tracking-wide text-slate-400 md:text-sm">
         {texto}
       </p>
     </div>
