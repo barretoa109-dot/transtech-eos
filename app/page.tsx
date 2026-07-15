@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+
+const BLUE = "#2563EB";
 
 const servicios = [
   {
@@ -113,38 +116,39 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f7fafc] text-[#071226]">
+    <main className="min-h-screen overflow-x-hidden bg-[#F7FAFC] text-[#071226]">
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
           <a href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#071226] text-lg font-black text-cyan-300">
-              T
+            <div className="relative h-11 w-14">
+              <Image
+                src="/transtech-logo.png"
+                alt="Logo de TRANSTECH"
+                fill
+                priority
+                className="object-contain"
+              />
             </div>
 
-            <div>
-              <p className="text-lg font-black leading-none tracking-tight">
-                TRANSTECH
-              </p>
-              <p className="mt-1 text-[10px] font-black tracking-[0.22em] text-slate-400">
-                E.A.S.
-              </p>
-            </div>
+            <p className="text-xl font-black leading-none tracking-tight text-[#071226]">
+              TRANSTECH
+            </p>
           </a>
 
           <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
-            <a href="#empresa" className="transition hover:text-cyan-600">
+            <a href="#empresa" className="transition hover:text-blue-600">
               Empresa
             </a>
-            <a href="#servicios" className="transition hover:text-cyan-600">
+            <a href="#servicios" className="transition hover:text-blue-600">
               Servicios
             </a>
-            <a href="#eos" className="transition hover:text-cyan-600">
+            <a href="#eos" className="transition hover:text-blue-600">
               EOS
             </a>
-            <a href="#metodologia" className="transition hover:text-cyan-600">
+            <a href="#metodologia" className="transition hover:text-blue-600">
               Metodología
             </a>
-            <a href="#contacto" className="transition hover:text-cyan-600">
+            <a href="#contacto" className="transition hover:text-blue-600">
               Contacto
             </a>
           </nav>
@@ -152,7 +156,7 @@ export default function Home() {
           <div className="flex items-center gap-2 md:gap-3">
             <a
               href="/login"
-              className="hidden rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition hover:border-cyan-300 sm:inline-flex"
+              className="hidden rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition hover:border-blue-300 sm:inline-flex"
             >
               Ingresar
             </a>
@@ -167,91 +171,112 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b border-slate-200">
-        <div className="absolute left-[-140px] top-[-100px] h-[420px] w-[420px] rounded-full bg-cyan-300/25 blur-3xl" />
-        <div className="absolute bottom-[-160px] right-[-120px] h-[460px] w-[460px] rounded-full bg-blue-300/20 blur-3xl" />
+      {/* HERO CENTRALIZADO */}
+      <section className="relative overflow-hidden border-b border-slate-200 bg-[#F7FAFC]">
+        <div className="absolute left-1/2 top-24 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-blue-300/20 blur-3xl" />
 
-        <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 py-24 md:px-8 md:py-32 lg:grid-cols-[1.15fr_.85fr]">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white px-4 py-2 text-xs font-black tracking-[0.12em] text-cyan-700 shadow-sm">
-              EMPRESA PARAGUAYA DE TECNOLOGÍA
-            </div>
-
-            <h1 className="mt-7 max-w-4xl text-5xl font-black leading-[0.96] tracking-[-0.055em] text-slate-950 md:text-7xl">
-              Tecnología inteligente para transformar la forma de trabajar.
-            </h1>
-
-            <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-600 md:text-xl">
-              En TRANSTECH E.A.S. desarrollamos soluciones de inteligencia
-              artificial, automatización y gestión para ayudar a personas y
-              empresas a tomar mejores decisiones, optimizar procesos y crecer
-              con mayor control.
-            </p>
-
-            <div className="mt-9 flex flex-wrap gap-4">
-              <a
-                href="#eos"
-                className="rounded-full bg-cyan-400 px-8 py-4 font-black text-slate-950 shadow-xl shadow-cyan-400/25 transition hover:-translate-y-0.5"
-              >
-                Conocer EOS
-              </a>
-
-              <a
-                href="#empresa"
-                className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:border-cyan-300"
-              >
-                Conocer TRANSTECH
-              </a>
-            </div>
-
-            <div className="mt-12 grid max-w-2xl grid-cols-3 gap-4 border-t border-slate-200 pt-7">
-              <Dato valor="IA" texto="aplicada" />
-              <Dato valor="24/7" texto="disponibilidad" />
-              <Dato valor="360°" texto="gestión" />
-            </div>
+        <div className="relative mx-auto flex min-h-[760px] max-w-7xl flex-col items-center justify-center px-6 py-24 text-center md:px-8">
+          <div className="relative mb-8 h-24 w-36 md:h-28 md:w-44">
+            <Image
+              src="/transtech-logo.png"
+              alt="Logo de TRANSTECH"
+              fill
+              priority
+              className="object-contain"
+            />
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 translate-x-6 translate-y-6 rounded-[2.4rem] bg-cyan-300/30 blur-2xl" />
+          <div className="inline-flex items-center rounded-full border border-blue-200 bg-white px-5 py-2 text-xs font-black tracking-[0.14em] text-blue-700 shadow-sm">
+            EMPRESA PARAGUAYA DE TECNOLOGÍA
+          </div>
 
-            <div className="relative rounded-[2.4rem] border border-white bg-white p-4 shadow-2xl shadow-slate-900/10">
-              <div className="rounded-[2rem] bg-[#071226] p-7 text-white md:p-9">
-                <div className="flex items-start justify-between gap-5">
-                  <div>
-                    <p className="text-xs font-black tracking-[0.18em] text-cyan-300">
-                      TRANSTECH INTELLIGENCE
-                    </p>
-                    <h2 className="mt-3 text-3xl font-black tracking-tight">
-                      Tecnología que entiende, ejecuta y mejora.
-                    </h2>
-                  </div>
+          <h1 className="mt-8 max-w-5xl text-5xl font-black leading-[0.96] tracking-[-0.055em] text-slate-950 md:text-7xl lg:text-[82px]">
+            Tecnología inteligente para transformar la forma de trabajar.
+          </h1>
 
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-cyan-400 text-xl font-black text-slate-950">
-                    T
-                  </div>
+          <p className="mt-8 max-w-3xl text-lg leading-8 text-slate-600 md:text-xl">
+            En TRANSTECH desarrollamos soluciones de inteligencia artificial,
+            automatización y gestión para ayudar a personas y empresas a tomar
+            mejores decisiones, optimizar procesos y crecer con mayor control.
+          </p>
+
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <a
+              href="#eos"
+              className="rounded-full bg-[#2563EB] px-8 py-4 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
+            >
+              Conocer EOS
+            </a>
+
+            <a
+              href="#empresa"
+              className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:border-blue-300"
+            >
+              Conocer TRANSTECH
+            </a>
+          </div>
+
+          <div className="mt-16 grid w-full max-w-4xl grid-cols-3 gap-4 border-t border-slate-200 pt-8 text-left">
+            <Dato valor="IA" texto="APLICADA" />
+            <Dato valor="24/7" texto="DISPONIBILIDAD" />
+            <Dato valor="360°" texto="GESTIÓN" />
+          </div>
+        </div>
+      </section>
+
+      {/* TRANSTECH INTELLIGENCE MOVIDO FUERA DEL HERO */}
+      <section className="bg-white py-24 md:py-28">
+        <div className="mx-auto max-w-7xl px-6 md:px-8">
+          <div className="relative overflow-hidden rounded-[2.5rem] border border-blue-100 bg-gradient-to-br from-white via-blue-50 to-blue-100 p-8 shadow-2xl shadow-blue-900/10 md:p-14">
+            <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blue-300/25 blur-3xl" />
+
+            <div className="relative grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+              <div>
+                <div className="relative h-24 w-36 md:h-28 md:w-44">
+                  <Image
+                    src="/transtech-logo.png"
+                    alt="Logo de TRANSTECH"
+                    fill
+                    className="object-contain object-left"
+                  />
                 </div>
 
-                <div className="mt-8 grid gap-3">
-                  {[
-                    "Decisiones basadas en contexto",
-                    "Automatización de tareas repetitivas",
-                    "Documentos generados en segundos",
-                    "Información centralizada y medible",
-                  ].map((item) => (
-                    <div
-                      key={item}
-                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-400/15 font-black text-cyan-300">
-                        ✓
-                      </span>
-                      <p className="font-bold text-slate-100">{item}</p>
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-7 text-xs font-black tracking-[0.18em] text-blue-600">
+                  TRANSTECH INTELLIGENCE
+                </p>
 
-                <div className="mt-7 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-5">
-                  <p className="text-sm leading-6 text-cyan-100">
+                <h2 className="mt-4 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
+                  Tecnología que entiende, ejecuta y mejora.
+                </h2>
+
+                <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+                  Tecnología desarrollada para resolver problemas reales,
+                  automatizar procesos y convertir información en decisiones
+                  concretas.
+                </p>
+              </div>
+
+              <div className="grid gap-4">
+                {[
+                  "Decisiones basadas en contexto",
+                  "Automatización de tareas repetitivas",
+                  "Documentos generados en segundos",
+                  "Información centralizada y medible",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-white/90 p-5 shadow-sm"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 font-black text-blue-600">
+                      ✓
+                    </span>
+
+                    <p className="font-black text-slate-900">{item}</p>
+                  </div>
+                ))}
+
+                <div className="rounded-2xl border border-blue-200 bg-blue-600 p-5 text-white">
+                  <p className="leading-7">
                     No desarrollamos tecnología para impresionar. La
                     desarrollamos para resolver problemas reales.
                   </p>
@@ -265,7 +290,7 @@ export default function Home() {
       <section id="empresa" className="bg-white py-24 md:py-32">
         <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[.85fr_1.15fr]">
           <div>
-            <p className="text-sm font-black tracking-[0.16em] text-cyan-600">
+            <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               SOBRE NOSOTROS
             </p>
 
@@ -276,9 +301,8 @@ export default function Home() {
 
           <div className="space-y-6 text-lg leading-8 text-slate-600">
             <p>
-              TRANSTECH E.A.S. es una empresa paraguaya enfocada en
-              inteligencia artificial, automatización, gestión y transformación
-              digital.
+              TRANSTECH es una empresa paraguaya enfocada en inteligencia
+              artificial, automatización, gestión y transformación digital.
             </p>
 
             <p>
@@ -294,24 +318,37 @@ export default function Home() {
             </p>
 
             <div className="grid gap-4 pt-4 sm:grid-cols-2">
-              <Valor titulo="Visión" texto="Tecnología útil, accesible y escalable." />
-              <Valor titulo="Enfoque" texto="Resultados, control y ejecución." />
-              <Valor titulo="Origen" texto="Empresa constituida en Paraguay." />
+              <Valor
+                titulo="Visión"
+                texto="Tecnología útil, accesible y escalable."
+              />
+              <Valor
+                titulo="Enfoque"
+                texto="Resultados, control y ejecución."
+              />
+              <Valor
+                titulo="Origen"
+                texto="Empresa constituida en Paraguay."
+              />
               <Valor titulo="Alcance" texto="Personas, pymes y empresas." />
             </div>
           </div>
         </div>
       </section>
 
-      <section id="servicios" className="border-y border-slate-200 bg-[#f7fafc] py-24 md:py-32">
+      <section
+        id="servicios"
+        className="border-y border-slate-200 bg-[#F7FAFC] py-24 md:py-32"
+      >
         <div className="mx-auto max-w-7xl px-6 md:px-8">
           <div className="max-w-4xl">
-            <p className="text-sm font-black tracking-[0.16em] text-cyan-600">
+            <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               QUÉ HACEMOS
             </p>
 
             <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-              Soluciones para trabajar mejor, decidir antes y crecer con control.
+              Soluciones para trabajar mejor, decidir antes y crecer con
+              control.
             </h2>
           </div>
 
@@ -319,14 +356,14 @@ export default function Home() {
             {servicios.map((servicio) => (
               <article
                 key={servicio.numero}
-                className="group rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:border-cyan-300 hover:shadow-xl md:p-9"
+                className="group rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl md:p-9"
               >
                 <div className="flex items-start justify-between gap-6">
-                  <span className="text-sm font-black text-cyan-600">
+                  <span className="text-sm font-black text-blue-600">
                     {servicio.numero}
                   </span>
 
-                  <span className="text-2xl text-slate-300 transition group-hover:text-cyan-500">
+                  <span className="text-2xl text-slate-300 transition group-hover:text-blue-600">
                     ↗
                   </span>
                 </div>
@@ -347,7 +384,7 @@ export default function Home() {
       <section id="eos" className="bg-[#071226] py-24 text-white md:py-32">
         <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 md:px-8 lg:grid-cols-2">
           <div>
-            <div className="inline-flex rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-xs font-black tracking-[0.16em] text-cyan-300">
+            <div className="inline-flex rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-xs font-black tracking-[0.16em] text-blue-300">
               PRODUCTO ESTRELLA
             </div>
 
@@ -355,7 +392,7 @@ export default function Home() {
               EOS
             </h2>
 
-            <p className="mt-3 text-xl font-black text-cyan-300">
+            <p className="mt-3 text-xl font-black text-blue-300">
               El sistema operativo ejecutivo de TRANSTECH.
             </p>
 
@@ -373,14 +410,14 @@ export default function Home() {
             <div className="mt-9 flex flex-wrap gap-4">
               <a
                 href="/eos"
-                className="rounded-full bg-cyan-400 px-8 py-4 font-black text-slate-950 transition hover:bg-cyan-300"
+                className="rounded-full bg-[#2563EB] px-8 py-4 font-black text-white transition hover:bg-blue-700"
               >
                 Abrir EOS
               </a>
 
               <a
                 href="/login"
-                className="rounded-full border border-white/15 px-8 py-4 font-black text-white transition hover:border-cyan-300"
+                className="rounded-full border border-white/15 px-8 py-4 font-black text-white transition hover:border-blue-400"
               >
                 Iniciar sesión
               </a>
@@ -393,10 +430,13 @@ export default function Home() {
                 key={capacidad}
                 className="rounded-[1.7rem] border border-white/10 bg-white/5 p-6"
               >
-                <span className="text-sm font-black text-cyan-300">
+                <span className="text-sm font-black text-blue-300">
                   0{index + 1}
                 </span>
-                <p className="mt-8 text-lg font-black leading-7">{capacidad}</p>
+
+                <p className="mt-8 text-lg font-black leading-7">
+                  {capacidad}
+                </p>
               </div>
             ))}
           </div>
@@ -406,7 +446,7 @@ export default function Home() {
       <section id="metodologia" className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
           <div className="mx-auto max-w-4xl text-center">
-            <p className="text-sm font-black tracking-[0.16em] text-cyan-600">
+            <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               CÓMO TRABAJAMOS
             </p>
 
@@ -419,9 +459,9 @@ export default function Home() {
             {metodologia.map((item) => (
               <div
                 key={item.paso}
-                className="rounded-[2rem] border border-slate-200 bg-[#f8fbff] p-7"
+                className="rounded-[2rem] border border-slate-200 bg-[#F8FBFF] p-7"
               >
-                <span className="text-sm font-black text-cyan-600">
+                <span className="text-sm font-black text-blue-600">
                   {item.paso}
                 </span>
 
@@ -436,11 +476,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-[#f7fafc] py-24">
+      <section className="border-y border-slate-200 bg-[#F7FAFC] py-24">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
-              <p className="text-sm font-black tracking-[0.16em] text-cyan-600">
+              <p className="text-sm font-black tracking-[0.16em] text-blue-600">
                 PARA QUIÉNES
               </p>
 
@@ -472,7 +512,7 @@ export default function Home() {
       <section id="contacto" className="bg-white py-24 md:py-32">
         <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[.85fr_1.15fr]">
           <div>
-            <p className="text-sm font-black tracking-[0.16em] text-cyan-600">
+            <p className="text-sm font-black tracking-[0.16em] text-blue-600">
               CONTACTO
             </p>
 
@@ -486,9 +526,19 @@ export default function Home() {
             </p>
 
             <div className="mt-10 rounded-[2rem] bg-[#071226] p-7 text-white">
-              <p className="text-sm font-black text-cyan-300">
-                TRANSTECH E.A.S.
-              </p>
+              <div className="flex items-center gap-4">
+                <div className="relative h-12 w-16">
+                  <Image
+                    src="/transtech-logo.png"
+                    alt="Logo de TRANSTECH"
+                    fill
+                    className="object-contain brightness-0 invert"
+                  />
+                </div>
+
+                <p className="text-lg font-black">TRANSTECH</p>
+              </div>
+
               <p className="mt-4 leading-7 text-slate-300">
                 Inteligencia artificial, automatización y gestión para personas
                 y empresas.
@@ -496,7 +546,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-[2.4rem] border border-slate-200 bg-[#f8fbff] p-7 shadow-xl shadow-slate-900/5 md:p-10">
+          <div className="rounded-[2.4rem] border border-slate-200 bg-[#F8FBFF] p-7 shadow-xl shadow-slate-900/5 md:p-10">
             <div className="grid gap-4">
               <Campo
                 placeholder="Nombre y apellido"
@@ -517,7 +567,7 @@ export default function Home() {
               />
 
               <textarea
-                className="min-h-36 rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+                className="min-h-36 rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 placeholder="¿Cuál es tu principal problema o qué querés mejorar?"
                 value={problema}
                 onChange={(event) => setProblema(event.target.value)}
@@ -527,9 +577,11 @@ export default function Home() {
                 type="button"
                 onClick={enviarLead}
                 disabled={enviando}
-                className="rounded-2xl bg-cyan-400 px-6 py-4 font-black text-slate-950 shadow-lg shadow-cyan-400/20 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-[#2563EB] px-6 py-4 font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {enviando ? "Enviando solicitud..." : "Solicitar diagnóstico"}
+                {enviando
+                  ? "Enviando solicitud..."
+                  : "Solicitar diagnóstico"}
               </button>
 
               {enviado && (
@@ -547,7 +599,19 @@ export default function Home() {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-12 border-b border-white/10 pb-12 md:grid-cols-[1.5fr_1fr_1fr]">
             <div>
-              <p className="text-2xl font-black">TRANSTECH E.A.S.</p>
+              <div className="flex items-center gap-4">
+                <div className="relative h-12 w-16">
+                  <Image
+                    src="/transtech-logo.png"
+                    alt="Logo de TRANSTECH"
+                    fill
+                    className="object-contain brightness-0 invert"
+                  />
+                </div>
+
+                <p className="text-2xl font-black">TRANSTECH</p>
+              </div>
+
               <p className="mt-4 max-w-md leading-7 text-slate-400">
                 Tecnología, inteligencia artificial y automatización para
                 transformar la forma en que personas y empresas trabajan.
@@ -555,7 +619,8 @@ export default function Home() {
             </div>
 
             <div>
-              <p className="font-black text-cyan-300">Empresa</p>
+              <p className="font-black text-blue-300">Empresa</p>
+
               <div className="mt-4 grid gap-3 text-slate-400">
                 <a href="#empresa">Sobre nosotros</a>
                 <a href="#servicios">Servicios</a>
@@ -565,7 +630,8 @@ export default function Home() {
             </div>
 
             <div>
-              <p className="font-black text-cyan-300">Productos</p>
+              <p className="font-black text-blue-300">Productos</p>
+
               <div className="mt-4 grid gap-3 text-slate-400">
                 <a href="#eos">EOS</a>
                 <a href="/eos">Abrir EOS</a>
@@ -575,7 +641,7 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-3 pt-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
-            <p>© 2026 TRANSTECH E.A.S. Todos los derechos reservados.</p>
+            <p>© 2026 TRANSTECH. Todos los derechos reservados.</p>
             <p>Asunción, Paraguay</p>
           </div>
         </div>
@@ -595,7 +661,7 @@ function Campo({
 }) {
   return (
     <input
-      className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
+      className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
       placeholder={placeholder}
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -606,8 +672,9 @@ function Campo({
 function Dato({ valor, texto }: { valor: string; texto: string }) {
   return (
     <div>
-      <p className="text-xl font-black text-slate-950 md:text-2xl">{valor}</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+      <p className="text-2xl font-black text-slate-950 md:text-3xl">{valor}</p>
+
+      <p className="mt-2 text-xs font-black tracking-wide text-slate-400 md:text-sm">
         {texto}
       </p>
     </div>
@@ -616,7 +683,7 @@ function Dato({ valor, texto }: { valor: string; texto: string }) {
 
 function Valor({ titulo, texto }: { titulo: string; texto: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-[#f8fbff] p-5">
+    <div className="rounded-2xl border border-slate-200 bg-[#F8FBFF] p-5">
       <p className="font-black text-slate-950">{titulo}</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">{texto}</p>
     </div>

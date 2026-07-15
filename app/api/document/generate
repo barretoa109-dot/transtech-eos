@@ -1,0 +1,76 @@
+// app/api/document/generate/route.ts
+
+import { NextResponse } from "next/server";
+import * as XLSX from "xlsx";
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const tipo = body.tipo || "excel";
+    const rubro = body.rubro || "negocio";
+    const plantilla = body.plantilla || "business";
+    const nombre = body.nombre || "usuario";
+
+    if (tipo !== "excel") {
+      return NextResponse.json({
+        ok: false,
+        error: "Por ahora este generador real solo soporta Excel.",
+      });
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    const ventas = [
+      ["Fecha", "Producto", "Cantidad", "Precio unitario", "Total"],
+      ["2026-07-07", "Producto ejemplo", 1, 10000, { f: "C2*D2" }],
+    ];
+
+    const inventario = [
+      ["Producto", "Stock inicial", "Entradas", "Salidas", "Stock final"],
+      ["Producto ejemplo", 10, 5, 2, { f: "B2+C2-D2" }],
+    ];
+
+    const costos = [
+      ["Ingrediente / Insumo", "Cantidad usada", "Costo unitario", "Costo total"],
+      ["Insumo ejemplo", 3, 5000, { f: "B2*C2" }],
+    ];
+
+    const resumen = [
+      ["Indicador", "Valor"],
+      ["Total ventas", { f: "'Ventas diarias'!E2" }],
+      ["Total costos", { f: "Costos!D2" }],
+      ["Margen bruto", { f: "B2-B3" }],
+    ];
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ventas), "Ventas diarias");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inventario), "Inventario");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costos), "Costos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen mensual");
+
+    const buffer = XLSX.write(wb, {
+      type: "buffer",
+      bookType: "xlsx",
+    });
+
+    const base64 = buffer.toString("base64");
+
+    return NextResponse.json({
+      ok: true,
+      tipo: "excel",
+      filename: `control_${rubro}_${nombre}.xlsx`,
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      base64,
+      mensaje: "Archivo Excel generado correctamente.",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "No se pudo generar el documento.",
+      },
+      { status: 500 }
+    );
+  }
+}
