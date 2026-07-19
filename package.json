@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.107.0",
     "@swc/helpers": "^0.5.23",
     "exceljs": "^4.4.0",
