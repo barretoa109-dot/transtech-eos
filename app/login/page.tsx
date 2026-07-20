@@ -96,6 +96,8 @@ const ventajasIntelligence = [
 ];
 
 export default function Home() {
+  const supabase = createClient();
+
   const [nombre, setNombre] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [empresa, setEmpresa] = useState("");
@@ -791,4 +793,4 @@ function Valor({ titulo, texto }: { titulo: string; texto: string }) {
       <p className="mt-2 text-sm leading-6 text-slate-500">{texto}</p>
     </div>
   );
-}
+}}
