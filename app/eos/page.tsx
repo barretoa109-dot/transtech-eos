@@ -111,7 +111,7 @@ export default function EOSLandingPage() {
               TRANSTECH
             </a>
             <a
-              href="/eos/chat"
+              href="/login"
               className="rounded-full bg-[#2563EB] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
             >
               Probar EOS
@@ -144,7 +144,7 @@ export default function EOSLandingPage() {
 
             <div className="mt-9 flex flex-wrap gap-4">
               <a
-                href="/eos/chat"
+                href="/login"
                 className="rounded-full bg-[#2563EB] px-8 py-4 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
               >
                 Probar EOS
