@@ -793,4 +793,4 @@ function Valor({ titulo, texto }: { titulo: string; texto: string }) {
       <p className="mt-2 text-sm leading-6 text-slate-500">{texto}</p>
     </div>
   );
-}}
+}
