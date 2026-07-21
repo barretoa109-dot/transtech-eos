@@ -25,11 +25,12 @@ export default async function DashboardLayout({
     .maybeSingle();
 
   const nombre =
-  const plan = usuario?.plan ?? "Free";
     usuario?.nombre ??
     user.user_metadata?.nombre ??
     user.email?.split("@")[0] ??
     "Usuario";
+
+  const plan = usuario?.plan ?? "Free";
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
@@ -38,10 +39,7 @@ export default async function DashboardLayout({
       </div>
 
       <div className="min-w-0 flex-1">
-        <DashboardHeader
-  nombre={nombre}
-  plan={plan}
-/>
+        <DashboardHeader nombre={nombre} plan={plan} />
 
         <main className="min-h-[calc(100vh-5rem)] overflow-y-auto">
           {children}

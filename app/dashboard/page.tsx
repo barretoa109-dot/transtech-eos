@@ -29,46 +29,98 @@ export default function DashboardPage() {
   const [nuevaTarea, setNuevaTarea] = useState("");
 
   useEffect(() => {
-    const cargarSesion = async () => {
-  const supabase = createClient();
+  async function cargarSesion() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
 
-  if (!user) {
-    router.replace("/login");
-    return;
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("nombre,plan")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    setUsuarioId(user.id);
+    setNombre(
+      usuario?.nombre ??
+        user.user_metadata?.nombre ??
+        user.email?.split("@")[0] ??
+        "Usuario"
+    );
+    setPlan(usuario?.plan ?? "free");
+
+    await cargarDatos(user.id);
   }
 
-  const { data: usuario } = await supabase
-    .from("usuarios")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  cargarSesion();
+}, [router, supabase]);
 
-  setUsuarioId(user.id);
-  setNombre(usuario?.nombre ?? "Usuario");
-  setPlan(usuario?.plan ?? "free");
+useEffect(() => {
+  if (!usuarioId) return;
 
-  cargarDatos(user.id);
-};
+  const canal = supabase
+    .channel(`dashboard-eos-realtime-${usuarioId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "objetivos",
+        filter: `usuario_id=eq.${usuarioId}`,
+      },
+      () => cargarDatos(usuarioId)
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "tareas",
+        filter: `usuario_id=eq.${usuarioId}`,
+      },
+      () => cargarDatos(usuarioId)
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "seguimientos",
+        filter: `usuario_id=eq.${usuarioId}`,
+      },
+      () => cargarDatos(usuarioId)
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "dashboard_resumen",
+        filter: `usuario_id=eq.${usuarioId}`,
+      },
+      () => cargarDatos(usuarioId)
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "dashboard_ia",
+        filter: `usuario_id=eq.${usuarioId}`,
+      },
+      () => cargarDatos(usuarioId)
+    )
+    .subscribe();
 
-cargarSesion();
-
-    const canal = supabase
-      .channel("dashboard-eos-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "objetivos" }, () => cargarDatos(id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "tareas" }, () => cargarDatos(id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "seguimientos" }, () => cargarDatos(id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "dashboard_resumen" }, () => cargarDatos(id))
-      .on("postgres_changes", { event: "*", schema: "public", table: "dashboard_ia" }, () => cargarDatos(id))
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(canal);
-    };
-  }, []);
+  return () => {
+    supabase.removeChannel(canal);
+  };
+}, [usuarioId, supabase]);
 
   async function cargarDatos(id: string) {
     setCargando(true);
