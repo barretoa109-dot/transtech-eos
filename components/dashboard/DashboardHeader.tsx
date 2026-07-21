@@ -128,7 +128,7 @@ export default function DashboardHeader({
           </div>
 
           <Link
-            href="/dashboard/eos"
+            href="/eos/chat"
             className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-500 sm:px-5"
           >
             <span className="text-base">✦</span>

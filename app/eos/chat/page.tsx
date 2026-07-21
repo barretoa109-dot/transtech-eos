@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState } from "react";
 
 import Sidebar from "../components/Sidebar";
@@ -75,23 +76,43 @@ export default function EOSPage() {
   }, [historial]);
 
   async function iniciarEOS() {
-    const uuid = localStorage.getItem("usuario_uuid");
-    const usuarioNombre = localStorage.getItem("usuario_nombre") || "Usuario";
-    const usuarioPlan = localStorage.getItem("usuario_plan") || "free";
+  const supabase = createClient();
 
-    setNombre(usuarioNombre);
-    setPlan(usuarioPlan);
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    if (!uuid) {
-      window.location.href = "/login";
-      return;
-    }
-
-    setUsuarioId(uuid);
-    await cargarConversaciones(uuid);
-    await cargarBriefing(uuid);
+  if (userError || !user) {
+    window.location.replace("/login");
+    return;
   }
 
+  const { data: usuario } = await supabase
+    .from("usuarios")
+    .select("nombre, plan")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const nombreUsuario =
+    usuario?.nombre ??
+    user.user_metadata?.nombre ??
+    user.email?.split("@")[0] ??
+    "Usuario";
+
+  const planUsuario = usuario?.plan ?? "free";
+
+  setUsuarioId(user.id);
+  setNombre(nombreUsuario);
+  setPlan(planUsuario);
+
+  await Promise.all([
+    cargarConversaciones(user.id),
+    cargarBriefing(user.id),
+  ]);
+}
+
+   
   async function manejarNuevoChat() {
     if (!usuarioId) return;
     await nuevaConversacion(usuarioId);

@@ -16,10 +16,10 @@ const menu = [
     icon: "🏠",
   },
   {
-    title: "EOS",
-    href: "/dashboard/eos",
-    icon: "🤖",
-  },
+  title: "EOS",
+  href: "/eos/chat",
+  icon: "🤖",
+},
   {
     title: "Historial",
     href: "/dashboard/historial",

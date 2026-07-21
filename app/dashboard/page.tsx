@@ -383,9 +383,12 @@ const recomendacionIA =
             <a href="/dashboard-eos" className="bg-cyan-400 text-slate-950 px-6 py-3 rounded-2xl font-black">
               Dashboard EOS
             </a>
-            <a href="/login" className="border border-cyan-400/30 px-6 py-3 rounded-2xl font-bold">
-              Abrir EOS
-            </a>
+            <a
+  href="/eos/chat"
+  className="border border-cyan-400/30 px-6 py-3 rounded-2xl font-bold"
+>
+  Abrir EOS
+</a>
             <a href="/" className="border border-white/10 px-6 py-3 rounded-2xl">
               Inicio
             </a>
@@ -615,7 +618,7 @@ const recomendacionIA =
                 Tu dashboard ya conecta objetivos, tareas, diagnósticos, seguimiento y actividad. Para mejorar el score, completá tareas y seguí conversando con EOS.
               </p>
 
-              <a href="/eos" className="inline-block mt-6 bg-cyan-400 text-slate-950 px-8 py-4 rounded-2xl font-black">
+              <a href="/eos/chat" className="inline-block mt-6 bg-cyan-400 text-slate-950 px-8 py-4 rounded-2xl font-black">
                 Volver al asesor EOS
               </a>
             </section>
