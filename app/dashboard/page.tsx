@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 type AnyRow = Record<string, any>;
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const supabase = createClient();
   const [usuarioId, setUsuarioId] = useState("");
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
@@ -26,19 +29,32 @@ export default function DashboardPage() {
   const [nuevaTarea, setNuevaTarea] = useState("");
 
   useEffect(() => {
-    const id = localStorage.getItem("usuario_uuid");
-    const usuarioNombre = localStorage.getItem("usuario_nombre") || "Usuario";
-    const usuarioPlan = localStorage.getItem("usuario_plan") || "free";
+    const cargarSesion = async () => {
+  const supabase = createClient();
 
-    if (!id) {
-      window.location.href = "/login";
-      return;
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    setUsuarioId(id);
-    setNombre(usuarioNombre);
-    setPlan(usuarioPlan);
-    cargarDatos(id);
+  if (!user) {
+    router.replace("/login");
+    return;
+  }
+
+  const { data: usuario } = await supabase
+    .from("usuarios")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  setUsuarioId(user.id);
+  setNombre(usuario?.nombre ?? "Usuario");
+  setPlan(usuario?.plan ?? "free");
+
+  cargarDatos(user.id);
+};
+
+cargarSesion();
 
     const canal = supabase
       .channel("dashboard-eos-realtime")

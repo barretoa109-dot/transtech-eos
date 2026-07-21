@@ -1,93 +1,101 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import LoginForm from "@/components/auth/LoginForm";
+import RegisterForm from "@/components/auth/RegisterForm";
+import ForgotPassword from "@/components/auth/ForgotPassword";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const supabase = createClient();
-
-  const [nombre, setNombre] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function ingresar() {
-    if (!nombre.trim() || !whatsapp.trim()) {
-      alert("Completá todos los campos.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      let { data: usuario } = await supabase
-        .from("usuarios")
-        .select("*")
-        .eq("whatsapp", whatsapp)
-        .maybeSingle();
-
-      if (!usuario) {
-        const { data, error } = await supabase
-          .from("usuarios")
-          .insert({
-            nombre,
-            whatsapp,
-            plan: "free",
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        usuario = data;
-      }
-
-      localStorage.setItem("usuario_uuid", usuario.id);
-      localStorage.setItem("usuario_nombre", usuario.nombre);
-      localStorage.setItem("usuario_plan", usuario.plan ?? "free");
-
-      router.replace("/dashboard");
-
-    } catch (e) {
-      console.error(e);
-      alert("Error al ingresar.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [screen, setScreen] = useState<
+    "login" | "register" | "forgot"
+  >("login");
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
-      <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-700 p-8">
+    <main className="min-h-screen bg-[#040816] text-white">
 
-        <h1 className="text-3xl font-black text-white mb-8">
-          Ingresar a EOS
-        </h1>
+      <div className="grid min-h-screen lg:grid-cols-2">
 
-        <input
-          className="w-full rounded-xl p-4 mb-4 bg-slate-800 text-white"
-          placeholder="Nombre"
-          value={nombre}
-          onChange={(e)=>setNombre(e.target.value)}
-        />
+        {/* Lado izquierdo */}
 
-        <input
-          className="w-full rounded-xl p-4 mb-6 bg-slate-800 text-white"
-          placeholder="WhatsApp"
-          value={whatsapp}
-          onChange={(e)=>setWhatsapp(e.target.value)}
-        />
+        <div className="hidden lg:flex flex-col justify-center bg-gradient-to-br from-[#071226] to-[#0E1F44] px-20">
 
-        <button
-          onClick={ingresar}
-          disabled={loading}
-          className="w-full rounded-xl bg-blue-600 p-4 font-bold text-white"
-        >
-          {loading ? "Ingresando..." : "Ingresar"}
-        </button>
+          <p className="text-5xl font-black tracking-tight">
+            TRANSTECH
+          </p>
+
+          <p className="mt-3 text-blue-400 font-bold">
+            Intelligent Technology
+          </p>
+
+          <h1 className="mt-16 text-6xl font-black leading-tight">
+            Bienvenido
+            <br />
+            a EOS
+          </h1>
+
+          <p className="mt-8 max-w-xl text-lg text-slate-300 leading-8">
+            Tu sistema operativo ejecutivo impulsado por Inteligencia
+            Artificial.
+          </p>
+
+          <div className="mt-14 space-y-5">
+
+            <Item texto="Conversaciones inteligentes" />
+            <Item texto="Memoria persistente" />
+            <Item texto="Dashboard ejecutivo" />
+            <Item texto="Automatizaciones" />
+            <Item texto="Documentos automáticos" />
+            <Item texto="Seguimiento de objetivos" />
+
+          </div>
+
+        </div>
+
+        {/* Lado derecho */}
+
+        <div className="flex items-center justify-center p-8">
+
+          <div className="w-full max-w-md">
+
+            {screen === "login" && (
+              <LoginForm
+                onRegister={() => setScreen("register")}
+                onForgot={() => setScreen("forgot")}
+              />
+            )}
+
+            {screen === "register" && (
+              <RegisterForm
+                onLogin={() => setScreen("login")}
+              />
+            )}
+
+            {screen === "forgot" && (
+              <ForgotPassword
+                onBack={() => setScreen("login")}
+              />
+            )}
+
+          </div>
+
+        </div>
 
       </div>
+
     </main>
+  );
+}
+
+function Item({ texto }: { texto: string }) {
+  return (
+    <div className="flex items-center gap-4">
+
+      <div className="h-3 w-3 rounded-full bg-blue-500" />
+
+      <p className="text-lg text-slate-200">
+        {texto}
+      </p>
+
+    </div>
   );
 }
