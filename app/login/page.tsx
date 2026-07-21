@@ -134,7 +134,7 @@ export default function LoginPage() {
                 )}
 
                 {screen === "forgot" && (
-                  <ForgotPassword onLogin={() => setScreen("login")} />
+                  <ForgotPassword onBack={() => setScreen("login")} />
                 )}
               </div>
             </div>
