@@ -14,20 +14,26 @@ export function useConversations(nombre: string) {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
 
-  async function cargarConversaciones(usuarioId: string) {
+  async function cargarConversaciones(
+  usuarioId: string,
+  nombreUsuario?: string
+) {
     const conversacionesData = await obtenerConversaciones(usuarioId);
 
     if (conversacionesData.length === 0) {
-      await nuevaConversacion(usuarioId);
-      return;
-    }
+  await nuevaConversacion(usuarioId, nombreUsuario);
+  return;
+}
 
     setConversaciones(conversacionesData);
     setConversacionId(conversacionesData[0].id);
     await abrirConversacion(conversacionesData[0].id);
   }
 
-  async function nuevaConversacion(usuarioId: string) {
+  async function nuevaConversacion(
+  usuarioId: string,
+  nombreUsuario?: string
+) {
     const nueva = await crearConversacion(usuarioId);
 
     if (!nueva) return null;
@@ -38,7 +44,7 @@ export function useConversations(nombre: string) {
     setHistorial([
       {
         rol: "eos",
-        texto: `Hola ${nombre}. Soy EOS.\n\nEste es un nuevo chat. Contame qué querés trabajar hoy: finanzas, negocio, documentos, objetivos, tareas o decisiones importantes.`,
+        texto: `Hola ${nombreUsuario || nombre}. Soy EOS.\n\nEste es un nuevo chat. Contame qué querés trabajar hoy: finanzas, negocio, documentos, objetivos, tareas o decisiones importantes.`,
       },
     ]);
 
