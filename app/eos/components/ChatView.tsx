@@ -1,5 +1,15 @@
 "use client";
 
+import Image from "next/image";
+import {
+  ArrowUpRight,
+  BarChart3,
+  FileSpreadsheet,
+  Landmark,
+  Sparkles,
+  Target,
+} from "lucide-react";
+
 import MessageBubble from "./MessageBubble";
 import type { Mensaje } from "../types/chat";
 
@@ -10,12 +20,76 @@ type ChatViewProps = {
   onEnviarSugerencia: (texto: string) => void;
 };
 
-type Sugerencia = {
-  icono: string;
-  titulo: string;
-  descripcion: string;
-  texto: string;
+type MensajeExtendido = Mensaje & {
+  archivo_url?: string;
+  archivo_tipo?: string;
+  tipo?: string;
+  accion?: string;
 };
+
+const sugerencias = [
+  {
+    titulo: "Analizar mi negocio",
+    descripcion:
+      "Detectar oportunidades, riesgos, problemas y próximos pasos.",
+    texto:
+      "Quiero analizar mi negocio y detectar oportunidades, problemas y próximos pasos.",
+    icono: BarChart3,
+  },
+  {
+    titulo: "Organizar mis finanzas",
+    descripcion:
+      "Crear presupuestos, controles, proyecciones y planes financieros.",
+    texto:
+      "Quiero organizar mis finanzas y crear un plan financiero claro.",
+    icono: Landmark,
+  },
+  {
+    titulo: "Crear un documento",
+    descripcion:
+      "Preparar Excel, informes, propuestas, presupuestos o reportes.",
+    texto:
+      "Quiero crear un documento profesional con EOS.",
+    icono: FileSpreadsheet,
+  },
+  {
+    titulo: "Organizar mis objetivos",
+    descripcion:
+      "Convertir una meta en tareas, prioridades y seguimiento.",
+    texto:
+      "Quiero organizar mis objetivos y convertirlos en un plan de acción.",
+    icono: Target,
+  },
+];
+
+function obtenerPrimerNombre(nombre: string) {
+  const limpio = nombre.trim();
+
+  if (!limpio) return "Usuario";
+
+  return limpio.split(/\s+/)[0];
+}
+
+function obtenerNombreArchivo(tipo?: string) {
+  switch (tipo?.toLowerCase()) {
+    case "excel":
+    case "xlsx":
+      return "Descargar Excel";
+
+    case "pdf":
+      return "Descargar PDF";
+
+    case "word":
+    case "docx":
+      return "Descargar Word";
+
+    case "csv":
+      return "Descargar CSV";
+
+    default:
+      return "Descargar archivo";
+  }
+}
 
 export default function ChatView({
   historial,
@@ -23,619 +97,578 @@ export default function ChatView({
   chatRef,
   onEnviarSugerencia,
 }: ChatViewProps) {
-  const primerNombre =
-    nombre?.trim().split(/\s+/)[0] || "Usuario";
-
-  const sugerencias: Sugerencia[] = [
-    {
-      icono: "↗",
-      titulo: "Analizar mi negocio",
-      descripcion: "Detectar oportunidades, problemas y próximos pasos.",
-      texto:
-        "Quiero analizar mi negocio. Ayudame a identificar oportunidades, problemas y próximos pasos.",
-    },
-    {
-      icono: "$",
-      titulo: "Organizar mis finanzas",
-      descripcion: "Crear presupuestos, controles y planes financieros.",
-      texto:
-        "Quiero ordenar mis finanzas y crear un plan financiero claro.",
-    },
-    {
-      icono: "▤",
-      titulo: "Crear un documento",
-      descripcion: "Preparar informes, propuestas, Excel, PDF o Word.",
-      texto:
-        "Quiero crear un documento profesional. Ayudame a definirlo.",
-    },
-    {
-      icono: "✓",
-      titulo: "Organizar objetivos",
-      descripcion: "Convertir ideas en metas y tareas ejecutables.",
-      texto:
-        "Quiero organizar mis objetivos y transformarlos en un plan de acción.",
-    },
-    {
-      icono: "⚙",
-      titulo: "Automatizar una tarea",
-      descripcion: "Diseñar procesos para ahorrar tiempo y trabajo manual.",
-      texto:
-        "Quiero automatizar una tarea o proceso de mi negocio.",
-    },
-    {
-      icono: "◇",
-      titulo: "Consultar mi memoria",
-      descripcion: "Revisar qué información y contexto recuerda EOS.",
-      texto:
-        "Decime qué información recordás actualmente sobre mí y mis proyectos.",
-    },
-  ];
-
   const estaVacio = historial.length === 0;
+  const primerNombre = obtenerPrimerNombre(nombre);
 
   return (
-    <div ref={chatRef} style={styles.chatArea}>
-      <div style={styles.backgroundGlowOne} />
-      <div style={styles.backgroundGlowTwo} />
+    <div ref={chatRef} className="eos-chat-scroll">
+      <div className="eos-chat-background">
+        <div className="eos-grid-pattern" />
+        <div className="eos-light eos-light-one" />
+        <div className="eos-light eos-light-two" />
+      </div>
 
-      <div style={styles.chatInner}>
+      <div className="eos-chat-inner">
         {estaVacio ? (
-          <section style={styles.welcome}>
-            <div style={styles.statusBadge}>
-              <span style={styles.statusDot} />
-              EOS está listo
+          <section className="eos-welcome">
+            <div className="eos-ready">
+              <span className="eos-ready-dot" />
+              EOS está preparado
             </div>
 
-            <div style={styles.logoWrapper}>
-              <div style={styles.logoGlow} />
-              <div style={styles.logo}>✦</div>
-            </div>
+            <div className="eos-symbol">
+  <Image
+    src="/transtech-logo.png"
+    alt="Logo de TRANSTECH"
+    width={44}
+    height={44}
+    priority
+    className="eos-symbol-logo"
+  />
+</div>
 
-            <p style={styles.eyebrow}>TRANSTECH EOS</p>
+            <p className="eos-brand-label">TRANSTECH EOS</p>
 
-            <h1 style={styles.title}>
+            <h1 className="eos-welcome-title">
               Hola, {primerNombre}.
-              <br />
-              <span style={styles.titleAccent}>
-                ¿Qué vamos a resolver hoy?
-              </span>
+              <span> ¿Qué vamos a resolver hoy?</span>
             </h1>
 
-            <p style={styles.subtitle}>
-              Puedo ayudarte a organizar, analizar, crear documentos,
-              automatizar procesos y convertir tus ideas en planes concretos.
+            <p className="eos-welcome-description">
+              Analizá información, organizá objetivos, generá documentos y
+              convertí tus ideas en planes concretos desde una sola
+              conversación.
             </p>
 
-            <div style={styles.quickGrid}>
-              {sugerencias.map((item) => (
-                <button
-                  type="button"
-                  key={item.titulo}
-                  onClick={() =>
-                    onEnviarSugerencia(item.texto)
-                  }
-                  style={styles.quickCard}
-                >
-                  <div style={styles.quickCardTop}>
-                    <span style={styles.quickIcon}>
-                      {item.icono}
-                    </span>
-
-                    <span style={styles.quickArrow}>↗</span>
-                  </div>
-
-                  <strong style={styles.quickTitle}>
-                    {item.titulo}
-                  </strong>
-
-                  <span style={styles.quickDescription}>
-                    {item.descripcion}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div style={styles.capabilities}>
-              <span style={styles.capability}>
-                <span style={styles.capabilityDot} />
-                Memoria contextual
-              </span>
-
-              <span style={styles.capability}>
-                <span style={styles.capabilityDot} />
-                Archivos profesionales
-              </span>
-
-              <span style={styles.capability}>
-                <span style={styles.capabilityDot} />
-                Seguimiento inteligente
-              </span>
-            </div>
-          </section>
-        ) : (
-          <section style={styles.messages}>
-            <div style={styles.conversationHeader}>
-              <div>
-                <p style={styles.conversationEyebrow}>
-                  CONVERSACIÓN ACTIVA
-                </p>
-
-                <h2 style={styles.conversationTitle}>
-                  Trabajando con EOS
-                </h2>
-              </div>
-
-              <div style={styles.conversationStatus}>
-                <span style={styles.statusDot} />
-                Sincronizado
-              </div>
-            </div>
-
-            <div style={styles.messageList}>
-              {historial.map((item, index) => {
-                const mensaje = item as Mensaje & {
-                  archivo_url?: string;
-                  archivo_tipo?: string;
-                  tipo?: string;
-                  accion?: string;
-                };
+            <div className="eos-suggestion-grid">
+              {sugerencias.map((item) => {
+                const Icono = item.icono;
 
                 return (
-                  <div
-                    key={`${mensaje.rol}-${index}`}
-                    style={styles.messageBlock}
+                  <button
+                    key={item.titulo}
+                    type="button"
+                    className="eos-suggestion-card"
+                    onClick={() => onEnviarSugerencia(item.texto)}
                   >
-                    <MessageBubble
-                      rol={mensaje.rol}
-                      texto={mensaje.texto}
-                      nombre={nombre}
-                    />
+                    <div className="eos-suggestion-top">
+                      <span className="eos-suggestion-icon">
+                        <Icono size={20} strokeWidth={2.2} />
+                      </span>
 
-                    {mensaje.rol === "eos" &&
-                      mensaje.archivo_url && (
-                        <div style={styles.fileRow}>
-                          <a
-                            href={mensaje.archivo_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={styles.downloadButton}
-                          >
-                            <div style={styles.downloadIcon}>
-                              ↓
-                            </div>
+                      <ArrowUpRight
+                        size={17}
+                        className="eos-suggestion-arrow"
+                      />
+                    </div>
 
-                            <div style={styles.downloadInfo}>
-                              <strong style={styles.downloadTitle}>
-                                Descargar{" "}
-                                {obtenerNombreTipoArchivo(
-                                  mensaje.archivo_tipo
-                                )}
-                              </strong>
+                    <strong>{item.titulo}</strong>
 
-                              <span style={styles.downloadSubtitle}>
-                                Archivo generado por EOS
-                              </span>
-                            </div>
-
-                            <span style={styles.downloadArrow}>
-                              ↗
-                            </span>
-                          </a>
-                        </div>
-                      )}
-                  </div>
+                    <span>{item.descripcion}</span>
+                  </button>
                 );
               })}
             </div>
 
-            <div style={styles.endMarker}>
-              <span style={styles.endLine} />
-              <span>EOS mantiene el contexto de esta conversación</span>
-              <span style={styles.endLine} />
+            <div className="eos-capabilities">
+              <span>
+                <span className="eos-capability-dot" />
+                Memoria conectada
+              </span>
+
+              <span>
+                <span className="eos-capability-dot" />
+                Documentos y archivos
+              </span>
+
+              <span>
+                <span className="eos-capability-dot" />
+                Seguimiento activo
+              </span>
             </div>
+          </section>
+        ) : (
+          <section className="eos-messages">
+            <div className="eos-conversation-header">
+              <div>
+                <p>CONVERSACIÓN CON EOS</p>
+                <h2>Espacio de trabajo</h2>
+              </div>
+
+              <span>
+                <span className="eos-conversation-dot" />
+                Memoria activa
+              </span>
+            </div>
+
+            {historial.map((item, index) => {
+              const mensaje = item as MensajeExtendido;
+
+              return (
+                <div key={`${mensaje.rol}-${index}`}>
+                  <MessageBubble
+                    rol={mensaje.rol}
+                    texto={mensaje.texto}
+                    nombre={nombre}
+                  />
+
+                  {mensaje.rol === "eos" && mensaje.archivo_url ? (
+                    <div className="eos-file-row">
+                      <a
+                        href={mensaje.archivo_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="eos-generated-file"
+                      >
+                        <span className="eos-generated-file-icon">
+                          <FileSpreadsheet size={21} />
+                        </span>
+
+                        <span className="eos-generated-file-info">
+                          <strong>
+                            {obtenerNombreArchivo(
+                              mensaje.archivo_tipo,
+                            )}
+                          </strong>
+
+                          <small>
+                            Documento generado por TransTech EOS
+                          </small>
+                        </span>
+
+                        <ArrowUpRight size={18} />
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </section>
         )}
       </div>
+
+      <style jsx>{`
+        .eos-chat-scroll {
+          position: relative;
+          flex: 1;
+          min-height: 0;
+          overflow-x: hidden;
+          overflow-y: auto;
+          background: #f7faff;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
+        }
+
+        .eos-chat-scroll::-webkit-scrollbar {
+          width: 7px;
+        }
+
+        .eos-chat-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .eos-chat-scroll::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: rgba(100, 116, 139, 0.28);
+        }
+
+        .eos-chat-background {
+          position: fixed;
+          top: 72px;
+          right: 0;
+          bottom: 0;
+          left: 280px;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .eos-grid-pattern {
+          position: absolute;
+          inset: 0;
+          opacity: 0.42;
+          background-image:
+            linear-gradient(
+              rgba(15, 23, 42, 0.035) 1px,
+              transparent 1px
+            ),
+            linear-gradient(
+              90deg,
+              rgba(15, 23, 42, 0.035) 1px,
+              transparent 1px
+            );
+          background-size: 46px 46px;
+          mask-image: linear-gradient(
+            to bottom,
+            black,
+            transparent 92%
+          );
+        }
+
+        .eos-light {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(100px);
+        }
+
+        .eos-light-one {
+          top: -260px;
+          right: -210px;
+          width: 620px;
+          height: 620px;
+          background: rgba(37, 99, 235, 0.13);
+        }
+
+        .eos-light-two {
+          bottom: -330px;
+          left: 8%;
+          width: 700px;
+          height: 700px;
+          background: rgba(96, 165, 250, 0.11);
+        }
+
+        .eos-chat-inner {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 1040px;
+          min-height: 100%;
+          margin: 0 auto;
+          padding: 34px 34px 160px;
+          box-sizing: border-box;
+        }
+
+        .eos-welcome {
+          min-height: calc(100vh - 248px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+
+        .eos-ready {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 32px;
+          padding: 0 13px;
+          border: 1px solid rgba(34, 197, 94, 0.2);
+          border-radius: 999px;
+          background: rgba(240, 253, 244, 0.9);
+          color: #15803d;
+          font-size: 11px;
+          font-weight: 800;
+          box-shadow: 0 8px 25px rgba(15, 23, 42, 0.04);
+        }
+
+        .eos-ready-dot,
+        .eos-conversation-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 11px rgba(34, 197, 94, 0.65);
+        }
+
+        .eos-symbol {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  margin-top: 20px;
+  padding: 13px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 20px 48px rgba(37, 99, 235, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.eos-symbol-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+        .eos-brand-label {
+          margin: 17px 0 0;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+        }
+
+        .eos-welcome-title {
+          max-width: 900px;
+          margin: 14px 0 0;
+          color: #071226;
+          font-size: clamp(38px, 4.6vw, 62px);
+          font-weight: 900;
+          line-height: 1.02;
+          letter-spacing: -0.055em;
+        }
+
+        .eos-welcome-title span {
+          color: #2563eb;
+        }
+
+        .eos-welcome-description {
+          max-width: 700px;
+          margin: 19px 0 0;
+          color: #64748b;
+          font-size: 15px;
+          line-height: 1.75;
+        }
+
+        .eos-suggestion-grid {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 13px;
+          margin-top: 31px;
+        }
+
+        .eos-suggestion-card {
+          min-width: 0;
+          min-height: 164px;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          padding: 18px;
+          border: 1px solid #e2e8f0;
+          border-radius: 22px;
+          background: rgba(255, 255, 255, 0.9);
+          color: #071226;
+          text-align: left;
+          cursor: pointer;
+          box-shadow:
+            0 10px 35px rgba(15, 23, 42, 0.045),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+          transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .eos-suggestion-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(37, 99, 235, 0.32);
+          box-shadow: 0 18px 44px rgba(37, 99, 235, 0.1);
+        }
+
+        .eos-suggestion-top {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .eos-suggestion-icon {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .eos-suggestion-arrow {
+          color: #94a3b8;
+          transition:
+            color 180ms ease,
+            transform 180ms ease;
+        }
+
+        .eos-suggestion-card:hover
+          .eos-suggestion-arrow {
+          color: #2563eb;
+          transform: translate(2px, -2px);
+        }
+
+        .eos-suggestion-card strong {
+          margin-top: 18px;
+          color: #071226;
+          font-size: 14px;
+          font-weight: 850;
+          line-height: 1.25;
+        }
+
+        .eos-suggestion-card > span:last-child {
+          margin-top: 8px;
+          color: #64748b;
+          font-size: 11px;
+          line-height: 1.55;
+        }
+
+        .eos-capabilities {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 20px;
+          margin-top: 22px;
+          color: #64748b;
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .eos-capabilities > span {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .eos-capability-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: #2563eb;
+        }
+
+        .eos-messages {
+          padding-top: 5px;
+        }
+
+        .eos-conversation-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .eos-conversation-header p {
+          margin: 0;
+          color: #2563eb;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+        }
+
+        .eos-conversation-header h2 {
+          margin: 6px 0 0;
+          color: #071226;
+          font-size: 24px;
+          font-weight: 900;
+          letter-spacing: -0.035em;
+        }
+
+        .eos-conversation-header > span {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 999px;
+          background: white;
+          color: #475569;
+          font-size: 10px;
+          font-weight: 800;
+        }
+
+        .eos-file-row {
+          display: flex;
+          margin: -8px 0 22px;
+          padding-left: 50px;
+        }
+
+        .eos-generated-file {
+          width: min(100%, 520px);
+          display: flex;
+          align-items: center;
+          gap: 13px;
+          padding: 13px;
+          border: 1px solid rgba(37, 99, 235, 0.18);
+          border-radius: 17px;
+          background: #eff6ff;
+          color: #071226;
+          text-decoration: none;
+          transition:
+            transform 180ms ease,
+            border-color 180ms ease;
+        }
+
+        .eos-generated-file:hover {
+          transform: translateY(-2px);
+          border-color: rgba(37, 99, 235, 0.38);
+        }
+
+        .eos-generated-file-icon {
+          width: 42px;
+          height: 42px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 13px;
+          background: #2563eb;
+          color: white;
+        }
+
+        .eos-generated-file-info {
+          min-width: 0;
+          flex: 1;
+          display: grid;
+          gap: 3px;
+        }
+
+        .eos-generated-file-info strong {
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        .eos-generated-file-info small {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        @media (max-width: 1100px) {
+          .eos-suggestion-grid {
+            grid-template-columns: repeat(
+              2,
+              minmax(0, 1fr)
+            );
+          }
+        }
+
+        @media (max-width: 760px) {
+          .eos-chat-background {
+            left: 0;
+          }
+
+          .eos-chat-inner {
+            padding: 76px 18px 155px;
+          }
+
+          .eos-welcome {
+            min-height: calc(100vh - 260px);
+          }
+
+          .eos-welcome-title {
+            font-size: clamp(34px, 10vw, 48px);
+          }
+
+          .eos-suggestion-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .eos-suggestion-card {
+            min-height: 142px;
+          }
+
+          .eos-conversation-header {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .eos-file-row {
+            padding-left: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
-
-function obtenerNombreTipoArchivo(tipo?: string) {
-  switch (tipo?.toLowerCase()) {
-    case "excel":
-    case "xlsx":
-      return "Excel";
-
-    case "pdf":
-      return "PDF";
-
-    case "word":
-    case "docx":
-      return "Word";
-
-    case "imagen":
-    case "image":
-    case "png":
-    case "jpg":
-      return "imagen";
-
-    default:
-      return "archivo";
-  }
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  chatArea: {
-    position: "relative",
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    overflowX: "hidden",
-    padding: "30px 24px 150px",
-    background:
-      "linear-gradient(180deg, #07101d 0%, #091524 48%, #07111f 100%)",
-    color: "#f8fafc",
-    fontFamily: "Inter, Arial, Helvetica, sans-serif",
-  },
-
-  backgroundGlowOne: {
-    position: "fixed",
-    top: 80,
-    right: "8%",
-    width: 420,
-    height: 420,
-    borderRadius: 999,
-    background: "rgba(14, 165, 233, 0.09)",
-    filter: "blur(110px)",
-    pointerEvents: "none",
-  },
-
-  backgroundGlowTwo: {
-    position: "fixed",
-    bottom: 80,
-    left: "30%",
-    width: 340,
-    height: 340,
-    borderRadius: 999,
-    background: "rgba(34, 211, 238, 0.055)",
-    filter: "blur(100px)",
-    pointerEvents: "none",
-  },
-
-  chatInner: {
-    position: "relative",
-    zIndex: 1,
-    width: "100%",
-    maxWidth: 940,
-    margin: "0 auto",
-  },
-
-  welcome: {
-    minHeight: "calc(100vh - 250px)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    padding: "35px 0",
-  },
-
-  statusBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 24,
-    padding: "8px 13px",
-    borderRadius: 999,
-    border: "1px solid rgba(34, 197, 94, 0.2)",
-    background: "rgba(34, 197, 94, 0.07)",
-    color: "#86efac",
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.03em",
-  },
-
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "#22c55e",
-    boxShadow: "0 0 10px rgba(34, 197, 94, 0.8)",
-    flexShrink: 0,
-  },
-
-  logoWrapper: {
-    position: "relative",
-    width: 72,
-    height: 72,
-    marginBottom: 22,
-  },
-
-  logoGlow: {
-    position: "absolute",
-    inset: -8,
-    borderRadius: 26,
-    background:
-      "linear-gradient(135deg, #22d3ee, #0ea5e9)",
-    opacity: 0.35,
-    filter: "blur(20px)",
-  },
-
-  logo: {
-    position: "relative",
-    width: 72,
-    height: 72,
-    borderRadius: 23,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "linear-gradient(135deg, #67e8f9 0%, #22d3ee 45%, #0ea5e9 100%)",
-    color: "#042f3e",
-    fontSize: 31,
-    fontWeight: 950,
-    boxShadow:
-      "0 18px 44px rgba(14, 165, 233, 0.24)",
-  },
-
-  eyebrow: {
-    margin: "0 0 10px",
-    color: "#67e8f9",
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: "0.2em",
-  },
-
-  title: {
-    margin: 0,
-    maxWidth: 760,
-    color: "#f8fafc",
-    fontSize: "clamp(34px, 5vw, 52px)",
-    lineHeight: 1.08,
-    fontWeight: 900,
-    letterSpacing: "-0.05em",
-  },
-
-  titleAccent: {
-    background:
-      "linear-gradient(90deg, #67e8f9, #38bdf8)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    backgroundClip: "text",
-  },
-
-  subtitle: {
-    maxWidth: 650,
-    margin: "20px auto 0",
-    color: "#96a9c0",
-    fontSize: 16,
-    lineHeight: 1.7,
-  },
-
-  quickGrid: {
-    width: "100%",
-    display: "grid",
-    gridTemplateColumns:
-      "repeat(auto-fit, minmax(230px, 1fr))",
-    gap: 12,
-    marginTop: 38,
-    textAlign: "left",
-  },
-
-  quickCard: {
-    minHeight: 152,
-    display: "flex",
-    flexDirection: "column",
-    padding: 17,
-    borderRadius: 18,
-    border: "1px solid rgba(148, 163, 184, 0.14)",
-    background:
-      "linear-gradient(145deg, rgba(18, 36, 57, 0.92), rgba(12, 27, 45, 0.82))",
-    color: "#f8fafc",
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "inherit",
-    boxShadow:
-      "0 16px 35px rgba(2, 8, 23, 0.16), inset 0 1px 0 rgba(255,255,255,0.03)",
-  },
-
-  quickCardTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-
-  quickIcon: {
-    width: 37,
-    height: 37,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    background: "rgba(34, 211, 238, 0.1)",
-    border: "1px solid rgba(34, 211, 238, 0.14)",
-    color: "#67e8f9",
-    fontSize: 17,
-    fontWeight: 900,
-  },
-
-  quickArrow: {
-    color: "#536a84",
-    fontSize: 16,
-  },
-
-  quickTitle: {
-    marginBottom: 7,
-    color: "#f8fafc",
-    fontSize: 14,
-    fontWeight: 850,
-  },
-
-  quickDescription: {
-    color: "#8296ae",
-    fontSize: 12,
-    lineHeight: 1.55,
-  },
-
-  capabilities: {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "12px 22px",
-    marginTop: 27,
-    color: "#6f849d",
-    fontSize: 11,
-    fontWeight: 700,
-  },
-
-  capability: {
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-  },
-
-  capabilityDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    background: "#22d3ee",
-    boxShadow: "0 0 8px rgba(34, 211, 238, 0.6)",
-  },
-
-  messages: {
-    width: "100%",
-    paddingTop: 4,
-  },
-
-  conversationHeader: {
-    minHeight: 75,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 18,
-    marginBottom: 28,
-    padding: "15px 18px",
-    borderRadius: 17,
-    border: "1px solid rgba(148, 163, 184, 0.12)",
-    background: "rgba(12, 27, 45, 0.58)",
-    backdropFilter: "blur(12px)",
-  },
-
-  conversationEyebrow: {
-    margin: "0 0 5px",
-    color: "#4f8da3",
-    fontSize: 9,
-    fontWeight: 900,
-    letterSpacing: "0.15em",
-  },
-
-  conversationTitle: {
-    margin: 0,
-    color: "#eaf8ff",
-    fontSize: 18,
-    fontWeight: 850,
-    letterSpacing: "-0.02em",
-  },
-
-  conversationStatus: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(34, 197, 94, 0.17)",
-    background: "rgba(34, 197, 94, 0.06)",
-    color: "#86efac",
-    fontSize: 10,
-    fontWeight: 800,
-  },
-
-  messageList: {
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  messageBlock: {
-    width: "100%",
-  },
-
-  fileRow: {
-    display: "flex",
-    marginTop: -7,
-    marginBottom: 23,
-    paddingLeft: 54,
-  },
-
-  downloadButton: {
-    width: "min(100%, 420px)",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "13px 15px",
-    borderRadius: 15,
-    border: "1px solid rgba(34, 211, 238, 0.18)",
-    background:
-      "linear-gradient(135deg, rgba(8, 145, 178, 0.16), rgba(14, 116, 144, 0.08))",
-    color: "#e6fbff",
-    textDecoration: "none",
-    boxShadow: "0 12px 25px rgba(2, 8, 23, 0.14)",
-  },
-
-  downloadIcon: {
-    width: 39,
-    height: 39,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    background:
-      "linear-gradient(135deg, #67e8f9, #22d3ee)",
-    color: "#083344",
-    fontSize: 19,
-    fontWeight: 900,
-  },
-
-  downloadInfo: {
-    minWidth: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-  },
-
-  downloadTitle: {
-    color: "#e6fbff",
-    fontSize: 13,
-    fontWeight: 850,
-  },
-
-  downloadSubtitle: {
-    color: "#7291a7",
-    fontSize: 10,
-  },
-
-  downloadArrow: {
-    color: "#67e8f9",
-    fontSize: 15,
-  },
-
-  endMarker: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 28,
-    color: "#52677f",
-    fontSize: 10,
-    textAlign: "center",
-  },
-
-  endLine: {
-    height: 1,
-    flex: 1,
-    background:
-      "linear-gradient(90deg, transparent, rgba(148,163,184,0.14))",
-  },
-};

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  ArrowUp,
+  ImagePlus,
+  LoaderCircle,
+  Paperclip,
+  Sparkles,
+} from "lucide-react";
 
 type ComposerProps = {
   mensaje: string;
@@ -17,39 +23,27 @@ export default function Composer({
   onEnviar,
   onImagenSeleccionada,
 }: ComposerProps) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   const puedeEnviar = mensaje.trim().length > 0 && !cargando;
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
-
-    if (!textarea) return;
-
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
-  }, [mensaje]);
-
-  function manejarEnvio() {
+  function enviar() {
     if (!puedeEnviar) return;
     onEnviar();
   }
 
   return (
-    <div style={styles.dock}>
-      <div style={styles.container}>
-        <div style={styles.composer}>
+    <div className="tt-composer-dock">
+      <div className="tt-composer-shell">
+        <div className="tt-composer-box">
           <label
+            className="tt-attach-button"
             title="Adjuntar una imagen"
-            aria-label="Adjuntar una imagen"
-            style={styles.attachButton}
           >
-            <span style={styles.attachIcon}>＋</span>
+            <Paperclip size={19} strokeWidth={2.2} />
 
             <input
               type="file"
               accept="image/*"
-              style={{ display: "none" }}
+              hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
 
@@ -62,300 +56,338 @@ export default function Composer({
             />
           </label>
 
-          <div style={styles.inputArea}>
+          <div className="tt-composer-content">
             <textarea
-              ref={textareaRef}
               value={mensaje}
-              disabled={cargando}
               onChange={(event) =>
                 onMensajeChange(event.target.value)
               }
               onKeyDown={(event) => {
                 if (
                   event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing
+                  !event.shiftKey
                 ) {
                   event.preventDefault();
-                  manejarEnvio();
+                  enviar();
                 }
               }}
-              placeholder={
-                cargando
-                  ? "EOS está preparando una respuesta..."
-                  : "Escribile algo a EOS..."
-              }
+              placeholder="Escribile a EOS..."
               rows={1}
-              aria-label="Mensaje para EOS"
-              style={{
-                ...styles.textarea,
-                ...(cargando
-                  ? styles.textareaDisabled
-                  : {}),
-              }}
+              className="tt-composer-textarea"
             />
 
-            <div style={styles.inputFooter}>
-              <div style={styles.tools}>
-                <span style={styles.toolLabel}>
-                  <span style={styles.toolDot} />
-                  Memoria activa
-                </span>
-
-                <span style={styles.shortcut}>
-                  Shift + Enter para nueva línea
-                </span>
-              </div>
-
-              <span
-                style={{
-                  ...styles.characterCount,
-                  ...(mensaje.length > 3500
-                    ? styles.characterCountWarning
-                    : {}),
-                }}
-              >
-                {mensaje.length.toLocaleString()}
+            <div className="tt-composer-meta">
+              <span className="tt-memory-label">
+                <Sparkles size={11} strokeWidth={2.2} />
+                Memoria activa
               </span>
+
+              <span>Enter para enviar</span>
+
+              <span>Shift + Enter para nueva línea</span>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={manejarEnvio}
+            onClick={enviar}
             disabled={!puedeEnviar}
+            className={`tt-send-button ${
+              puedeEnviar
+                ? "tt-send-active"
+                : "tt-send-disabled"
+            }`}
             aria-label={
               cargando
                 ? "EOS está respondiendo"
                 : "Enviar mensaje"
             }
-            title={
-              cargando
-                ? "EOS está respondiendo"
-                : "Enviar mensaje"
-            }
-            style={{
-              ...styles.sendButton,
-              ...(puedeEnviar
-                ? styles.sendButtonActive
-                : styles.sendButtonDisabled),
-            }}
           >
             {cargando ? (
-              <span style={styles.loadingDots}>
-                <span style={styles.loadingDot} />
-                <span style={styles.loadingDot} />
-                <span style={styles.loadingDot} />
-              </span>
+              <LoaderCircle
+                size={20}
+                className="tt-loader"
+              />
             ) : (
-              <span style={styles.sendIcon}>↑</span>
+              <ArrowUp size={21} strokeWidth={2.5} />
             )}
           </button>
         </div>
 
-        <p style={styles.note}>
-          EOS puede cometer errores. Verificá la información importante antes
-          de tomar decisiones.
-        </p>
+        <div className="tt-composer-footer">
+          <span>
+            <span className="tt-online-dot" />
+            EOS conectado
+          </span>
+
+          <p>
+            EOS puede cometer errores. Verificá la información importante
+            antes de tomar decisiones.
+          </p>
+
+          <span>
+            <ImagePlus size={12} />
+            Imágenes habilitadas
+          </span>
+        </div>
       </div>
+
+      <style jsx>{`
+        .tt-composer-dock {
+          position: fixed;
+          right: 0;
+          bottom: 0;
+          left: 280px;
+          z-index: 40;
+          padding: 34px 24px 14px;
+          background: linear-gradient(
+            to top,
+            #f7faff 68%,
+            rgba(247, 250, 255, 0.96) 82%,
+            rgba(247, 250, 255, 0)
+          );
+          pointer-events: none;
+        }
+
+        .tt-composer-shell {
+          width: 100%;
+          max-width: 930px;
+          margin: 0 auto;
+          pointer-events: auto;
+        }
+
+        .tt-composer-box {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          padding: 10px;
+          overflow: hidden;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.9);
+          box-shadow:
+            0 20px 60px rgba(15, 23, 42, 0.11),
+            inset 0 1px 0 rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          transition:
+            border-color 180ms ease,
+            box-shadow 180ms ease,
+            transform 180ms ease;
+        }
+
+        .tt-composer-box::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            radial-gradient(
+              circle at top right,
+              rgba(37, 99, 235, 0.08),
+              transparent 38%
+            ),
+            linear-gradient(
+              180deg,
+              rgba(255, 255, 255, 0.35),
+              transparent
+            );
+        }
+
+        .tt-composer-box:focus-within {
+          border-color: rgba(37, 99, 235, 0.42);
+          box-shadow:
+            0 22px 65px rgba(15, 23, 42, 0.13),
+            0 0 0 4px rgba(37, 99, 235, 0.07);
+          transform: translateY(-1px);
+        }
+
+        .tt-attach-button,
+        .tt-composer-content,
+        .tt-send-button {
+          position: relative;
+          z-index: 1;
+        }
+
+        .tt-attach-button {
+          width: 44px;
+          height: 44px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          border-radius: 14px;
+          background: #f8fafc;
+          color: #64748b;
+          cursor: pointer;
+          transition:
+            transform 180ms ease,
+            background 180ms ease,
+            color 180ms ease,
+            border-color 180ms ease;
+        }
+
+        .tt-attach-button:hover {
+          transform: translateY(-2px);
+          border-color: rgba(37, 99, 235, 0.22);
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .tt-composer-content {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .tt-composer-textarea {
+          width: 100%;
+          min-height: 26px;
+          max-height: 150px;
+          display: block;
+          resize: none;
+          overflow-y: auto;
+          padding: 4px 5px 1px;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #071226;
+          font-family: inherit;
+          font-size: 15px;
+          font-weight: 550;
+          line-height: 1.5;
+          box-sizing: border-box;
+        }
+
+        .tt-composer-textarea::placeholder {
+          color: #94a3b8;
+        }
+
+        .tt-composer-meta {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+          min-height: 17px;
+          padding: 4px 5px 0;
+          color: #94a3b8;
+          font-size: 8px;
+          font-weight: 750;
+        }
+
+        .tt-composer-meta > span {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .tt-memory-label {
+          color: #2563eb;
+        }
+
+        .tt-send-button {
+          width: 46px;
+          height: 46px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border: 0;
+          border-radius: 15px;
+          transition:
+            transform 180ms ease,
+            background 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .tt-send-active {
+          background: #071226;
+          color: white;
+          cursor: pointer;
+          box-shadow: 0 13px 30px rgba(7, 18, 38, 0.22);
+        }
+
+        .tt-send-active:hover {
+          transform: translateY(-2px);
+          background: #2563eb;
+          box-shadow: 0 15px 34px rgba(37, 99, 235, 0.25);
+        }
+
+        .tt-send-disabled {
+          background: #e8edf4;
+          color: #a4b0bf;
+          cursor: not-allowed;
+        }
+
+        .tt-loader {
+          animation: tt-spin 0.9s linear infinite;
+        }
+
+        .tt-composer-footer {
+          min-height: 22px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 16px;
+          padding: 8px 10px 0;
+          color: #94a3b8;
+          font-size: 8px;
+          font-weight: 700;
+        }
+
+        .tt-composer-footer p {
+          margin: 0;
+          text-align: center;
+        }
+
+        .tt-composer-footer > span {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .tt-composer-footer > span:last-child {
+          justify-self: end;
+        }
+
+        .tt-online-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 10px rgba(34, 197, 94, 0.62);
+        }
+
+        @keyframes tt-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @media (max-width: 760px) {
+          .tt-composer-dock {
+            left: 0;
+            padding: 25px 12px 10px;
+          }
+
+          .tt-composer-box {
+            border-radius: 20px;
+          }
+
+          .tt-composer-footer {
+            display: flex;
+            justify-content: center;
+          }
+
+          .tt-composer-footer > span {
+            display: none;
+          }
+
+          .tt-composer-meta > span:nth-child(2),
+          .tt-composer-meta > span:nth-child(3) {
+            display: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  dock: {
-    position: "fixed",
-    left: 280,
-    right: 0,
-    bottom: 0,
-    zIndex: 30,
-    padding: "38px 24px 14px",
-    background:
-      "linear-gradient(180deg, rgba(7,17,31,0) 0%, rgba(7,17,31,0.92) 28%, #07111f 72%)",
-    pointerEvents: "none",
-    fontFamily: "Inter, Arial, Helvetica, sans-serif",
-  },
-
-  container: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
-    pointerEvents: "auto",
-  },
-
-  composer: {
-    position: "relative",
-    display: "flex",
-    alignItems: "flex-end",
-    gap: 10,
-    padding: 9,
-    borderRadius: 24,
-    border: "1px solid rgba(103, 232, 249, 0.2)",
-    background:
-      "linear-gradient(145deg, rgba(17,35,56,0.98), rgba(11,25,42,0.98))",
-    boxShadow:
-      "0 22px 60px rgba(2,8,23,0.5), inset 0 1px 0 rgba(255,255,255,0.045)",
-    backdropFilter: "blur(22px)",
-  },
-
-  attachButton: {
-    width: 43,
-    height: 43,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.13)",
-    background: "rgba(148,163,184,0.07)",
-    color: "#91a6be",
-    cursor: "pointer",
-    transition: "all 160ms ease",
-  },
-
-  attachIcon: {
-    fontSize: 23,
-    fontWeight: 500,
-    lineHeight: 1,
-  },
-
-  inputArea: {
-    minWidth: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  textarea: {
-    width: "100%",
-    minHeight: 44,
-    maxHeight: 180,
-    boxSizing: "border-box",
-    resize: "none",
-    overflowY: "auto",
-    padding: "11px 8px 6px",
-    border: "none",
-    outline: "none",
-    background: "transparent",
-    color: "#f8fafc",
-    caretColor: "#67e8f9",
-    fontFamily: "inherit",
-    fontSize: 15,
-    lineHeight: 1.55,
-  },
-
-  textareaDisabled: {
-    color: "#8194aa",
-    cursor: "not-allowed",
-  },
-
-  inputFooter: {
-    minHeight: 21,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: "0 8px 3px",
-  },
-
-  tools: {
-    minWidth: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: 13,
-    color: "#61758d",
-    fontSize: 9,
-    fontWeight: 700,
-  },
-
-  toolLabel: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    whiteSpace: "nowrap",
-  },
-
-  toolDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    background: "#22d3ee",
-    boxShadow: "0 0 8px rgba(34,211,238,0.65)",
-  },
-
-  shortcut: {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-
-  characterCount: {
-    flexShrink: 0,
-    color: "#53677e",
-    fontSize: 9,
-    fontWeight: 700,
-  },
-
-  characterCountWarning: {
-    color: "#fbbf24",
-  },
-
-  sendButton: {
-    width: 45,
-    height: 45,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 1,
-    border: "none",
-    borderRadius: 15,
-    fontFamily: "inherit",
-    transition: "all 160ms ease",
-  },
-
-  sendButtonActive: {
-    background:
-      "linear-gradient(135deg, #67e8f9 0%, #22d3ee 48%, #0ea5e9 100%)",
-    color: "#042f3e",
-    cursor: "pointer",
-    boxShadow:
-      "0 11px 25px rgba(14,165,233,0.3), inset 0 1px 0 rgba(255,255,255,0.4)",
-  },
-
-  sendButtonDisabled: {
-    background: "rgba(148,163,184,0.1)",
-    color: "#52667d",
-    cursor: "not-allowed",
-    boxShadow: "none",
-  },
-
-  sendIcon: {
-    fontSize: 22,
-    lineHeight: 1,
-    fontWeight: 900,
-    transform: "translateY(-1px)",
-  },
-
-  loadingDots: {
-    display: "flex",
-    alignItems: "center",
-    gap: 3,
-  },
-
-  loadingDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 999,
-    background: "currentColor",
-  },
-
-  note: {
-    margin: "8px 0 0",
-    color: "#51657c",
-    fontSize: 10,
-    lineHeight: 1.4,
-    textAlign: "center",
-  },
-};

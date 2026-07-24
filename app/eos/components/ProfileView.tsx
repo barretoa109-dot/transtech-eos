@@ -327,8 +327,8 @@ const styles: Record<string, React.CSSProperties> = {
     overflowX: "hidden",
     padding: "34px 28px 60px",
     background:
-      "linear-gradient(180deg, #07101d 0%, #091524 48%, #07111f 100%)",
-    color: "#f8fafc",
+      "linear-gradient(180deg, #ffffff 0%, #f7faff 46%, #eef5ff 100%)",
+    color: "#071226",
     fontFamily: "Inter, Arial, Helvetica, sans-serif",
   },
 
@@ -339,7 +339,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 420,
     height: 420,
     borderRadius: 999,
-    background: "rgba(14,165,233,0.07)",
+    background: "rgba(37,99,235,0.11)",
     filter: "blur(120px)",
     pointerEvents: "none",
   },
@@ -351,7 +351,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 340,
     height: 340,
     borderRadius: 999,
-    background: "rgba(34,211,238,0.04)",
+    background: "rgba(96,165,250,0.10)",
     filter: "blur(110px)",
     pointerEvents: "none",
   },
@@ -384,12 +384,12 @@ const styles: Record<string, React.CSSProperties> = {
     width: 7,
     height: 7,
     borderRadius: 999,
-    background: "#22d3ee",
-    boxShadow: "0 0 11px rgba(34,211,238,0.8)",
+    background: "#2563eb",
+    boxShadow: "0 0 11px rgba(37,99,235,0.45)",
   },
 
   eyebrow: {
-    color: "#67e8f9",
+    color: "#2563eb",
     fontSize: 10,
     fontWeight: 900,
     letterSpacing: "0.18em",
@@ -397,6 +397,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   title: {
     margin: 0,
+    color: "#071226",
     fontSize: "clamp(31px, 5vw, 46px)",
     lineHeight: 1.1,
     fontWeight: 900,
@@ -406,7 +407,7 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: {
     maxWidth: 580,
     margin: "14px 0 0",
-    color: "#879bb2",
+    color: "#475569",
     fontSize: 14,
     lineHeight: 1.7,
   },
@@ -414,15 +415,16 @@ const styles: Record<string, React.CSSProperties> = {
   accountStatus: {
     minWidth: 195,
     padding: "16px 18px",
-    border: "1px solid rgba(148,163,184,0.12)",
+    border: "1px solid #dbe5f2",
     borderRadius: 17,
-    background: "rgba(16,33,53,0.78)",
+    background: "rgba(255,255,255,0.9)",
+    boxShadow: "0 14px 34px rgba(15,23,42,0.06)",
   },
 
   accountStatusLabel: {
     display: "block",
     marginBottom: 8,
-    color: "#5f748c",
+    color: "#64748b",
     fontSize: 8,
     fontWeight: 900,
     letterSpacing: "0.14em",
@@ -432,7 +434,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    color: "#dff8ee",
+    color: "#0f172a",
     fontSize: 13,
     fontWeight: 800,
   },
@@ -442,7 +444,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 7,
     borderRadius: 999,
     background: "#22c55e",
-    boxShadow: "0 0 9px rgba(34,197,94,0.55)",
+    boxShadow: "0 0 9px rgba(34,197,94,0.45)",
   },
 
   profileCard: {
@@ -451,11 +453,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 22,
     padding: 24,
     borderRadius: 23,
-    border: "1px solid rgba(103,232,249,0.16)",
+    border: "1px solid #dbe5f2",
     background:
-      "linear-gradient(145deg, rgba(18,38,60,0.96), rgba(10,24,41,0.95))",
+      "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(245,249,255,0.96))",
     boxShadow:
-      "0 22px 52px rgba(2,8,23,0.25), inset 0 1px 0 rgba(255,255,255,0.035)",
+      "0 22px 52px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
   },
 
   profileIdentity: {
@@ -477,12 +479,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     borderRadius: 25,
     background:
-      "linear-gradient(135deg, #67e8f9 0%, #22d3ee 50%, #0ea5e9 100%)",
-    color: "#073344",
+      "linear-gradient(135deg, #60a5fa 0%, #2563eb 52%, #1d4ed8 100%)",
+    color: "#ffffff",
     fontSize: 32,
     fontWeight: 950,
     boxShadow:
-      "0 16px 30px rgba(14,165,233,0.22), inset 0 1px 0 rgba(255,255,255,0.5)",
+      "0 16px 30px rgba(37,99,235,0.24), inset 0 1px 0 rgba(255,255,255,0.32)",
   },
 
   avatarStatus: {
@@ -491,7 +493,7 @@ const styles: Record<string, React.CSSProperties> = {
     bottom: -2,
     width: 18,
     height: 18,
-    border: "4px solid #10243a",
+    border: "4px solid #ffffff",
     borderRadius: 999,
     background: "#22c55e",
   },
@@ -501,7 +503,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   profileLabel: {
-    color: "#62849a",
+    color: "#64748b",
     fontSize: 8,
     fontWeight: 900,
     letterSpacing: "0.15em",
@@ -510,7 +512,7 @@ const styles: Record<string, React.CSSProperties> = {
   profileName: {
     margin: "7px 0 11px",
     overflow: "hidden",
-    color: "#f7fbff",
+    color: "#071226",
     fontSize: 27,
     fontWeight: 900,
     letterSpacing: "-0.035em",
@@ -527,9 +529,9 @@ const styles: Record<string, React.CSSProperties> = {
   planTag: {
     padding: "7px 10px",
     borderRadius: 999,
-    background: "rgba(34,211,238,0.1)",
-    border: "1px solid rgba(34,211,238,0.14)",
-    color: "#67e8f9",
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#2563eb",
     fontSize: 9,
     fontWeight: 850,
   },
@@ -540,9 +542,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
     padding: "7px 10px",
     borderRadius: 999,
-    background: "rgba(148,163,184,0.07)",
-    border: "1px solid rgba(148,163,184,0.1)",
-    color: "#8498ae",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    color: "#64748b",
     fontSize: 9,
     fontWeight: 800,
   },
@@ -558,8 +560,8 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
     padding: 17,
     borderRadius: 17,
-    border: "1px solid rgba(148,163,184,0.11)",
-    background: "rgba(5,16,30,0.4)",
+    border: "1px solid #dbe5f2",
+    background: "rgba(255,255,255,0.88)",
   },
 
   userIdHeader: {
@@ -570,7 +572,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   userIdLabel: {
-    color: "#70869d",
+    color: "#64748b",
     fontSize: 8,
     fontWeight: 900,
     letterSpacing: "0.13em",
@@ -578,16 +580,16 @@ const styles: Record<string, React.CSSProperties> = {
 
   userIdDescription: {
     margin: "5px 0 0",
-    color: "#536a82",
+    color: "#94a3b8",
     fontSize: 9,
   },
 
   copyButton: {
     padding: "7px 11px",
-    border: "1px solid rgba(34,211,238,0.15)",
+    border: "1px solid #bfdbfe",
     borderRadius: 9,
-    background: "rgba(34,211,238,0.08)",
-    color: "#67e8f9",
+    background: "#eff6ff",
+    color: "#2563eb",
     fontSize: 9,
     fontWeight: 850,
     cursor: "pointer",
@@ -603,9 +605,10 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 17,
     overflow: "hidden",
     padding: "11px 12px",
+    border: "1px solid #e2e8f0",
     borderRadius: 10,
-    background: "rgba(2,8,23,0.47)",
-    color: "#a5bbce",
+    background: "#f8fafc",
+    color: "#334155",
     fontFamily: "monospace",
     fontSize: 10,
     lineHeight: 1.5,
@@ -626,10 +629,10 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     padding: 19,
     borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.12)",
+    border: "1px solid #dbe5f2",
     background:
-      "linear-gradient(145deg, rgba(17,34,54,0.91), rgba(11,25,42,0.9))",
-    boxShadow: "0 15px 32px rgba(2,8,23,0.14)",
+      "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,251,255,0.96))",
+    boxShadow: "0 15px 32px rgba(15,23,42,0.06)",
   },
 
   metricIcon: {
@@ -640,9 +643,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 14,
-    background: "rgba(34,211,238,0.09)",
-    border: "1px solid rgba(34,211,238,0.13)",
-    color: "#67e8f9",
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#2563eb",
     fontSize: 18,
     fontWeight: 900,
   },
@@ -654,14 +657,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   metricLabel: {
-    color: "#72879e",
+    color: "#64748b",
     fontSize: 9,
     fontWeight: 850,
   },
 
   metricValue: {
     marginTop: 3,
-    color: "#f5fbff",
+    color: "#071226",
     fontSize: 23,
     fontWeight: 900,
     letterSpacing: "-0.025em",
@@ -669,7 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   metricDescription: {
     marginTop: 3,
-    color: "#50677f",
+    color: "#94a3b8",
     fontSize: 8,
   },
 
@@ -683,10 +686,10 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     padding: 22,
     borderRadius: 21,
-    border: "1px solid rgba(148,163,184,0.12)",
+    border: "1px solid #dbe5f2",
     background:
-      "linear-gradient(145deg, rgba(17,34,54,0.93), rgba(11,25,42,0.91))",
-    boxShadow: "0 18px 37px rgba(2,8,23,0.16)",
+      "linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,251,255,0.96))",
+    boxShadow: "0 18px 37px rgba(15,23,42,0.07)",
   },
 
   cardHeader: {
@@ -698,7 +701,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   sectionEyebrow: {
-    color: "#5e7c92",
+    color: "#2563eb",
     fontSize: 8,
     fontWeight: 900,
     letterSpacing: "0.14em",
@@ -706,7 +709,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   cardTitle: {
     margin: "5px 0 0",
-    color: "#eff8ff",
+    color: "#071226",
     fontSize: 19,
     fontWeight: 850,
     letterSpacing: "-0.025em",
@@ -715,8 +718,8 @@ const styles: Record<string, React.CSSProperties> = {
   featureCount: {
     padding: "6px 9px",
     borderRadius: 999,
-    background: "rgba(34,211,238,0.08)",
-    color: "#67e8f9",
+    background: "#eff6ff",
+    color: "#2563eb",
     fontSize: 8,
     fontWeight: 850,
   },
@@ -733,8 +736,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: 13,
     borderRadius: 13,
-    background: "rgba(148,163,184,0.045)",
-    border: "1px solid rgba(148,163,184,0.075)",
+    background: "#f8fbff",
+    border: "1px solid #e2e8f0",
   },
 
   featureCheck: {
@@ -745,27 +748,27 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
-    background: "rgba(34,211,238,0.09)",
-    color: "#67e8f9",
+    background: "#dbeafe",
+    color: "#2563eb",
     fontSize: 10,
     fontWeight: 900,
   },
 
   featureTitle: {
-    color: "#dfeef8",
+    color: "#071226",
     fontSize: 11,
     fontWeight: 850,
   },
 
   featureDescription: {
     margin: "4px 0 0",
-    color: "#667c94",
+    color: "#64748b",
     fontSize: 9,
     lineHeight: 1.5,
   },
 
   shieldIcon: {
-    color: "#4f7188",
+    color: "#2563eb",
     fontSize: 21,
   },
 
@@ -779,11 +782,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: 15,
     padding: "13px 0",
-    borderBottom: "1px solid rgba(148,163,184,0.075)",
+    borderBottom: "1px solid #e2e8f0",
   },
 
   accountRowLabel: {
-    color: "#71879e",
+    color: "#64748b",
     fontSize: 10,
   },
 
@@ -791,7 +794,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 7,
-    color: "#dceaf4",
+    color: "#071226",
     fontSize: 10,
     fontWeight: 800,
   },
@@ -811,8 +814,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 17,
     padding: 14,
     borderRadius: 13,
-    background: "rgba(34,211,238,0.055)",
-    border: "1px solid rgba(34,211,238,0.09)",
+    background: "#eff6ff",
+    border: "1px solid #dbeafe",
   },
 
   securityIcon: {
@@ -823,21 +826,21 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
-    background: "rgba(34,211,238,0.11)",
-    color: "#67e8f9",
+    background: "#dbeafe",
+    color: "#2563eb",
     fontSize: 10,
     fontWeight: 900,
   },
 
   securityTitle: {
-    color: "#dff7fb",
+    color: "#071226",
     fontSize: 10,
     fontWeight: 850,
   },
 
   securityText: {
     margin: "4px 0 0",
-    color: "#648296",
+    color: "#64748b",
     fontSize: 8,
     lineHeight: 1.55,
   },
@@ -848,7 +851,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 8,
     marginTop: 23,
-    color: "#52677f",
+    color: "#64748b",
     fontSize: 9,
     textAlign: "center",
   },

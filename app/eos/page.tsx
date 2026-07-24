@@ -1,285 +1,633 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  BrainCircuit,
+  Check,
+  ChevronRight,
+  CircleCheck,
+  Clock3,
+  Database,
+  FileSpreadsheet,
+  FolderKanban,
+  Menu,
+  MessageSquareText,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Workflow,
+  X,
+  Zap,
+} from "lucide-react";
 
 const capacidades = [
   {
     numero: "01",
     titulo: "Conversación con contexto",
     texto:
-      "EOS comprende el objetivo del usuario, mantiene continuidad y responde con criterio ejecutivo.",
+      "EOS comprende el objetivo, conserva la continuidad y responde con criterio ejecutivo.",
+    icono: MessageSquareText,
   },
   {
     numero: "02",
     titulo: "Documentos y archivos",
     texto:
-      "Genera Excel y prepara la base para PDF, Word, reportes, presupuestos y otros entregables.",
+      "Genera Excel y prepara reportes, presupuestos, análisis y otros entregables.",
+    icono: FileSpreadsheet,
   },
   {
     numero: "03",
     titulo: "Memoria inteligente",
     texto:
-      "Conserva información relevante sobre preferencias, proyectos, objetivos y conversaciones.",
+      "Conserva preferencias, proyectos, objetivos y datos relevantes para próximas conversaciones.",
+    icono: Database,
   },
   {
     numero: "04",
     titulo: "Objetivos y seguimiento",
     texto:
       "Convierte decisiones en tareas, registra avances y mantiene visible el próximo paso.",
+    icono: Target,
   },
   {
     numero: "05",
     titulo: "Dashboard ejecutivo",
     texto:
-      "Centraliza progreso, actividad, prioridades, métricas y recomendaciones en una sola vista.",
+      "Centraliza progreso, actividad, métricas, prioridades y recomendaciones en una sola vista.",
+    icono: BarChart3,
   },
   {
     numero: "06",
-    titulo: "Automatización",
+    titulo: "Automatización operativa",
     texto:
-      "Conecta conversación, datos y procesos para ejecutar acciones sin depender de tareas manuales.",
+      "Conecta conversación, datos y procesos para ejecutar acciones sin trabajo manual repetitivo.",
+    icono: Workflow,
   },
 ];
 
 const funcionamiento = [
-  ["01", "Entiende", "Interpreta el mensaje actual y el contexto relevante."],
-  ["02", "Decide", "Distingue entre conversar, generar un archivo o ejecutar una acción."],
-  ["03", "Ejecuta", "Activa el proceso correspondiente y produce un resultado concreto."],
-  ["04", "Registra", "Guarda información, avances y actividad para mantener continuidad."],
+  {
+    numero: "01",
+    titulo: "Entiende",
+    texto: "Interpreta el mensaje actual, la intención y el contexto relevante.",
+    icono: BrainCircuit,
+  },
+  {
+    numero: "02",
+    titulo: "Decide",
+    texto: "Distingue entre responder, generar un archivo o ejecutar una acción.",
+    icono: FolderKanban,
+  },
+  {
+    numero: "03",
+    titulo: "Ejecuta",
+    texto: "Activa el proceso correspondiente y produce un resultado concreto.",
+    icono: Zap,
+  },
+  {
+    numero: "04",
+    titulo: "Registra",
+    texto: "Guarda información, avances y actividad para mantener continuidad.",
+    icono: Database,
+  },
 ];
 
 const ejemplos = [
   {
     pedido: "Generame un Excel para controlar mi negocio.",
-    resultado: "EOS prepara el archivo y lo entrega en el mismo chat.",
+    resultado:
+      "EOS prepara una planilla profesional con ingresos, gastos, resultado y estructura de control.",
+    tipo: "Archivo Excel",
   },
   {
     pedido: "Organizá mis objetivos para este mes.",
-    resultado: "EOS estructura la meta, define tareas y registra el seguimiento.",
+    resultado:
+      "EOS estructura la meta, define acciones, registra tareas y mantiene el seguimiento.",
+    tipo: "Plan de ejecución",
   },
   {
     pedido: "Recordá que prefiero reportes breves.",
-    resultado: "EOS guarda esa preferencia y la utiliza cuando vuelve a ser relevante.",
+    resultado:
+      "EOS guarda esa preferencia y la aplica cuando vuelve a resultar relevante.",
+    tipo: "Memoria activa",
   },
 ];
 
 const comparacion = [
-  ["Responder preguntas", true, true],
-  ["Mantener contexto operativo", false, true],
-  ["Generar archivos dentro del chat", false, true],
-  ["Administrar objetivos y tareas", false, true],
-  ["Conectar dashboard y seguimiento", false, true],
-  ["Ejecutar acciones estructuradas", false, true],
+  {
+    capacidad: "Responder preguntas",
+    asistente: true,
+    eos: true,
+  },
+  {
+    capacidad: "Mantener contexto operativo",
+    asistente: false,
+    eos: true,
+  },
+  {
+    capacidad: "Generar archivos en el chat",
+    asistente: false,
+    eos: true,
+  },
+  {
+    capacidad: "Administrar objetivos y tareas",
+    asistente: false,
+    eos: true,
+  },
+  {
+    capacidad: "Conectar dashboard y seguimiento",
+    asistente: false,
+    eos: true,
+  },
+  {
+    capacidad: "Ejecutar acciones estructuradas",
+    asistente: false,
+    eos: true,
+  },
+];
+
+const indicadores = [
+  {
+    valor: "24/7",
+    etiqueta: "Disponibilidad",
+  },
+  {
+    valor: "1",
+    etiqueta: "Entorno centralizado",
+  },
+  {
+    valor: "100%",
+    etiqueta: "Enfoque ejecutivo",
+  },
 ];
 
 export default function EOSLandingPage() {
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  function cerrarMenu() {
+    setMenuAbierto(false);
+  }
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-white text-[#071226]">
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-          <a href="/" className="flex items-center gap-4">
-            <div className="relative h-12 w-14 shrink-0">
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-2xl">
+        <div className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between px-5 md:px-8">
+          <Link
+            href="/"
+            onClick={cerrarMenu}
+            className="flex items-center gap-3"
+          >
+            <div className="relative h-11 w-12 shrink-0">
               <Image
                 src="/transtech-logo.png"
                 alt="Logo de TRANSTECH"
                 fill
                 priority
-                sizes="56px"
+                sizes="48px"
                 className="object-contain mix-blend-multiply"
               />
             </div>
+
             <div>
-              <p className="text-xl font-black tracking-[-0.03em]">TRANSTECH</p>
-              <p className="mt-1 text-[10px] font-black tracking-[0.2em] text-blue-600">
-                EOS
+              <p className="text-[17px] font-black tracking-[-0.035em] text-slate-950">
+                TRANSTECH
               </p>
+
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.7)]" />
+
+                <p className="text-[9px] font-black tracking-[0.24em] text-blue-600">
+                  EOS
+                </p>
+              </div>
             </div>
-          </a>
+          </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
-            <a href="#que-es" className="transition hover:text-blue-600">Qué es</a>
-            <a href="#funciona" className="transition hover:text-blue-600">Cómo funciona</a>
-            <a href="#capacidades" className="transition hover:text-blue-600">Capacidades</a>
-            <a href="#comparacion" className="transition hover:text-blue-600">Diferencias</a>
+            <a
+              href="#que-es"
+              className="transition hover:text-blue-600"
+            >
+              Qué es
+            </a>
+
+            <a
+              href="#funciona"
+              className="transition hover:text-blue-600"
+            >
+              Cómo funciona
+            </a>
+
+            <a
+              href="#capacidades"
+              className="transition hover:text-blue-600"
+            >
+              Capacidades
+            </a>
+
+            <a
+              href="#comparacion"
+              className="transition hover:text-blue-600"
+            >
+              Diferencias
+            </a>
           </nav>
 
-          <div className="flex items-center gap-3">
-            <a
+          <div className="hidden items-center gap-3 sm:flex">
+            <Link
               href="/"
-              className="hidden rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black shadow-sm sm:inline-flex"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
             >
               TRANSTECH
-            </a>
-            <a
+            </Link>
+
+            <Link
               href="/login"
-              className="rounded-full bg-[#2563EB] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+              className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
             >
               Probar EOS
-            </a>
+              <ArrowRight
+                size={16}
+                className="transition group-hover:translate-x-0.5"
+              />
+            </Link>
           </div>
+
+          <button
+            type="button"
+            aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
+            onClick={() => setMenuAbierto((actual) => !actual)}
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm lg:hidden"
+          >
+            {menuAbierto ? <X size={21} /> : <Menu size={21} />}
+          </button>
         </div>
+
+        {menuAbierto ? (
+          <div className="border-t border-slate-200 bg-white px-5 py-5 shadow-xl lg:hidden">
+            <nav className="mx-auto grid max-w-7xl gap-2">
+              <MobileLink
+                href="#que-es"
+                label="Qué es EOS"
+                onClick={cerrarMenu}
+              />
+
+              <MobileLink
+                href="#funciona"
+                label="Cómo funciona"
+                onClick={cerrarMenu}
+              />
+
+              <MobileLink
+                href="#capacidades"
+                label="Capacidades"
+                onClick={cerrarMenu}
+              />
+
+              <MobileLink
+                href="#comparacion"
+                label="Diferencias"
+                onClick={cerrarMenu}
+              />
+
+              <Link
+                href="/login"
+                onClick={cerrarMenu}
+                className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 font-black text-white"
+              >
+                Probar EOS
+                <ArrowRight size={17} />
+              </Link>
+            </nav>
+          </div>
+        ) : null}
       </header>
 
-      <section className="relative overflow-hidden border-b border-slate-200 bg-[#F7FAFC]">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-[#f6f9fe]">
+        <BackgroundGrid />
+
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-48 bottom-[-200px] h-[620px] w-[620px] rounded-full bg-blue-500/20 blur-[120px]" />
-          <div className="absolute -right-48 top-[-190px] h-[640px] w-[640px] rounded-full bg-blue-300/25 blur-[130px]" />
+          <div className="absolute -left-56 bottom-[-250px] h-[650px] w-[650px] rounded-full bg-blue-500/20 blur-[130px]" />
+          <div className="absolute -right-48 top-[-230px] h-[680px] w-[680px] rounded-full bg-cyan-300/20 blur-[140px]" />
         </div>
 
-        <div className="relative mx-auto grid min-h-[760px] max-w-7xl items-center gap-14 px-6 py-24 md:px-8 lg:grid-cols-[0.92fr_1.08fr]">
+        <div className="relative mx-auto grid min-h-[760px] max-w-7xl items-center gap-16 px-6 py-20 md:px-8 md:py-24 lg:grid-cols-[0.94fr_1.06fr]">
           <div>
-            <div className="inline-flex rounded-full border border-blue-200 bg-white/85 px-5 py-2 text-xs font-black tracking-[0.16em] text-blue-700 shadow-sm">
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/85 px-4 py-2 text-[11px] font-black tracking-[0.15em] text-blue-700 shadow-sm backdrop-blur-xl">
+              <Sparkles size={14} />
               PRODUCTO ESTRELLA DE TRANSTECH
             </div>
 
-            <h1 className="mt-8 text-5xl font-black leading-[0.95] tracking-[-0.055em] text-slate-950 md:text-7xl">
-              Un sistema que entiende, decide y ejecuta.
+            <h1 className="mt-8 max-w-3xl text-5xl font-black leading-[0.96] tracking-[-0.06em] text-slate-950 md:text-7xl">
+              Un sistema que entiende, decide y{" "}
+              <span className="bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 bg-clip-text text-transparent">
+                ejecuta.
+              </span>
             </h1>
 
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-              EOS es el sistema operativo ejecutivo de TRANSTECH. Conversa con contexto,
-              genera archivos, organiza objetivos, conserva información relevante y conecta
-              cada interacción con acciones reales.
+              EOS es el sistema operativo ejecutivo de TRANSTECH.
+              Conversa con contexto, genera archivos, organiza objetivos,
+              conserva información y conecta cada interacción con acciones
+              reales.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-4">
-              <a
+              <Link
                 href="/login"
-                className="rounded-full bg-[#2563EB] px-8 py-4 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
+                className="group inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
               >
                 Probar EOS
-              </a>
+                <ArrowRight
+                  size={18}
+                  className="transition group-hover:translate-x-1"
+                />
+              </Link>
+
               <a
                 href="#funciona"
-                className="rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-slate-900 shadow-sm transition hover:border-blue-300"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:text-blue-600"
               >
                 Ver cómo funciona
+                <ChevronRight size={18} />
               </a>
             </div>
 
-            <p className="mt-5 text-sm font-bold text-slate-400">
-              Experiencia web conectada con memoria, documentos y dashboard.
-            </p>
+            <div className="mt-9 grid max-w-xl grid-cols-3 gap-3">
+              {indicadores.map((item) => (
+                <div
+                  key={item.etiqueta}
+                  className="rounded-2xl border border-white/80 bg-white/65 p-4 shadow-sm backdrop-blur-xl"
+                >
+                  <p className="text-xl font-black tracking-[-0.03em] text-slate-950">
+                    {item.valor}
+                  </p>
+
+                  <p className="mt-1 text-[10px] font-bold leading-4 text-slate-500">
+                    {item.etiqueta}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <DemoEOS />
         </div>
       </section>
 
-      <section id="que-es" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 md:px-8 lg:grid-cols-[0.8fr_1.2fr]">
+      <section
+        id="que-es"
+        className="scroll-mt-24 bg-white py-24 md:py-32"
+      >
+        <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:px-8 lg:grid-cols-[0.78fr_1.22fr]">
           <div>
-            <p className="text-sm font-black tracking-[0.16em] text-blue-600">QUÉ ES EOS</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.045em] text-slate-950 md:text-6xl">
+            <SectionLabel>QUÉ ES EOS</SectionLabel>
+
+            <h2 className="mt-5 text-4xl font-black tracking-[-0.05em] text-slate-950 md:text-6xl">
               Mucho más que una conversación.
             </h2>
           </div>
 
-          <div className="space-y-6 text-lg leading-8 text-slate-600">
-            <p>
-              EOS combina un motor conversacional con una capa de ejecución. Primero entiende
-              lo que el usuario necesita y después decide si debe responder, generar un archivo,
-              registrar una tarea, guardar información o consultar datos.
-            </p>
-            <p>
-              La experiencia permanece natural para el usuario, mientras el sistema trabaja detrás
-              conectando memoria, documentos, objetivos, seguimiento y métricas.
-            </p>
+          <div>
+            <div className="space-y-6 text-lg leading-8 text-slate-600">
+              <p>
+                EOS combina un motor conversacional con una capa de
+                ejecución. Primero entiende lo que el usuario necesita y
+                después decide si debe responder, generar un archivo,
+                registrar una tarea, guardar información o consultar datos.
+              </p>
 
-            <div className="grid gap-4 pt-3 sm:grid-cols-3">
-              <Mini titulo="Comprende" texto="Mensaje y contexto" />
-              <Mini titulo="Ejecuta" texto="Acciones concretas" />
-              <Mini titulo="Continúa" texto="Memoria y progreso" />
+              <p>
+                La experiencia permanece natural mientras el sistema
+                trabaja detrás, conectando memoria, documentos, objetivos,
+                seguimiento y métricas.
+              </p>
+            </div>
+
+            <div className="mt-9 grid gap-4 sm:grid-cols-3">
+              <Mini
+                icono={<BrainCircuit size={20} />}
+                titulo="Comprende"
+                texto="Mensaje, intención y contexto."
+              />
+
+              <Mini
+                icono={<Zap size={20} />}
+                titulo="Ejecuta"
+                texto="Acciones y entregables concretos."
+              />
+
+              <Mini
+                icono={<Clock3 size={20} />}
+                titulo="Continúa"
+                texto="Memoria, seguimiento y progreso."
+              />
             </div>
           </div>
         </div>
       </section>
 
-      <section id="funciona" className="border-y border-slate-200 bg-[#F7FAFC] py-24 md:py-32">
+      <section
+        id="funciona"
+        className="scroll-mt-24 border-y border-slate-200 bg-[#f6f9fe] py-24 md:py-32"
+      >
         <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="text-sm font-black tracking-[0.16em] text-blue-600">CÓMO FUNCIONA</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.045em] text-slate-950 md:text-6xl">
-              Una conversación. Un proceso completo.
-            </h2>
-          </div>
+          <SectionHeading
+            label="CÓMO FUNCIONA"
+            title="Una conversación. Un proceso completo."
+            description="EOS transforma una necesidad expresada naturalmente en una decisión, una acción y un resultado verificable."
+            centered
+          />
 
-          <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {funcionamiento.map(([numero, titulo, texto]) => (
-              <article key={numero} className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
-                <span className="text-sm font-black text-blue-600">{numero}</span>
-                <h3 className="mt-10 text-2xl font-black text-slate-950">{titulo}</h3>
-                <p className="mt-4 leading-7 text-slate-600">{texto}</p>
-              </article>
-            ))}
+          <div className="relative mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            <div className="pointer-events-none absolute left-[12%] right-[12%] top-9 hidden h-px bg-gradient-to-r from-transparent via-blue-300 to-transparent lg:block" />
+
+            {funcionamiento.map((item) => {
+              const Icono = item.icono;
+
+              return (
+                <article
+                  key={item.numero}
+                  className="group relative rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-950/5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+                      <Icono size={25} />
+                    </div>
+
+                    <span className="text-sm font-black text-blue-600">
+                      {item.numero}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-9 text-2xl font-black tracking-[-0.03em] text-slate-950">
+                    {item.titulo}
+                  </h3>
+
+                  <p className="mt-4 leading-7 text-slate-600">
+                    {item.texto}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section id="capacidades" className="bg-[#071226] py-24 text-white md:py-32">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="max-w-4xl">
-            <p className="text-sm font-black tracking-[0.16em] text-blue-300">CAPACIDADES</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.045em] md:text-6xl">
-              Diseñado para acompañar y producir resultados.
-            </h2>
-          </div>
+      <section
+        id="capacidades"
+        className="relative scroll-mt-24 overflow-hidden bg-[#071226] py-24 text-white md:py-32"
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-60 top-0 h-[550px] w-[550px] rounded-full bg-blue-600/15 blur-[130px]" />
+          <div className="absolute -right-52 bottom-[-160px] h-[600px] w-[600px] rounded-full bg-cyan-500/10 blur-[140px]" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-6 md:px-8">
+          <SectionHeading
+            label="CAPACIDADES"
+            title="Diseñado para acompañar y producir resultados."
+            description="Cada capacidad forma parte de un mismo sistema conectado, no de herramientas aisladas."
+            dark
+          />
 
           <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {capacidades.map((item) => (
-              <article key={item.numero} className="rounded-[2rem] border border-white/10 bg-white/5 p-7">
-                <span className="text-sm font-black text-blue-300">{item.numero}</span>
-                <h3 className="mt-10 text-2xl font-black">{item.titulo}</h3>
-                <p className="mt-4 leading-7 text-slate-300">{item.texto}</p>
-              </article>
-            ))}
+            {capacidades.map((item) => {
+              const Icono = item.icono;
+
+              return (
+                <article
+                  key={item.numero}
+                  className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.08]"
+                >
+                  <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl transition group-hover:bg-blue-500/20" />
+
+                  <div className="relative flex items-center justify-between">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-300/15 bg-blue-500/10 text-blue-300">
+                      <Icono size={25} />
+                    </div>
+
+                    <span className="text-sm font-black text-blue-300">
+                      {item.numero}
+                    </span>
+                  </div>
+
+                  <h3 className="relative mt-9 text-2xl font-black tracking-[-0.03em]">
+                    {item.titulo}
+                  </h3>
+
+                  <p className="relative mt-4 leading-7 text-slate-300">
+                    {item.texto}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
 
       <section className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="max-w-4xl">
-            <p className="text-sm font-black tracking-[0.16em] text-blue-600">EJEMPLOS REALES</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.045em] text-slate-950 md:text-6xl">
-              Pedidos simples. Entregables concretos.
-            </h2>
-          </div>
+          <SectionHeading
+            label="EJEMPLOS REALES"
+            title="Pedidos simples. Entregables concretos."
+            description="El usuario conversa naturalmente. EOS organiza el proceso necesario detrás de cada respuesta."
+          />
 
           <div className="mt-14 grid gap-5 lg:grid-cols-3">
-            {ejemplos.map((item) => (
-              <article key={item.pedido} className="rounded-[2rem] border border-slate-200 bg-[#F8FBFF] p-7">
-                <p className="text-sm font-black text-blue-600">USUARIO</p>
-                <p className="mt-4 text-xl font-black leading-8 text-slate-950">“{item.pedido}”</p>
-                <div className="my-6 h-px bg-slate-200" />
-                <p className="text-sm font-black text-slate-400">EOS</p>
-                <p className="mt-3 leading-7 text-slate-600">{item.resultado}</p>
+            {ejemplos.map((item, index) => (
+              <article
+                key={item.pedido}
+                className="group flex min-h-[390px] flex-col rounded-[2rem] border border-slate-200 bg-[#f8fbff] p-7 transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-900/5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.1em] text-blue-600">
+                    {item.tipo.toUpperCase()}
+                  </span>
+
+                  <span className="text-sm font-black text-slate-300">
+                    0{index + 1}
+                  </span>
+                </div>
+
+                <div className="mt-8 flex items-start gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
+                    <MessageSquareText size={17} />
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black tracking-[0.13em] text-blue-600">
+                      USUARIO
+                    </p>
+
+                    <p className="mt-3 text-xl font-black leading-8 tracking-[-0.025em] text-slate-950">
+                      “{item.pedido}”
+                    </p>
+                  </div>
+                </div>
+
+                <div className="my-7 h-px bg-slate-200" />
+
+                <div className="mt-auto rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={15} className="text-blue-600" />
+
+                    <p className="text-[10px] font-black tracking-[0.13em] text-slate-400">
+                      RESPUESTA EOS
+                    </p>
+                  </div>
+
+                  <p className="mt-3 leading-7 text-slate-600">
+                    {item.resultado}
+                  </p>
+                </div>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="comparacion" className="border-y border-slate-200 bg-[#F7FAFC] py-24 md:py-32">
+      <section
+        id="comparacion"
+        className="scroll-mt-24 border-y border-slate-200 bg-[#f6f9fe] py-24 md:py-32"
+      >
         <div className="mx-auto max-w-5xl px-6 md:px-8">
-          <div className="text-center">
-            <p className="text-sm font-black tracking-[0.16em] text-blue-600">DIFERENCIA PRINCIPAL</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.045em] text-slate-950 md:text-6xl">
-              Conversar es solo el comienzo.
-            </h2>
-          </div>
+          <SectionHeading
+            label="DIFERENCIA PRINCIPAL"
+            title="Conversar es solo el comienzo."
+            description="EOS no se limita a producir texto. Conecta cada conversación con información, procesos y ejecución."
+            centered
+          />
 
           <div className="mt-14 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
-            <div className="grid grid-cols-[1.5fr_.75fr_.75fr] bg-[#071226] px-6 py-5 text-sm font-black text-white">
+            <div className="grid grid-cols-[1.5fr_.75fr_.75fr] bg-[#071226] px-5 py-5 text-xs font-black text-white sm:px-7 sm:text-sm">
               <span>Capacidad</span>
-              <span className="text-center text-slate-400">Asistente</span>
-              <span className="text-center text-blue-300">EOS</span>
+
+              <span className="text-center text-slate-400">
+                Asistente
+              </span>
+
+              <span className="text-center text-blue-300">
+                EOS
+              </span>
             </div>
-            {comparacion.map(([texto, asistente, eos]) => (
-              <div key={String(texto)} className="grid grid-cols-[1.5fr_.75fr_.75fr] items-center border-t border-slate-100 px-6 py-5">
-                <span className="font-bold text-slate-700">{String(texto)}</span>
-                <span className="text-center font-black text-slate-300">{asistente ? "✓" : "—"}</span>
-                <span className="text-center font-black text-blue-600">{eos ? "✓" : "—"}</span>
+
+            {comparacion.map((item) => (
+              <div
+                key={item.capacidad}
+                className="grid grid-cols-[1.5fr_.75fr_.75fr] items-center border-t border-slate-100 px-5 py-5 sm:px-7"
+              >
+                <span className="pr-3 text-sm font-bold text-slate-700 sm:text-base">
+                  {item.capacidad}
+                </span>
+
+                <ComparisonValue enabled={item.asistente} muted />
+
+                <ComparisonValue enabled={item.eos} />
               </div>
             ))}
           </div>
@@ -289,33 +637,93 @@ export default function EOSLandingPage() {
       <section className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6 md:px-8">
           <div className="relative overflow-hidden rounded-[2.7rem] bg-[#071226] px-7 py-16 text-center text-white shadow-2xl md:px-14 md:py-20">
-            <div className="absolute -left-20 bottom-[-120px] h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-            <div className="absolute -right-20 top-[-120px] h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="absolute -left-20 bottom-[-120px] h-72 w-72 rounded-full bg-blue-500/25 blur-3xl" />
+            <div className="absolute -right-20 top-[-120px] h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+
             <div className="relative">
-              <p className="text-sm font-black tracking-[0.16em] text-blue-300">EMPEZÁ CON EOS</p>
-              <h2 className="mx-auto mt-5 max-w-4xl text-4xl font-black tracking-[-0.045em] md:text-6xl">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-blue-500/10 text-blue-300">
+                <Sparkles size={29} />
+              </div>
+
+              <p className="mt-7 text-sm font-black tracking-[0.16em] text-blue-300">
+                EMPEZÁ CON EOS
+              </p>
+
+              <h2 className="mx-auto mt-5 max-w-4xl text-4xl font-black tracking-[-0.05em] md:text-6xl">
                 Trabajá con un sistema que no solo responde.
               </h2>
+
               <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-                Iniciá una conversación y convertí una necesidad en una acción, un documento o un próximo paso claro.
+                Convertí una necesidad en una acción, un documento o un
+                próximo paso claro desde una sola conversación.
               </p>
-              <a
-                href="/eos/chat"
-                className="mt-9 inline-flex rounded-full bg-[#2563EB] px-9 py-4 font-black text-white shadow-xl shadow-blue-500/25 transition hover:bg-blue-700"
+
+              <Link
+                href="/login"
+                className="group mt-9 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-9 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
               >
-                Abrir EOS
-              </a>
+                Probar EOS
+                <ArrowRight
+                  size={18}
+                  className="transition group-hover:translate-x-1"
+                />
+              </Link>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm font-bold text-slate-400">
+                <TrustItem label="Memoria conectada" />
+                <TrustItem label="Datos protegidos" />
+                <TrustItem label="Ejecución centralizada" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <footer className="border-t border-slate-200 bg-white px-6 py-10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
-          <p>EOS, desarrollado por TRANSTECH.</p>
-          <div className="flex gap-6">
-            <a href="/" className="font-bold hover:text-blue-600">TRANSTECH</a>
-            <a href="/login" className="font-bold hover:text-blue-600">Iniciar sesión</a>
+        <div className="mx-auto flex max-w-7xl flex-col gap-7 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative h-10 w-11 shrink-0">
+              <Image
+                src="/transtech-logo.png"
+                alt="Logo de TRANSTECH"
+                fill
+                sizes="44px"
+                className="object-contain mix-blend-multiply"
+              />
+            </div>
+
+            <div>
+              <p className="font-black tracking-[-0.025em] text-slate-950">
+                TRANSTECH EOS
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Sistema operativo ejecutivo.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-500">
+            <Link
+              href="/"
+              className="font-bold transition hover:text-blue-600"
+            >
+              TRANSTECH
+            </Link>
+
+            <Link
+              href="/login"
+              className="font-bold transition hover:text-blue-600"
+            >
+              Iniciar sesión
+            </Link>
+
+            <a
+              href="#que-es"
+              className="font-bold transition hover:text-blue-600"
+            >
+              Producto
+            </a>
           </div>
         </div>
       </footer>
@@ -326,35 +734,97 @@ export default function EOSLandingPage() {
 function DemoEOS() {
   return (
     <div className="relative">
-      <div className="absolute inset-0 translate-x-6 translate-y-8 rounded-[2.5rem] bg-blue-500/15 blur-2xl" />
-      <div className="relative overflow-hidden rounded-[2.5rem] border border-white bg-white p-4 shadow-2xl shadow-slate-900/15">
-        <div className="rounded-[2rem] bg-[#071226] p-5 text-white md:p-7">
-          <div className="flex items-center justify-between border-b border-white/10 pb-5">
-            <div>
-              <p className="text-xs font-black tracking-[0.15em] text-blue-300">EOS</p>
-              <p className="mt-1 font-black">Executive Operating System</p>
+      <div className="absolute inset-0 translate-x-8 translate-y-10 rounded-[2.7rem] bg-blue-500/20 blur-3xl" />
+
+      <div className="relative overflow-hidden rounded-[2.6rem] border border-white/90 bg-white/75 p-3 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl md:p-4">
+        <div className="overflow-hidden rounded-[2.1rem] bg-[#071226] text-white">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-5 md:px-7">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-blue-300/20 bg-blue-500/10 text-blue-300">
+                <BrainCircuit size={23} />
+              </div>
+
+              <div>
+                <p className="text-[10px] font-black tracking-[0.15em] text-blue-300">
+                  TRANSTECH EOS
+                </p>
+
+                <p className="mt-1 text-sm font-black sm:text-base">
+                  Executive Operating System
+                </p>
+              </div>
             </div>
-            <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-300">
-              Activo
+
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-black text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,0.8)]" />
+              ACTIVO
             </span>
           </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-blue-600 p-4 text-sm leading-6">
-              Generame un Excel para controlar los ingresos y gastos de mi negocio.
-            </div>
-            <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-200">
-              Perfecto. Voy a preparar una planilla financiera con ingresos, gastos, resultado y estructura de control.
-            </div>
-            <div className="max-w-[90%] rounded-2xl border border-blue-400/25 bg-blue-500/10 p-4">
-              <p className="text-xs font-black text-blue-300">ARCHIVO GENERADO</p>
-              <div className="mt-3 flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-black">control_financiero.xlsx</p>
-                  <p className="mt-1 text-xs text-slate-400">Listo para descargar</p>
-                </div>
-                <span className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black">Descargar</span>
+          <div className="relative p-5 md:p-7">
+            <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+
+            <div className="relative space-y-4">
+              <div className="ml-auto max-w-[86%] rounded-2xl rounded-br-md bg-blue-600 p-4 text-sm leading-6 shadow-lg shadow-blue-950/20">
+                Generame un Excel para controlar los ingresos y gastos de
+                mi negocio.
               </div>
+
+              <div className="max-w-[92%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.055] p-4 text-sm leading-6 text-slate-200">
+                Perfecto. Voy a preparar una planilla financiera con
+                ingresos, gastos, resultado y estructura de control.
+              </div>
+
+              <div className="max-w-[94%] overflow-hidden rounded-2xl border border-blue-400/25 bg-blue-500/10">
+                <div className="border-b border-blue-300/10 px-4 py-3">
+                  <div className="flex items-center gap-2 text-[10px] font-black tracking-[0.12em] text-blue-300">
+                    <CircleCheck size={14} />
+                    ARCHIVO GENERADO
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-300">
+                      <FileSpreadsheet size={22} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black">
+                        control_financiero.xlsx
+                      </p>
+
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        Listo para descargar
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-[10px] font-black">
+                    Descargar
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5">
+              <DemoStatus
+                icono={<Database size={15} />}
+                label="Memoria"
+                value="Activa"
+              />
+
+              <DemoStatus
+                icono={<Target size={15} />}
+                label="Objetivo"
+                value="Detectado"
+              />
+
+              <DemoStatus
+                icono={<ShieldCheck size={15} />}
+                label="Sistema"
+                value="Seguro"
+              />
             </div>
           </div>
         </div>
@@ -363,11 +833,187 @@ function DemoEOS() {
   );
 }
 
-function Mini({ titulo, texto }: { titulo: string; texto: string }) {
+function DemoStatus({
+  icono,
+  label,
+  value,
+}: {
+  icono: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-[#F8FBFF] p-5">
-      <p className="font-black text-slate-950">{titulo}</p>
-      <p className="mt-2 text-sm text-slate-500">{texto}</p>
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+      <div className="flex items-center gap-1.5 text-blue-300">
+        {icono}
+
+        <span className="text-[9px] font-black uppercase tracking-[0.08em]">
+          {label}
+        </span>
+      </div>
+
+      <p className="mt-2 truncate text-[10px] font-bold text-slate-300">
+        {value}
+      </p>
     </div>
+  );
+}
+
+function Mini({
+  icono,
+  titulo,
+  texto,
+}: {
+  icono: React.ReactNode;
+  titulo: string;
+  texto: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-[#f8fbff] p-5 transition hover:border-blue-200 hover:bg-blue-50/40">
+      <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-600">
+        {icono}
+      </div>
+
+      <p className="mt-4 font-black text-slate-950">{titulo}</p>
+
+      <p className="mt-2 text-sm leading-6 text-slate-500">
+        {texto}
+      </p>
+    </div>
+  );
+}
+
+function SectionLabel({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <p className="inline-flex items-center gap-2 text-sm font-black tracking-[0.16em] text-blue-600">
+      <span className="h-2 w-2 rounded-full bg-blue-600" />
+      {children}
+    </p>
+  );
+}
+
+function SectionHeading({
+  label,
+  title,
+  description,
+  centered = false,
+  dark = false,
+}: {
+  label: string;
+  title: string;
+  description?: string;
+  centered?: boolean;
+  dark?: boolean;
+}) {
+  return (
+    <div
+      className={
+        centered
+          ? "mx-auto max-w-4xl text-center"
+          : "max-w-4xl"
+      }
+    >
+      <p
+        className={`text-sm font-black tracking-[0.16em] ${
+          dark ? "text-blue-300" : "text-blue-600"
+        }`}
+      >
+        {label}
+      </p>
+
+      <h2
+        className={`mt-5 text-4xl font-black tracking-[-0.05em] md:text-6xl ${
+          dark ? "text-white" : "text-slate-950"
+        }`}
+      >
+        {title}
+      </h2>
+
+      {description ? (
+        <p
+          className={`mt-6 text-lg leading-8 ${
+            dark ? "text-slate-300" : "text-slate-600"
+          }`}
+        >
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ComparisonValue({
+  enabled,
+  muted = false,
+}: {
+  enabled: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <span className="flex justify-center">
+      {enabled ? (
+        <span
+          className={`grid h-8 w-8 place-items-center rounded-full ${
+            muted
+              ? "bg-slate-100 text-slate-400"
+              : "bg-blue-50 text-blue-600"
+          }`}
+        >
+          <Check size={17} strokeWidth={3} />
+        </span>
+      ) : (
+        <span className="text-xl font-black text-slate-300">—</span>
+      )}
+    </span>
+  );
+}
+
+function TrustItem({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <CircleCheck size={16} className="text-emerald-400" />
+      {label}
+    </span>
+  );
+}
+
+function MobileLink({
+  href,
+  label,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      className="flex min-h-12 items-center justify-between rounded-2xl px-4 font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+    >
+      {label}
+      <ChevronRight size={17} />
+    </a>
+  );
+}
+
+function BackgroundGrid() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 opacity-[0.32]"
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(15,23,42,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.055) 1px, transparent 1px)",
+        backgroundSize: "42px 42px",
+        maskImage:
+          "linear-gradient(to bottom, black, transparent 88%)",
+      }}
+    />
   );
 }

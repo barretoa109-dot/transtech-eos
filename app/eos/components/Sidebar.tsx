@@ -1,5 +1,19 @@
 "use client";
 
+import {
+  BarChart3,
+  ChevronRight,
+  FileText,
+  MessageSquareText,
+  Plus,
+  Search,
+  Sparkles,
+  UserRound,
+  X,
+} from "lucide-react";
+
+import { Brand } from "@/app/components/ui";
+
 type Conversacion = {
   id: string;
   titulo: string | null;
@@ -22,8 +36,9 @@ type SidebarProps = {
 };
 
 type NavButtonProps = {
-  icono: string;
+  icono: React.ReactNode;
   texto: string;
+  descripcion: string;
   activo: boolean;
   onClick: () => void;
 };
@@ -43,7 +58,7 @@ export default function Sidebar({
   const conversacionesFiltradas = conversaciones.filter((conversacion) =>
     (conversacion.titulo || "Nuevo chat")
       .toLowerCase()
-      .includes(busqueda.toLowerCase())
+      .includes(busqueda.toLowerCase()),
   );
 
   const iniciales =
@@ -54,122 +69,136 @@ export default function Sidebar({
       .map((parte) => parte.charAt(0).toUpperCase())
       .join("") || "U";
 
-  const planFormateado =
-    plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase();
+  const planFormateado = capitalizar(plan || "free");
 
   return (
-    <aside style={styles.sidebar}>
-      <div style={styles.header}>
-        <div style={styles.brand}>
-          <div style={styles.logoContainer}>
-            <div style={styles.logoGlow} />
-            <div style={styles.logo}>T</div>
-          </div>
+    <aside className="transtech-sidebar">
+      <div className="sidebar-background" aria-hidden="true">
+        <div className="sidebar-grid" />
+        <div className="sidebar-glow sidebar-glow-one" />
+        <div className="sidebar-glow sidebar-glow-two" />
+      </div>
 
-          <div style={styles.brandText}>
-            <span style={styles.companyName}>TRANSTECH</span>
-            <div style={styles.productRow}>
-              <strong style={styles.productName}>EOS</strong>
-              <span style={styles.version}>BETA</span>
-            </div>
-          </div>
-        </div>
+      <div className="sidebar-header">
+        <Brand
+  product="EOS"
+  subtitle="Executive Operating System"
+  compact
+  logoSize={43}
+/>
 
         <button
           type="button"
+          className="new-chat-button"
           onClick={onNuevoChat}
-          style={styles.newChatButton}
         >
-          <span style={styles.newChatIcon}>＋</span>
-
-          <span style={styles.newChatContent}>
-            <strong style={styles.newChatTitle}>Nuevo chat</strong>
-            <small style={styles.newChatSubtitle}>
-              Iniciar conversación
-            </small>
+          <span className="new-chat-icon">
+            <Plus size={20} strokeWidth={2.5} />
           </span>
 
-          <span style={styles.newChatArrow}>›</span>
+          <span className="new-chat-copy">
+            <strong>Nuevo chat</strong>
+            <small>Iniciar conversación</small>
+          </span>
+
+          <ChevronRight
+            size={18}
+            className="new-chat-chevron"
+          />
         </button>
 
-        <div style={styles.searchWrapper}>
-          <span style={styles.searchIcon}>⌕</span>
+        <div className="search-wrapper">
+          <Search
+            size={16}
+            className="search-icon"
+          />
 
           <input
             value={busqueda}
-            onChange={(event) => onBusquedaChange(event.target.value)}
+            onChange={(event) =>
+              onBusquedaChange(event.target.value)
+            }
             placeholder="Buscar conversaciones"
             aria-label="Buscar conversaciones"
-            style={styles.search}
+            className="search-input"
           />
 
-          {busqueda && (
+          {busqueda ? (
             <button
               type="button"
               onClick={() => onBusquedaChange("")}
               aria-label="Limpiar búsqueda"
-              style={styles.clearSearch}
+              className="clear-search"
             >
-              ×
+              <X size={15} />
             </button>
-          )}
+          ) : null}
         </div>
 
-        <nav style={styles.navigation}>
+        <nav className="navigation">
           <NavButton
-            icono="✦"
+            icono={<Sparkles size={18} />}
             texto="EOS"
+            descripcion="Asistente inteligente"
             activo={vista === "chat"}
             onClick={() => onVistaChange("chat")}
           />
 
           <NavButton
-            icono="◈"
+            icono={<FileText size={18} />}
             texto="Briefing"
+            descripcion="Resumen ejecutivo"
             activo={vista === "briefing"}
             onClick={() => onVistaChange("briefing")}
           />
 
           <NavButton
-            icono="▦"
+            icono={<BarChart3 size={18} />}
             texto="Dashboard"
+            descripcion="Centro de control"
             activo={vista === "dashboard"}
             onClick={() => onVistaChange("dashboard")}
           />
         </nav>
       </div>
 
-      <div style={styles.divider} />
+      <div className="sidebar-divider" />
 
-      <section style={styles.history}>
-        <div style={styles.historyHeader}>
-          <p style={styles.sectionTitle}>Conversaciones</p>
+      <section className="conversation-section">
+        <div className="conversation-heading">
+          <div>
+            <span>CONVERSACIONES</span>
+            <p>Historial reciente</p>
+          </div>
 
-          <span style={styles.conversationCount}>
+          <span className="conversation-count">
             {conversacionesFiltradas.length}
           </span>
         </div>
 
         {conversacionesFiltradas.length === 0 ? (
-          <div style={styles.emptyState}>
-            <div style={styles.emptyIcon}>◇</div>
+          <div className="empty-state">
+            <div className="empty-icon">
+              <MessageSquareText size={18} />
+            </div>
 
-            <p style={styles.emptyTitle}>
+            <strong>
               {busqueda
                 ? "No encontramos resultados"
                 : "Todavía no hay conversaciones"}
-            </p>
+            </strong>
 
-            <span style={styles.emptyText}>
+            <p>
               {busqueda
                 ? "Probá buscando con otras palabras."
                 : "Iniciá un nuevo chat para comenzar."}
-            </span>
+            </p>
           </div>
         ) : (
-          <div style={styles.conversationList}>
+          <div className="conversation-list">
             {conversacionesFiltradas.map((conversacion) => {
-              const activa = conversacion.id === conversacionId;
+              const activa =
+                conversacion.id === conversacionId;
 
               return (
                 <button
@@ -179,29 +208,34 @@ export default function Sidebar({
                     onAbrirConversacion(conversacion.id)
                   }
                   title={conversacion.titulo || "Nuevo chat"}
-                  style={{
-                    ...styles.conversationButton,
-                    ...(activa
-                      ? styles.conversationButtonActive
-                      : {}),
-                  }}
+                  className={`conversation-button ${
+                    activa ? "conversation-button-active" : ""
+                  }`}
                 >
-                  <span
-                    style={{
-                      ...styles.conversationIcon,
-                      ...(activa
-                        ? styles.conversationIconActive
-                        : {}),
-                    }}
-                  >
-                    ◇
+                  <span className="conversation-icon">
+                    <MessageSquareText size={14} />
                   </span>
 
-                  <span style={styles.conversationTitle}>
-                    {conversacion.titulo || "Nuevo chat"}
+                  <span className="conversation-copy">
+                    <strong>
+                      {conversacion.titulo || "Nuevo chat"}
+                    </strong>
+
+                    <small>
+                      {formatearFecha(
+                        conversacion.created_at,
+                      )}
+                    </small>
                   </span>
 
-                  {activa && <span style={styles.activeDot} />}
+                  {activa ? (
+                    <span className="active-conversation-dot" />
+                  ) : (
+                    <ChevronRight
+                      size={14}
+                      className="conversation-chevron"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -209,36 +243,568 @@ export default function Sidebar({
         )}
       </section>
 
-      <div style={styles.footer}>
+      <div className="sidebar-footer">
         <button
           type="button"
           onClick={() => onVistaChange("perfil")}
-          style={{
-            ...styles.profileButton,
-            ...(vista === "perfil" ? styles.profileButtonActive : {}),
-          }}
+          className={`profile-button ${
+            vista === "perfil" ? "profile-button-active" : ""
+          }`}
         >
-          <div style={styles.avatarWrapper}>
-            <div style={styles.avatar}>{iniciales}</div>
-            <span style={styles.onlineDot} />
-          </div>
+          <span className="profile-avatar">
+            {iniciales}
+            <span className="profile-online-dot" />
+          </span>
 
-          <div style={styles.profileInfo}>
-            <strong style={styles.profileName}>{nombre}</strong>
+          <span className="profile-copy">
+            <strong>{nombre || "Usuario"}</strong>
+            <small>Plan {planFormateado}</small>
+          </span>
 
-            <span style={styles.profilePlan}>
-              Plan {planFormateado}
-            </span>
-          </div>
-
-          <span style={styles.profileArrow}>›</span>
+          <ChevronRight
+            size={17}
+            className="profile-chevron"
+          />
         </button>
 
-        <div style={styles.connectionStatus}>
-          <span style={styles.connectionDot} />
+        <div className="connection-status">
+          <span className="connection-dot" />
+
           <span>EOS conectado</span>
         </div>
       </div>
+
+      <style jsx>{`
+  .transtech-sidebar {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #071226;
+    font-family: Inter, Arial, Helvetica, sans-serif;
+    box-shadow: 14px 0 45px rgba(15, 23, 42, 0.055);
+  }
+
+  .sidebar-background {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .sidebar-grid {
+    position: absolute;
+    inset: 0;
+    opacity: 0.32;
+    background-image:
+      linear-gradient(
+        rgba(15, 23, 42, 0.035) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        rgba(15, 23, 42, 0.035) 1px,
+        transparent 1px
+      );
+    background-size: 34px 34px;
+    mask-image: linear-gradient(
+      to bottom,
+      black,
+      transparent 88%
+    );
+  }
+
+  .sidebar-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+  }
+
+  .sidebar-glow-one {
+    top: -180px;
+    left: -160px;
+    width: 380px;
+    height: 380px;
+    background: rgba(37, 99, 235, 0.13);
+  }
+
+  .sidebar-glow-two {
+    right: -190px;
+    bottom: -210px;
+    width: 410px;
+    height: 410px;
+    background: rgba(96, 165, 250, 0.12);
+  }
+
+  .sidebar-header,
+  .conversation-section,
+  .sidebar-footer,
+  .sidebar-divider {
+    position: relative;
+    z-index: 1;
+  }
+
+  .sidebar-header {
+    flex-shrink: 0;
+    padding: 19px 16px 15px;
+  }
+
+  .new-chat-button {
+    width: 100%;
+    min-height: 61px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 23px;
+    padding: 10px 12px;
+    border: 1px solid #2563eb;
+    border-radius: 17px;
+    background: linear-gradient(
+      135deg,
+      #2563eb,
+      #1d4ed8
+    );
+    color: #ffffff;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.2);
+    transition:
+      transform 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .new-chat-button:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(
+      135deg,
+      #1d4ed8,
+      #1e40af
+    );
+    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.26);
+  }
+
+  .new-chat-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+  }
+
+  .new-chat-copy {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .new-chat-copy strong {
+    font-size: 14px;
+    font-weight: 850;
+  }
+
+  .new-chat-copy small {
+    color: #dbeafe;
+    font-size: 10px;
+  }
+
+  .new-chat-chevron {
+    color: #dbeafe;
+    transition: transform 180ms ease;
+  }
+
+  .new-chat-button:hover .new-chat-chevron {
+    transform: translateX(2px);
+  }
+
+  .search-wrapper {
+    position: relative;
+    margin-top: 13px;
+  }
+
+  .search-icon {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    transform: translateY(-50%);
+    color: #64748b;
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    height: 44px;
+    box-sizing: border-box;
+    padding: 0 39px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    outline: none;
+    background: #f8fafc;
+    color: #071226;
+    font-family: inherit;
+    font-size: 12px;
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .search-input::placeholder {
+    color: #94a3b8;
+  }
+
+  .search-input:focus {
+    border-color: #60a5fa;
+    background: #ffffff;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+  }
+
+  .clear-search {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+  }
+
+  .clear-search:hover {
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  .navigation {
+    display: grid;
+    gap: 5px;
+    margin-top: 15px;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    flex-shrink: 0;
+    margin: 0 16px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      #dbe3ef,
+      transparent
+    );
+  }
+
+  .conversation-section {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 17px 12px 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(37, 99, 235, 0.25) transparent;
+  }
+
+  .conversation-section::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .conversation-section::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.22);
+  }
+
+  .conversation-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 8px;
+    margin-bottom: 10px;
+  }
+
+  .conversation-heading span:first-child {
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+  }
+
+  .conversation-heading p {
+    margin: 4px 0 0;
+    color: #94a3b8;
+    font-size: 9px;
+  }
+
+  .conversation-count {
+    min-width: 23px;
+    height: 21px;
+    display: grid;
+    place-items: center;
+    padding: 0 6px;
+    border: 1px solid #dbeafe;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 9px;
+    font-weight: 850;
+  }
+
+  .conversation-list {
+    display: grid;
+    gap: 4px;
+  }
+
+  .conversation-button {
+    position: relative;
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    background: transparent;
+    color: #64748b;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .conversation-button:hover {
+    transform: translateX(2px);
+    border-color: #dbeafe;
+    background: #f8fbff;
+    color: #071226;
+  }
+
+  .conversation-button-active {
+    border-color: #bfdbfe;
+    background: linear-gradient(
+      90deg,
+      #eff6ff,
+      #f8fbff
+    );
+    color: #071226;
+    box-shadow: 0 9px 24px rgba(37, 99, 235, 0.08);
+  }
+
+  .conversation-icon {
+    width: 29px;
+    height: 29px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .conversation-button-active .conversation-icon {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+
+  .conversation-copy {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .conversation-copy strong {
+    overflow: hidden;
+    color: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-copy small {
+    overflow: hidden;
+    color: #94a3b8;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .conversation-chevron {
+    flex-shrink: 0;
+    color: #94a3b8;
+  }
+
+  .active-conversation-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: #2563eb;
+    box-shadow: 0 0 12px rgba(37, 99, 235, 0.55);
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 34px 18px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  .empty-state strong {
+    margin-top: 13px;
+    color: #334155;
+    font-size: 12px;
+  }
+
+  .empty-state p {
+    margin: 7px 0 0;
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0;
+    padding: 13px 14px 15px;
+    border-top: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(18px);
+  }
+
+  .profile-button {
+    width: 100%;
+    min-height: 57px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: 15px;
+    background: transparent;
+    color: #071226;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .profile-button:hover,
+  .profile-button-active {
+    transform: translateY(-1px);
+    border-color: #bfdbfe;
+    background: #eff6ff;
+  }
+
+  .profile-avatar {
+    position: relative;
+    width: 39px;
+    height: 39px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid #bfdbfe;
+    border-radius: 13px;
+    background: linear-gradient(
+      135deg,
+      #dbeafe,
+      #eff6ff
+    );
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 900;
+  }
+
+  .profile-online-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 11px;
+    height: 11px;
+    border: 3px solid #ffffff;
+    border-radius: 999px;
+    background: #22c55e;
+  }
+
+  .profile-copy {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .profile-copy strong {
+    overflow: hidden;
+    color: #071226;
+    font-size: 12px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-copy small {
+    color: #64748b;
+    font-size: 9px;
+  }
+
+  .profile-chevron {
+    color: #94a3b8;
+  }
+
+  .connection-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 8px;
+    color: #64748b;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .connection-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.55);
+  }
+`}</style>
     </aside>
   );
 }
@@ -246,6 +812,7 @@ export default function Sidebar({
 function NavButton({
   icono,
   texto,
+  descripcion,
   activo,
   onClick,
 }: NavButtonProps) {
@@ -253,530 +820,136 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      style={{
-        ...styles.navButton,
-        ...(activo ? styles.navButtonActive : {}),
-      }}
+      className={`nav-button ${
+        activo ? "nav-button-active" : ""
+      }`}
     >
-      <span
-        style={{
-          ...styles.navIcon,
-          ...(activo ? styles.navIconActive : {}),
-        }}
-      >
-        {icono}
+      <span className="nav-icon">{icono}</span>
+
+      <span className="nav-copy">
+        <strong>{texto}</strong>
+        <small>{descripcion}</small>
       </span>
 
-      <span>{texto}</span>
+      {activo ? (
+        <span className="nav-indicator" />
+      ) : (
+        <ChevronRight
+          size={15}
+          className="nav-chevron"
+        />
+      )}
 
-      {activo && <span style={styles.navIndicator} />}
+      <style jsx>{`
+        .nav-button {
+          position: relative;
+          width: 100%;
+          min-height: 49px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 7px 10px;
+          border: 1px solid transparent;
+          border-radius: 14px;
+          background: transparent;
+          color: #94a3b8;
+          font-family: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition:
+            background 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease;
+        }
+
+        .nav-button:hover {
+          border-color: rgba(148, 163, 184, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+          color: #ffffff;
+        }
+
+        .nav-button-active {
+          border-color: rgba(96, 165, 250, 0.2);
+          background: linear-gradient(
+            90deg,
+            rgba(37, 99, 235, 0.2),
+            rgba(37, 99, 235, 0.07)
+          );
+          color: #ffffff;
+        }
+
+        .nav-icon {
+          width: 32px;
+          height: 32px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.045);
+          color: #71849d;
+        }
+
+        .nav-button-active .nav-icon {
+          background: rgba(37, 99, 235, 0.2);
+          color: #93c5fd;
+        }
+
+        .nav-copy {
+          min-width: 0;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .nav-copy strong {
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .nav-copy small {
+          color: #62758d;
+          font-size: 8px;
+        }
+
+        .nav-indicator {
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: #3b82f6;
+          box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+        }
+
+        .nav-chevron {
+          color: #51657c;
+        }
+      `}</style>
     </button>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  sidebar: {
-    width: "100%",
-    height: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    background:
-      "linear-gradient(180deg, #0b1424 0%, #08111f 100%)",
-    borderRight: "1px solid rgba(148, 163, 184, 0.14)",
-    color: "#f8fafc",
-    fontFamily:
-      "Inter, Arial, Helvetica, sans-serif",
-    boxShadow: "14px 0 40px rgba(2, 8, 23, 0.16)",
-  },
+function capitalizar(value: string) {
+  const normalizado = value.trim();
 
-  header: {
-    padding: "20px 16px 14px",
-    flexShrink: 0,
-  },
+  if (!normalizado) return "Free";
 
-  brand: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "0 5px",
-    marginBottom: 22,
-  },
+  return (
+    normalizado.charAt(0).toUpperCase() +
+    normalizado.slice(1).toLowerCase()
+  );
+}
 
-  logoContainer: {
-    position: "relative",
-    width: 44,
-    height: 44,
-    flexShrink: 0,
-  },
+function formatearFecha(fecha?: string) {
+  if (!fecha) return "Conversación EOS";
 
-  logoGlow: {
-    position: "absolute",
-    inset: -5,
-    borderRadius: 16,
-    background:
-      "linear-gradient(135deg, #22d3ee, #0ea5e9)",
-    opacity: 0.32,
-    filter: "blur(11px)",
-  },
+  const valor = new Date(fecha);
 
-  logo: {
-    position: "relative",
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "linear-gradient(135deg, #67e8f9 0%, #22d3ee 45%, #0ea5e9 100%)",
-    color: "#042f3e",
-    fontSize: 21,
-    fontWeight: 950,
-    boxShadow:
-      "0 12px 26px rgba(14, 165, 233, 0.28)",
-  },
+  if (Number.isNaN(valor.getTime())) {
+    return "Conversación EOS";
+  }
 
-  brandText: {
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-  },
-
-  companyName: {
-    color: "#67e8f9",
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: "0.19em",
-  },
-
-  productRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  productName: {
-    color: "#ffffff",
-    fontSize: 27,
-    lineHeight: 1,
-    fontWeight: 950,
-    letterSpacing: "-0.045em",
-  },
-
-  version: {
-    padding: "4px 6px",
-    borderRadius: 6,
-    background: "rgba(34, 211, 238, 0.12)",
-    border: "1px solid rgba(34, 211, 238, 0.22)",
-    color: "#67e8f9",
-    fontSize: 8,
-    fontWeight: 900,
-    letterSpacing: "0.08em",
-  },
-
-  newChatButton: {
-    width: "100%",
-    minHeight: 60,
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-    padding: "10px 12px",
-    marginBottom: 12,
-    border: "1px solid rgba(103, 232, 249, 0.28)",
-    borderRadius: 16,
-    background:
-      "linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(34, 211, 238, 0.09))",
-    color: "#ffffff",
-    cursor: "pointer",
-    textAlign: "left",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(2,8,23,0.18)",
-  },
-
-  newChatIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    background:
-      "linear-gradient(135deg, #67e8f9, #22d3ee)",
-    color: "#083344",
-    fontSize: 22,
-    fontWeight: 900,
-  },
-
-  newChatContent: {
-    minWidth: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-  },
-
-  newChatTitle: {
-    fontSize: 14,
-    fontWeight: 850,
-  },
-
-  newChatSubtitle: {
-    color: "#9fb5d1",
-    fontSize: 11,
-  },
-
-  newChatArrow: {
-    color: "#67e8f9",
-    fontSize: 24,
-    lineHeight: 1,
-  },
-
-  searchWrapper: {
-    position: "relative",
-    marginBottom: 14,
-  },
-
-  searchIcon: {
-    position: "absolute",
-    left: 13,
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#7187a4",
-    fontSize: 18,
-    pointerEvents: "none",
-  },
-
-  search: {
-    width: "100%",
-    height: 43,
-    boxSizing: "border-box",
-    padding: "0 37px 0 39px",
-    borderRadius: 13,
-    border: "1px solid rgba(148, 163, 184, 0.16)",
-    outline: "none",
-    background: "rgba(15, 30, 50, 0.76)",
-    color: "#e2e8f0",
-    fontSize: 13,
-    fontFamily: "inherit",
-  },
-
-  clearSearch: {
-    position: "absolute",
-    right: 9,
-    top: "50%",
-    transform: "translateY(-50%)",
-    width: 26,
-    height: 26,
-    border: "none",
-    borderRadius: 8,
-    background: "transparent",
-    color: "#8296af",
-    cursor: "pointer",
-    fontSize: 18,
-  },
-
-  navigation: {
-    display: "grid",
-    gap: 5,
-  },
-
-  navButton: {
-    position: "relative",
-    width: "100%",
-    height: 45,
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-    padding: "0 12px",
-    border: "1px solid transparent",
-    borderRadius: 13,
-    background: "transparent",
-    color: "#9fb0c6",
-    cursor: "pointer",
-    fontSize: 14,
-    fontWeight: 700,
-    textAlign: "left",
-  },
-
-  navButtonActive: {
-    background:
-      "linear-gradient(90deg, rgba(34,211,238,0.14), rgba(14,165,233,0.06))",
-    border: "1px solid rgba(34, 211, 238, 0.17)",
-    color: "#ffffff",
-  },
-
-  navIcon: {
-    width: 29,
-    height: 29,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 9,
-    background: "rgba(148, 163, 184, 0.07)",
-    color: "#8196b0",
-    fontSize: 15,
-  },
-
-  navIconActive: {
-    background: "rgba(34, 211, 238, 0.14)",
-    color: "#67e8f9",
-  },
-
-  navIndicator: {
-    position: "absolute",
-    right: 10,
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    background: "#22d3ee",
-    boxShadow: "0 0 12px rgba(34, 211, 238, 0.9)",
-  },
-
-  divider: {
-    height: 1,
-    margin: "0 16px",
-    background:
-      "linear-gradient(90deg, transparent, rgba(148,163,184,0.18), transparent)",
-    flexShrink: 0,
-  },
-
-  history: {
-    flex: 1,
-    minHeight: 0,
-    padding: "17px 12px 14px",
-    overflowY: "auto",
-  },
-
-  historyHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 8px",
-    marginBottom: 9,
-  },
-
-  sectionTitle: {
-    margin: 0,
-    color: "#6f839d",
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: "0.13em",
-    textTransform: "uppercase",
-  },
-
-  conversationCount: {
-    minWidth: 22,
-    height: 19,
-    padding: "0 6px",
-    borderRadius: 999,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(148, 163, 184, 0.08)",
-    color: "#8da2bb",
-    fontSize: 10,
-    fontWeight: 800,
-  },
-
-  conversationList: {
-    display: "grid",
-    gap: 4,
-  },
-
-  conversationButton: {
-    position: "relative",
-    width: "100%",
-    minHeight: 43,
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 11px",
-    border: "1px solid transparent",
-    borderRadius: 12,
-    background: "transparent",
-    color: "#94a7bf",
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "inherit",
-  },
-
-  conversationButtonActive: {
-    background: "rgba(24, 45, 70, 0.9)",
-    border: "1px solid rgba(103, 232, 249, 0.12)",
-    color: "#f8fafc",
-    boxShadow: "0 8px 20px rgba(2, 8, 23, 0.15)",
-  },
-
-  conversationIcon: {
-    width: 25,
-    height: 25,
-    borderRadius: 8,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    background: "rgba(148, 163, 184, 0.06)",
-    color: "#6f849e",
-    fontSize: 12,
-  },
-
-  conversationIconActive: {
-    background: "rgba(34, 211, 238, 0.1)",
-    color: "#67e8f9",
-  },
-
-  conversationTitle: {
-    minWidth: 0,
-    flex: 1,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontSize: 13,
-    fontWeight: 650,
-  },
-
-  activeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    flexShrink: 0,
-    background: "#22d3ee",
-    boxShadow: "0 0 9px rgba(34, 211, 238, 0.75)",
-  },
-
-  emptyState: {
-    margin: "18px 4px",
-    padding: "22px 14px",
-    borderRadius: 15,
-    border: "1px dashed rgba(148, 163, 184, 0.14)",
-    background: "rgba(15, 30, 50, 0.32)",
-    textAlign: "center",
-  },
-
-  emptyIcon: {
-    marginBottom: 8,
-    color: "#4b617b",
-    fontSize: 23,
-  },
-
-  emptyTitle: {
-    margin: "0 0 5px",
-    color: "#b4c2d3",
-    fontSize: 12,
-    fontWeight: 750,
-  },
-
-  emptyText: {
-    color: "#71859e",
-    fontSize: 11,
-    lineHeight: 1.5,
-  },
-
-  footer: {
-    flexShrink: 0,
-    padding: "12px 14px 15px",
-    borderTop: "1px solid rgba(148, 163, 184, 0.12)",
-    background: "rgba(4, 12, 24, 0.42)",
-  },
-
-  profileButton: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-    padding: "10px",
-    border: "1px solid transparent",
-    borderRadius: 14,
-    background: "transparent",
-    color: "#ffffff",
-    cursor: "pointer",
-    textAlign: "left",
-  },
-
-  profileButtonActive: {
-    border: "1px solid rgba(34, 211, 238, 0.18)",
-    background: "rgba(34, 211, 238, 0.08)",
-  },
-
-  avatarWrapper: {
-    position: "relative",
-    width: 39,
-    height: 39,
-    flexShrink: 0,
-  },
-
-  avatar: {
-    width: 39,
-    height: 39,
-    borderRadius: 12,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "linear-gradient(135deg, #1b3a58, #124b66)",
-    border: "1px solid rgba(103, 232, 249, 0.22)",
-    color: "#dffaff",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-
-  onlineDot: {
-    position: "absolute",
-    right: -1,
-    bottom: -1,
-    width: 9,
-    height: 9,
-    borderRadius: 999,
-    background: "#22c55e",
-    border: "2px solid #08111f",
-  },
-
-  profileInfo: {
-    minWidth: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-  },
-
-  profileName: {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    color: "#f8fafc",
-    fontSize: 13,
-    fontWeight: 800,
-  },
-
-  profilePlan: {
-    color: "#7f94ad",
-    fontSize: 11,
-  },
-
-  profileArrow: {
-    color: "#61758d",
-    fontSize: 21,
-  },
-
-  connectionStatus: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    marginTop: 9,
-    color: "#60758e",
-    fontSize: 10,
-    fontWeight: 700,
-  },
-
-  connectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    background: "#22c55e",
-    boxShadow: "0 0 7px rgba(34,197,94,0.55)",
-  },
-};
+  return valor.toLocaleDateString("es-PY", {
+    day: "2-digit",
+    month: "short",
+  });
+}

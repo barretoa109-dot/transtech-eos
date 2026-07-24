@@ -163,117 +163,100 @@ export default function EOSPage() {
       />
 
       <section style={styles.content}>
-        <TopBar />
+  <TopBar />
 
-        <div style={styles.viewContainer}>
-          {vista === "chat" && (
-            <>
-              <ChatView
-                historial={historial}
-                nombre={nombre}
-                chatRef={chatRef}
-                onEnviarSugerencia={(texto) => enviarMensaje(texto)}
-              />
+  <div
+    style={{
+      ...styles.viewContainer,
+      overflowY: vista === "chat" ? "hidden" : "auto",
+      overflowX: "hidden",
+    }}
+  >
+    {vista === "chat" && (
+      <>
+        <ChatView
+          historial={historial}
+          nombre={nombre}
+          chatRef={chatRef}
+          onEnviarSugerencia={(texto) => enviarMensaje(texto)}
+        />
 
-              {imagenAdjunta && (
-                <div style={styles.imagePreviewWrapper}>
-                  <div style={styles.imagePreview}>
-                    <div style={styles.imagePreviewInfo}>
-                      <div style={styles.imageIcon}>◫</div>
+        {imagenAdjunta && (
+          <div style={styles.imagePreviewWrapper}>
+            {/* vista previa */}
+          </div>
+        )}
 
-                      <div style={styles.imageTextContent}>
-                        <span style={styles.imageLabel}>IMAGEN ADJUNTA</span>
+        <Composer
+          mensaje={mensaje}
+          cargando={cargando}
+          onMensajeChange={setMensaje}
+          onEnviar={() => enviarMensaje()}
+          onImagenSeleccionada={manejarImagen}
+        />
+      </>
+    )}
 
-                        <strong style={styles.imageName}>
-                          {imagenAdjunta.nombre}
-                        </strong>
-                      </div>
-                    </div>
+    {vista === "briefing" && (
+      <BriefingView briefing={briefingVisible} />
+    )}
 
-                    <button
-                      type="button"
-                      onClick={quitarImagenAdjunta}
-                      style={styles.removeImageButton}
-                      aria-label="Quitar imagen adjunta"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                </div>
-              )}
+    {vista === "dashboard" && (
+      <DashboardView
+        score={briefingVisible.score || 0}
+        conversaciones={conversaciones.length}
+        mensajes={historial.length}
+        plan={plan}
+        ultimoChat={conversaciones[0]?.titulo}
+      />
+    )}
 
-              <Composer
-                mensaje={mensaje}
-                cargando={cargando}
-                onMensajeChange={setMensaje}
-                onEnviar={() => enviarMensaje()}
-                onImagenSeleccionada={manejarImagen}
-              />
-            </>
-          )}
-
-          {vista === "briefing" && (
-            <BriefingView briefing={briefingVisible} />
-          )}
-
-          {vista === "dashboard" && (
-            <DashboardView
-              score={briefingVisible.score || 0}
-              conversaciones={conversaciones.length}
-              mensajes={historial.length}
-              plan={plan}
-              ultimoChat={conversaciones[0]?.titulo}
-            />
-          )}
-
-          {vista === "perfil" && (
-            <ProfileView
-              nombre={nombre}
-              plan={plan}
-              usuarioId={usuarioId}
-              conversaciones={conversaciones.length}
-              mensajes={historial.length}
-            />
-          )}
-        </div>
-      </section>
+    {vista === "perfil" && (
+      <ProfileView
+        nombre={nombre}
+        plan={plan}
+        usuarioId={usuarioId}
+        conversaciones={conversaciones.length}
+        mensajes={historial.length}
+      />
+    )}
+  </div>
+</section>
     </main>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   main: {
-    width: "100vw",
-    height: "100vh",
-    display: "grid",
-    gridTemplateColumns: "minmax(260px, 280px) minmax(0, 1fr)",
-    overflow: "hidden",
-    background:
-      "linear-gradient(180deg, #07101d 0%, #091524 52%, #07111f 100%)",
-    color: "#f8fafc",
-    fontFamily: "Inter, Arial, Helvetica, sans-serif",
-  },
+  width: "100vw",
+  height: "100vh",
+  display: "grid",
+  gridTemplateColumns: "minmax(260px, 280px) minmax(0, 1fr)",
+  overflow: "hidden",
+  background: "#f7faff",
+  color: "#071226",
+  fontFamily: "Inter, Arial, Helvetica, sans-serif",
+},
 
   content: {
-    position: "relative",
-    minWidth: 0,
-    height: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    background:
-      "radial-gradient(circle at 85% 10%, rgba(14,165,233,0.07), transparent 26%), linear-gradient(180deg, #07101d 0%, #091524 52%, #07111f 100%)",
-  },
+  position: "relative",
+  minWidth: 0,
+  height: "100vh",
+  display: "flex",
+  flexDirection: "column",
+  background:
+    "radial-gradient(circle at 85% 10%, rgba(14,165,233,0.07), transparent 26%), linear-gradient(180deg, #07101d 0%, #091524 52%, #07111f 100%)",
+},
 
   viewContainer: {
-    position: "relative",
-    minWidth: 0,
-    minHeight: 0,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
+  position: "relative",
+  flex: 1,
+  minWidth: 0,
+  overflowY: "auto",
+  overflowX: "hidden",
+  scrollbarWidth: "thin",
+  scrollbarColor: "#1d4ed8 transparent",
+},
 
   imagePreviewWrapper: {
     position: "fixed",
@@ -285,26 +268,29 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: "none",
   },
 
-  imagePreview: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
-    boxSizing: "border-box",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "12px 14px",
-    borderRadius: 17,
-    border: "1px solid rgba(103,232,249,0.16)",
-    background:
-      "linear-gradient(145deg, rgba(18,38,60,0.97), rgba(10,24,41,0.97))",
-    color: "#e8f7ff",
-    boxShadow:
-      "0 18px 45px rgba(2,8,23,0.38), inset 0 1px 0 rgba(255,255,255,0.035)",
-    backdropFilter: "blur(20px)",
-    pointerEvents: "auto",
-  },
+ imagePreview: {
+  position: "fixed",
+  left: 280,
+  right: 0,
+  bottom: 116,
+  zIndex: 35,
+  width: "calc(100% - 48px)",
+  maxWidth: 900,
+  margin: "0 auto",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14,
+  padding: "11px 14px",
+  border: "1px solid rgba(37, 99, 235, 0.18)",
+  borderRadius: 16,
+  background: "rgba(239, 246, 255, 0.96)",
+  color: "#1e40af",
+  boxShadow: "0 14px 35px rgba(15, 23, 42, 0.08)",
+  backdropFilter: "blur(18px)",
+  fontSize: 12,
+  fontWeight: 800,
+},
 
   imagePreviewInfo: {
     minWidth: 0,

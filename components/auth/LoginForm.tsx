@@ -59,7 +59,7 @@ export default function LoginForm({
       return;
     }
 
-    router.replace("/dashboard");
+    router.replace("/eos/chat");
     router.refresh();
   }
 
@@ -69,7 +69,7 @@ export default function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/eos/chat`,
       },
     });
 
