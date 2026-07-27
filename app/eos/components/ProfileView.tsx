@@ -29,112 +29,96 @@ export default function ProfileView({
     try {
       await navigator.clipboard.writeText(usuarioId);
       setCopiado(true);
-
-      window.setTimeout(() => {
-        setCopiado(false);
-      }, 1800);
+      window.setTimeout(() => setCopiado(false), 1800);
     } catch (error) {
       console.error("No se pudo copiar el ID del usuario:", error);
     }
   }
 
   return (
-    <div style={styles.page} className="profile-page">
-      <div style={styles.glowOne} />
-      <div style={styles.glowTwo} />
+    <div className="profile-page">
+      <div className="glow glow-one" />
+      <div className="glow glow-two" />
 
-      <div style={styles.container} className="profile-container">
-        <header style={styles.header} className="profile-header">
-          <div>
-            <div style={styles.eyebrowRow}>
-              <span style={styles.statusDot} />
-              <span style={styles.eyebrow}>PERFIL EOS</span>
+      <div className="profile-container">
+        <header className="profile-header">
+          <div className="header-copy">
+            <div className="eyebrow-row">
+              <span className="status-dot" />
+              <span className="eyebrow">PERFIL EOS</span>
             </div>
 
-            <h1 style={styles.title}>Tu espacio personal</h1>
+            <h1>Tu espacio personal</h1>
 
-            <p style={styles.subtitle}>
+            <p>
               Información general de tu cuenta y del uso actual de TransTech
               EOS.
             </p>
           </div>
 
-          <div style={styles.accountStatus} className="profile-account-status">
-            <span style={styles.accountStatusLabel}>ESTADO DE LA CUENTA</span>
-
-            <div style={styles.accountStatusValue}>
-              <span style={styles.activeDot} />
+          <div className="account-status">
+            <span>ESTADO DE LA CUENTA</span>
+            <strong>
+              <i />
               EOS activo
-            </div>
+            </strong>
           </div>
         </header>
 
-        <section style={styles.profileCard} className="profile-main-card">
-          <div style={styles.profileIdentity} className="profile-identity">
-            <div style={styles.avatarOuter}>
-              <div style={styles.avatar} className="profile-avatar">{inicial}</div>
-              <span style={styles.avatarStatus} />
+        <section className="profile-card">
+          <div className="profile-identity">
+            <div className="avatar-outer">
+              <div className="avatar">{inicial}</div>
+              <span className="avatar-status" />
             </div>
 
-            <div style={styles.identityContent} className="profile-identity-content">
-              <span style={styles.profileLabel}>USUARIO TRANSTECH EOS</span>
+            <div className="identity-content">
+              <span className="profile-label">USUARIO TRANSTECH EOS</span>
+              <h2>{nombre || "Usuario"}</h2>
 
-              <h2 style={styles.profileName} className="profile-name">{nombre || "Usuario"}</h2>
-
-              <div style={styles.profileTags}>
-                <span style={styles.planTag}>
-                  Plan {capitalizar(planVisible)}
-                </span>
-
-                <span style={styles.connectedTag}>
-                  <span style={styles.connectedDot} />
+              <div className="profile-tags">
+                <span className="plan-tag">Plan {capitalizar(planVisible)}</span>
+                <span className="connected-tag">
+                  <i />
                   Conectado
                 </span>
               </div>
             </div>
           </div>
 
-          <div style={styles.userIdCard} className="profile-user-id-card">
-            <div style={styles.userIdHeader} className="profile-user-id-header">
+          <div className="user-id-card">
+            <div className="user-id-header">
               <div>
-                <span style={styles.userIdLabel}>IDENTIFICADOR DE USUARIO</span>
-                <p style={styles.userIdDescription}>
-                  Código único asociado a tu cuenta.
-                </p>
+                <span>IDENTIFICADOR DE USUARIO</span>
+                <p>Código único asociado a tu cuenta.</p>
               </div>
 
               <button
                 type="button"
                 onClick={copiarUsuarioId}
                 disabled={!usuarioId}
-                style={{
-                  ...styles.copyButton,
-                  ...(!usuarioId ? styles.copyButtonDisabled : {}),
-                }}
               >
                 {copiado ? "Copiado" : "Copiar"}
               </button>
             </div>
 
-            <code style={styles.userIdValue} className="profile-user-id-value">{idVisible}</code>
+            <code>{idVisible}</code>
           </div>
         </section>
 
-        <section style={styles.metricsGrid} className="profile-metrics-grid">
+        <section className="metrics-grid">
           <MetricCard
             icon="◫"
             label="Conversaciones"
             value={conversaciones}
             description="Chats registrados en EOS"
           />
-
           <MetricCard
             icon="≡"
             label="Mensajes"
             value={mensajes}
             description="Mensajes del chat actual"
           />
-
           <MetricCard
             icon="✦"
             label="Plan actual"
@@ -143,92 +127,47 @@ export default function ProfileView({
           />
         </section>
 
-        <div style={styles.contentGrid} className="profile-content-grid">
-          <section style={styles.card} className="profile-section-card">
-            <div style={styles.cardHeader}>
+        <div className="content-grid">
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <span style={styles.sectionEyebrow}>CAPACIDADES</span>
-                <h3 style={styles.cardTitle}>Funciones disponibles</h3>
+                <span>CAPACIDADES</span>
+                <h3>Funciones disponibles</h3>
               </div>
-
-              <span style={styles.featureCount}>6 activas</span>
+              <b>6 activas</b>
             </div>
 
-            <div style={styles.featuresGrid} className="profile-features-grid">
-              <Feature
-                title="Asesor EOS"
-                description="Conversaciones inteligentes y análisis contextual."
-              />
-
-              <Feature
-                title="Memoria"
-                description="Uso del contexto registrado para mejorar respuestas."
-              />
-
-              <Feature
-                title="Briefing"
-                description="Resumen ejecutivo con prioridades y recomendaciones."
-              />
-
-              <Feature
-                title="Documentos"
-                description="Generación de archivos y entregables profesionales."
-              />
-
-              <Feature
-                title="Dashboard"
-                description="Indicadores generales del espacio de trabajo."
-              />
-
-              <Feature
-                title="Historial"
-                description="Acceso a conversaciones registradas anteriormente."
-              />
+            <div className="features-grid">
+              <Feature title="Asesor EOS" description="Conversaciones inteligentes y análisis contextual." />
+              <Feature title="Memoria" description="Uso del contexto registrado para mejorar respuestas." />
+              <Feature title="Briefing" description="Resumen ejecutivo con prioridades y recomendaciones." />
+              <Feature title="Documentos" description="Generación de archivos y entregables profesionales." />
+              <Feature title="Dashboard" description="Indicadores generales del espacio de trabajo." />
+              <Feature title="Historial" description="Acceso a conversaciones registradas anteriormente." />
             </div>
           </section>
 
-          <section style={styles.card} className="profile-section-card">
-            <div style={styles.cardHeader}>
+          <section className="section-card">
+            <div className="section-header">
               <div>
-                <span style={styles.sectionEyebrow}>CUENTA</span>
-                <h3 style={styles.cardTitle}>Resumen del acceso</h3>
+                <span>CUENTA</span>
+                <h3>Resumen del acceso</h3>
               </div>
-
-              <span style={styles.shieldIcon}>◇</span>
+              <em>◇</em>
             </div>
 
-            <div style={styles.accountList}>
-              <AccountRow
-                label="Estado"
-                value="Activo"
-                indicator
-              />
-
-              <AccountRow
-                label="Plan"
-                value={capitalizar(planVisible)}
-              />
-
-              <AccountRow
-                label="Memoria contextual"
-                value="Habilitada"
-              />
-
-              <AccountRow
-                label="Asistente EOS"
-                value="Disponible"
-              />
+            <div className="account-list">
+              <AccountRow label="Estado" value="Activo" indicator />
+              <AccountRow label="Plan" value={capitalizar(planVisible)} />
+              <AccountRow label="Memoria contextual" value="Habilitada" />
+              <AccountRow label="Asistente EOS" value="Disponible" />
             </div>
 
-            <div style={styles.securityNotice}>
-              <span style={styles.securityIcon}>✓</span>
-
+            <div className="security-notice">
+              <span>✓</span>
               <div>
-                <strong style={styles.securityTitle}>
-                  Espacio protegido
-                </strong>
-
-                <p style={styles.securityText}>
+                <strong>Espacio protegido</strong>
+                <p>
                   Tu identificador permite asociar correctamente las
                   conversaciones y los datos de tu cuenta.
                 </p>
@@ -237,177 +176,567 @@ export default function ProfileView({
           </section>
         </div>
 
-        <footer style={styles.footer} className="profile-footer">
-          <span style={styles.footerDot} />
-
-          <span>
-            TransTech EOS está conectado y listo para trabajar con tu cuenta.
-          </span>
+        <footer className="profile-footer">
+          <span />
+          TransTech EOS está conectado y listo para trabajar con tu cuenta.
         </footer>
       </div>
 
-      <style jsx global>{`
-        @media (max-width: 760px) {
-          .profile-page {
-            width: 100% !important;
-            box-sizing: border-box !important;
-            padding: 28px 14px calc(46px + env(safe-area-inset-bottom)) !important;
-            overflow-x: hidden !important;
-            overflow-y: auto !important;
-            -webkit-overflow-scrolling: touch !important;
+      <style jsx>{`
+        .profile-page {
+          position: relative;
+          flex: 1;
+          min-width: 0;
+          min-height: 0;
+          height: 100%;
+          overflow-x: hidden;
+          overflow-y: auto;
+          padding: 34px 28px 60px;
+          box-sizing: border-box;
+          background: linear-gradient(180deg, #ffffff 0%, #f7faff 46%, #eef5ff 100%);
+          color: #071226;
+          font-family: Inter, Arial, Helvetica, sans-serif;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-y: contain;
+        }
+
+        .glow {
+          position: fixed;
+          border-radius: 999px;
+          pointer-events: none;
+        }
+
+        .glow-one {
+          top: 110px;
+          right: 8%;
+          width: 420px;
+          height: 420px;
+          background: rgba(37, 99, 235, 0.1);
+          filter: blur(120px);
+        }
+
+        .glow-two {
+          bottom: 40px;
+          left: 26%;
+          width: 340px;
+          height: 340px;
+          background: rgba(59, 130, 246, 0.07);
+          filter: blur(110px);
+        }
+
+        .profile-container {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 1120px;
+          margin: 0 auto;
+        }
+
+        .profile-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 22px;
+          margin-bottom: 25px;
+        }
+
+        .header-copy { min-width: 0; }
+
+        .eyebrow-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 11px;
+        }
+
+        .status-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: #3b82f6;
+          box-shadow: 0 0 11px rgba(34, 211, 238, 0.8);
+        }
+
+        .eyebrow {
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+        }
+
+        .profile-header h1 {
+          margin: 0;
+          font-size: clamp(31px, 5vw, 46px);
+          line-height: 1.1;
+          font-weight: 900;
+          letter-spacing: -0.045em;
+        }
+
+        .profile-header p {
+          max-width: 580px;
+          margin: 14px 0 0;
+          color: #475569;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .account-status {
+          min-width: 195px;
+          padding: 16px 18px;
+          border: 1px solid #dbe5f2;
+          border-radius: 17px;
+          background: rgba(255, 255, 255, 0.9);
+          box-sizing: border-box;
+        }
+
+        .account-status > span {
+          display: block;
+          margin-bottom: 8px;
+          color: #64748b;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+        }
+
+        .account-status strong {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #0f172a;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .account-status i,
+        .connected-tag i,
+        .account-value i {
+          width: 7px;
+          height: 7px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 9px rgba(34, 197, 94, 0.55);
+        }
+
+        .profile-card {
+          display: grid;
+          grid-template-columns: minmax(280px, 1fr) minmax(300px, 0.8fr);
+          gap: 22px;
+          padding: 24px;
+          border: 1px solid #dbe5f2;
+          border-radius: 23px;
+          background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(245,249,255,0.96));
+          box-shadow: 0 22px 52px rgba(15,23,42,0.08), inset 0 1px 0 rgba(96, 165, 250, 0.05);
+          box-sizing: border-box;
+        }
+
+        .profile-identity {
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          gap: 19px;
+        }
+
+        .avatar-outer {
+          position: relative;
+          flex: 0 0 auto;
+        }
+
+        .avatar {
+          width: 82px;
+          height: 82px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 25px;
+          background: linear-gradient(135deg, #2563eb 0%, #2563eb 52%, #1d4ed8 100%);
+          color: #fff;
+          font-size: 32px;
+          font-weight: 950;
+          box-shadow: 0 16px 30px rgba(37, 99, 235, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        }
+
+        .avatar-status {
+          position: absolute;
+          right: -2px;
+          bottom: -2px;
+          width: 18px;
+          height: 18px;
+          border: 4px solid #ffffff;
+          border-radius: 999px;
+          background: #22c55e;
+          box-sizing: border-box;
+        }
+
+        .identity-content { min-width: 0; }
+
+        .profile-label {
+          color: #64748b;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.15em;
+        }
+
+        .identity-content h2 {
+          margin: 7px 0 11px;
+          overflow: hidden;
+          color: #071226;
+          font-size: 27px;
+          line-height: 1.1;
+          font-weight: 900;
+          letter-spacing: -0.035em;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .profile-tags {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .plan-tag,
+        .connected-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 10px;
+          border-radius: 999px;
+          font-size: 9px;
+          font-weight: 850;
+        }
+
+        .plan-tag {
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .connected-tag {
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          color: #64748b;
+        }
+
+        .connected-tag i { width: 5px; height: 5px; box-shadow: none; }
+
+        .user-id-card {
+          min-width: 0;
+          padding: 17px;
+          border: 1px solid #dbe5f2;
+          border-radius: 17px;
+          background: rgba(255,255,255,0.88);
+          box-sizing: border-box;
+        }
+
+        .user-id-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .user-id-header span {
+          color: #64748b;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.13em;
+        }
+
+        .user-id-header p {
+          margin: 5px 0 0;
+          color: #94a3b8;
+          font-size: 9px;
+        }
+
+        .user-id-header button {
+          flex: 0 0 auto;
+          padding: 7px 11px;
+          border: 1px solid #bfdbfe;
+          border-radius: 9px;
+          background: #eff6ff;
+          color: #2563eb;
+          font-family: inherit;
+          font-size: 9px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+
+        .user-id-header button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .user-id-card code {
+          display: block;
+          max-width: 100%;
+          margin-top: 17px;
+          overflow: hidden;
+          padding: 11px 12px;
+          border-radius: 10px;
+          background: #f8fafc;
+          color: #334155;
+          font-size: 10px;
+          line-height: 1.5;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          box-sizing: border-box;
+        }
+
+        .metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+          margin-top: 17px;
+        }
+
+        .content-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+          gap: 16px;
+          margin-top: 17px;
+        }
+
+        .section-card {
+          min-width: 0;
+          padding: 22px;
+          border: 1px solid #dbe5f2;
+          border-radius: 21px;
+          background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,251,255,0.96));
+          box-shadow: 0 18px 37px rgba(15,23,42,0.07);
+          box-sizing: border-box;
+        }
+
+        .section-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 18px;
+        }
+
+        .section-header span {
+          color: #2563eb;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+        }
+
+        .section-header h3 {
+          margin: 5px 0 0;
+          color: #071226;
+          font-size: 19px;
+          font-weight: 850;
+          letter-spacing: -0.025em;
+        }
+
+        .section-header b {
+          flex: 0 0 auto;
+          padding: 6px 9px;
+          border-radius: 999px;
+          background: #eff6ff;
+          color: #2563eb;
+          font-size: 8px;
+          font-weight: 850;
+        }
+
+        .section-header em {
+          color: #2563eb;
+          font-size: 21px;
+          font-style: normal;
+        }
+
+        .features-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 11px;
+        }
+
+        .account-list { display: grid; }
+
+        .security-notice {
+          display: flex;
+          align-items: flex-start;
+          gap: 11px;
+          margin-top: 17px;
+          padding: 14px;
+          border: 1px solid #dbeafe;
+          border-radius: 13px;
+          background: #eff6ff;
+        }
+
+        .security-notice > span {
+          width: 24px;
+          height: 24px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+          border-radius: 8px;
+          background: #dbeafe;
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        .security-notice strong {
+          color: #071226;
+          font-size: 10px;
+          font-weight: 850;
+        }
+
+        .security-notice p {
+          margin: 4px 0 0;
+          color: #64748b;
+          font-size: 8px;
+          line-height: 1.55;
+        }
+
+        .profile-footer {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 23px;
+          color: #64748b;
+          font-size: 9px;
+          text-align: center;
+        }
+
+        .profile-footer > span {
+          width: 5px;
+          height: 5px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background: #22c55e;
+        }
+
+        @media (max-width: 900px) {
+          .profile-card,
+          .content-grid {
+            grid-template-columns: 1fr;
           }
 
-          .profile-container {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: visible !important;
+          .metrics-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 760px) {
+          .profile-page {
+            width: 100%;
+            height: 100%;
+            padding: 68px 14px calc(40px + env(safe-area-inset-bottom));
+          }
+
+          .glow-one {
+            top: 120px;
+            right: -180px;
+            width: 360px;
+            height: 360px;
+          }
+
+          .glow-two {
+            left: -170px;
+            bottom: 40px;
+            width: 320px;
+            height: 320px;
           }
 
           .profile-header {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            align-items: stretch !important;
-            gap: 18px !important;
-            margin-bottom: 18px !important;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 18px;
+            margin-bottom: 18px;
           }
 
-          .profile-account-status {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
+          .profile-header h1 {
+            font-size: clamp(33px, 10vw, 44px);
           }
 
-          .profile-main-card {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 18px !important;
-            padding: 18px !important;
+          .profile-header p {
+            font-size: 14px;
+            line-height: 1.6;
+          }
+
+          .account-status {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .profile-card {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 18px;
+            padding: 18px;
+            border-radius: 20px;
           }
 
           .profile-identity {
-            width: 100% !important;
-            min-width: 0 !important;
-            align-items: center !important;
-            gap: 15px !important;
+            align-items: center;
+            gap: 16px;
           }
 
-          .profile-avatar {
-            width: 68px !important;
-            height: 68px !important;
-            border-radius: 21px !important;
-            font-size: 27px !important;
+          .avatar {
+            width: 68px;
+            height: 68px;
+            border-radius: 21px;
+            font-size: 27px;
           }
 
-          .profile-identity-content {
-            width: 100% !important;
-            min-width: 0 !important;
+          .avatar-status {
+            width: 16px;
+            height: 16px;
           }
 
-          .profile-name {
-            max-width: 100% !important;
-            overflow: visible !important;
-            text-overflow: clip !important;
-            white-space: normal !important;
-            overflow-wrap: anywhere !important;
-            font-size: 24px !important;
-            line-height: 1.12 !important;
+          .identity-content h2 {
+            font-size: 24px;
+            white-space: normal;
+            overflow-wrap: anywhere;
           }
 
-          .profile-user-id-card {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            padding: 15px !important;
+          .user-id-header {
+            align-items: stretch;
+            flex-direction: column;
           }
 
-          .profile-user-id-header {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            align-items: stretch !important;
-            gap: 12px !important;
+          .user-id-header button {
+            width: 100%;
+            min-height: 42px;
           }
 
-          .profile-user-id-header button {
-            width: 100% !important;
-            min-height: 42px !important;
+          .metrics-grid,
+          .content-grid,
+          .features-grid {
+            grid-template-columns: minmax(0, 1fr);
           }
 
-          .profile-user-id-value {
-            width: 100% !important;
-            box-sizing: border-box !important;
-            overflow-x: auto !important;
-            text-overflow: clip !important;
-            -webkit-overflow-scrolling: touch !important;
-          }
-
-          .profile-metrics-grid {
-            width: 100% !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 12px !important;
-          }
-
-          .profile-metric-card {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-          }
-
-          .profile-content-grid {
-            width: 100% !important;
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 14px !important;
-          }
-
-          .profile-section-card {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            padding: 18px !important;
-          }
-
-          .profile-features-grid {
-            grid-template-columns: minmax(0, 1fr) !important;
-          }
-
-          .profile-feature {
-            width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-          }
-
-          .profile-account-row {
-            width: 100% !important;
-            min-width: 0 !important;
+          .section-card {
+            padding: 18px;
+            border-radius: 19px;
           }
 
           .profile-footer {
-            padding: 0 6px !important;
-            line-height: 1.55 !important;
+            align-items: flex-start;
+            padding: 0 8px;
+            line-height: 1.55;
           }
         }
 
         @media (max-width: 390px) {
           .profile-page {
-            padding-left: 11px !important;
-            padding-right: 11px !important;
+            padding-left: 11px;
+            padding-right: 11px;
           }
 
-          .profile-main-card,
-          .profile-section-card {
-            padding: 15px !important;
+          .profile-card,
+          .section-card {
+            padding: 15px;
           }
 
           .profile-identity {
-            align-items: flex-start !important;
+            align-items: flex-start;
+            flex-direction: column;
           }
 
-          .profile-name {
-            font-size: 22px !important;
-          }
+          .identity-content h2 { font-size: 22px; }
         }
       `}</style>
     </div>
@@ -426,33 +755,120 @@ function MetricCard({
   description: string;
 }) {
   return (
-    <article style={styles.metricCard} className="profile-metric-card">
-      <div style={styles.metricIcon}>{icon}</div>
-
-      <div style={styles.metricContent}>
-        <span style={styles.metricLabel}>{label}</span>
-        <strong style={styles.metricValue}>{value}</strong>
-        <span style={styles.metricDescription}>{description}</span>
+    <article className="metric-card">
+      <div className="metric-icon">{icon}</div>
+      <div className="metric-content">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{description}</small>
       </div>
+
+      <style jsx>{`
+        .metric-card {
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 19px;
+          border: 1px solid #dbe5f2;
+          border-radius: 18px;
+          background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,251,255,0.96));
+          box-shadow: 0 15px 32px rgba(15,23,42,0.06);
+          box-sizing: border-box;
+        }
+
+        .metric-icon {
+          width: 46px;
+          height: 46px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+          border: 1px solid #bfdbfe;
+          border-radius: 14px;
+          background: #eff6ff;
+          color: #2563eb;
+          font-size: 18px;
+          font-weight: 900;
+        }
+
+        .metric-content {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .metric-content span {
+          color: #64748b;
+          font-size: 9px;
+          font-weight: 850;
+        }
+
+        .metric-content strong {
+          margin-top: 3px;
+          color: #071226;
+          font-size: 23px;
+          font-weight: 900;
+          letter-spacing: -0.025em;
+        }
+
+        .metric-content small {
+          margin-top: 3px;
+          color: #94a3b8;
+          font-size: 8px;
+        }
+      `}</style>
     </article>
   );
 }
 
-function Feature({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function Feature({ title, description }: { title: string; description: string }) {
   return (
-    <div style={styles.feature} className="profile-feature">
-      <div style={styles.featureCheck}>✓</div>
-
+    <div className="feature">
+      <div className="feature-check">✓</div>
       <div>
-        <strong style={styles.featureTitle}>{title}</strong>
-        <p style={styles.featureDescription}>{description}</p>
+        <strong>{title}</strong>
+        <p>{description}</p>
       </div>
+
+      <style jsx>{`
+        .feature {
+          min-width: 0;
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 13px;
+          border: 1px solid #e2e8f0;
+          border-radius: 13px;
+          background: #f8fbff;
+          box-sizing: border-box;
+        }
+
+        .feature-check {
+          width: 24px;
+          height: 24px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+          border-radius: 8px;
+          background: #eff6ff;
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        strong {
+          color: #071226;
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        p {
+          margin: 4px 0 0;
+          color: #64748b;
+          font-size: 9px;
+          line-height: 1.5;
+        }
+      `}</style>
     </div>
   );
 }
@@ -467,13 +883,48 @@ function AccountRow({
   indicator?: boolean;
 }) {
   return (
-    <div style={styles.accountRow} className="profile-account-row">
-      <span style={styles.accountRowLabel}>{label}</span>
-
-      <span style={styles.accountRowValue}>
-        {indicator && <span style={styles.rowIndicator} />}
+    <div className="account-row">
+      <span>{label}</span>
+      <strong className="account-value">
+        {indicator && <i />}
         {value}
-      </span>
+      </strong>
+
+      <style jsx>{`
+        .account-row {
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 15px;
+          padding: 13px 0;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .account-row > span {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .account-value {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: #071226;
+          font-size: 10px;
+          font-weight: 800;
+          text-align: right;
+        }
+
+        .account-value i {
+          width: 6px;
+          height: 6px;
+          flex: 0 0 auto;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 7px rgba(34, 197, 94, 0.45);
+        }
+      `}</style>
     </div>
   );
 }
@@ -482,547 +933,3 @@ function capitalizar(value: string) {
   if (!value) return "Free";
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    position: "relative",
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    overflowX: "hidden",
-    padding: "34px 28px 60px",
-    background:
-      "linear-gradient(180deg, #071225 0%, #0a1830 48%, #08152a 100%)",
-    color: "#f8fafc",
-    fontFamily: "Inter, Arial, Helvetica, sans-serif",
-  },
-
-  glowOne: {
-    position: "fixed",
-    top: 110,
-    right: "8%",
-    width: 420,
-    height: 420,
-    borderRadius: 999,
-    background: "rgba(37,99,235,0.10)",
-    filter: "blur(120px)",
-    pointerEvents: "none",
-  },
-
-  glowTwo: {
-    position: "fixed",
-    bottom: 40,
-    left: "26%",
-    width: 340,
-    height: 340,
-    borderRadius: 999,
-    background: "rgba(59,130,246,0.07)",
-    filter: "blur(110px)",
-    pointerEvents: "none",
-  },
-
-  container: {
-    position: "relative",
-    zIndex: 1,
-    width: "100%",
-    maxWidth: 1120,
-    margin: "0 auto",
-  },
-
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 22,
-    marginBottom: 25,
-  },
-
-  eyebrowRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 11,
-  },
-
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "#3b82f6",
-    boxShadow: "0 0 11px rgba(34,211,238,0.8)",
-  },
-
-  eyebrow: {
-    color: "#60a5fa",
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: "0.18em",
-  },
-
-  title: {
-    margin: 0,
-    fontSize: "clamp(31px, 5vw, 46px)",
-    lineHeight: 1.1,
-    fontWeight: 900,
-    letterSpacing: "-0.045em",
-  },
-
-  subtitle: {
-    maxWidth: 580,
-    margin: "14px 0 0",
-    color: "#879bb2",
-    fontSize: 14,
-    lineHeight: 1.7,
-  },
-
-  accountStatus: {
-    minWidth: 195,
-    padding: "16px 18px",
-    border: "1px solid rgba(148,163,184,0.12)",
-    borderRadius: 17,
-    background: "rgba(16,33,53,0.78)",
-  },
-
-  accountStatusLabel: {
-    display: "block",
-    marginBottom: 8,
-    color: "#5f748c",
-    fontSize: 8,
-    fontWeight: 900,
-    letterSpacing: "0.14em",
-  },
-
-  accountStatusValue: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    color: "#dff8ee",
-    fontSize: 13,
-    fontWeight: 800,
-  },
-
-  activeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "#22c55e",
-    boxShadow: "0 0 9px rgba(34,197,94,0.55)",
-  },
-
-  profileCard: {
-    display: "grid",
-    gridTemplateColumns: "minmax(280px, 1fr) minmax(300px, 0.8fr)",
-    gap: 22,
-    padding: 24,
-    borderRadius: 23,
-    border: "1px solid rgba(59,130,246,0.22)",
-    background:
-      "linear-gradient(145deg, rgba(13,32,64,0.97), rgba(8,22,45,0.96))",
-    boxShadow:
-      "0 22px 52px rgba(2,8,23,0.28), inset 0 1px 0 rgba(96,165,250,0.05)",
-  },
-
-  profileIdentity: {
-    display: "flex",
-    alignItems: "center",
-    gap: 19,
-  },
-
-  avatarOuter: {
-    position: "relative",
-    flexShrink: 0,
-  },
-
-  avatar: {
-    width: 82,
-    height: 82,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 25,
-    background:
-      "linear-gradient(135deg, #60a5fa 0%, #2563eb 52%, #1d4ed8 100%)",
-    color: "#ffffff",
-    fontSize: 32,
-    fontWeight: 950,
-    boxShadow:
-      "0 16px 30px rgba(37,99,235,0.30), inset 0 1px 0 rgba(255,255,255,0.32)",
-  },
-
-  avatarStatus: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 18,
-    height: 18,
-    border: "4px solid #0d2040",
-    borderRadius: 999,
-    background: "#22c55e",
-  },
-
-  identityContent: {
-    minWidth: 0,
-  },
-
-  profileLabel: {
-    color: "#6d8fc7",
-    fontSize: 8,
-    fontWeight: 900,
-    letterSpacing: "0.15em",
-  },
-
-  profileName: {
-    margin: "7px 0 11px",
-    overflow: "hidden",
-    color: "#f7fbff",
-    fontSize: 27,
-    fontWeight: 900,
-    letterSpacing: "-0.035em",
-    textOverflow: "ellipsis",
-  },
-
-  profileTags: {
-    display: "flex",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
-  planTag: {
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "rgba(37,99,235,0.14)",
-    border: "1px solid rgba(96,165,250,0.24)",
-    color: "#60a5fa",
-    fontSize: 9,
-    fontWeight: 850,
-  },
-
-  connectedTag: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "rgba(148,163,184,0.07)",
-    border: "1px solid rgba(148,163,184,0.1)",
-    color: "#8498ae",
-    fontSize: 9,
-    fontWeight: 800,
-  },
-
-  connectedDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    background: "#22c55e",
-  },
-
-  userIdCard: {
-    minWidth: 0,
-    padding: 17,
-    borderRadius: 17,
-    border: "1px solid rgba(148,163,184,0.11)",
-    background: "rgba(5,16,30,0.4)",
-  },
-
-  userIdHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  userIdLabel: {
-    color: "#748fb8",
-    fontSize: 8,
-    fontWeight: 900,
-    letterSpacing: "0.13em",
-  },
-
-  userIdDescription: {
-    margin: "5px 0 0",
-    color: "#536a82",
-    fontSize: 9,
-  },
-
-  copyButton: {
-    padding: "7px 11px",
-    border: "1px solid rgba(96,165,250,0.24)",
-    borderRadius: 9,
-    background: "rgba(37,99,235,0.12)",
-    color: "#60a5fa",
-    fontSize: 9,
-    fontWeight: 850,
-    cursor: "pointer",
-  },
-
-  copyButtonDisabled: {
-    opacity: 0.45,
-    cursor: "not-allowed",
-  },
-
-  userIdValue: {
-    display: "block",
-    marginTop: 17,
-    overflow: "hidden",
-    padding: "11px 12px",
-    borderRadius: 10,
-    background: "rgba(2,8,23,0.47)",
-    color: "#a5bbce",
-    fontFamily: "monospace",
-    fontSize: 10,
-    lineHeight: 1.5,
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-
-  metricsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-    marginTop: 17,
-  },
-
-  metricCard: {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-    padding: 19,
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.12)",
-    background:
-      "linear-gradient(145deg, rgba(15,35,68,0.93), rgba(9,24,49,0.92))",
-    boxShadow: "0 15px 32px rgba(2,8,23,0.14)",
-  },
-
-  metricIcon: {
-    width: 46,
-    height: 46,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    background: "rgba(37,99,235,0.13)",
-    border: "1px solid rgba(96,165,250,0.22)",
-    color: "#60a5fa",
-    fontSize: 18,
-    fontWeight: 900,
-  },
-
-  metricContent: {
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  metricLabel: {
-    color: "#72879e",
-    fontSize: 9,
-    fontWeight: 850,
-  },
-
-  metricValue: {
-    marginTop: 3,
-    color: "#f5fbff",
-    fontSize: 23,
-    fontWeight: 900,
-    letterSpacing: "-0.025em",
-  },
-
-  metricDescription: {
-    marginTop: 3,
-    color: "#50677f",
-    fontSize: 8,
-  },
-
-  contentGrid: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.2fr) minmax(300px, 0.8fr)",
-    gap: 16,
-    marginTop: 17,
-  },
-
-  card: {
-    padding: 22,
-    borderRadius: 21,
-    border: "1px solid rgba(148,163,184,0.12)",
-    background:
-      "linear-gradient(145deg, rgba(15,35,68,0.95), rgba(9,24,49,0.93))",
-    boxShadow: "0 18px 37px rgba(2,8,23,0.16)",
-  },
-
-  cardHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 18,
-  },
-
-  sectionEyebrow: {
-    color: "#6b8fc9",
-    fontSize: 8,
-    fontWeight: 900,
-    letterSpacing: "0.14em",
-  },
-
-  cardTitle: {
-    margin: "5px 0 0",
-    color: "#eff8ff",
-    fontSize: 19,
-    fontWeight: 850,
-    letterSpacing: "-0.025em",
-  },
-
-  featureCount: {
-    padding: "6px 9px",
-    borderRadius: 999,
-    background: "rgba(37,99,235,0.12)",
-    color: "#60a5fa",
-    fontSize: 8,
-    fontWeight: 850,
-  },
-
-  featuresGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: 11,
-  },
-
-  feature: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 13,
-    borderRadius: 13,
-    background: "rgba(148,163,184,0.045)",
-    border: "1px solid rgba(148,163,184,0.075)",
-  },
-
-  featureCheck: {
-    width: 24,
-    height: 24,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    background: "rgba(37,99,235,0.13)",
-    color: "#60a5fa",
-    fontSize: 10,
-    fontWeight: 900,
-  },
-
-  featureTitle: {
-    color: "#dfeef8",
-    fontSize: 11,
-    fontWeight: 850,
-  },
-
-  featureDescription: {
-    margin: "4px 0 0",
-    color: "#667c94",
-    fontSize: 9,
-    lineHeight: 1.5,
-  },
-
-  shieldIcon: {
-    color: "#5b8def",
-    fontSize: 21,
-  },
-
-  accountList: {
-    display: "grid",
-  },
-
-  accountRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 15,
-    padding: "13px 0",
-    borderBottom: "1px solid rgba(148,163,184,0.075)",
-  },
-
-  accountRowLabel: {
-    color: "#71879e",
-    fontSize: 10,
-  },
-
-  accountRowValue: {
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-    color: "#dceaf4",
-    fontSize: 10,
-    fontWeight: 800,
-  },
-
-  rowIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    background: "#22c55e",
-    boxShadow: "0 0 7px rgba(34,197,94,0.45)",
-  },
-
-  securityNotice: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 11,
-    marginTop: 17,
-    padding: 14,
-    borderRadius: 13,
-    background: "rgba(37,99,235,0.09)",
-    border: "1px solid rgba(96,165,250,0.16)",
-  },
-
-  securityIcon: {
-    width: 24,
-    height: 24,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    background: "rgba(37,99,235,0.16)",
-    color: "#60a5fa",
-    fontSize: 10,
-    fontWeight: 900,
-  },
-
-  securityTitle: {
-    color: "#dff7fb",
-    fontSize: 10,
-    fontWeight: 850,
-  },
-
-  securityText: {
-    margin: "4px 0 0",
-    color: "#648296",
-    fontSize: 8,
-    lineHeight: 1.55,
-  },
-
-  footer: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 23,
-    color: "#52677f",
-    fontSize: 9,
-    textAlign: "center",
-  },
-
-  footerDot: {
-    width: 5,
-    height: 5,
-    flexShrink: 0,
-    borderRadius: 999,
-    background: "#22c55e",
-  },
-};
