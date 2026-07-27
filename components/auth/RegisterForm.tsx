@@ -61,7 +61,7 @@ export default function RegisterForm({ onLogin }: Props) {
         email: cleanEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/eos/chat`,
           data: {
             nombre: cleanName,
             whatsapp: cleanWhatsapp,
@@ -100,7 +100,7 @@ export default function RegisterForm({ onLogin }: Props) {
           throw profileError;
         }
 
-        window.location.assign("/dashboard");
+        window.location.assign("/eos/chat");
         return;
       }
 

@@ -39,10 +39,21 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  const rutaProtegida =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/dashboard-eos") ||
-    pathname.startsWith("/eos/chat");
+  // Bloquear dashboards antiguas.
+  if (
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/dashboard-eos" ||
+    pathname.startsWith("/dashboard-eos/")
+  ) {
+    const eosUrl = request.nextUrl.clone();
+    eosUrl.pathname = "/eos/chat";
+    eosUrl.search = "";
+
+    return NextResponse.redirect(eosUrl);
+  }
+
+  const rutaProtegida = pathname.startsWith("/eos/chat");
 
   if (rutaProtegida && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -54,11 +65,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" && user) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    dashboardUrl.search = "";
+    const eosUrl = request.nextUrl.clone();
+    eosUrl.pathname = "/eos/chat";
+    eosUrl.search = "";
 
-    return NextResponse.redirect(dashboardUrl);
+    return NextResponse.redirect(eosUrl);
   }
 
   return response;

@@ -38,9 +38,16 @@ export default function ForgotPassword({ onBack }: Props) {
     setLoading(false);
 
     if (error) {
-      setErrorMessage(error.message);
-      return;
-    }
+  console.error("Error completo al recuperar contraseña:", error);
+
+  const mensaje =
+    typeof error.message === "string" && error.message.trim()
+      ? error.message
+      : "No se pudo enviar el correo de recuperación. Revisa la configuración SMTP de Supabase.";
+
+  setErrorMessage(mensaje);
+  return;
+}
 
     setMessage(
       "Te enviamos un enlace para restablecer tu contraseña. Revisa también la carpeta de spam."
