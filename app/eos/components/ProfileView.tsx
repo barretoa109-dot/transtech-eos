@@ -39,12 +39,12 @@ export default function ProfileView({
   }
 
   return (
-    <div style={styles.page}>
+    <div style={styles.page} className="profile-page">
       <div style={styles.glowOne} />
       <div style={styles.glowTwo} />
 
-      <div style={styles.container}>
-        <header style={styles.header}>
+      <div style={styles.container} className="profile-container">
+        <header style={styles.header} className="profile-header">
           <div>
             <div style={styles.eyebrowRow}>
               <span style={styles.statusDot} />
@@ -59,7 +59,7 @@ export default function ProfileView({
             </p>
           </div>
 
-          <div style={styles.accountStatus}>
+          <div style={styles.accountStatus} className="profile-account-status">
             <span style={styles.accountStatusLabel}>ESTADO DE LA CUENTA</span>
 
             <div style={styles.accountStatusValue}>
@@ -69,17 +69,17 @@ export default function ProfileView({
           </div>
         </header>
 
-        <section style={styles.profileCard}>
-          <div style={styles.profileIdentity}>
+        <section style={styles.profileCard} className="profile-main-card">
+          <div style={styles.profileIdentity} className="profile-identity">
             <div style={styles.avatarOuter}>
-              <div style={styles.avatar}>{inicial}</div>
+              <div style={styles.avatar} className="profile-avatar">{inicial}</div>
               <span style={styles.avatarStatus} />
             </div>
 
-            <div style={styles.identityContent}>
+            <div style={styles.identityContent} className="profile-identity-content">
               <span style={styles.profileLabel}>USUARIO TRANSTECH EOS</span>
 
-              <h2 style={styles.profileName}>{nombre || "Usuario"}</h2>
+              <h2 style={styles.profileName} className="profile-name">{nombre || "Usuario"}</h2>
 
               <div style={styles.profileTags}>
                 <span style={styles.planTag}>
@@ -94,8 +94,8 @@ export default function ProfileView({
             </div>
           </div>
 
-          <div style={styles.userIdCard}>
-            <div style={styles.userIdHeader}>
+          <div style={styles.userIdCard} className="profile-user-id-card">
+            <div style={styles.userIdHeader} className="profile-user-id-header">
               <div>
                 <span style={styles.userIdLabel}>IDENTIFICADOR DE USUARIO</span>
                 <p style={styles.userIdDescription}>
@@ -116,11 +116,11 @@ export default function ProfileView({
               </button>
             </div>
 
-            <code style={styles.userIdValue}>{idVisible}</code>
+            <code style={styles.userIdValue} className="profile-user-id-value">{idVisible}</code>
           </div>
         </section>
 
-        <section style={styles.metricsGrid}>
+        <section style={styles.metricsGrid} className="profile-metrics-grid">
           <MetricCard
             icon="◫"
             label="Conversaciones"
@@ -143,8 +143,8 @@ export default function ProfileView({
           />
         </section>
 
-        <div style={styles.contentGrid}>
-          <section style={styles.card}>
+        <div style={styles.contentGrid} className="profile-content-grid">
+          <section style={styles.card} className="profile-section-card">
             <div style={styles.cardHeader}>
               <div>
                 <span style={styles.sectionEyebrow}>CAPACIDADES</span>
@@ -154,7 +154,7 @@ export default function ProfileView({
               <span style={styles.featureCount}>6 activas</span>
             </div>
 
-            <div style={styles.featuresGrid}>
+            <div style={styles.featuresGrid} className="profile-features-grid">
               <Feature
                 title="Asesor EOS"
                 description="Conversaciones inteligentes y análisis contextual."
@@ -187,7 +187,7 @@ export default function ProfileView({
             </div>
           </section>
 
-          <section style={styles.card}>
+          <section style={styles.card} className="profile-section-card">
             <div style={styles.cardHeader}>
               <div>
                 <span style={styles.sectionEyebrow}>CUENTA</span>
@@ -237,7 +237,7 @@ export default function ProfileView({
           </section>
         </div>
 
-        <footer style={styles.footer}>
+        <footer style={styles.footer} className="profile-footer">
           <span style={styles.footerDot} />
 
           <span>
@@ -245,6 +245,171 @@ export default function ProfileView({
           </span>
         </footer>
       </div>
+
+      <style jsx global>{`
+        @media (max-width: 760px) {
+          .profile-page {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 28px 14px calc(46px + env(safe-area-inset-bottom)) !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+
+          .profile-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+
+          .profile-header {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            align-items: stretch !important;
+            gap: 18px !important;
+            margin-bottom: 18px !important;
+          }
+
+          .profile-account-status {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .profile-main-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 18px !important;
+            padding: 18px !important;
+          }
+
+          .profile-identity {
+            width: 100% !important;
+            min-width: 0 !important;
+            align-items: center !important;
+            gap: 15px !important;
+          }
+
+          .profile-avatar {
+            width: 68px !important;
+            height: 68px !important;
+            border-radius: 21px !important;
+            font-size: 27px !important;
+          }
+
+          .profile-identity-content {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .profile-name {
+            max-width: 100% !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            font-size: 24px !important;
+            line-height: 1.12 !important;
+          }
+
+          .profile-user-id-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            padding: 15px !important;
+          }
+
+          .profile-user-id-header {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+
+          .profile-user-id-header button {
+            width: 100% !important;
+            min-height: 42px !important;
+          }
+
+          .profile-user-id-value {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            overflow-x: auto !important;
+            text-overflow: clip !important;
+            -webkit-overflow-scrolling: touch !important;
+          }
+
+          .profile-metrics-grid {
+            width: 100% !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 12px !important;
+          }
+
+          .profile-metric-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .profile-content-grid {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 14px !important;
+          }
+
+          .profile-section-card {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            padding: 18px !important;
+          }
+
+          .profile-features-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          .profile-feature {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          .profile-account-row {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .profile-footer {
+            padding: 0 6px !important;
+            line-height: 1.55 !important;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .profile-page {
+            padding-left: 11px !important;
+            padding-right: 11px !important;
+          }
+
+          .profile-main-card,
+          .profile-section-card {
+            padding: 15px !important;
+          }
+
+          .profile-identity {
+            align-items: flex-start !important;
+          }
+
+          .profile-name {
+            font-size: 22px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -261,7 +426,7 @@ function MetricCard({
   description: string;
 }) {
   return (
-    <article style={styles.metricCard}>
+    <article style={styles.metricCard} className="profile-metric-card">
       <div style={styles.metricIcon}>{icon}</div>
 
       <div style={styles.metricContent}>
@@ -281,7 +446,7 @@ function Feature({
   description: string;
 }) {
   return (
-    <div style={styles.feature}>
+    <div style={styles.feature} className="profile-feature">
       <div style={styles.featureCheck}>✓</div>
 
       <div>
@@ -302,7 +467,7 @@ function AccountRow({
   indicator?: boolean;
 }) {
   return (
-    <div style={styles.accountRow}>
+    <div style={styles.accountRow} className="profile-account-row">
       <span style={styles.accountRowLabel}>{label}</span>
 
       <span style={styles.accountRowValue}>
