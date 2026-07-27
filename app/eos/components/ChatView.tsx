@@ -249,15 +249,21 @@ export default function ChatView({
 
       <style jsx>{`
         .eos-chat-scroll {
-          position: relative;
-          flex: 1;
-          min-height: 0;
-          overflow-x: hidden;
-          overflow-y: auto;
-          background: #f7faff;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
-        }
+  position: relative;
+  flex: 1;
+  min-height: 0;
+
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+
+  background: #f7faff;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.32) transparent;
+}
 
         .eos-chat-scroll::-webkit-scrollbar {
           width: 7px;
@@ -644,8 +650,10 @@ export default function ChatView({
           }
 
           .eos-welcome {
-            min-height: calc(100vh - 260px);
-          }
+  min-height: auto;
+  justify-content: flex-start;
+  padding-top: 70px;
+}
 
           .eos-welcome-title {
             font-size: clamp(34px, 10vw, 48px);

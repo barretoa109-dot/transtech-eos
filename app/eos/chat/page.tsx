@@ -324,11 +324,14 @@ export default function EOSPage() {
         }
 
         .eos-content {
-          position: relative;
-          min-width: 0;
-          height: 100dvh;
-          display: flex;
-          flex-direction: column;
+    position: relative;
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    min-height: 0;
+    height: 100%;
           background:
             radial-gradient(
               circle at 85% 10%,
@@ -344,13 +347,18 @@ export default function EOSPage() {
         }
 
         .eos-view-container {
-          position: relative;
-          flex: 1;
-          min-width: 0;
-          overflow-x: hidden;
-          scrollbar-width: thin;
-          scrollbar-color: #1d4ed8 transparent;
-        }
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #1d4ed8 transparent;
+}
 
         .eos-mobile-sidebar,
         .eos-mobile-overlay,
@@ -452,9 +460,10 @@ export default function EOSPage() {
           }
 
           .eos-content {
-            width: 100%;
-            height: 100dvh;
-          }
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
 
           .eos-mobile-menu-button {
             position: fixed;
