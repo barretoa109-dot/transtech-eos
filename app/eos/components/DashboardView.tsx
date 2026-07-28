@@ -24,7 +24,7 @@ type DashboardViewProps = {
   ultimoChat?: string | null;
 
   // Compatibilidad con la versión anterior
-  userName?: string;
+  userName: string;
   totalConversations?: number;
   totalMessages?: number;
   activeObjectives?: number;
@@ -53,7 +53,7 @@ export default function DashboardView({
   mensajes,
   plan = "free",
   ultimoChat,
-  userName = "Usuario",
+  userName,
   totalConversations,
   totalMessages,
   activeObjectives = 0,

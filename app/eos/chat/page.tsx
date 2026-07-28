@@ -23,6 +23,7 @@ export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
   const [usuarioId, setUsuarioId] = useState("");
+  const [usuarioCargado, setUsuarioCargado] = useState(false);
   const [vista, setVista] = useState<VistaEOS>("chat");
   const [busqueda, setBusqueda] = useState("");
 
@@ -125,8 +126,9 @@ export default function EOSPage() {
     setUsuarioId(user.id);
     setNombre(nombreUsuario);
     setPlan(planUsuario);
+    setUsuarioCargado(true);
 
-    await cargarBriefing(user.id);
+await cargarBriefing(user.id);
     await cargarConversaciones(user.id, nombreUsuario);
   }
 
@@ -282,15 +284,17 @@ export default function EOSPage() {
             <BriefingView briefing={briefingVisible} />
           )}
 
-          {vista === "dashboard" && (
-            <DashboardView
-              score={briefingVisible.score || 0}
-              conversaciones={conversaciones.length}
-              mensajes={historial.length}
-              plan={plan}
-              ultimoChat={conversaciones[0]?.titulo}
-            />
-          )}
+          {vista === "dashboard" && usuarioCargado && (
+  <DashboardView
+    key={`${usuarioId}-${nombre}`}
+    userName={nombre}
+    plan={plan}
+    totalConversations={conversaciones.length}
+    totalMessages={historial.length}
+    eosScore={briefingVisible.score || 0}
+    onOpenChat={() => setVista("chat")}
+  />
+)}
 
           {vista === "perfil" && (
             <ProfileView
