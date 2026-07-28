@@ -53,7 +53,7 @@ export default function DashboardView({
   mensajes,
   plan = "free",
   ultimoChat,
-  userName = "Augusto",
+  userName = "Usuario",
   totalConversations,
   totalMessages,
   activeObjectives = 0,
