@@ -299,8 +299,7 @@ export default function PagoCheckout() {
               <span className="eyebrow">PASO 1 DE 2</span>
               <h1>Confirmá tu suscripción.</h1>
               <p className="intro">
-                Completá tus datos. Después te mostraremos el QR y la cuenta de
-                TRANSTECH E.A.S. para realizar la transferencia.
+                Completá tus datos. Después te mostraremos los datos bancarios de TRANSTECH E.A.S. para realizar la transferencia.
               </p>
 
               <form onSubmit={crearPedido}>
@@ -1089,7 +1088,7 @@ function Resumen({
       </div>
       <p>Facturación {periodicidad === "anual" ? "anual" : "mensual"}</p>
       <ul>
-        <li><Check size={14} /> Precio validado en Supabase</li>
+        <li><Check size={14} /> Precio validado en la plataforma</li>
         <li><Building2 size={14} /> Transferencia a cuenta empresarial</li>
         <li><ShieldCheck size={14} /> Activación posterior a la verificación</li>
       </ul>
