@@ -299,7 +299,7 @@ export default function PagoCheckout() {
               <span className="eyebrow">PASO 1 DE 2</span>
               <h1>Confirmá tu suscripción.</h1>
               <p className="intro">
-                Completá tus datos. Después te mostraremos el QR y la cuenta de
+                Completá tus datos. Después te mostraremos los datos bancarios de
                 TRANSTECH E.A.S. para realizar la transferencia.
               </p>
 
@@ -654,9 +654,10 @@ export default function PagoCheckout() {
         .summary-card {
           position: sticky;
           top: 28px;
+          align-self: start;
           padding: 30px;
           border: 1px solid rgba(148, 163, 184, 0.22);
-          border-radius: 28px;
+          border-radius: 29px;
           background: rgba(255, 255, 255, 0.97);
           color: #071226;
           box-shadow:
@@ -664,19 +665,86 @@ export default function PagoCheckout() {
             inset 0 1px 0 rgba(255, 255, 255, 0.96);
         }
 
-        .summary-heading {
+        .transfer-layout {
+          max-width: 880px;
+          margin: 58px auto 0;
+        }
+
+        h1 {
+          margin: 9px 0 0;
+          font-size: clamp(34px, 5vw, 48px);
+          font-weight: 950;
+          letter-spacing: -0.05em;
+        }
+
+        .intro {
+          color: #64748b;
+          font-size: 13px;
+          line-height: 1.7;
+        }
+
+        .fields-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          margin-top: 25px;
+        }
+
+        label {
+          display: grid;
+          gap: 7px;
+        }
+
+        label span {
+          font-size: 9px;
+          font-weight: 850;
+        }
+
+        input {
+          min-height: 48px;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 0 13px;
+          border: 1px solid #dbe5f2;
+          border-radius: 13px;
+          background: #f8fafc;
+          color: #071226;
+        }
+
+        .pay-button {
+          width: 100%;
+          min-height: 50px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          margin-top: 20px;
+          border: 0;
+          border-radius: 14px;
+          background: #2563eb;
+          color: white;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .pay-button:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .summary-header {
           display: flex;
           align-items: center;
           gap: 13px;
         }
 
-        .summary-heading-icon {
-          width: 46px;
-          height: 46px;
+        .summary-header-icon {
+          width: 47px;
+          height: 47px;
           flex-shrink: 0;
           display: grid;
           place-items: center;
-          border-radius: 14px;
+          border-radius: 15px;
           background: #eff6ff;
           color: #2563eb;
         }
@@ -689,7 +757,7 @@ export default function PagoCheckout() {
         .summary-card h2 {
           margin: 6px 0 0;
           color: #071226;
-          font-size: 27px;
+          font-size: 28px;
           font-weight: 950;
           letter-spacing: -0.04em;
         }
@@ -709,8 +777,9 @@ export default function PagoCheckout() {
 
         .summary-price strong {
           color: #2563eb;
-          font-size: clamp(34px, 4.2vw, 46px);
+          font-size: clamp(37px, 4.5vw, 48px);
           font-weight: 950;
+          line-height: 1;
           letter-spacing: -0.05em;
         }
 
@@ -722,13 +791,13 @@ export default function PagoCheckout() {
 
         .summary-divider {
           height: 1px;
-          margin: 24px 0 20px;
+          margin: 25px 0 18px;
           background: #e2e8f0;
         }
 
         .summary-benefits {
           display: grid;
-          gap: 12px;
+          gap: 0;
           margin: 0;
           padding: 0;
           list-style: none;
@@ -738,8 +807,8 @@ export default function PagoCheckout() {
           display: grid;
           grid-template-columns: auto minmax(0, 1fr);
           align-items: start;
-          gap: 11px;
-          padding: 13px 0;
+          gap: 12px;
+          padding: 14px 0;
           border-bottom: 1px solid #eef2f7;
         }
 
@@ -747,17 +816,17 @@ export default function PagoCheckout() {
           border-bottom: 0;
         }
 
-        .benefit-icon {
-          width: 32px;
-          height: 32px;
+        .summary-benefit-icon {
+          width: 34px;
+          height: 34px;
           display: grid;
           place-items: center;
-          border-radius: 10px;
+          border-radius: 11px;
           background: #eff6ff;
           color: #2563eb;
         }
 
-        .benefit-icon.success {
+        .summary-benefit-icon.success {
           background: #ecfdf5;
           color: #16a34a;
         }
@@ -779,25 +848,25 @@ export default function PagoCheckout() {
           line-height: 1.5;
         }
 
-        .summary-support {
+        .summary-help {
           display: grid;
           grid-template-columns: auto minmax(0, 1fr);
           gap: 13px;
           margin-top: 22px;
-          padding: 16px;
+          padding: 17px;
           border: 1px solid #bfdbfe;
           border-radius: 18px;
           background:
             linear-gradient(
               180deg,
-              rgba(239, 246, 255, 0.94),
+              rgba(239, 246, 255, 0.95),
               rgba(248, 250, 252, 0.98)
             );
         }
 
-        .summary-support-icon {
-          width: 45px;
-          height: 45px;
+        .summary-help-icon {
+          width: 46px;
+          height: 46px;
           display: grid;
           place-items: center;
           border-radius: 14px;
@@ -806,24 +875,24 @@ export default function PagoCheckout() {
           box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
         }
 
-        .summary-support > div {
+        .summary-help > div {
           min-width: 0;
           display: grid;
           gap: 5px;
         }
 
-        .summary-support strong {
+        .summary-help strong {
           color: #071226;
           font-size: 14px;
           font-weight: 900;
         }
 
-        .summary-support span {
+        .summary-help span {
           color: #64748b;
           font-size: 10px;
         }
 
-        .summary-support a {
+        .summary-help a {
           display: inline-flex;
           align-items: center;
           gap: 7px;
@@ -835,11 +904,11 @@ export default function PagoCheckout() {
           overflow-wrap: anywhere;
         }
 
-        .summary-support a:hover {
+        .summary-help a:hover {
           text-decoration: underline;
         }
 
-        .summary-support small {
+        .summary-help small {
           color: #64748b;
           font-size: 9px;
           line-height: 1.45;
@@ -1173,9 +1242,9 @@ function Resumen({
 }) {
   return (
     <aside className="summary-card">
-      <div className="summary-heading">
-        <span className="summary-heading-icon">
-          <Clipboard size={18} />
+      <div className="summary-header">
+        <span className="summary-header-icon">
+          <Clipboard size={19} />
         </span>
 
         <div>
@@ -1199,48 +1268,42 @@ function Resumen({
 
       <ul className="summary-benefits">
         <li>
-          <span className="benefit-icon success">
-            <Check size={15} />
+          <span className="summary-benefit-icon success">
+            <Check size={16} />
           </span>
 
           <div>
             <strong>Precio validado en la plataforma</strong>
-            <small>
-              El importe corresponde al plan seleccionado.
-            </small>
+            <small>El importe corresponde al plan seleccionado.</small>
           </div>
         </li>
 
         <li>
-          <span className="benefit-icon">
-            <Building2 size={15} />
+          <span className="summary-benefit-icon">
+            <Building2 size={16} />
           </span>
 
           <div>
             <strong>Transferencia a cuenta empresarial</strong>
-            <small>
-              El pago se realiza a nombre de TRANSTECH E.A.S.
-            </small>
+            <small>El pago se realiza a nombre de TRANSTECH E.A.S.</small>
           </div>
         </li>
 
         <li>
-          <span className="benefit-icon">
-            <ShieldCheck size={15} />
+          <span className="summary-benefit-icon">
+            <ShieldCheck size={16} />
           </span>
 
           <div>
             <strong>Activación posterior a la verificación</strong>
-            <small>
-              Tu plan se habilita luego de confirmar el ingreso.
-            </small>
+            <small>Tu plan se habilita luego de confirmar el ingreso.</small>
           </div>
         </li>
       </ul>
 
-      <div className="summary-support">
-        <span className="summary-support-icon">
-          <Headphones size={20} />
+      <div className="summary-help">
+        <span className="summary-help-icon">
+          <Headphones size={21} />
         </span>
 
         <div>
