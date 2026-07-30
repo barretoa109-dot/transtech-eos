@@ -299,7 +299,8 @@ export default function PagoCheckout() {
               <span className="eyebrow">PASO 1 DE 2</span>
               <h1>Confirmá tu suscripción.</h1>
               <p className="intro">
-                Completá tus datos. Después te mostraremos los datos bancarios de TRANSTECH E.A.S. para realizar la transferencia.
+                Completá tus datos. Después te mostraremos el QR y la cuenta de
+                TRANSTECH E.A.S. para realizar la transferencia.
               </p>
 
               <form onSubmit={crearPedido}>
@@ -651,106 +652,197 @@ export default function PagoCheckout() {
         }
 
         .summary-card {
-          padding: 31px;
-          background: linear-gradient(180deg, #071226 0%, #0b1a35 100%);
-          color: white;
+          position: sticky;
+          top: 28px;
+          padding: 30px;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 28px;
+          background: rgba(255, 255, 255, 0.97);
+          color: #071226;
+          box-shadow:
+            0 24px 70px rgba(15, 23, 42, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.96);
         }
 
-        .transfer-layout {
-          max-width: 880px;
-          margin: 58px auto 0;
+        .summary-heading {
+          display: flex;
+          align-items: center;
+          gap: 13px;
         }
 
-        h1 {
-          margin: 9px 0 0;
-          font-size: clamp(34px, 5vw, 48px);
+        .summary-heading-icon {
+          width: 46px;
+          height: 46px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .summary-card .eyebrow {
+          display: block;
+          color: #2563eb;
+        }
+
+        .summary-card h2 {
+          margin: 6px 0 0;
+          color: #071226;
+          font-size: 27px;
+          font-weight: 950;
+          letter-spacing: -0.04em;
+        }
+
+        .summary-description {
+          margin: 20px 0 0;
+          color: #475569;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+
+        .summary-price {
+          display: grid;
+          gap: 6px;
+          margin-top: 24px;
+        }
+
+        .summary-price strong {
+          color: #2563eb;
+          font-size: clamp(34px, 4.2vw, 46px);
           font-weight: 950;
           letter-spacing: -0.05em;
         }
 
-        .intro {
+        .summary-price span {
           color: #64748b;
-          font-size: 13px;
-          line-height: 1.7;
+          font-size: 14px;
+          font-weight: 750;
         }
 
-        .fields-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 14px;
-          margin-top: 25px;
+        .summary-divider {
+          height: 1px;
+          margin: 24px 0 20px;
+          background: #e2e8f0;
         }
 
-        label {
-          display: grid;
-          gap: 7px;
-        }
-
-        label span {
-          font-size: 9px;
-          font-weight: 850;
-        }
-
-        input {
-          min-height: 48px;
-          width: 100%;
-          box-sizing: border-box;
-          padding: 0 13px;
-          border: 1px solid #dbe5f2;
-          border-radius: 13px;
-          background: #f8fafc;
-          color: #071226;
-        }
-
-        .pay-button {
-          width: 100%;
-          min-height: 50px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 9px;
-          margin-top: 20px;
-          border: 0;
-          border-radius: 14px;
-          background: #2563eb;
-          color: white;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
-        .pay-button:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .summary-card h2 {
-          margin: 13px 0 0;
-          font-size: 29px;
-        }
-
-        .summary-card p,
-        .summary-card li {
-          color: #bfdbfe;
-          font-size: 10px;
-          line-height: 1.6;
-        }
-
-        .price strong {
-          display: inline-block;
-          margin-top: 20px;
-          font-size: 33px;
-        }
-
-        .summary-card ul {
+        .summary-benefits {
           display: grid;
           gap: 12px;
+          margin: 0;
           padding: 0;
           list-style: none;
         }
 
-        .summary-card li {
-          display: flex;
-          gap: 8px;
+        .summary-benefits li {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: start;
+          gap: 11px;
+          padding: 13px 0;
+          border-bottom: 1px solid #eef2f7;
+        }
+
+        .summary-benefits li:last-child {
+          border-bottom: 0;
+        }
+
+        .benefit-icon {
+          width: 32px;
+          height: 32px;
+          display: grid;
+          place-items: center;
+          border-radius: 10px;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .benefit-icon.success {
+          background: #ecfdf5;
+          color: #16a34a;
+        }
+
+        .summary-benefits li > div {
+          display: grid;
+          gap: 4px;
+        }
+
+        .summary-benefits strong {
+          color: #0f172a;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+
+        .summary-benefits small {
+          color: #64748b;
+          font-size: 10px;
+          line-height: 1.5;
+        }
+
+        .summary-support {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 13px;
+          margin-top: 22px;
+          padding: 16px;
+          border: 1px solid #bfdbfe;
+          border-radius: 18px;
+          background:
+            linear-gradient(
+              180deg,
+              rgba(239, 246, 255, 0.94),
+              rgba(248, 250, 252, 0.98)
+            );
+        }
+
+        .summary-support-icon {
+          width: 45px;
+          height: 45px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: white;
+          color: #2563eb;
+          box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
+        }
+
+        .summary-support > div {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .summary-support strong {
+          color: #071226;
+          font-size: 14px;
+          font-weight: 900;
+        }
+
+        .summary-support span {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .summary-support a {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          width: fit-content;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 900;
+          text-decoration: none;
+          overflow-wrap: anywhere;
+        }
+
+        .summary-support a:hover {
+          text-decoration: underline;
+        }
+
+        .summary-support small {
+          color: #64748b;
+          font-size: 9px;
+          line-height: 1.45;
         }
 
         .reference {
@@ -1015,6 +1107,7 @@ export default function PagoCheckout() {
           }
 
           .summary-card {
+            position: static;
             order: -1;
           }
         }
@@ -1080,18 +1173,90 @@ function Resumen({
 }) {
   return (
     <aside className="summary-card">
-      <span className="eyebrow">RESUMEN DEL PEDIDO</span>
-      <h2>{plan?.nombre || `EOS ${planCodigo}`}</h2>
-      <p>{plan?.descripcion || "Suscripción a TransTech EOS."}</p>
-      <div className="price">
-        <strong>Gs. {montoFormateado}</strong>
+      <div className="summary-heading">
+        <span className="summary-heading-icon">
+          <Clipboard size={18} />
+        </span>
+
+        <div>
+          <span className="eyebrow">RESUMEN DEL PEDIDO</span>
+          <h2>{plan?.nombre || `EOS ${planCodigo}`}</h2>
+        </div>
       </div>
-      <p>Facturación {periodicidad === "anual" ? "anual" : "mensual"}</p>
-      <ul>
-        <li><Check size={14} /> Precio validado en la plataforma</li>
-        <li><Building2 size={14} /> Transferencia a cuenta empresarial</li>
-        <li><ShieldCheck size={14} /> Activación posterior a la verificación</li>
+
+      <p className="summary-description">
+        {plan?.descripcion || "Suscripción a TransTech EOS."}
+      </p>
+
+      <div className="summary-price">
+        <strong>Gs. {montoFormateado}</strong>
+        <span>
+          Facturación {periodicidad === "anual" ? "anual" : "mensual"}
+        </span>
+      </div>
+
+      <div className="summary-divider" />
+
+      <ul className="summary-benefits">
+        <li>
+          <span className="benefit-icon success">
+            <Check size={15} />
+          </span>
+
+          <div>
+            <strong>Precio validado en la plataforma</strong>
+            <small>
+              El importe corresponde al plan seleccionado.
+            </small>
+          </div>
+        </li>
+
+        <li>
+          <span className="benefit-icon">
+            <Building2 size={15} />
+          </span>
+
+          <div>
+            <strong>Transferencia a cuenta empresarial</strong>
+            <small>
+              El pago se realiza a nombre de TRANSTECH E.A.S.
+            </small>
+          </div>
+        </li>
+
+        <li>
+          <span className="benefit-icon">
+            <ShieldCheck size={15} />
+          </span>
+
+          <div>
+            <strong>Activación posterior a la verificación</strong>
+            <small>
+              Tu plan se habilita luego de confirmar el ingreso.
+            </small>
+          </div>
+        </li>
       </ul>
+
+      <div className="summary-support">
+        <span className="summary-support-icon">
+          <Headphones size={20} />
+        </span>
+
+        <div>
+          <strong>¿Necesitás ayuda?</strong>
+          <span>Contactá con nuestro equipo de soporte.</span>
+
+          <a href="mailto:soporte@transtech.com.py?subject=Ayuda con pago de TransTech EOS">
+            <Mail size={15} />
+            soporte@transtech.com.py
+          </a>
+
+          <small>
+            Respondemos normalmente en menos de 24 horas hábiles.
+          </small>
+        </div>
+      </div>
     </aside>
   );
 }
