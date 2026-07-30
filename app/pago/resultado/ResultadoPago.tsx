@@ -2,408 +2,200 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  Clock3,
-  Loader2,
-  ShieldCheck,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, ShieldCheck, XCircle } from "lucide-react";
 
-type EstadoVista =
-  | "cargando"
-  | "pagado"
-  | "pendiente"
-  | "cancelado"
-  | "error";
+type Estado = "cargando" | "revision" | "pagado" | "rechazado" | "error";
 
-type RespuestaConsulta = {
-  ok?: boolean;
-  error?: string;
-  solicitud?: {
-    plan_codigo?: string;
-    periodicidad?: string;
-    monto?: number;
-    estado?: string;
-    pagado_at?: string | null;
-  };
-  pagopar?: {
-    pagado?: boolean;
-    cancelado?: boolean;
-    mensaje_resultado_pago?: {
-      titulo?: string;
-      descripcion?: string;
-    };
-    forma_pago?: string;
-    fecha_pago?: string;
-  } | null;
+type Solicitud = {
+  plan_codigo?: string;
+  periodicidad?: string;
+  monto?: number;
+  estado?: string;
+  referencia_interna?: string;
 };
 
 export default function ResultadoPago() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const params = useSearchParams();
+  const solicitudId = params.get("solicitud") || "";
 
-  const hash =
-    searchParams.get("hash") ||
-    searchParams.get("h") ||
-    "";
-
-  const [estado, setEstado] =
-    useState<EstadoVista>("cargando");
-
-  const [mensaje, setMensaje] = useState(
-    "Estamos consultando el estado real del pedido.",
-  );
-
-  const [detalle, setDetalle] =
-    useState<RespuestaConsulta | null>(null);
+  const [estado, setEstado] = useState<Estado>("cargando");
+  const [mensaje, setMensaje] = useState("Estamos consultando tu solicitud.");
+  const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
 
   useEffect(() => {
     let activo = true;
 
-    async function consultarPago() {
-      if (!hash) {
+    async function consultar() {
+      if (!solicitudId) {
         setEstado("error");
-        setMensaje(
-          "No recibimos el identificador del pedido.",
-        );
+        setMensaje("No recibimos el identificador de la solicitud.");
         return;
       }
 
       try {
-        const respuesta = await fetch(
-          "/api/pagos/consultar",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ hash }),
-          },
-        );
+        const respuesta = await fetch("/api/pagos/consultar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ solicitud_id: solicitudId }),
+        });
 
-        const resultado =
-          (await respuesta
-            .json()
-            .catch(() => null)) as RespuestaConsulta | null;
+        const resultado = await respuesta.json().catch(() => null);
 
         if (!respuesta.ok) {
-          throw new Error(
-            resultado?.error ||
-              "No pudimos verificar el pago.",
-          );
+          throw new Error(resultado?.error || "No pudimos consultar el pedido.");
         }
 
         if (!activo) return;
 
-        setDetalle(resultado);
+        setSolicitud(resultado.solicitud);
 
-        const pagado =
-          resultado?.pagopar?.pagado === true ||
-          resultado?.solicitud?.estado === "pagado";
+        const valor = resultado.solicitud?.estado;
 
-        const cancelado =
-          resultado?.pagopar?.cancelado === true ||
-          resultado?.solicitud?.estado === "cancelado" ||
-          resultado?.solicitud?.estado === "vencido";
-
-        if (pagado) {
+        if (valor === "pagado") {
           setEstado("pagado");
+          setMensaje("El pago fue aprobado y tu plan de TransTech EOS ya está activo.");
+        } else if (valor === "rechazado" || valor === "cancelado") {
+          setEstado("rechazado");
+          setMensaje("El comprobante no pudo ser aprobado. Contactá con TransTech.");
+        } else {
+          setEstado("revision");
           setMensaje(
-            "El pago fue confirmado y tu plan de TransTech EOS ya está activo.",
+            "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan.",
           );
-          return;
         }
-
-        if (cancelado) {
-          setEstado("cancelado");
-          setMensaje(
-            resultado?.pagopar?.mensaje_resultado_pago
-              ?.titulo ||
-              "El pedido fue cancelado o ya no está disponible.",
-          );
-          return;
-        }
-
-        setEstado("pendiente");
-        setMensaje(
-          resultado?.pagopar?.mensaje_resultado_pago
-            ?.titulo ||
-            "El pedido todavía está pendiente de confirmación.",
-        );
       } catch (error) {
         if (!activo) return;
-
         setEstado("error");
         setMensaje(
-          error instanceof Error
-            ? error.message
-            : "No pudimos verificar el pago.",
+          error instanceof Error ? error.message : "No pudimos consultar el pedido.",
         );
       }
     }
 
-    consultarPago();
+    consultar();
+    return () => { activo = false; };
+  }, [solicitudId]);
 
-    return () => {
-      activo = false;
-    };
-  }, [hash]);
+  const monto =
+    solicitud?.monto !== undefined
+      ? new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
+          solicitud.monto,
+        )
+      : null;
 
   const icono =
     estado === "cargando" ? (
-      <Loader2 className="spin" size={45} />
+      <Loader2 className="spin" size={48} />
     ) : estado === "pagado" ? (
-      <CheckCircle2 size={52} />
-    ) : estado === "pendiente" ? (
-      <Clock3 size={52} />
+      <CheckCircle2 size={54} />
+    ) : estado === "revision" ? (
+      <Clock3 size={54} />
     ) : (
-      <XCircle size={52} />
+      <XCircle size={54} />
     );
 
   const titulo =
     estado === "cargando"
-      ? "Verificando el pago"
+      ? "Consultando solicitud"
       : estado === "pagado"
         ? "Suscripción activada"
-        : estado === "pendiente"
-          ? "Pago pendiente"
-          : estado === "cancelado"
-            ? "Pedido cancelado"
-            : "No pudimos verificar el pago";
-
-  const monto =
-    detalle?.solicitud?.monto !== undefined
-      ? new Intl.NumberFormat("es-PY", {
-          maximumFractionDigits: 0,
-        }).format(detalle.solicitud.monto)
-      : null;
+        : estado === "revision"
+          ? "Comprobante recibido"
+          : "No pudimos confirmar la solicitud";
 
   return (
-    <main className="result-page">
-      <div className="result-grid" />
-
-      <section className={`result-card ${estado}`}>
-        <div className="result-icon">{icono}</div>
-
-        <span className="brand-label">
-          TRANSTECH EOS
-        </span>
-
+    <main className="page">
+      <section className={`card ${estado}`}>
+        <div className="icon">{icono}</div>
+        <span className="brand">TRANSTECH EOS</span>
         <h1>{titulo}</h1>
+        <p>{mensaje}</p>
 
-        <p className="message">{mensaje}</p>
-
-        {detalle?.solicitud && (
-          <div className="payment-detail">
-            <div>
-              <span>Plan</span>
-              <strong>
-                EOS{" "}
-                {capitalizar(
-                  detalle.solicitud.plan_codigo ||
-                    "",
-                )}
-              </strong>
-            </div>
-
-            <div>
-              <span>Facturación</span>
-              <strong>
-                {capitalizar(
-                  detalle.solicitud.periodicidad ||
-                    "",
-                )}
-              </strong>
-            </div>
-
-            {monto && (
-              <div>
-                <span>Monto</span>
-                <strong>Gs. {monto}</strong>
-              </div>
-            )}
-
-            <div>
-              <span>Estado</span>
-              <strong>
-                {capitalizar(
-                  detalle.solicitud.estado ||
-                    "pendiente",
-                )}
-              </strong>
-            </div>
+        {solicitud && (
+          <div className="detail">
+            <div><span>Plan</span><strong>EOS {solicitud.plan_codigo}</strong></div>
+            <div><span>Facturación</span><strong>{solicitud.periodicidad}</strong></div>
+            {monto && <div><span>Monto</span><strong>Gs. {monto}</strong></div>}
+            <div><span>Referencia</span><strong>{solicitud.referencia_interna}</strong></div>
           </div>
         )}
 
         <div className="security">
           <ShieldCheck size={18} />
-
-          <span>
-            El resultado se consulta directamente en
-            PagoPar y en tu registro de TransTech EOS.
-          </span>
+          <span>La activación se realiza solamente después de verificar el ingreso bancario.</span>
         </div>
 
         <div className="actions">
-          <button
-            type="button"
-            onClick={() => router.push("/eos/chat")}
-          >
-            Ir a EOS
-          </button>
-
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => router.push("/planes")}
-          >
-            Ver planes
-          </button>
+          <button onClick={() => router.push("/eos/chat")}>Ir a EOS</button>
+          <button className="secondary" onClick={() => router.push("/planes")}>Ver planes</button>
         </div>
       </section>
 
       <style jsx>{`
-        .result-page {
-          position: relative;
+        .page {
           min-height: 100vh;
           display: grid;
           place-items: center;
-          overflow: hidden;
           padding: 22px;
-          background:
-            linear-gradient(
-              180deg,
-              #ffffff 0%,
-              #f5f9ff 52%,
-              #edf4ff 100%
-            );
+          background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 52%, #edf4ff 100%);
           color: #071226;
-          font-family:
-            Inter, Arial, Helvetica, sans-serif;
+          font-family: Inter, Arial, sans-serif;
         }
-
-        .result-grid {
-          position: fixed;
-          inset: 0;
-          opacity: 0.35;
-          pointer-events: none;
-          background-image:
-            linear-gradient(
-              rgba(15, 23, 42, 0.035) 1px,
-              transparent 1px
-            ),
-            linear-gradient(
-              90deg,
-              rgba(15, 23, 42, 0.035) 1px,
-              transparent 1px
-            );
-          background-size: 44px 44px;
-        }
-
-        .result-card {
-          position: relative;
-          z-index: 1;
+        .card {
           width: min(590px, 100%);
           padding: 42px;
           border: 1px solid #dbe5f2;
           border-radius: 31px;
-          background: rgba(255, 255, 255, 0.97);
+          background: white;
           text-align: center;
-          box-shadow:
-            0 30px 90px rgba(15, 23, 42, 0.12),
-            inset 0 1px 0 rgba(255, 255, 255, 0.96);
+          box-shadow: 0 30px 90px rgba(15, 23, 42, 0.12);
         }
-
-        .result-icon {
-          display: grid;
-          place-items: center;
-          color: #2563eb;
-        }
-
-        .pagado .result-icon {
-          color: #16a34a;
-        }
-
-        .cancelado .result-icon,
-        .error .result-icon {
-          color: #dc2626;
-        }
-
-        .brand-label {
+        .icon { color: #2563eb; }
+        .pagado .icon { color: #16a34a; }
+        .rechazado .icon, .error .icon { color: #dc2626; }
+        .brand {
           display: block;
-          margin-top: 21px;
+          margin-top: 20px;
           color: #2563eb;
           font-size: 9px;
           font-weight: 950;
           letter-spacing: 0.17em;
         }
-
         h1 {
           margin: 12px 0 0;
           font-size: clamp(34px, 7vw, 48px);
-          font-weight: 950;
           letter-spacing: -0.05em;
         }
-
-        .message {
-          max-width: 470px;
-          margin: 16px auto 0;
-          color: #64748b;
-          font-size: 13px;
-          line-height: 1.7;
-        }
-
-        .payment-detail {
+        p { color: #64748b; font-size: 13px; line-height: 1.7; }
+        .detail {
           display: grid;
-          grid-template-columns:
-            repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
-          margin-top: 27px;
+          margin-top: 26px;
           padding: 15px;
           border: 1px solid #dbe5f2;
           border-radius: 18px;
           background: #f8fafc;
           text-align: left;
         }
-
-        .payment-detail div {
-          display: grid;
-          gap: 4px;
-          padding: 10px;
-        }
-
-        .payment-detail span {
-          color: #94a3b8;
-          font-size: 8px;
-          font-weight: 900;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
-
-        .payment-detail strong {
-          color: #071226;
-          font-size: 11px;
-        }
-
+        .detail div { display: grid; gap: 4px; padding: 10px; }
+        .detail span { color: #94a3b8; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+        .detail strong { font-size: 11px; overflow-wrap: anywhere; }
         .security {
           display: flex;
-          align-items: center;
           justify-content: center;
           gap: 8px;
           margin-top: 22px;
           color: #64748b;
           font-size: 9px;
-          line-height: 1.5;
         }
-
         .actions {
           display: flex;
           justify-content: center;
           gap: 10px;
           margin-top: 27px;
         }
-
         button {
           min-height: 46px;
           padding: 0 19px;
@@ -411,54 +203,22 @@ export default function ResultadoPago() {
           border-radius: 14px;
           background: #2563eb;
           color: white;
-          font-family: inherit;
-          font-size: 10px;
           font-weight: 900;
           cursor: pointer;
-          box-shadow: 0 13px 28px
-            rgba(37, 99, 235, 0.2);
         }
-
         button.secondary {
           border: 1px solid #dbe5f2;
           background: white;
           color: #334155;
-          box-shadow: none;
         }
-
-        .spin {
-          animation: spin 800ms linear infinite;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
+        .spin { animation: spin 800ms linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 540px) {
-          .result-card {
-            padding: 31px 20px;
-          }
-
-          .payment-detail {
-            grid-template-columns: 1fr;
-          }
-
-          .actions {
-            display: grid;
-          }
+          .card { padding: 31px 20px; }
+          .detail { grid-template-columns: 1fr; }
+          .actions { display: grid; }
         }
       `}</style>
     </main>
-  );
-}
-
-function capitalizar(valor: string) {
-  if (!valor) return "—";
-
-  return (
-    valor.charAt(0).toUpperCase() +
-    valor.slice(1)
   );
 }
