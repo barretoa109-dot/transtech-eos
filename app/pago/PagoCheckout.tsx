@@ -1248,7 +1248,10 @@ function Resumen({
         </span>
 
         <div>
-          <span className="eyebrow">RESUMEN DEL PEDIDO</span>
+          <span className="summary-eyebrow">
+            RESUMEN DEL PEDIDO
+          </span>
+
           <h2>{plan?.nombre || `EOS ${planCodigo}`}</h2>
         </div>
       </div>
@@ -1259,6 +1262,7 @@ function Resumen({
 
       <div className="summary-price">
         <strong>Gs. {montoFormateado}</strong>
+
         <span>
           Facturación {periodicidad === "anual" ? "anual" : "mensual"}
         </span>
@@ -1274,7 +1278,9 @@ function Resumen({
 
           <div>
             <strong>Precio validado en la plataforma</strong>
-            <small>El importe corresponde al plan seleccionado.</small>
+            <small>
+              El importe corresponde al plan seleccionado.
+            </small>
           </div>
         </li>
 
@@ -1285,7 +1291,9 @@ function Resumen({
 
           <div>
             <strong>Transferencia a cuenta empresarial</strong>
-            <small>El pago se realiza a nombre de TRANSTECH E.A.S.</small>
+            <small>
+              El pago se realiza a nombre de TRANSTECH E.A.S.
+            </small>
           </div>
         </li>
 
@@ -1296,7 +1304,9 @@ function Resumen({
 
           <div>
             <strong>Activación posterior a la verificación</strong>
-            <small>Tu plan se habilita luego de confirmar el ingreso.</small>
+            <small>
+              Tu plan se habilita luego de confirmar el ingreso.
+            </small>
           </div>
         </li>
       </ul>
@@ -1320,6 +1330,224 @@ function Resumen({
           </small>
         </div>
       </div>
+
+      <style jsx>{`
+        .summary-card {
+          position: sticky;
+          top: 28px;
+          align-self: start;
+          padding: 30px;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 29px;
+          background: rgba(255, 255, 255, 0.98);
+          color: #071226;
+          box-shadow:
+            0 24px 70px rgba(15, 23, 42, 0.09),
+            inset 0 1px 0 rgba(255, 255, 255, 0.96);
+        }
+
+        .summary-header {
+          display: flex;
+          align-items: center;
+          gap: 13px;
+        }
+
+        .summary-header-icon {
+          width: 47px;
+          height: 47px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 15px;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .summary-eyebrow {
+          display: block;
+          color: #2563eb;
+          font-size: 9px;
+          font-weight: 950;
+          letter-spacing: 0.15em;
+        }
+
+        h2 {
+          margin: 6px 0 0;
+          color: #071226;
+          font-size: 28px;
+          font-weight: 950;
+          letter-spacing: -0.04em;
+        }
+
+        .summary-description {
+          margin: 20px 0 0;
+          color: #475569;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+
+        .summary-price {
+          display: grid;
+          gap: 7px;
+          margin-top: 24px;
+        }
+
+        .summary-price strong {
+          color: #2563eb;
+          font-size: clamp(38px, 4.5vw, 48px);
+          font-weight: 950;
+          line-height: 1;
+          letter-spacing: -0.05em;
+        }
+
+        .summary-price span {
+          color: #64748b;
+          font-size: 14px;
+          font-weight: 750;
+        }
+
+        .summary-divider {
+          height: 1px;
+          margin: 25px 0 18px;
+          background: #e2e8f0;
+        }
+
+        .summary-benefits {
+          display: grid;
+          gap: 0;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        .summary-benefits li {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: start;
+          gap: 12px;
+          padding: 14px 0;
+          border-bottom: 1px solid #eef2f7;
+        }
+
+        .summary-benefits li:last-child {
+          border-bottom: 0;
+        }
+
+        .summary-benefit-icon {
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          border-radius: 11px;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .summary-benefit-icon.success {
+          background: #ecfdf5;
+          color: #16a34a;
+        }
+
+        .summary-benefits li > div {
+          display: grid;
+          gap: 4px;
+        }
+
+        .summary-benefits strong {
+          color: #0f172a;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+
+        .summary-benefits small {
+          color: #64748b;
+          font-size: 10px;
+          line-height: 1.5;
+        }
+
+        .summary-help {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 13px;
+          margin-top: 22px;
+          padding: 17px;
+          border: 1px solid #bfdbfe;
+          border-radius: 18px;
+          background:
+            linear-gradient(
+              180deg,
+              rgba(239, 246, 255, 0.96),
+              rgba(248, 250, 252, 0.99)
+            );
+        }
+
+        .summary-help-icon {
+          width: 46px;
+          height: 46px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: white;
+          color: #2563eb;
+          box-shadow: 0 10px 24px rgba(37, 99, 235, 0.1);
+        }
+
+        .summary-help > div {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .summary-help strong {
+          color: #071226;
+          font-size: 14px;
+          font-weight: 900;
+        }
+
+        .summary-help span {
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .summary-help a {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          width: fit-content;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 900;
+          text-decoration: none;
+          overflow-wrap: anywhere;
+        }
+
+        .summary-help a:hover {
+          text-decoration: underline;
+        }
+
+        .summary-help small {
+          color: #64748b;
+          font-size: 9px;
+          line-height: 1.45;
+        }
+
+        @media (max-width: 850px) {
+          .summary-card {
+            position: static;
+          }
+        }
+
+        @media (max-width: 620px) {
+          .summary-card {
+            padding: 24px 18px;
+            border-radius: 24px;
+          }
+
+          .summary-price strong {
+            font-size: 38px;
+          }
+        }
+      `}</style>
     </aside>
   );
 }
