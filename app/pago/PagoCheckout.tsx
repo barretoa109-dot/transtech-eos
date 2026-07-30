@@ -8,7 +8,9 @@ import {
   Check,
   Clipboard,
   Loader2,
+  Headphones,
   ListChecks,
+  Mail,
   ShieldCheck,
   Upload,
 } from "lucide-react";
@@ -528,6 +530,33 @@ export default function PagoCheckout() {
               <p className="security-note">
                 El plan se activa después de verificar que el pago ingresó.
               </p>
+
+              <div className="support-box">
+                <div className="support-icon">
+                  <Headphones size={22} />
+                </div>
+
+                <div className="support-copy">
+                  <strong>¿Necesitás ayuda?</strong>
+                  <span>Contactá con nuestro equipo de soporte.</span>
+                </div>
+
+                <a
+                  className="support-email"
+                  href="mailto:soporte@transtech.com.py?subject=Ayuda con pago de TransTech EOS"
+                >
+                  <span className="support-email-icon">
+                    <Mail size={18} />
+                  </span>
+
+                  <span>
+                    <strong>soporte@transtech.com.py</strong>
+                    <small>
+                      Respondemos normalmente en menos de 24 horas hábiles.
+                    </small>
+                  </span>
+                </a>
+              </div>
             </article>
           </section>
         )}
@@ -727,14 +756,29 @@ export default function PagoCheckout() {
 
         .reference {
           display: flex;
+          align-items: center;
           justify-content: space-between;
-          gap: 15px;
+          gap: 18px;
           margin: 24px 0;
-          padding: 14px 16px;
+          padding: 17px 18px;
           border: 1px solid #dbe5f2;
           border-radius: 14px;
           background: #f8fafc;
-          font-size: 10px;
+          font-size: 12px;
+        }
+
+        .reference span {
+          color: #334155;
+          font-weight: 750;
+        }
+
+        .reference strong {
+          color: #071226;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: 0.01em;
+          overflow-wrap: anywhere;
+          text-align: right;
         }
 
         .bank-grid {
@@ -862,6 +906,90 @@ export default function PagoCheckout() {
           text-align: center;
         }
 
+        .support-box {
+          display: grid;
+          grid-template-columns: auto minmax(180px, 0.7fr) minmax(300px, 1.3fr);
+          align-items: center;
+          gap: 16px;
+          margin-top: 25px;
+          padding: 18px;
+          border: 1px solid #dbe5f2;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.96);
+          box-shadow: 0 12px 35px rgba(15, 23, 42, 0.05);
+        }
+
+        .support-icon,
+        .support-email-icon {
+          display: grid;
+          place-items: center;
+          color: #2563eb;
+          background: #eff6ff;
+        }
+
+        .support-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
+        }
+
+        .support-copy {
+          display: grid;
+          gap: 4px;
+        }
+
+        .support-copy strong {
+          color: #071226;
+          font-size: 15px;
+          font-weight: 900;
+        }
+
+        .support-copy span {
+          color: #64748b;
+          font-size: 11px;
+        }
+
+        .support-email {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: center;
+          gap: 12px;
+          padding-left: 16px;
+          border-left: 1px solid #dbe5f2;
+          color: inherit;
+          text-decoration: none;
+        }
+
+        .support-email-icon {
+          width: 46px;
+          height: 46px;
+          border-radius: 13px;
+        }
+
+        .support-email > span:last-child {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .support-email strong {
+          color: #2563eb;
+          font-size: 14px;
+          font-weight: 900;
+          overflow-wrap: anywhere;
+        }
+
+        .support-email small {
+          color: #64748b;
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
+        .support-email:hover strong {
+          text-decoration: underline;
+        }
+
         .state-card {
           min-height: 280px;
           display: grid;
@@ -917,6 +1045,22 @@ export default function PagoCheckout() {
 
           .reference {
             display: grid;
+          }
+
+          .reference strong {
+            text-align: left;
+          }
+
+          .support-box {
+            grid-template-columns: auto 1fr;
+          }
+
+          .support-email {
+            grid-column: 1 / -1;
+            padding-top: 15px;
+            padding-left: 0;
+            border-top: 1px solid #dbe5f2;
+            border-left: 0;
           }
         }
       `}</style>
@@ -976,12 +1120,12 @@ function Dato({
       <div style={{ display: "grid", gap: "4px", minWidth: 0 }}>
         <span style={{
           color: "#94a3b8",
-          fontSize: "8px",
+          fontSize: "10px",
           fontWeight: 900,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
         }}>{titulo}</span>
-        <strong style={{ fontSize: "11px", overflowWrap: "anywhere" }}>
+        <strong style={{ fontSize: "17px", fontWeight: 900, lineHeight: 1.25, overflowWrap: "anywhere" }}>
           {valor}
         </strong>
       </div>
