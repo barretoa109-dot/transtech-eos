@@ -142,13 +142,20 @@ export async function POST(request: Request) {
       .single();
 
     if (solicitudError || !solicitud) {
-      console.error("No se pudo crear la solicitud:", solicitudError);
+  console.error("No se pudo crear la solicitud:", solicitudError);
 
-      return NextResponse.json(
-        { error: "No pudimos generar la solicitud de pago." },
-        { status: 500 },
-      );
-    }
+  return NextResponse.json(
+    {
+      error:
+        solicitudError?.message ||
+        "No pudimos generar la solicitud de pago.",
+      details: solicitudError?.details || null,
+      hint: solicitudError?.hint || null,
+      code: solicitudError?.code || null,
+    },
+    { status: 500 },
+  );
+}
 
     return NextResponse.json({
       ok: true,
