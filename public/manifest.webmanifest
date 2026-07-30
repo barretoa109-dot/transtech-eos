@@ -1,0 +1,23 @@
+{
+  "name": "TransTech EOS",
+  "short_name": "EOS",
+  "description": "Tecnología inteligente para personas y empresas.",
+  "id": "/",
+  "start_url": "/eos/chat",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020817",
+  "theme_color": "#020817",
+  "lang": "es",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/transtech-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -155,20 +155,20 @@ export default function LoginForm({
       </div>
 
       <button
-        type="button"
-        onClick={loginGoogle}
-        className="w-full rounded-xl border border-slate-700 p-4 font-semibold transition hover:border-slate-500 hover:bg-slate-800"
-      >
-        Continuar con Google
-      </button>
+  type="button"
+  disabled
+  className="w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
+>
+  Continuar con Google — próximamente
+</button>
 
-      <button
-        type="button"
-        disabled
-        className="mt-3 w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
-      >
-        Continuar con Apple — próximamente
-      </button>
+<button
+  type="button"
+  disabled
+  className="mt-3 w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
+>
+  Continuar con Apple — próximamente
+</button>
 
       <div className="mt-8 text-center">
         <span className="text-slate-400">¿No tienes cuenta?</span>
