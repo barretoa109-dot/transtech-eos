@@ -38,8 +38,8 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const next = request.nextUrl.searchParams.get("next");
 
-  // Bloquear dashboards antiguas.
   if (
     pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
@@ -53,23 +53,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(eosUrl);
   }
 
-  const rutaProtegida = pathname.startsWith("/eos/chat");
+  const rutaProtegida =
+    pathname.startsWith("/eos/chat") || pathname.startsWith("/mobile");
 
   if (rutaProtegida && !user) {
     const loginUrl = request.nextUrl.clone();
 
     loginUrl.pathname = "/login";
+    loginUrl.search = "";
     loginUrl.searchParams.set("next", pathname);
 
     return NextResponse.redirect(loginUrl);
   }
 
   if (pathname === "/login" && user) {
-    const eosUrl = request.nextUrl.clone();
-    eosUrl.pathname = "/eos/chat";
-    eosUrl.search = "";
+    const destino = next === "/mobile" ? "/mobile" : "/eos/chat";
+    const destinoUrl = request.nextUrl.clone();
 
-    return NextResponse.redirect(eosUrl);
+    destinoUrl.pathname = destino;
+    destinoUrl.search = "";
+
+    return NextResponse.redirect(destinoUrl);
   }
 
   return response;
@@ -81,5 +85,6 @@ export const config = {
     "/dashboard/:path*",
     "/dashboard-eos/:path*",
     "/eos/chat/:path*",
+    "/mobile/:path*",
   ],
 };
