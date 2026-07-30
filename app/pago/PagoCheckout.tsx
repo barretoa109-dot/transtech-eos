@@ -8,7 +8,7 @@ import {
   Check,
   Clipboard,
   Loader2,
-  QrCode,
+  ListChecks,
   ShieldCheck,
   Upload,
 } from "lucide-react";
@@ -231,6 +231,22 @@ export default function PagoCheckout() {
     window.setTimeout(() => setCopiado(""), 1600);
   }
 
+  async function copiarTodosLosDatos() {
+    if (!pedido) return;
+
+    const datos = [
+      `Banco: ${CUENTA.banco}`,
+      `Titular: ${CUENTA.titular}`,
+      `Número de cuenta: ${CUENTA.numero}`,
+      `RUC: ${CUENTA.ruc}`,
+      `Moneda: ${CUENTA.moneda}`,
+      `Monto: Gs. ${montoFormateado}`,
+      `Referencia: ${pedido.referencia}`,
+    ].join("\n");
+
+    await copiar(datos, "Todos los datos");
+  }
+
   const monto =
     periodicidad === "anual"
       ? plan?.precio_anual_pyg
@@ -371,7 +387,7 @@ export default function PagoCheckout() {
                     </>
                   ) : (
                     <>
-                      <QrCode size={18} />
+                      <Building2 size={18} />
                       Ver datos para transferir
                     </>
                   )}
@@ -402,11 +418,41 @@ export default function PagoCheckout() {
               </div>
 
               <div className="bank-grid">
-                <div className="qr-box">
-                  <img
-                    src="/pagos/qr-continental.jpeg"
-                    alt="QR de la cuenta de TRANSTECH E.A.S."
-                  />
+                <div className="instructions-box">
+                  <div className="instructions-icon">
+                    <ListChecks size={24} />
+                  </div>
+
+                  <div>
+                    <span className="instructions-label">
+                      INSTRUCCIONES
+                    </span>
+
+                    <h2>Cómo realizar el pago</h2>
+                  </div>
+
+                  <ol>
+                    <li>Abrí la aplicación de tu banco.</li>
+                    <li>
+                      Transferí exactamente{" "}
+                      <strong>Gs. {montoFormateado}</strong>.
+                    </li>
+                    <li>
+                      Usá los datos bancarios de TRANSTECH E.A.S.
+                    </li>
+                    <li>
+                      Subí el comprobante para solicitar la activación.
+                    </li>
+                  </ol>
+
+                  <button
+                    type="button"
+                    className="copy-all-button"
+                    onClick={copiarTodosLosDatos}
+                  >
+                    <Clipboard size={16} />
+                    Copiar todos los datos
+                  </button>
                 </div>
 
                 <div className="bank-data">
@@ -698,17 +744,67 @@ export default function PagoCheckout() {
           align-items: start;
         }
 
-        .qr-box {
-          overflow: hidden;
+        .instructions-box {
+          display: grid;
+          align-content: start;
+          gap: 15px;
+          padding: 22px;
           border: 1px solid #dbe5f2;
           border-radius: 20px;
-          background: white;
+          background:
+            linear-gradient(180deg, #071226 0%, #0b1a35 100%);
+          color: white;
+          box-shadow: 0 20px 45px rgba(7, 18, 38, 0.16);
         }
 
-        .qr-box img {
-          display: block;
-          width: 100%;
-          height: auto;
+        .instructions-icon {
+          width: 46px;
+          height: 46px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: rgba(96, 165, 250, 0.14);
+          color: #93c5fd;
+        }
+
+        .instructions-label {
+          color: #93c5fd;
+          font-size: 8px;
+          font-weight: 950;
+          letter-spacing: 0.16em;
+        }
+
+        .instructions-box h2 {
+          margin: 7px 0 0;
+          font-size: 23px;
+          letter-spacing: -0.035em;
+        }
+
+        .instructions-box ol {
+          display: grid;
+          gap: 12px;
+          margin: 2px 0 0;
+          padding-left: 20px;
+          color: #dbeafe;
+          font-size: 11px;
+          line-height: 1.6;
+        }
+
+        .copy-all-button {
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 4px;
+          border: 1px solid rgba(147, 197, 253, 0.2);
+          border-radius: 13px;
+          background: rgba(37, 99, 235, 0.18);
+          color: white;
+          font-family: inherit;
+          font-size: 10px;
+          font-weight: 900;
+          cursor: pointer;
         }
 
         .bank-data {
