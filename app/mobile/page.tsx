@@ -1,18 +1,23 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Plus, Settings } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import Sidebar from "../eos/components/Sidebar";
 import ChatView from "../eos/components/ChatView";
 import Composer from "../eos/components/Composer";
+import BriefingView from "../eos/components/BriefingView";
+import DashboardView from "../eos/components/DashboardView";
+import ProfileView from "../eos/components/ProfileView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
 import { useChat } from "../eos/hooks/useChat";
 
 import { convertirImagenABase64 } from "../eos/services/uploads";
+import type { VistaEOS } from "../eos/types/chat";
 
 export default function MobileEOSPage() {
   const router = useRouter();
@@ -20,19 +25,25 @@ export default function MobileEOSPage() {
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
   const [usuarioId, setUsuarioId] = useState("");
+  const [usuarioCargado, setUsuarioCargado] = useState(false);
   const [inicializando, setInicializando] = useState(true);
+
+  const [vista, setVista] = useState<VistaEOS>("chat");
+  const [busqueda, setBusqueda] = useState("");
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
-  const { cargarBriefing } = useBriefing(nombre);
+  const { briefingVisible, cargarBriefing } = useBriefing(nombre);
 
   const {
     conversacionId,
+    conversaciones,
     historial,
     setHistorial,
     cargarConversaciones,
     nuevaConversacion,
+    abrirConversacion,
     actualizarTituloSiHaceFalta,
   } = useConversations(nombre);
 
@@ -71,6 +82,14 @@ export default function MobileEOSPage() {
     return () => window.clearTimeout(timeout);
   }, [historial]);
 
+  useEffect(() => {
+    document.body.style.overflow = menuAbierto ? "hidden" : "";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuAbierto]);
+
   async function iniciarAplicacion() {
     const supabase = createClient();
 
@@ -101,6 +120,7 @@ export default function MobileEOSPage() {
     setUsuarioId(user.id);
     setNombre(nombreUsuario);
     setPlan(planUsuario);
+    setUsuarioCargado(true);
 
     await cargarBriefing(user.id);
     await cargarConversaciones(user.id, nombreUsuario);
@@ -108,18 +128,23 @@ export default function MobileEOSPage() {
     setInicializando(false);
   }
 
-  async function nuevoChat() {
+  async function manejarNuevoChat() {
     if (!usuarioId) return;
 
     await nuevaConversacion(usuarioId);
+    setVista("chat");
     setMenuAbierto(false);
   }
 
-  async function cerrarSesion() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.replace("/login?next=/mobile");
-    router.refresh();
+  async function manejarAbrirConversacion(id: string) {
+    await abrirConversacion(id);
+    setVista("chat");
+    setMenuAbierto(false);
+  }
+
+  function manejarCambioVista(nuevaVista: VistaEOS) {
+    setVista(nuevaVista);
+    setMenuAbierto(false);
   }
 
   async function manejarImagen(file: File) {
@@ -159,8 +184,17 @@ export default function MobileEOSPage() {
             gap: 18px;
             text-align: center;
             background:
-              radial-gradient(circle at 50% 10%, rgba(37, 99, 235, 0.18), transparent 34%),
-              linear-gradient(180deg, #07101d 0%, #091524 58%, #07111f 100%);
+              radial-gradient(
+                circle at 50% 10%,
+                rgba(37, 99, 235, 0.18),
+                transparent 34%
+              ),
+              linear-gradient(
+                180deg,
+                #07101d 0%,
+                #091524 58%,
+                #07111f 100%
+              );
             color: white;
             font-family: Inter, Arial, sans-serif;
           }
@@ -190,75 +224,127 @@ export default function MobileEOSPage() {
     );
   }
 
+  const sidebarProps = {
+    nombre,
+    plan,
+    vista,
+    busqueda,
+    conversacionId,
+    conversaciones,
+    onVistaChange: manejarCambioVista,
+    onBusquedaChange: setBusqueda,
+    onNuevoChat: manejarNuevoChat,
+    onAbrirConversacion: manejarAbrirConversacion,
+  };
+
   return (
     <main className="mobile-eos">
+      <button
+        type="button"
+        className="floating-menu-button"
+        onClick={() => setMenuAbierto(true)}
+        aria-label="Abrir menú lateral"
+      >
+        <Menu size={21} />
+      </button>
+
       <header className="mobile-header">
-        <div>
-          <span className="mobile-label">TRANSTECH</span>
-          <h1>EOS</h1>
+        <div className="mobile-header-spacer" />
+
+        <div className="mobile-brand">
+          <span>TRANSTECH</span>
+          <strong>EOS</strong>
         </div>
 
-        <div className="mobile-actions">
-          <button
-            type="button"
-            onClick={nuevoChat}
-            aria-label="Nueva conversación"
-          >
-            <Plus size={20} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMenuAbierto((actual) => !actual)}
-            aria-label="Abrir configuración"
-          >
-            <Settings size={19} />
-          </button>
-        </div>
-
-        {menuAbierto && (
-          <div className="mobile-menu">
-            <div className="mobile-user">
-              <strong>{nombre}</strong>
-              <span>Plan {plan}</span>
-            </div>
-
-            <button type="button" onClick={cerrarSesion}>
-              <LogOut size={17} />
-              Cerrar sesión
-            </button>
-          </div>
-        )}
+        <div className="mobile-header-spacer" />
       </header>
 
-      <section className="mobile-chat">
-        <ChatView
-          historial={historial}
-          nombre={nombre}
-          chatRef={chatRef}
-          onEnviarSugerencia={(texto) => enviarMensaje(texto)}
-        />
+      <div
+        className={`mobile-overlay ${menuAbierto ? "mobile-overlay-open" : ""}`}
+        onClick={() => setMenuAbierto(false)}
+        aria-hidden={!menuAbierto}
+      />
 
-        {imagenAdjunta && (
-          <div className="mobile-image-preview">
-            <div>
-              <small>IMAGEN ADJUNTA</small>
-              <strong>{imagenAdjunta.nombre}</strong>
-            </div>
+      <aside
+        className={`mobile-sidebar ${menuAbierto ? "mobile-sidebar-open" : ""}`}
+        aria-hidden={!menuAbierto}
+      >
+        <button
+          type="button"
+          className="mobile-sidebar-close"
+          onClick={() => setMenuAbierto(false)}
+          aria-label="Cerrar menú"
+        >
+          <X size={21} />
+        </button>
 
-            <button type="button" onClick={quitarImagenAdjunta}>
-              Quitar
-            </button>
-          </div>
+        <Sidebar {...sidebarProps} />
+      </aside>
+
+      <section
+        className="mobile-content"
+        style={{
+          overflowY: vista === "chat" ? "hidden" : "auto",
+        }}
+      >
+        {vista === "chat" && (
+          <>
+            <ChatView
+              historial={historial}
+              nombre={nombre}
+              chatRef={chatRef}
+              onEnviarSugerencia={(texto) => enviarMensaje(texto)}
+            />
+
+            {imagenAdjunta && (
+              <div className="mobile-image-preview">
+                <div>
+                  <small>IMAGEN ADJUNTA</small>
+                  <strong>{imagenAdjunta.nombre}</strong>
+                </div>
+
+                <button type="button" onClick={quitarImagenAdjunta}>
+                  Quitar
+                </button>
+              </div>
+            )}
+
+            <Composer
+              mensaje={mensaje}
+              cargando={cargando}
+              onMensajeChange={setMensaje}
+              onEnviar={() => enviarMensaje()}
+              onImagenSeleccionada={manejarImagen}
+              mobile
+            />
+          </>
         )}
 
-        <Composer
-          mensaje={mensaje}
-          cargando={cargando}
-          onMensajeChange={setMensaje}
-          onEnviar={() => enviarMensaje()}
-          onImagenSeleccionada={manejarImagen}
-        />
+        {vista === "briefing" && (
+          <BriefingView briefing={briefingVisible} />
+        )}
+
+        {vista === "dashboard" && usuarioCargado && (
+          <DashboardView
+            key={`${usuarioId}-${nombre}`}
+            userName={nombre}
+            plan={plan}
+            totalConversations={conversaciones.length}
+            totalMessages={historial.length}
+            eosScore={briefingVisible.score || 0}
+            onOpenChat={() => setVista("chat")}
+          />
+        )}
+
+        {vista === "perfil" && (
+          <ProfileView
+            nombre={nombre}
+            plan={plan}
+            usuarioId={usuarioId}
+            conversaciones={conversaciones.length}
+            mensajes={historial.length}
+          />
+        )}
       </section>
 
       <style jsx>{`
@@ -269,116 +355,148 @@ export default function MobileEOSPage() {
           flex-direction: column;
           overflow: hidden;
           background:
-            radial-gradient(circle at 88% 3%, rgba(14, 165, 233, 0.08), transparent 28%),
-            linear-gradient(180deg, #07101d 0%, #091524 54%, #07111f 100%);
+            radial-gradient(
+              circle at 88% 3%,
+              rgba(14, 165, 233, 0.08),
+              transparent 28%
+            ),
+            linear-gradient(
+              180deg,
+              #07101d 0%,
+              #091524 54%,
+              #07111f 100%
+            );
           color: white;
           font-family: Inter, Arial, Helvetica, sans-serif;
         }
 
         .mobile-header {
           position: relative;
-          z-index: 50;
-          min-height: 72px;
-          display: flex;
+          z-index: 60;
+          min-height: 64px;
+          display: grid;
+          grid-template-columns: 44px 1fr 44px;
           align-items: center;
-          justify-content: space-between;
           padding:
-            calc(10px + env(safe-area-inset-top))
-            16px
-            10px;
+            calc(8px + env(safe-area-inset-top))
+            12px
+            8px;
           border-bottom: 1px solid rgba(148, 163, 184, 0.13);
-          background: rgba(7, 16, 29, 0.88);
+          background: rgba(7, 16, 29, 0.92);
           backdrop-filter: blur(20px);
         }
 
-        .mobile-label {
-          display: block;
-          margin-bottom: 2px;
+        .floating-menu-button {
+          position: fixed;
+          top: calc(11px + env(safe-area-inset-top));
+          left: 12px;
+          z-index: 120;
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 13px;
+          background: rgba(255, 255, 255, 0.96);
+          color: #071226;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .floating-menu-button:active {
+          transform: scale(0.96);
+        }
+
+        .mobile-brand {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+        }
+
+        .mobile-brand span {
           color: #60a5fa;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.18em;
         }
 
-        h1 {
-          margin: 0;
-          font-size: 24px;
-          font-weight: 900;
+        .mobile-brand strong {
+          margin-top: 4px;
+          color: #ffffff;
+          font-size: 20px;
+          font-weight: 950;
           letter-spacing: -0.04em;
         }
 
-        .mobile-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
+        .mobile-header-spacer {
+          width: 42px;
+          height: 42px;
         }
 
-        .mobile-actions button {
-          width: 41px;
-          height: 41px;
+        .mobile-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 129;
+          visibility: hidden;
+          background: rgba(2, 8, 23, 0.58);
+          opacity: 0;
+          backdrop-filter: blur(4px);
+          transition:
+            opacity 220ms ease,
+            visibility 220ms ease;
+        }
+
+        .mobile-overlay-open {
+          visibility: visible;
+          opacity: 1;
+        }
+
+        .mobile-sidebar {
+          position: fixed;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          z-index: 130;
+          width: min(88vw, 340px);
+          transform: translateX(-105%);
+          background: #ffffff;
+          box-shadow: 24px 0 70px rgba(0, 0, 0, 0.35);
+          transition: transform 240ms ease;
+        }
+
+        .mobile-sidebar-open {
+          transform: translateX(0);
+        }
+
+        .mobile-sidebar-close {
+          position: absolute;
+          top: calc(12px + env(safe-area-inset-top));
+          right: 12px;
+          z-index: 135;
+          width: 40px;
+          height: 40px;
           display: grid;
           place-items: center;
-          border: 1px solid rgba(148, 163, 184, 0.18);
-          border-radius: 13px;
-          background: rgba(255, 255, 255, 0.05);
-          color: #e2e8f0;
+          border: 1px solid #dbe3ef;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.95);
+          color: #071226;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
           cursor: pointer;
         }
 
-        .mobile-menu {
-          position: absolute;
-          top: calc(67px + env(safe-area-inset-top));
-          right: 14px;
-          width: 220px;
-          padding: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.18);
-          border-radius: 17px;
-          background: rgba(15, 23, 42, 0.98);
-          box-shadow: 0 24px 65px rgba(0, 0, 0, 0.35);
-        }
-
-        .mobile-user {
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-          padding: 7px 8px 12px;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-        }
-
-        .mobile-user strong {
-          font-size: 13px;
-        }
-
-        .mobile-user span {
-          color: #94a3b8;
-          font-size: 11px;
-          text-transform: capitalize;
-        }
-
-        .mobile-menu button {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          margin-top: 8px;
-          padding: 11px 10px;
-          border: 0;
-          border-radius: 11px;
-          background: transparent;
-          color: #fca5a5;
-          font-family: inherit;
-          font-size: 12px;
-          font-weight: 750;
-          cursor: pointer;
-        }
-
-        .mobile-chat {
+        .mobile-content {
           position: relative;
           flex: 1;
           min-height: 0;
           display: flex;
           flex-direction: column;
-          overflow: hidden;
+          overflow-x: hidden;
           padding-bottom: env(safe-area-inset-bottom);
         }
 
@@ -386,7 +504,7 @@ export default function MobileEOSPage() {
           position: absolute;
           left: 12px;
           right: 12px;
-          bottom: calc(94px + env(safe-area-inset-bottom));
+          bottom: 98px;
           z-index: 45;
           display: flex;
           align-items: center;
@@ -432,6 +550,15 @@ export default function MobileEOSPage() {
           font-family: inherit;
           font-size: 10px;
           font-weight: 800;
+        }
+
+        @media (min-width: 761px) {
+          .mobile-eos {
+            max-width: 520px;
+            margin: 0 auto;
+            border-left: 1px solid rgba(148, 163, 184, 0.12);
+            border-right: 1px solid rgba(148, 163, 184, 0.12);
+          }
         }
       `}</style>
     </main>

@@ -14,6 +14,7 @@ type ComposerProps = {
   onMensajeChange: (value: string) => void;
   onEnviar: () => void;
   onImagenSeleccionada?: (file: File) => void;
+  mobile?: boolean;
 };
 
 export default function Composer({
@@ -22,6 +23,7 @@ export default function Composer({
   onMensajeChange,
   onEnviar,
   onImagenSeleccionada,
+  mobile = false,
 }: ComposerProps) {
   const puedeEnviar = mensaje.trim().length > 0 && !cargando;
 
@@ -31,13 +33,14 @@ export default function Composer({
   }
 
   return (
-    <div className="tt-composer-dock">
+    <div
+      className={`tt-composer-dock ${
+        mobile ? "tt-composer-dock-mobile" : ""
+      }`}
+    >
       <div className="tt-composer-shell">
         <div className="tt-composer-box">
-          <label
-            className="tt-attach-button"
-            title="Adjuntar una imagen"
-          >
+          <label className="tt-attach-button" title="Adjuntar una imagen">
             <Paperclip size={19} strokeWidth={2.2} />
 
             <input
@@ -59,14 +62,9 @@ export default function Composer({
           <div className="tt-composer-content">
             <textarea
               value={mensaje}
-              onChange={(event) =>
-                onMensajeChange(event.target.value)
-              }
+              onChange={(event) => onMensajeChange(event.target.value)}
               onKeyDown={(event) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey
-                ) {
+                if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   enviar();
                 }
@@ -83,7 +81,6 @@ export default function Composer({
               </span>
 
               <span>Enter para enviar</span>
-
               <span>Shift + Enter para nueva línea</span>
             </div>
           </div>
@@ -93,21 +90,14 @@ export default function Composer({
             onClick={enviar}
             disabled={!puedeEnviar}
             className={`tt-send-button ${
-              puedeEnviar
-                ? "tt-send-active"
-                : "tt-send-disabled"
+              puedeEnviar ? "tt-send-active" : "tt-send-disabled"
             }`}
             aria-label={
-              cargando
-                ? "EOS está respondiendo"
-                : "Enviar mensaje"
+              cargando ? "EOS está respondiendo" : "Enviar mensaje"
             }
           >
             {cargando ? (
-              <LoaderCircle
-                size={20}
-                className="tt-loader"
-              />
+              <LoaderCircle size={20} className="tt-loader" />
             ) : (
               <ArrowUp size={21} strokeWidth={2.5} />
             )}
@@ -121,8 +111,8 @@ export default function Composer({
           </span>
 
           <p>
-            EOS puede cometer errores. Verificá la información importante
-            antes de tomar decisiones.
+            EOS puede cometer errores. Verificá la información importante antes
+            de tomar decisiones.
           </p>
 
           <span>
@@ -147,6 +137,21 @@ export default function Composer({
             rgba(247, 250, 255, 0)
           );
           pointer-events: none;
+        }
+
+        .tt-composer-dock-mobile {
+          position: relative;
+          right: auto;
+          bottom: auto;
+          left: auto;
+          flex: 0 0 auto;
+          width: 100%;
+          padding:
+            10px 12px
+            calc(10px + env(safe-area-inset-bottom));
+          background: #f7faff;
+          border-top: 1px solid rgba(148, 163, 184, 0.16);
+          pointer-events: auto;
         }
 
         .tt-composer-shell {
@@ -221,18 +226,6 @@ export default function Composer({
           background: #f8fafc;
           color: #64748b;
           cursor: pointer;
-          transition:
-            transform 180ms ease,
-            background 180ms ease,
-            color 180ms ease,
-            border-color 180ms ease;
-        }
-
-        .tt-attach-button:hover {
-          transform: translateY(-2px);
-          border-color: rgba(37, 99, 235, 0.22);
-          background: #eff6ff;
-          color: #2563eb;
         }
 
         .tt-composer-content {
@@ -293,10 +286,6 @@ export default function Composer({
           place-items: center;
           border: 0;
           border-radius: 15px;
-          transition:
-            transform 180ms ease,
-            background 180ms ease,
-            box-shadow 180ms ease;
         }
 
         .tt-send-active {
@@ -304,12 +293,6 @@ export default function Composer({
           color: white;
           cursor: pointer;
           box-shadow: 0 13px 30px rgba(7, 18, 38, 0.22);
-        }
-
-        .tt-send-active:hover {
-          transform: translateY(-2px);
-          background: #2563eb;
-          box-shadow: 0 15px 34px rgba(37, 99, 235, 0.25);
         }
 
         .tt-send-disabled {
@@ -364,7 +347,7 @@ export default function Composer({
         }
 
         @media (max-width: 760px) {
-          .tt-composer-dock {
+          .tt-composer-dock:not(.tt-composer-dock-mobile) {
             left: 0;
             padding: 25px 12px 10px;
           }
