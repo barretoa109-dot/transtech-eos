@@ -12,12 +12,13 @@ type EnviarEOSParams = {
 };
 
 export type RespuestaEOS = {
-  respuesta: string;
-  tipo: string;
-  accion: string;
-  archivo_url: string;
-  archivo_tipo: string;
-  metadata: Record<string, unknown>;
+  respuesta?: string;
+  archivo_url?: string;
+  archivo_tipo?: string;
+  archivo_nombre?: string;
+  tipo?: string;
+  accion?: string;
+  metadata?: Record<string, unknown>;
 };
 
 function limpiarTexto(valor: unknown): string {

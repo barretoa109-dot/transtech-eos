@@ -18,6 +18,9 @@ type ChatViewProps = {
   nombre: string;
   chatRef: React.RefObject<HTMLDivElement | null>;
   onEnviarSugerencia: (texto: string) => void;
+  pensando?: boolean;
+  onRegenerar?: () => void;
+  regenerando?: boolean;
 };
 
 type MensajeExtendido = Mensaje & {
@@ -96,6 +99,9 @@ export default function ChatView({
   nombre,
   chatRef,
   onEnviarSugerencia,
+  pensando = false,
+  onRegenerar,
+  regenerando = false,
 }: ChatViewProps) {
   const estaVacio = historial.length === 0;
   const primerNombre = obtenerPrimerNombre(nombre);
@@ -204,12 +210,24 @@ export default function ChatView({
             {historial.map((item, index) => {
               const mensaje = item as MensajeExtendido;
 
+              const esUltimaRespuestaEOS =
+                mensaje.rol === "eos" &&
+                !historial
+                  .slice(index + 1)
+                  .some((siguiente) => siguiente.rol === "eos");
+
               return (
-                <div key={`${mensaje.rol}-${index}`}>
+                <div key={mensaje.id ?? `${mensaje.rol}-${index}`}>
                   <MessageBubble
                     rol={mensaje.rol}
                     texto={mensaje.texto}
                     nombre={nombre}
+                    onRegenerar={
+                      esUltimaRespuestaEOS ? onRegenerar : undefined
+                    }
+                    regenerando={
+                      esUltimaRespuestaEOS && regenerando
+                    }
                   />
 
                   {mensaje.rol === "eos" && mensaje.archivo_url ? (
@@ -243,6 +261,29 @@ export default function ChatView({
                 </div>
               );
             })}
+
+            {pensando ? (
+              <div
+                className="eos-thinking"
+                role="status"
+                aria-live="polite"
+                aria-label="EOS está analizando"
+              >
+                <div className="eos-thinking-avatar">
+                  <Sparkles size={16} strokeWidth={2.3} />
+                </div>
+
+                <div className="eos-thinking-bubble">
+                  <span>EOS está analizando</span>
+
+                  <span className="eos-thinking-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </section>
         )}
       </div>
@@ -574,6 +615,77 @@ export default function ChatView({
           color: #475569;
           font-size: 10px;
           font-weight: 800;
+        }
+
+        .eos-thinking {
+          display: flex;
+          align-items: flex-end;
+          gap: 10px;
+          margin: 6px 0 22px;
+        }
+
+        .eos-thinking-avatar {
+          width: 36px;
+          height: 36px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(37, 99, 235, 0.16);
+          border-radius: 12px;
+          background: #eff6ff;
+          color: #2563eb;
+          box-shadow: 0 8px 22px rgba(37, 99, 235, 0.1);
+        }
+
+        .eos-thinking-bubble {
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 11px 14px;
+          border: 1px solid #e2e8f0;
+          border-radius: 17px 17px 17px 5px;
+          background: #ffffff;
+          color: #475569;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+          font-size: 12px;
+          font-weight: 750;
+        }
+
+        .eos-thinking-dots {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .eos-thinking-dots i {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: #2563eb;
+          animation: eos-thinking-pulse 1.15s infinite ease-in-out;
+        }
+
+        .eos-thinking-dots i:nth-child(2) {
+          animation-delay: 0.16s;
+        }
+
+        .eos-thinking-dots i:nth-child(3) {
+          animation-delay: 0.32s;
+        }
+
+        @keyframes eos-thinking-pulse {
+          0%,
+          60%,
+          100% {
+            opacity: 0.32;
+            transform: translateY(0);
+          }
+
+          30% {
+            opacity: 1;
+            transform: translateY(-3px);
+          }
         }
 
         .eos-file-row {

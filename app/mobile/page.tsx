@@ -51,9 +51,11 @@ export default function MobileEOSPage() {
     mensaje,
     setMensaje,
     cargando,
+    pensando,
     imagenAdjunta,
     setImagenAdjunta,
     enviarMensaje,
+    regenerarRespuesta,
   } = useChat({
     usuarioId,
     nombre,
@@ -294,6 +296,9 @@ export default function MobileEOSPage() {
               nombre={nombre}
               chatRef={chatRef}
               onEnviarSugerencia={(texto) => enviarMensaje(texto)}
+              pensando={pensando}
+              onRegenerar={regenerarRespuesta}
+              regenerando={cargando}
             />
 
             {imagenAdjunta && (

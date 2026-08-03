@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import {
   ArrowUpRight,
+  Check,
+  Copy,
   Download,
-  Sparkles,
+  RefreshCw,
   UserRound,
 } from "lucide-react";
 
@@ -12,6 +15,8 @@ type MessageBubbleProps = {
   rol: "usuario" | "eos";
   texto: string;
   nombre: string;
+  onRegenerar?: () => void;
+  regenerando?: boolean;
 };
 
 function obtenerIniciales(nombre: string) {
@@ -34,13 +39,61 @@ function esEnlace(texto: string) {
   );
 }
 
+function renderizarTextoEnLinea(texto: string) {
+  const partes = texto.split(/(\*\*[^*]+\*\*|`[^`]+`|https?:\/\/[^\s]+)/g);
+
+  return partes.map((parte, index) => {
+    if (!parte) return null;
+
+    if (parte.startsWith("**") && parte.endsWith("**")) {
+      return <strong key={`bold-${index}`}>{parte.slice(2, -2)}</strong>;
+    }
+
+    if (parte.startsWith("`") && parte.endsWith("`")) {
+      return <code key={`code-${index}`}>{parte.slice(1, -1)}</code>;
+    }
+
+    if (/^https?:\/\//i.test(parte)) {
+      return (
+        <a
+          key={`inline-link-${index}`}
+          href={parte}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="message-inline-link"
+        >
+          {parte}
+        </a>
+      );
+    }
+
+    return <span key={`text-${index}`}>{parte}</span>;
+  });
+}
+
 export default function MessageBubble({
   rol,
   texto,
   nombre,
+  onRegenerar,
+  regenerando = false,
 }: MessageBubbleProps) {
   const esUsuario = rol === "usuario";
   const lineas = texto.split("\n");
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiarMensaje() {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+
+      window.setTimeout(() => {
+        setCopiado(false);
+      }, 1800);
+    } catch (error) {
+      console.error("No se pudo copiar el mensaje:", error);
+    }
+  }
 
   return (
     <div
@@ -49,125 +102,173 @@ export default function MessageBubble({
       }`}
     >
       {!esUsuario ? (
-       <div className="message-avatar message-avatar-eos">
-  <Image
-    src="/transtech-logo.png"
-    alt="Logo de TRANSTECH"
-    width={24}
-    height={24}
-    className="message-avatar-logo"
-  />
-</div>
+        <div className="message-avatar message-avatar-eos">
+          <Image
+            src="/transtech-logo.png"
+            alt="Logo de TRANSTECH"
+            width={24}
+            height={24}
+            className="message-avatar-logo"
+          />
+        </div>
       ) : null}
 
-      <article
-        className={`message-bubble ${
-          esUsuario ? "message-user" : "message-eos"
-        }`}
-      >
-        <div className="message-meta">
-          {esUsuario ? nombre : "TRANSTECH EOS"}
-        </div>
+      <div className="message-column">
+        <article
+          className={`message-bubble ${
+            esUsuario ? "message-user" : "message-eos"
+          }`}
+        >
+          <div className="message-meta">
+            {esUsuario ? nombre : "TRANSTECH EOS"}
+          </div>
 
-        <div className="message-content">
-          {lineas.map((linea, index) => {
-            const limpio = linea.trim();
+          <div className="message-content">
+            {lineas.map((linea, index) => {
+              const limpio = linea.trim();
 
-            if (!limpio) {
+              if (!limpio) {
+                return (
+                  <div
+                    key={`space-${index}`}
+                    className="message-space"
+                  />
+                );
+              }
+
+              if (esEnlace(limpio)) {
+                return (
+                  <a
+                    key={`link-${index}`}
+                    href={limpio}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="message-file"
+                  >
+                    <span className="message-file-icon">
+                      <Download size={18} />
+                    </span>
+
+                    <span className="message-file-text">
+                      <strong>Descargar archivo</strong>
+                      <small>Documento generado por EOS</small>
+                    </span>
+
+                    <ArrowUpRight size={17} />
+                  </a>
+                );
+              }
+
+              if (
+                limpio.startsWith("•") ||
+                limpio.startsWith("-")
+              ) {
+                return (
+                  <div
+                    key={`bullet-${index}`}
+                    className="message-bullet"
+                  >
+                    <span className="message-bullet-dot" />
+
+                    <span>
+                      {renderizarTextoEnLinea(
+                        limpio.replace(/^[-•]\s*/, ""),
+                      )}
+                    </span>
+                  </div>
+                );
+              }
+
+              if (/^\d+\./.test(limpio)) {
+                const coincidencia = limpio.match(
+                  /^(\d+)\.\s*(.*)$/,
+                );
+
+                return (
+                  <div
+                    key={`number-${index}`}
+                    className="message-numbered"
+                  >
+                    <span>
+                      {coincidencia?.[1] ?? index + 1}
+                    </span>
+
+                    <p>
+                      {renderizarTextoEnLinea(
+                        coincidencia?.[2] ?? limpio,
+                      )}
+                    </p>
+                  </div>
+                );
+              }
+
+              if (
+                limpio.startsWith("### ") ||
+                limpio.startsWith("## ") ||
+                limpio.startsWith("# ")
+              ) {
+                return (
+                  <h3
+                    key={`heading-${index}`}
+                    className="message-heading"
+                  >
+                    {renderizarTextoEnLinea(
+                      limpio.replace(/^#{1,3}\s*/, ""),
+                    )}
+                  </h3>
+                );
+              }
+
               return (
-                <div
-                  key={`space-${index}`}
-                  className="message-space"
-                />
-              );
-            }
-
-            if (esEnlace(limpio)) {
-              return (
-                <a
-                  key={`link-${index}`}
-                  href={limpio}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="message-file"
+                <p
+                  key={`paragraph-${index}`}
+                  className="message-paragraph"
                 >
-                  <span className="message-file-icon">
-                    <Download size={18} />
-                  </span>
-
-                  <span className="message-file-text">
-                    <strong>Descargar archivo</strong>
-                    <small>Documento generado por EOS</small>
-                  </span>
-
-                  <ArrowUpRight size={17} />
-                </a>
+                  {renderizarTextoEnLinea(linea)}
+                </p>
               );
-            }
+            })}
+          </div>
+        </article>
 
-            if (
-              limpio.startsWith("•") ||
-              limpio.startsWith("-")
-            ) {
-              return (
-                <div
-                  key={`bullet-${index}`}
-                  className="message-bullet"
-                >
-                  <span className="message-bullet-dot" />
+        {!esUsuario ? (
+          <div className="message-actions">
+            <button
+              type="button"
+              onClick={copiarMensaje}
+              className={`message-action ${
+                copiado ? "message-action-success" : ""
+              }`}
+              aria-label={
+                copiado
+                  ? "Mensaje copiado"
+                  : "Copiar respuesta de EOS"
+              }
+            >
+              {copiado ? <Check size={14} /> : <Copy size={14} />}
+              <span>{copiado ? "Copiado" : "Copiar"}</span>
+            </button>
 
-                  <span>
-                    {limpio.replace(/^[-•]\s*/, "")}
-                  </span>
-                </div>
-              );
-            }
-
-            if (/^\d+\./.test(limpio)) {
-              const coincidencia = limpio.match(
-                /^(\d+)\.\s*(.*)$/,
-              );
-
-              return (
-                <div
-                  key={`number-${index}`}
-                  className="message-numbered"
-                >
-                  <span>
-                    {coincidencia?.[1] ?? index + 1}
-                  </span>
-
-                  <p>{coincidencia?.[2] ?? limpio}</p>
-                </div>
-              );
-            }
-
-            if (
-              limpio.startsWith("### ") ||
-              limpio.startsWith("## ") ||
-              limpio.startsWith("# ")
-            ) {
-              return (
-                <h3
-                  key={`heading-${index}`}
-                  className="message-heading"
-                >
-                  {limpio.replace(/^#{1,3}\s*/, "")}
-                </h3>
-              );
-            }
-
-            return (
-              <p
-                key={`paragraph-${index}`}
-                className="message-paragraph"
+            {onRegenerar ? (
+              <button
+                type="button"
+                onClick={onRegenerar}
+                disabled={regenerando}
+                className="message-action"
+                aria-label="Regenerar respuesta de EOS"
               >
-                {linea}
-              </p>
-            );
-          })}
-        </div>
-      </article>
+                <RefreshCw
+                  size={14}
+                  className={regenerando ? "message-regenerating" : ""}
+                />
+                <span>
+                  {regenerando ? "Regenerando" : "Regenerar"}
+                </span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {esUsuario ? (
         <div className="message-avatar message-avatar-user">
@@ -199,6 +300,18 @@ export default function MessageBubble({
           justify-content: flex-start;
         }
 
+        .message-column {
+          min-width: 0;
+          max-width: min(760px, calc(100% - 52px));
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .message-row-user .message-column {
+          align-items: flex-end;
+        }
+
         .message-avatar {
           width: 38px;
           height: 38px;
@@ -209,23 +322,23 @@ export default function MessageBubble({
         }
 
         .message-avatar-eos {
-  border: 1px solid rgba(37, 99, 235, 0.16);
-  background: #ffffff;
-  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12);
-}
+          border: 1px solid rgba(37, 99, 235, 0.16);
+          background: #ffffff;
+          box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12);
+        }
 
-.message-avatar-logo {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-}
+        .message-avatar-logo {
+          width: 24px;
+          height: 24px;
+          object-fit: contain;
+        }
 
         .message-avatar-user {
           position: relative;
+          overflow: hidden;
           border: 1px solid #dbe3ef;
           background: white;
           color: #071226;
-          overflow: hidden;
         }
 
         .message-user-icon {
@@ -238,11 +351,13 @@ export default function MessageBubble({
         }
 
         .message-bubble {
-          max-width: min(760px, calc(100% - 52px));
+          width: fit-content;
+          max-width: 100%;
           padding: 16px 18px;
           border-radius: 20px;
           font-size: 14px;
           line-height: 1.72;
+          box-sizing: border-box;
         }
 
         .message-user {
@@ -272,6 +387,44 @@ export default function MessageBubble({
 
         .message-content {
           display: block;
+          overflow-wrap: anywhere;
+        }
+
+        .message-content :global(strong) {
+          font-weight: 900;
+        }
+
+        .message-content :global(code) {
+          padding: 2px 6px;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 7px;
+          background: rgba(15, 23, 42, 0.06);
+          font-family:
+            ui-monospace,
+            SFMono-Regular,
+            Menlo,
+            Monaco,
+            Consolas,
+            monospace;
+          font-size: 0.88em;
+        }
+
+        .message-user .message-content :global(code) {
+          border-color: rgba(255, 255, 255, 0.2);
+          background: rgba(255, 255, 255, 0.13);
+        }
+
+        .message-content :global(.message-inline-link) {
+          color: #2563eb;
+          font-weight: 750;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+
+        .message-user
+          .message-content
+          :global(.message-inline-link) {
+          color: #ffffff;
         }
 
         .message-space {
@@ -294,6 +447,10 @@ export default function MessageBubble({
           font-weight: 900;
           line-height: 1.3;
           letter-spacing: -0.02em;
+        }
+
+        .message-heading:first-child {
+          margin-top: 0;
         }
 
         .message-bullet {
@@ -392,6 +549,60 @@ export default function MessageBubble({
           font-size: 9px;
         }
 
+        .message-actions {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          min-height: 30px;
+          margin-top: 6px;
+          padding-left: 3px;
+        }
+
+        .message-action {
+          min-height: 29px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 0 9px;
+          border: 1px solid transparent;
+          border-radius: 9px;
+          background: transparent;
+          color: #64748b;
+          font-family: inherit;
+          font-size: 10px;
+          font-weight: 750;
+          cursor: pointer;
+          transition:
+            color 160ms ease,
+            background 160ms ease,
+            border-color 160ms ease;
+        }
+
+        .message-action:hover {
+          border-color: #dbeafe;
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .message-action:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .message-action-success {
+          color: #15803d;
+        }
+
+        .message-regenerating {
+          animation: message-spin 0.85s linear infinite;
+        }
+
+        @keyframes message-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
         @media (max-width: 620px) {
           .message-avatar {
             width: 34px;
@@ -399,8 +610,11 @@ export default function MessageBubble({
             border-radius: 11px;
           }
 
-          .message-bubble {
+          .message-column {
             max-width: calc(100% - 45px);
+          }
+
+          .message-bubble {
             padding: 14px 15px;
             font-size: 13px;
           }
