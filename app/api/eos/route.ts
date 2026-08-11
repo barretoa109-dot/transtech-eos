@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const payload = {
+      request_id: body.request_id || crypto.randomUUID(),
       usuario_id: body.usuario_id || body.user_id || "",
       conversacion_id: body.conversacion_id || "",
       nombre: body.nombre || "Usuario",
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             usuario_id: payload.usuario_id,
+            request_id: payload.request_id,
             conversacion_id: payload.conversacion_id,
             mensaje: payload.mensaje,
             respuesta,
@@ -137,6 +139,7 @@ export async function POST(req: Request) {
       respuesta,
       metadata: {
         usuario_id: payload.usuario_id,
+        request_id: payload.request_id,
         conversacion_id: payload.conversacion_id,
         origen: payload.origen,
         fecha: payload.fecha,
