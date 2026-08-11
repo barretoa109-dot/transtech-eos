@@ -11,6 +11,7 @@ import Composer from "../components/Composer";
 import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
 import ProfileView from "../components/ProfileView";
+import DecisionsView from "../components/DecisionsView";
 
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
@@ -317,6 +318,10 @@ export default function EOSPage() {
     onOpenChat={() => setVista("chat")}
   />
 )}
+
+          {vista === "decisions" && usuarioCargado && (
+            <DecisionsView />
+          )}
 
           {vista === "perfil" && (
             <ProfileView

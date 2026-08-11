@@ -11,6 +11,7 @@ import Composer from "../eos/components/Composer";
 import BriefingView from "../eos/components/BriefingView";
 import DashboardView from "../eos/components/DashboardView";
 import ProfileView from "../eos/components/ProfileView";
+import DecisionsView from "../eos/components/DecisionsView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
@@ -362,6 +363,8 @@ export default function MobileEOSPage() {
             onOpenChat={() => setVista("chat")}
           />
         )}
+
+        {vista === "decisions" && usuarioCargado && <DecisionsView />}
 
         {vista === "perfil" && (
           <ProfileView
