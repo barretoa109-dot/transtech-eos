@@ -1,4 +1,4 @@
-function buscarTexto(valor: any): string {
+function buscarTexto(valor: unknown): string {
   if (!valor) return "";
 
   if (typeof valor === "string") return valor;
@@ -11,6 +11,7 @@ function buscarTexto(valor: any): string {
   }
 
   if (typeof valor === "object") {
+    const registro = valor as Record<string, unknown>;
     const campos = [
       "respuesta",
       "text",
@@ -23,12 +24,12 @@ function buscarTexto(valor: any): string {
     ];
 
     for (const campo of campos) {
-      const encontrado = buscarTexto(valor[campo]);
+      const encontrado = buscarTexto(registro[campo]);
       if (encontrado) return encontrado;
     }
 
-    for (const key of Object.keys(valor)) {
-      const encontrado = buscarTexto(valor[key]);
+    for (const key of Object.keys(registro)) {
+      const encontrado = buscarTexto(registro[key]);
       if (encontrado) return encontrado;
     }
   }
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const payload = {
+      request_id: body.request_id || crypto.randomUUID(),
       usuario_id: body.usuario_id || body.user_id || "",
       conversacion_id: body.conversacion_id || "",
       nombre: body.nombre || "Usuario",
@@ -112,10 +114,32 @@ export async function POST(req: Request) {
       );
     }
 
+    try {
+      await fetch(
+        process.env.N8N_DECISION_CAPTURE_URL ||
+          "https://n8n-production-6cdb.up.railway.app/webhook/eos-decision-capture",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario_id: payload.usuario_id,
+            request_id: payload.request_id,
+            conversacion_id: payload.conversacion_id,
+            mensaje: payload.mensaje,
+            respuesta,
+          }),
+          signal: AbortSignal.timeout(2500),
+        },
+      );
+    } catch (captureError) {
+      console.log("Registro de decisión no disponible:", captureError);
+    }
+
     return Response.json({
       respuesta,
       metadata: {
         usuario_id: payload.usuario_id,
+        request_id: payload.request_id,
         conversacion_id: payload.conversacion_id,
         origen: payload.origen,
         fecha: payload.fecha,

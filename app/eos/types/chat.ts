@@ -43,6 +43,7 @@ export type Conversacion = {
 export type VistaEOS =
   | "chat"
   | "briefing"
+  | "decisions"
   | "dashboard"
   | "perfil";
 

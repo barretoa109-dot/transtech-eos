@@ -4,11 +4,11 @@ import {
   BarChart3,
   ChevronRight,
   FileText,
+  Scale,
   MessageSquareText,
   Plus,
   Search,
   Sparkles,
-  UserRound,
   X,
 } from "lucide-react";
 
@@ -20,7 +20,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "dashboard" | "perfil";
+type Vista = "chat" | "briefing" | "decisions" | "dashboard" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -150,6 +150,14 @@ export default function Sidebar({
             descripcion="Resumen ejecutivo"
             activo={vista === "briefing"}
             onClick={() => onVistaChange("briefing")}
+          />
+
+          <NavButton
+            icono={<Scale size={18} />}
+            texto="Decisiones"
+            descripcion="Resultados y aprendizaje"
+            activo={vista === "decisions"}
+            onClick={() => onVistaChange("decisions")}
           />
 
           <NavButton

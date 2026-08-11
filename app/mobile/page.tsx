@@ -11,6 +11,7 @@ import Composer from "../eos/components/Composer";
 import BriefingView from "../eos/components/BriefingView";
 import DashboardView from "../eos/components/DashboardView";
 import ProfileView from "../eos/components/ProfileView";
+import DecisionsView from "../eos/components/DecisionsView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
@@ -34,7 +35,16 @@ export default function MobileEOSPage() {
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
-  const { briefingVisible, cargarBriefing } = useBriefing(nombre);
+  const {
+    briefingVisible,
+    history: briefingHistory,
+    isStale: briefingIsStale,
+    loading: briefingLoading,
+    refreshing: briefingRefreshing,
+    error: briefingError,
+    cargarBriefing,
+    refresh: refreshBriefing,
+  } = useBriefing(nombre);
 
   const {
     conversacionId,
@@ -67,30 +77,6 @@ export default function MobileEOSPage() {
     actualizarTituloSiHaceFalta,
     cargarBriefing,
   });
-
-  useEffect(() => {
-    iniciarAplicacion();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      chatRef.current?.scrollTo({
-        top: chatRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }, 100);
-
-    return () => window.clearTimeout(timeout);
-  }, [historial]);
-
-  useEffect(() => {
-    document.body.style.overflow = menuAbierto ? "hidden" : "";
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuAbierto]);
 
   async function iniciarAplicacion() {
     const supabase = createClient();
@@ -129,6 +115,31 @@ export default function MobileEOSPage() {
 
     setInicializando(false);
   }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void iniciarAplicacion(), 0);
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      chatRef.current?.scrollTo({
+        top: chatRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [historial]);
+
+  useEffect(() => {
+    document.body.style.overflow = menuAbierto ? "hidden" : "";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuAbierto]);
 
   async function manejarNuevoChat() {
     if (!usuarioId) return;
@@ -326,7 +337,19 @@ export default function MobileEOSPage() {
         )}
 
         {vista === "briefing" && (
-          <BriefingView briefing={briefingVisible} />
+          <BriefingView
+            briefing={briefingVisible}
+            loading={briefingLoading}
+            refreshing={briefingRefreshing}
+            error={briefingError}
+            isStale={briefingIsStale}
+            historyCount={briefingHistory.length}
+            onRefresh={refreshBriefing}
+            onOpenChat={(prompt) => {
+              setMensaje(prompt);
+              setVista("chat");
+            }}
+          />
         )}
 
         {vista === "dashboard" && usuarioCargado && (
@@ -340,6 +363,8 @@ export default function MobileEOSPage() {
             onOpenChat={() => setVista("chat")}
           />
         )}
+
+        {vista === "decisions" && usuarioCargado && <DecisionsView />}
 
         {vista === "perfil" && (
           <ProfileView
