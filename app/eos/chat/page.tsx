@@ -32,7 +32,16 @@ export default function EOSPage() {
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
-  const { briefingVisible, cargarBriefing } = useBriefing(nombre);
+  const {
+    briefingVisible,
+    history: briefingHistory,
+    isStale: briefingIsStale,
+    loading: briefingLoading,
+    refreshing: briefingRefreshing,
+    error: briefingError,
+    cargarBriefing,
+    refresh: refreshBriefing,
+  } = useBriefing(nombre);
 
   const {
     conversacionId,
@@ -63,38 +72,6 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
     cargarBriefing,
   });
-
-  useEffect(() => {
-    iniciarEOS();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      chatRef.current?.scrollTo({
-        top: chatRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }, 100);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [historial]);
-
-  // Evita que el fondo se desplace cuando el menú móvil está abierto.
-  useEffect(() => {
-    if (!menuMovilAbierto) {
-      document.body.style.overflow = "";
-      return;
-    }
-
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuMovilAbierto]);
 
   async function iniciarEOS() {
     const supabase = createClient();
@@ -128,9 +105,42 @@ export default function EOSPage() {
     setPlan(planUsuario);
     setUsuarioCargado(true);
 
-await cargarBriefing(user.id);
+    await cargarBriefing(user.id);
     await cargarConversaciones(user.id, nombreUsuario);
   }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void iniciarEOS(), 0);
+    return () => window.clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      chatRef.current?.scrollTo({
+        top: chatRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 100);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [historial]);
+
+  // Evita que el fondo se desplace cuando el menú móvil está abierto.
+  useEffect(() => {
+    if (!menuMovilAbierto) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuMovilAbierto]);
 
   async function manejarNuevoChat() {
     if (!usuarioId) return;
@@ -281,7 +291,19 @@ await cargarBriefing(user.id);
           )}
 
           {vista === "briefing" && (
-            <BriefingView briefing={briefingVisible} />
+            <BriefingView
+              briefing={briefingVisible}
+              loading={briefingLoading}
+              refreshing={briefingRefreshing}
+              error={briefingError}
+              isStale={briefingIsStale}
+              historyCount={briefingHistory.length}
+              onRefresh={refreshBriefing}
+              onOpenChat={(prompt) => {
+                setMensaje(prompt);
+                setVista("chat");
+              }}
+            />
           )}
 
           {vista === "dashboard" && usuarioCargado && (

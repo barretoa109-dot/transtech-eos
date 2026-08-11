@@ -1,35 +1,53 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowUpRight,
+  Award,
   BrainCircuit,
+  CalendarDays,
   CheckCircle2,
   CircleGauge,
   Lightbulb,
   ListChecks,
+  MessageCircleMore,
+  RefreshCw,
   Sparkles,
   Target,
 } from "lucide-react";
 
-type Briefing = {
-  saludo?: string;
-  resumen?: string;
-  prioridad_1?: string;
-  prioridad_2?: string;
-  prioridad_3?: string;
-  recomendacion_principal?: string;
-  score?: number;
-};
+import type { Briefing, BriefingItem } from "../types/briefing";
 
 type BriefingViewProps = {
   briefing: Briefing;
+  loading?: boolean;
+  refreshing?: boolean;
+  error?: string | null;
+  isStale?: boolean;
+  historyCount?: number;
+  onRefresh?: () => void;
+  onOpenChat?: (prompt: string) => void;
 };
 
 export default function BriefingView({
   briefing,
+  loading = false,
+  refreshing = false,
+  error,
+  isStale = false,
+  historyCount = 0,
+  onRefresh,
+  onOpenChat,
 }: BriefingViewProps) {
   const score = normalizarScore(briefing.score);
   const estado = obtenerEstado(score);
+  const briefingDate = formatBriefingDate(briefing.briefing_date);
+  const generatedTime = formatGeneratedTime(
+    briefing.generated_at || briefing.created_at,
+  );
+  const logros = normalizeItems(briefing.logros);
+  const riesgos = normalizeItems(briefing.riesgos);
+  const pasos = normalizeItems(briefing.proximos_pasos).slice(0, 4);
 
   const prioridades = [
     {
@@ -70,20 +88,48 @@ export default function BriefingView({
       <div className="briefing-container">
         <header className="briefing-hero">
           <div className="briefing-hero-copy">
-            <div className="briefing-eyebrow">
-              <span className="briefing-live-dot" />
-              BRIEFING INTELIGENTE
+            <div className="briefing-meta-row">
+              <div className="briefing-eyebrow">
+                <span className="briefing-live-dot" />
+                BRIEFING DIARIO
+              </div>
+
+              <span className={`freshness-badge ${isStale ? "is-stale" : ""}`}>
+                <CalendarDays size={13} />
+                {briefingDate || (loading ? "Preparando" : "Sin briefing de hoy")}
+              </span>
             </div>
 
             <h1>
-              {briefing.saludo || "Resumen ejecutivo"}
+              {briefing.saludo || "Tu resumen ejecutivo"}
             </h1>
 
             <p>
-              EOS analizó tu contexto actual y preparó un panorama claro con
-              las prioridades, decisiones y próximos pasos que requieren tu
-              atención.
+              {briefing.titulo_dia ||
+                "EOS transformó tu actividad, objetivos y decisiones en un plan claro para hoy."}
             </p>
+
+            <div className="briefing-actions">
+              {onRefresh && (
+                <button
+                  type="button"
+                  className="refresh-button"
+                  onClick={onRefresh}
+                  disabled={refreshing}
+                >
+                  <RefreshCw size={15} className={refreshing ? "is-spinning" : ""} />
+                  {refreshing ? "Actualizando" : "Actualizar briefing"}
+                </button>
+              )}
+
+              <span className="generated-time">
+                {generatedTime
+                  ? `Generado ${generatedTime}`
+                  : "Se genera diariamente a las 20:00"}
+              </span>
+            </div>
+
+            {error && <p className="briefing-error">{error}</p>}
           </div>
 
           <ScoreCard
@@ -108,6 +154,13 @@ export default function BriefingView({
               {briefing.resumen ||
                 "EOS está listo para analizar tu situación cuando comiences a conversar."}
             </p>
+
+            {briefing.enfoque_dia && (
+              <div className="daily-focus">
+                <Target size={16} />
+                <span><strong>Foco del día:</strong> {briefing.enfoque_dia}</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -137,6 +190,28 @@ export default function BriefingView({
           </div>
         </section>
 
+        {(logros.length > 0 || riesgos.length > 0) && (
+          <section className="signals-grid" aria-label="Señales del briefing">
+            <SignalCard
+              title="Avances detectados"
+              label="LO QUE ESTÁ FUNCIONANDO"
+              items={logros}
+              icon={<Award size={22} />}
+              tone="success"
+              empty="Todavía no hay avances confirmados para destacar."
+            />
+
+            <SignalCard
+              title="Riesgos que requieren atención"
+              label="VIGILANCIA ACTIVA"
+              items={riesgos}
+              icon={<AlertTriangle size={22} />}
+              tone="warning"
+              empty="EOS no detectó riesgos críticos en este momento."
+            />
+          </section>
+        )}
+
         <div className="briefing-bottom-grid">
           <section className="recommendation-card">
             <div className="recommendation-header">
@@ -162,6 +237,21 @@ export default function BriefingView({
               <span className="recommendation-dot" />
               Recomendación generada según tu contexto actual
             </div>
+
+            {onOpenChat && (
+              <button
+                type="button"
+                className="recommendation-action"
+                onClick={() =>
+                  onOpenChat(
+                    `Quiero trabajar sobre esta recomendación de mi briefing: ${briefing.recomendacion_principal || "ayudame a definir la mejor acción para hoy"}`,
+                  )
+                }
+              >
+                <MessageCircleMore size={16} />
+                Trabajar esto con EOS
+              </button>
+            )}
           </section>
 
           <section className="steps-card">
@@ -180,23 +270,24 @@ export default function BriefingView({
             </div>
 
             <div className="steps-list">
-              <Step
-                numero="1"
-                titulo="Compartí el contexto"
-                descripcion="Explicale a EOS la situación actual y el resultado que esperás."
-              />
-
-              <Step
-                numero="2"
-                titulo="Definí una meta concreta"
-                descripcion="Convertí la necesidad principal en un objetivo medible."
-              />
-
-              <Step
-                numero="3"
-                titulo="Ejecutá el próximo paso"
-                descripcion="Pedí un plan, documento, análisis o automatización."
-              />
+              {(pasos.length
+                ? pasos
+                : [
+                    { titulo: "Compartí el contexto actual" },
+                    { titulo: "Definí una meta concreta" },
+                    { titulo: "Ejecutá el próximo paso" },
+                  ]
+              ).map((paso, index) => (
+                <Step
+                  key={`${paso.titulo}-${index}`}
+                  numero={String(index + 1)}
+                  titulo={paso.titulo}
+                  descripcion={
+                    paso.descripcion ||
+                    "Pedile a EOS que te ayude a convertir este paso en una acción concreta."
+                  }
+                />
+              ))}
             </div>
           </section>
         </div>
@@ -204,8 +295,9 @@ export default function BriefingView({
         <footer className="briefing-footer">
           <span className="briefing-footer-dot" />
 
-          El briefing se actualizará a medida que EOS obtenga más información
-          de tus conversaciones.
+          {historyCount > 1
+            ? `${historyCount} briefings recientes disponibles. EOS actualiza el análisis cada día.`
+            : "EOS actualizará este briefing cada día con tus objetivos, tareas, avances y decisiones."}
         </footer>
       </div>
 
@@ -313,6 +405,33 @@ export default function BriefingView({
           letter-spacing: 0.17em;
         }
 
+        .briefing-meta-row,
+        .briefing-actions {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .freshness-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 10px;
+          border: 1px solid #bbf7d0;
+          border-radius: 999px;
+          background: #f0fdf4;
+          color: #15803d;
+          font-size: 9px;
+          font-weight: 850;
+        }
+
+        .freshness-badge.is-stale {
+          border-color: #fed7aa;
+          background: #fff7ed;
+          color: #c2410c;
+        }
+
         .briefing-live-dot {
           width: 7px;
           height: 7px;
@@ -337,6 +456,61 @@ export default function BriefingView({
           color: #64748b;
           font-size: 16px;
           line-height: 1.75;
+        }
+
+        .briefing-actions {
+          margin-top: 20px;
+        }
+
+        .refresh-button,
+        .recommendation-action {
+          border: 0;
+          font-family: inherit;
+          cursor: pointer;
+        }
+
+        .refresh-button {
+          min-height: 39px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 14px;
+          border: 1px solid #dbeafe;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.9);
+          color: #2563eb;
+          font-size: 10px;
+          font-weight: 850;
+          box-shadow: 0 9px 24px rgba(37, 99, 235, 0.08);
+        }
+
+        .refresh-button:disabled {
+          opacity: 0.62;
+          cursor: wait;
+        }
+
+        .generated-time {
+          color: #94a3b8;
+          font-size: 9px;
+          font-weight: 750;
+        }
+
+        .briefing-error {
+          width: fit-content;
+          margin-top: 12px !important;
+          padding: 8px 11px;
+          border-radius: 11px;
+          background: #fff7ed;
+          color: #c2410c !important;
+          font-size: 10px !important;
+        }
+
+        .is-spinning {
+          animation: briefing-spin 850ms linear infinite;
+        }
+
+        @keyframes briefing-spin {
+          to { transform: rotate(360deg); }
         }
 
         .summary-card {
@@ -417,6 +591,21 @@ export default function BriefingView({
           line-height: 1.75;
         }
 
+        .daily-focus {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          width: fit-content;
+          margin-top: 16px;
+          padding: 10px 12px;
+          border: 1px solid #dbeafe;
+          border-radius: 13px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
         .briefing-section {
           margin-top: 34px;
         }
@@ -451,6 +640,13 @@ export default function BriefingView({
           grid-template-columns:
             minmax(0, 1.2fr)
             minmax(320px, 0.8fr);
+          gap: 18px;
+          margin-top: 22px;
+        }
+
+        .signals-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 18px;
           margin-top: 22px;
         }
@@ -522,6 +718,29 @@ export default function BriefingView({
           color: #94a3b8;
           font-size: 10px;
           font-weight: 700;
+        }
+
+        .recommendation-action {
+          position: relative;
+          min-height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 20px;
+          padding: 0 16px;
+          border-radius: 999px;
+          background: #2563eb;
+          color: white;
+          font-size: 10px;
+          font-weight: 850;
+          box-shadow: 0 13px 30px rgba(37, 99, 235, 0.25);
+          transition: transform 160ms ease, background 160ms ease;
+        }
+
+        .recommendation-action:hover {
+          transform: translateY(-2px);
+          background: #1d4ed8;
         }
 
         .recommendation-dot {
@@ -596,6 +815,10 @@ export default function BriefingView({
           .briefing-bottom-grid {
             grid-template-columns: 1fr;
           }
+
+          .signals-grid {
+            grid-template-columns: 1fr;
+          }
         }
 
         @media (max-width: 760px) {
@@ -619,9 +842,156 @@ export default function BriefingView({
           .summary-card {
             flex-direction: column;
           }
+
+          .briefing-actions,
+          .refresh-button,
+          .recommendation-action {
+            width: 100%;
+          }
         }
       `}</style>
     </main>
+  );
+}
+
+function SignalCard({
+  title,
+  label,
+  items,
+  icon,
+  tone,
+  empty,
+}: {
+  title: string;
+  label: string;
+  items: BriefingItem[];
+  icon: React.ReactNode;
+  tone: "success" | "warning";
+  empty: string;
+}) {
+  return (
+    <article className={`signal-card signal-${tone}`}>
+      <div className="signal-header">
+        <span className="signal-icon">{icon}</span>
+        <div>
+          <span className="signal-label">{label}</span>
+          <h2>{title}</h2>
+        </div>
+      </div>
+
+      <div className="signal-list">
+        {items.length ? (
+          items.slice(0, 4).map((item, index) => (
+            <div className="signal-item" key={`${item.titulo}-${index}`}>
+              <span className="signal-dot" />
+              <div>
+                <strong>{item.titulo}</strong>
+                {item.descripcion && <p>{item.descripcion}</p>}
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="signal-empty">{empty}</p>
+        )}
+      </div>
+
+      <style jsx>{`
+        .signal-card {
+          padding: 25px;
+          border: 1px solid #dbeafe;
+          border-radius: 26px;
+          background: rgba(255, 255, 255, 0.92);
+          box-shadow: 0 18px 50px rgba(15, 23, 42, 0.065);
+        }
+
+        .signal-success { border-color: #bbf7d0; }
+        .signal-warning { border-color: #fed7aa; }
+
+        .signal-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 13px;
+        }
+
+        .signal-icon {
+          width: 44px;
+          height: 44px;
+          flex: 0 0 auto;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: #ecfdf5;
+          color: #059669;
+        }
+
+        .signal-warning .signal-icon {
+          background: #fff7ed;
+          color: #ea580c;
+        }
+
+        .signal-label {
+          color: #059669;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+        }
+
+        .signal-warning .signal-label { color: #ea580c; }
+
+        h2 {
+          margin: 7px 0 0;
+          color: #071226;
+          font-size: 20px;
+          font-weight: 900;
+          letter-spacing: -0.03em;
+        }
+
+        .signal-list {
+          display: grid;
+          gap: 11px;
+          margin-top: 20px;
+        }
+
+        .signal-item {
+          display: grid;
+          grid-template-columns: 8px minmax(0, 1fr);
+          gap: 10px;
+          align-items: flex-start;
+          padding: 12px;
+          border-radius: 14px;
+          background: #f8fafc;
+        }
+
+        .signal-dot {
+          width: 7px;
+          height: 7px;
+          margin-top: 5px;
+          border-radius: 50%;
+          background: #22c55e;
+          box-shadow: 0 0 9px rgba(34, 197, 94, 0.42);
+        }
+
+        .signal-warning .signal-dot {
+          background: #f97316;
+          box-shadow: 0 0 9px rgba(249, 115, 22, 0.38);
+        }
+
+        .signal-item strong {
+          color: #0f172a;
+          font-size: 11px;
+        }
+
+        .signal-item p,
+        .signal-empty {
+          margin: 4px 0 0;
+          color: #64748b;
+          font-size: 9px;
+          line-height: 1.55;
+        }
+
+        .signal-empty { margin: 0; }
+      `}</style>
+    </article>
   );
 }
 
@@ -976,6 +1346,39 @@ function normalizarScore(value?: number) {
   if (!Number.isFinite(numero)) return 0;
 
   return Math.min(100, Math.max(0, Math.round(numero)));
+}
+
+function normalizeItems(value?: BriefingItem[]) {
+  return Array.isArray(value)
+    ? value.filter((item) => item?.titulo?.trim())
+    : [];
+}
+
+function formatBriefingDate(value?: string | null) {
+  if (!value) return "";
+
+  const date = new Date(`${value}T12:00:00-03:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("es-PY", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    timeZone: "America/Asuncion",
+  }).format(date);
+}
+
+function formatGeneratedTime(value?: string) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("es-PY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Asuncion",
+  }).format(date);
 }
 
 function obtenerEstado(score: number) {
