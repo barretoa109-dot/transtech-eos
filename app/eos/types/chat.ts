@@ -44,6 +44,7 @@ export type VistaEOS =
   | "chat"
   | "briefing"
   | "decisions"
+  | "learnings"
   | "dashboard"
   | "perfil";
 

@@ -1,0 +1,108 @@
+{
+  "name": "EOS 3.0 - Aprendizaje de Resultados v7",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"field": "cronExpression", "expression": "10 7 * * *"}]}
+      },
+      "id": "ca057df9-601c-4a82-836c-6dd4af1f067c",
+      "name": "00 F7 Programacion diaria",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-960, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_learning_context_v7",
+        "limit": 500
+      },
+      "id": "3c4c0677-ec68-4efd-9592-888a9c9a2494",
+      "name": "01 F7 Leer evidencia",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-736, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {"supabaseApi": {"id": "BXf6r1VynLo3h7o3", "name": "Supabase account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $json || {};\nconst evidence = Array.isArray(source.evidence) ? source.evidence : [];\nconst valid = evidence.filter((item) => item && item.evidence_id && item.resumen).slice(0, 50);\nif (source.eligible !== true || Number(source.evidence_count || 0) < 3 || valid.length < 3) return [];\nreturn { json: { ...source, evidence: valid, evidence_json: JSON.stringify(valid), model_version: 'gpt-5.4-mini', prompt_version: 'learning-patterns-v7' } };"
+      },
+      "id": "c9b2804b-1643-40d7-81ae-37ad75b11eb7",
+      "name": "02 F7 Exigir evidencia suficiente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-512, 0]
+    },
+    {
+      "parameters": {
+        "modelId": {"__rl": true, "value": "gpt-5.4-mini", "mode": "list", "cachedResultName": "GPT-5.4-MINI"},
+        "responses": {"values": [{
+          "role": "system",
+          "content": "=Sos el motor de aprendizaje verificable de TransTech EOS. Analiza exclusivamente la evidencia recibida y detecta patrones repetidos que puedan mejorar recomendaciones futuras. No inventes causas, correlaciones ni resultados. No conviertas un solo evento en patron. Cada aprendizaje debe estar respaldado por al menos 2 evidencias distintas y debe expresar incertidumbre mediante confianza. Si la evidencia es contradictoria, usa tendencia mixta.\n\nDevuelve exclusivamente JSON valido, sin markdown, con esta forma exacta:\n{\"learnings\":[{\"clave\":\"identificador-estable-corto\",\"categoria\":\"decision|objetivo|ejecucion|contexto|general\",\"patron\":\"...\",\"recomendacion\":\"...\",\"tendencia\":\"positiva|neutral|negativa|mixta\",\"confianza\":0.0,\"evidence\":[{\"evidence_type\":\"decision_result|goal_event|action_event\",\"evidence_id\":\"...\",\"signal\":\"positivo|neutral|negativo|inconcluso\",\"resumen\":\"...\",\"ocurrido_at\":\"ISO-8601\"}]}]}\n\nReglas:\n- Maximo 3 aprendizajes.\n- Usa exactamente los evidence_id recibidos.\n- No repitas la misma evidencia dentro de un aprendizaje.\n- patron y recomendacion deben ser concretos, maximo 500 caracteres cada uno.\n- confianza maxima: 0.70 con 2 evidencias, 0.80 con 3-4, 0.90 con 5 o mas.\n- Si no existe ningun patron repetido, devuelve {\"learnings\":[]}.\n\nEvidencia consolidada:\n{{$json.evidence_json}}"
+        }]},
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "f8701438-ce7c-4167-922b-f1175981e52b",
+      "name": "03 F7 Aprender patrones con OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [-288, 0],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1800,
+      "credentials": {"openAiApi": {"id": "rrbWSomfLM5Z0X0j", "name": "OpenAI account"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('02 F7 Exigir evidencia suficiente').item.json;\nconst collect = (v) => typeof v === 'string' ? v : Array.isArray(v) ? v.map(collect).filter(Boolean).join('\\n') : v && typeof v === 'object' ? collect(v.text || v.output_text || v.content || v.message || v.output || v.response || '') : '';\nconst raw = collect($json).replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim();\nconst start = raw.indexOf('{'); const end = raw.lastIndexOf('}');\nif (start < 0 || end <= start) return [];\nlet parsed; try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return []; }\nconst available = new Map(source.evidence.map((item) => [String(item.evidence_id), item]));\nconst text = (v, max) => String(v || '').trim().slice(0, max);\nconst allowedCategories = new Set(['decision','objetivo','ejecucion','contexto','general']);\nconst allowedTrends = new Set(['positiva','neutral','negativa','mixta']);\nconst allowedTypes = new Set(['decision_result','goal_event','action_event']);\nconst allowedSignals = new Set(['positivo','neutral','negativo','inconcluso']);\nconst learnings = (Array.isArray(parsed.learnings) ? parsed.learnings : []).slice(0, 3).map((item) => {\n  const seen = new Set();\n  const evidence = (Array.isArray(item?.evidence) ? item.evidence : []).map((ref) => {\n    const id = String(ref?.evidence_id || ''); const original = available.get(id);\n    if (!original || seen.has(id) || !allowedTypes.has(String(original.evidence_type))) return null;\n    seen.add(id);\n    return { evidence_type: original.evidence_type, evidence_id: id, signal: allowedSignals.has(String(original.signal)) ? original.signal : 'neutral', resumen: text(original.resumen, 2000), ocurrido_at: original.ocurrido_at };\n  }).filter(Boolean);\n  if (evidence.length < 2) return null;\n  const confidenceCap = evidence.length >= 5 ? 0.90 : evidence.length >= 3 ? 0.80 : 0.70;\n  const confidence = Math.max(0, Math.min(confidenceCap, Number(item?.confianza || 0.5)));\n  const positive = evidence.filter((e) => e.signal === 'positivo').length;\n  const negative = evidence.filter((e) => e.signal === 'negativo').length;\n  const times = evidence.map((e) => new Date(e.ocurrido_at).getTime()).filter(Number.isFinite);\n  const key = text(item?.clave, 160).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');\n  const pattern = text(item?.patron, 500); const recommendation = text(item?.recomendacion, 500);\n  if (!key || !pattern || !recommendation) return null;\n  return { clave: key, categoria: allowedCategories.has(String(item?.categoria)) ? item.categoria : 'general', patron: pattern, recomendacion: recommendation, tendencia: allowedTrends.has(String(item?.tendencia)) ? item.tendencia : 'mixta', confianza: confidence, evidence_count: evidence.length, positive_count: positive, negative_count: negative, first_observed_at: times.length ? new Date(Math.min(...times)).toISOString() : null, last_observed_at: times.length ? new Date(Math.max(...times)).toISOString() : null, evidence, metadata: { total_available_evidence: Number(source.evidence_count || 0) } };\n}).filter(Boolean);\nif (!learnings.length) return [];\nreturn { json: { usuario_id: source.usuario_id, analysis_date: source.analysis_date, evidence_count: Number(source.evidence_count || source.evidence.length), payload: { learnings }, model_version: source.model_version, prompt_version: source.prompt_version, execution_id: String($execution.id || '') } };"
+      },
+      "id": "c3040b00-9031-4a9b-bb02-252f9b72b66a",
+      "name": "04 F7 Validar aprendizaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-64, 0]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_learning_enrichments",
+        "fieldsUi": {"fieldValues": [
+          {"fieldId": "usuario_id", "fieldValue": "={{ $json.usuario_id }}"},
+          {"fieldId": "analysis_date", "fieldValue": "={{ $json.analysis_date }}"},
+          {"fieldId": "evidence_count", "fieldValue": "={{ $json.evidence_count }}"},
+          {"fieldId": "payload", "fieldValue": "={{ $json.payload }}"},
+          {"fieldId": "model_version", "fieldValue": "={{ $json.model_version }}"},
+          {"fieldId": "prompt_version", "fieldValue": "={{ $json.prompt_version }}"},
+          {"fieldId": "execution_id", "fieldValue": "={{ $json.execution_id }}"}
+        ]}
+      },
+      "id": "89f7b986-238a-4e8c-a435-a6046056e4f1",
+      "name": "05 F7 Aplicar aprendizaje",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [160, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {"supabaseApi": {"id": "BXf6r1VynLo3h7o3", "name": "Supabase account"}}
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "00 F7 Programacion diaria": {"main": [[{"node": "01 F7 Leer evidencia", "type": "main", "index": 0}]]},
+    "01 F7 Leer evidencia": {"main": [[{"node": "02 F7 Exigir evidencia suficiente", "type": "main", "index": 0}]]},
+    "02 F7 Exigir evidencia suficiente": {"main": [[{"node": "03 F7 Aprender patrones con OpenAI", "type": "main", "index": 0}]]},
+    "03 F7 Aprender patrones con OpenAI": {"main": [[{"node": "04 F7 Validar aprendizaje", "type": "main", "index": 0}]]},
+    "04 F7 Validar aprendizaje": {"main": [[{"node": "05 F7 Aplicar aprendizaje", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "America/Asuncion"},
+  "staticData": null,
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": []
+}
