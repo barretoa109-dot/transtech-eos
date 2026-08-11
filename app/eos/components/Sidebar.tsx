@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  BrainCircuit,
   ChevronRight,
   FileText,
   Scale,
@@ -20,7 +21,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "decisions" | "dashboard" | "perfil";
+type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -158,6 +159,14 @@ export default function Sidebar({
             descripcion="Resultados y aprendizaje"
             activo={vista === "decisions"}
             onClick={() => onVistaChange("decisions")}
+          />
+
+          <NavButton
+            icono={<BrainCircuit size={18} />}
+            texto="Aprendizajes"
+            descripcion="Patrones comprobados"
+            activo={vista === "learnings"}
+            onClick={() => onVistaChange("learnings")}
           />
 
           <NavButton

@@ -12,6 +12,7 @@ import BriefingView from "../eos/components/BriefingView";
 import DashboardView from "../eos/components/DashboardView";
 import ProfileView from "../eos/components/ProfileView";
 import DecisionsView from "../eos/components/DecisionsView";
+import LearningsView from "../eos/components/LearningsView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
@@ -365,6 +366,7 @@ export default function MobileEOSPage() {
         )}
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}
+        {vista === "learnings" && usuarioCargado && <LearningsView />}
 
         {vista === "perfil" && (
           <ProfileView

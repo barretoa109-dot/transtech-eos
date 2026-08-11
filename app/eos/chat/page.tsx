@@ -12,6 +12,7 @@ import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
 import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
+import LearningsView from "../components/LearningsView";
 
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
@@ -321,6 +322,10 @@ export default function EOSPage() {
 
           {vista === "decisions" && usuarioCargado && (
             <DecisionsView />
+          )}
+
+          {vista === "learnings" && usuarioCargado && (
+            <LearningsView />
           )}
 
           {vista === "perfil" && (
