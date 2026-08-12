@@ -3,6 +3,42 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const FORMULA_VERSION = "eos-intelligence-score-v1";
+
+type Dimensions = {
+  contexto: number;
+  objetivos: number;
+  ejecucion: number;
+  decisiones: number;
+  aprendizaje: number;
+};
+
+type Signals = {
+  active_goals: number;
+  pending_alerts: number;
+  critical_alerts: number;
+  completed_actions: number;
+  measured_decisions: number;
+  learning_evidence: number;
+};
+
+type Snapshot = {
+  snapshot_day: string;
+  score: number;
+  contexto: number;
+  objetivos: number;
+  ejecucion: number;
+  decisiones: number;
+  aprendizaje: number;
+  active_goals: number;
+  pending_alerts: number;
+  critical_alerts: number;
+  completed_actions: number;
+  measured_decisions: number;
+  learning_evidence: number;
+  formula_version: string;
+};
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -11,19 +47,29 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
   }
 
-  const [goals, followups, actions, decisions, learnings, context] = await Promise.all([
+  const [goals, followups, actions, decisions, learnings, context, history] = await Promise.all([
     supabase.from("eos_goals").select("progreso,estado").eq("usuario_id", user.id),
     supabase.from("eos_proactive_followups").select("severidad,estado").eq("usuario_id", user.id).in("estado", ["pendiente", "visto"]),
     supabase.from("eos_action_commands").select("estado").eq("usuario_id", user.id).limit(100),
     supabase.from("eos_decision_registry_v6").select("estado,result_count").eq("usuario_id", user.id).limit(100),
     supabase.from("eos_learnings").select("confianza,evidence_count,estado").eq("usuario_id", user.id).eq("estado", "activo").limit(100),
     supabase.from("eos_master_context_v8").select("identidad,estado_actual,objetivos,proyectos,compromisos,necesita_actualizacion").eq("usuario_id", user.id).maybeSingle(),
+    supabase
+      .from("eos_intelligence_score_snapshots_v10")
+      .select("snapshot_day,score,contexto,objetivos,ejecucion,decisiones,aprendizaje,active_goals,pending_alerts,critical_alerts,completed_actions,measured_decisions,learning_evidence,formula_version")
+      .eq("usuario_id", user.id)
+      .order("snapshot_day", { ascending: false })
+      .limit(30),
   ]);
 
   const queryError = [goals.error, followups.error, actions.error, decisions.error, learnings.error, context.error].find(Boolean);
   if (queryError) {
     console.error("No se pudo calcular EOS Intelligence Score:", queryError);
     return NextResponse.json({ error: "No pudimos calcular tu EOS Score." }, { status: 500 });
+  }
+
+  if (history.error) {
+    console.error("No se pudo cargar el historial del EOS Intelligence Score:", history.error);
   }
 
   const activeGoals = (goals.data ?? []).filter((item) => item.estado === "activo");
@@ -34,7 +80,7 @@ export async function GET() {
   const evidenceCount = (learnings.data ?? []).reduce((sum, item) => sum + Number(item.evidence_count ?? 0), 0);
   const criticalAlerts = (followups.data ?? []).filter((item) => item.severidad === "critica").length;
 
-  const dimensions = {
+  const dimensions: Dimensions = {
     contexto: clamp((context.data ? 78 : 20) + (context.data?.necesita_actualizacion ? -18 : 12)),
     objetivos: clamp(activeGoals.length
       ? average(activeGoals.map((item) => Number(item.progreso ?? 0)))
@@ -57,8 +103,49 @@ export async function GET() {
       - criticalAlerts * 3,
   );
 
+  const signals: Signals = {
+    active_goals: activeGoals.length,
+    pending_alerts: followups.data?.length ?? 0,
+    critical_alerts: criticalAlerts,
+    completed_actions: completedActions,
+    measured_decisions: measuredDecisions,
+    learning_evidence: evidenceCount,
+  };
+
   const weakest = Object.entries(dimensions).sort(([, left], [, right]) => left - right)[0];
   const strongest = Object.entries(dimensions).sort(([, left], [, right]) => right - left)[0];
+  const snapshots = (history.data ?? []) as Snapshot[];
+  const today = new Date().toISOString().slice(0, 10);
+  const comparison = snapshots.find((item) => item.snapshot_day !== today && item.formula_version === FORMULA_VERSION) ?? null;
+  const trend = buildTrend(score, dimensions, signals, comparison);
+
+  const { error: snapshotError } = await supabase
+    .from("eos_intelligence_score_snapshots_v10")
+    .upsert({
+      usuario_id: user.id,
+      snapshot_day: today,
+      score,
+      contexto: dimensions.contexto,
+      objetivos: dimensions.objetivos,
+      ejecucion: dimensions.ejecucion,
+      decisiones: dimensions.decisiones,
+      aprendizaje: dimensions.aprendizaje,
+      active_goals: signals.active_goals,
+      pending_alerts: signals.pending_alerts,
+      critical_alerts: signals.critical_alerts,
+      completed_actions: signals.completed_actions,
+      measured_decisions: signals.measured_decisions,
+      learning_evidence: signals.learning_evidence,
+      strongest_dimension: strongest[0],
+      weakest_dimension: weakest[0],
+      formula_version: FORMULA_VERSION,
+      calculated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "usuario_id,snapshot_day" });
+
+  if (snapshotError) {
+    console.error("No se pudo persistir el EOS Intelligence Score:", snapshotError);
+  }
 
   return NextResponse.json({
     score,
@@ -69,15 +156,90 @@ export async function GET() {
       summary: `Tu dimensión más sólida es ${label(strongest[0])}. La mayor oportunidad está en ${label(weakest[0])}.`,
       next_action: nextAction(weakest[0]),
     },
-    signals: {
-      active_goals: activeGoals.length,
-      pending_alerts: followups.data?.length ?? 0,
-      completed_actions: completedActions,
-      measured_decisions: measuredDecisions,
-      learning_evidence: evidenceCount,
-    },
+    trend,
+    signals,
+    history: snapshots
+      .filter((item) => item.formula_version === FORMULA_VERSION)
+      .slice(0, 14)
+      .map((item) => ({ day: item.snapshot_day, score: item.score }))
+      .reverse(),
+    formula_version: FORMULA_VERSION,
     calculated_at: new Date().toISOString(),
   }, { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } });
+}
+
+function buildTrend(score: number, dimensions: Dimensions, signals: Signals, previous: Snapshot | null) {
+  if (!previous) {
+    return {
+      direction: "new",
+      delta: 0,
+      summary: "Este es tu primer punto de referencia comparable. Desde ahora EOS podrá explicar cómo evoluciona tu score.",
+      drivers: [] as Array<{ key: string; label: string; delta: number; impact: "positivo" | "negativo" }>,
+      previous_day: null,
+      previous_score: null,
+    };
+  }
+
+  const delta = score - previous.score;
+  const dimensionDrivers = (Object.keys(dimensions) as Array<keyof Dimensions>)
+    .map((key) => ({
+      key,
+      label: label(key),
+      delta: dimensions[key] - Number(previous[key]),
+    }))
+    .filter((item) => item.delta !== 0)
+    .sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))
+    .slice(0, 3)
+    .map((item) => ({ ...item, impact: item.delta > 0 ? "positivo" as const : "negativo" as const }));
+
+  const signalDrivers = [
+    signalDriver("critical_alerts", "Alertas críticas", previous.critical_alerts, signals.critical_alerts, true),
+    signalDriver("completed_actions", "Acciones completadas", previous.completed_actions, signals.completed_actions),
+    signalDriver("measured_decisions", "Decisiones medidas", previous.measured_decisions, signals.measured_decisions),
+    signalDriver("learning_evidence", "Evidencia de aprendizaje", previous.learning_evidence, signals.learning_evidence),
+  ].filter(Boolean) as Array<{ key: string; label: string; delta: number; impact: "positivo" | "negativo" }>;
+
+  const drivers = [...dimensionDrivers, ...signalDrivers]
+    .sort((left, right) => Math.abs(right.delta) - Math.abs(left.delta))
+    .slice(0, 4);
+
+  return {
+    direction: delta > 0 ? "up" : delta < 0 ? "down" : "stable",
+    delta,
+    summary: trendSummary(delta, drivers),
+    drivers,
+    previous_day: previous.snapshot_day,
+    previous_score: previous.score,
+  };
+}
+
+function signalDriver(
+  key: string,
+  labelValue: string,
+  previous: number,
+  current: number,
+  inverse = false,
+) {
+  const delta = current - previous;
+  if (delta === 0) return null;
+  const positive = inverse ? delta < 0 : delta > 0;
+  return {
+    key,
+    label: labelValue,
+    delta,
+    impact: positive ? "positivo" as const : "negativo" as const,
+  };
+}
+
+function trendSummary(
+  delta: number,
+  drivers: Array<{ label: string; delta: number; impact: "positivo" | "negativo" }>,
+) {
+  const direction = delta > 0 ? `subió ${delta} puntos` : delta < 0 ? `bajó ${Math.abs(delta)} puntos` : "se mantuvo estable";
+  const main = drivers[0];
+  if (!main) return `Tu EOS Intelligence Score ${direction} desde la última medición comparable.`;
+  const movement = main.delta > 0 ? `mejoró ${Math.abs(main.delta)}` : `cambió ${Math.abs(main.delta)}`;
+  return `Tu EOS Intelligence Score ${direction}. El principal factor fue ${main.label}, que ${movement}.`;
 }
 
 function clamp(value: number) {
