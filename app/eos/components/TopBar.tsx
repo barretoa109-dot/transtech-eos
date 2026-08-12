@@ -1,21 +1,36 @@
 "use client";
 
-import { Files } from "lucide-react";
+import { Files, ShieldCheck } from "lucide-react";
 
 type TopBarProps = {
   onOpenDocuments?: () => void;
+  onOpenAutonomy?: () => void;
 };
 
-export default function TopBar({ onOpenDocuments }: TopBarProps) {
+export default function TopBar({
+  onOpenDocuments,
+  onOpenAutonomy,
+}: TopBarProps) {
   return (
     <header className="tt-header">
       <div className="tt-background" />
 
       <div className="tt-actions">
+        {onOpenAutonomy && (
+          <button
+            type="button"
+            className="tt-navigation-pill"
+            onClick={onOpenAutonomy}
+          >
+            <ShieldCheck size={15} />
+            Autonomía
+          </button>
+        )}
+
         {onOpenDocuments && (
           <button
             type="button"
-            className="tt-documents"
+            className="tt-navigation-pill"
             onClick={onOpenDocuments}
           >
             <Files size={15} />
@@ -75,14 +90,14 @@ export default function TopBar({ onOpenDocuments }: TopBarProps) {
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          gap: 14px;
+          gap: 10px;
         }
 
-        .tt-documents {
+        .tt-navigation-pill {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 10px 16px;
+          padding: 10px 15px;
           border: 1px solid #bfdbfe;
           border-radius: 999px;
           background: #eff6ff;
@@ -98,7 +113,7 @@ export default function TopBar({ onOpenDocuments }: TopBarProps) {
             box-shadow 180ms ease;
         }
 
-        .tt-documents:hover {
+        .tt-navigation-pill:hover {
           transform: translateY(-1px);
           border-color: #60a5fa;
           box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
@@ -136,36 +151,32 @@ export default function TopBar({ onOpenDocuments }: TopBarProps) {
           font-weight: 700;
           cursor: default;
           box-shadow: 0 8px 24px rgba(37, 99, 235, 0.05);
-          transition:
-            transform 180ms ease,
-            border-color 180ms ease,
-            box-shadow 180ms ease;
         }
 
-        .tt-pill:hover {
-          transform: translateY(-2px);
-          border-color: #3b82f6;
-          box-shadow: 0 14px 30px rgba(37, 99, 235, 0.12);
-        }
-
-        @media (max-width: 640px) {
+        @media (max-width: 820px) {
           .tt-header {
             min-height: 72px;
-            padding: 0 16px 0 64px;
+            padding: 0 12px 0 64px;
           }
 
           .tt-actions {
-            gap: 7px;
+            gap: 6px;
           }
 
           .tt-status,
           .tt-pill,
-          .tt-documents {
-            padding: 8px 10px;
+          .tt-navigation-pill {
+            padding: 8px 9px;
             font-size: 9px;
           }
 
           .tt-pill {
+            display: none;
+          }
+        }
+
+        @media (max-width: 540px) {
+          .tt-status {
             display: none;
           }
         }
