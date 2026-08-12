@@ -1,6 +1,7 @@
 "use client";
 
-import { Files, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { BrainCircuit, Files, ShieldCheck } from "lucide-react";
 
 type TopBarProps = {
   onOpenDocuments?: () => void;
@@ -16,6 +17,11 @@ export default function TopBar({
       <div className="tt-background" />
 
       <div className="tt-actions">
+        <Link href="/eos/twin" className="tt-navigation-pill tt-link-pill">
+          <BrainCircuit size={15} />
+          Twin
+        </Link>
+
         {onOpenAutonomy && (
           <button
             type="button"
@@ -113,7 +119,12 @@ export default function TopBar({
             box-shadow 180ms ease;
         }
 
-        .tt-navigation-pill:hover {
+        :global(.tt-link-pill) {
+          text-decoration: none;
+        }
+
+        .tt-navigation-pill:hover,
+        :global(.tt-link-pill:hover) {
           transform: translateY(-1px);
           border-color: #60a5fa;
           box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
@@ -165,7 +176,8 @@ export default function TopBar({
 
           .tt-status,
           .tt-pill,
-          .tt-navigation-pill {
+          .tt-navigation-pill,
+          :global(.tt-link-pill) {
             padding: 8px 9px;
             font-size: 9px;
           }
