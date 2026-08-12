@@ -1,3 +1,5 @@
+import { createClient } from "@/lib/supabase/server";
+
 function buscarTexto(valor: unknown): string {
   if (!valor) return "";
 
@@ -49,11 +51,31 @@ function limpiarRespuesta(texto: string): string {
 
 export async function POST(req: Request) {
   try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return Response.json(
+        { respuesta: "Tu sesión dejó de ser válida. Iniciá sesión nuevamente." },
+        { status: 401 },
+      );
+    }
+
     const body = await req.json();
+
+    const { data: masterContext, error: contextError } = await supabase
+      .from("eos_master_context_v8")
+      .select("version,resumen_compacto,proxima_mejor_accion,generado_at,necesita_actualizacion")
+      .eq("usuario_id", user.id)
+      .maybeSingle();
+
+    if (contextError) {
+      console.log("Contexto Maestro no disponible:", contextError);
+    }
 
     const payload = {
       request_id: body.request_id || crypto.randomUUID(),
-      usuario_id: body.usuario_id || body.user_id || "",
+      usuario_id: user.id,
       conversacion_id: body.conversacion_id || "",
       nombre: body.nombre || "Usuario",
       plan: body.plan || "free",
@@ -61,6 +83,11 @@ export async function POST(req: Request) {
       historial: body.historial || [],
       origen: body.origen || "eos-web",
       fecha: new Date().toISOString(),
+      contexto_maestro: masterContext?.resumen_compacto || "",
+      contexto_maestro_version: masterContext?.version || null,
+      proxima_mejor_accion: masterContext?.proxima_mejor_accion || null,
+      contexto_maestro_generado_at: masterContext?.generado_at || null,
+      contexto_maestro_desactualizado: masterContext?.necesita_actualizacion ?? true,
     };
 
     if (!payload.usuario_id || !payload.mensaje) {
