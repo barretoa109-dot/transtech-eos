@@ -15,6 +15,7 @@ import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
 import MasterContextView from "../components/MasterContextView";
 import DocumentsView from "../components/DocumentsView";
+import AutonomyView from "../components/AutonomyView";
 
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
@@ -26,7 +27,7 @@ import {
 } from "../services/uploads";
 import type { DocumentoAdjunto, VistaEOS } from "../types/chat";
 
-type VistaWebEOS = VistaEOS | "documents";
+type VistaWebEOS = VistaEOS | "documents" | "autonomy";
 
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
@@ -256,7 +257,10 @@ export default function EOSPage() {
   const sidebarProps = {
     nombre,
     plan,
-    vista: vista === "documents" ? ("chat" as const) : vista,
+    vista:
+      vista === "documents" || vista === "autonomy"
+        ? ("chat" as const)
+        : vista,
     busqueda,
     conversacionId,
     conversaciones,
@@ -297,7 +301,10 @@ export default function EOSPage() {
       </aside>
 
       <section className="eos-content">
-        <TopBar onOpenDocuments={() => setVista("documents")} />
+        <TopBar
+          onOpenDocuments={() => setVista("documents")}
+          onOpenAutonomy={() => setVista("autonomy")}
+        />
 
         <button
           type="button"
@@ -385,6 +392,8 @@ export default function EOSPage() {
           {vista === "documents" && usuarioCargado && (
             <DocumentsView onUseInChat={usarDocumentoEnChat} />
           )}
+
+          {vista === "autonomy" && usuarioCargado && <AutonomyView />}
 
           {vista === "briefing" && (
             <BriefingView
