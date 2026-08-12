@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type SystemRisk = { tier: number; points: number; maxLevel: number };
+type Decision = "recommend" | "prepare" | "approval" | "allow" | "block";
 
 const SYSTEM_RISK: Record<string, SystemRisk> = {
   RESPONDER: { tier: 0, points: 0, maxLevel: 3 },
@@ -54,6 +55,44 @@ function startOfUtcDay() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
 }
 
+function responseBody(params: {
+  requestId: string;
+  action: string;
+  decision: Decision;
+  reason: string;
+  configuredLevel: number;
+  effectiveLevel: number;
+  systemRisk: SystemRisk;
+  riskTier: number;
+  riskPoints: number;
+  autoCount: number;
+  actionLimit: number;
+  usedRisk: number;
+  riskLimit: number;
+  approval?: unknown;
+  idempotent?: boolean;
+}) {
+  return {
+    ok: true,
+    request_id: params.requestId,
+    accion: params.action,
+    decision: params.decision,
+    reason: params.reason,
+    configured_level: params.configuredLevel,
+    effective_level: params.effectiveLevel,
+    system_risk: params.systemRisk,
+    effective_risk: { tier: params.riskTier, points: params.riskPoints },
+    daily_limits: {
+      auto_count: params.autoCount,
+      auto_limit: params.actionLimit,
+      risk_used: params.usedRisk,
+      risk_limit: params.riskLimit,
+    },
+    approval: params.approval || null,
+    idempotent: params.idempotent || false,
+  };
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -86,27 +125,39 @@ export async function POST(request: Request) {
       : crypto.randomUUID();
   const payload = safeObject(body?.payload);
 
-  const [profileResult, ruleResult, dailyEventsResult] = await Promise.all([
-    supabase
-      .from("eos_autonomy_profiles_v12")
-      .select("default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled")
-      .eq("usuario_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("eos_autonomy_rules_v12")
-      .select("autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context")
-      .eq("usuario_id", user.id)
-      .eq("accion", action)
-      .maybeSingle(),
-    supabase
-      .from("eos_autonomy_events_v12")
-      .select("event_type,detail")
-      .eq("usuario_id", user.id)
-      .eq("event_type", "auto_allowed")
-      .gte("created_at", startOfUtcDay()),
-  ]);
+  const [profileResult, ruleResult, dailyEventsResult, existingApprovalResult] =
+    await Promise.all([
+      supabase
+        .from("eos_autonomy_profiles_v12")
+        .select("default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled")
+        .eq("usuario_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("eos_autonomy_rules_v12")
+        .select("autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context")
+        .eq("usuario_id", user.id)
+        .eq("accion", action)
+        .maybeSingle(),
+      supabase
+        .from("eos_autonomy_events_v12")
+        .select("event_type,detail")
+        .eq("usuario_id", user.id)
+        .eq("event_type", "auto_allowed")
+        .gte("created_at", startOfUtcDay()),
+      supabase
+        .from("eos_action_approvals_v12")
+        .select("id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,created_at,decided_at")
+        .eq("usuario_id", user.id)
+        .eq("request_id", requestId)
+        .eq("accion", action)
+        .maybeSingle(),
+    ]);
 
-  const readError = profileResult.error || ruleResult.error || dailyEventsResult.error;
+  const readError =
+    profileResult.error ||
+    ruleResult.error ||
+    dailyEventsResult.error ||
+    existingApprovalResult.error;
   if (readError) {
     console.error("No se pudo evaluar autonomía EOS:", readError);
     return NextResponse.json(
@@ -117,9 +168,8 @@ export async function POST(request: Request) {
 
   const profile = { ...DEFAULT_PROFILE, ...(profileResult.data || {}) };
   const rule = ruleResult.data;
-  const configuredLevel = rule?.enabled === false
-    ? 0
-    : Number(rule?.autonomy_level ?? profile.default_level);
+  const configuredLevel =
+    rule?.enabled === false ? 0 : Number(rule?.autonomy_level ?? profile.default_level);
   const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
   const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
   const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
@@ -135,7 +185,93 @@ export async function POST(request: Request) {
       ? profile.max_auto_actions_per_day
       : Math.min(profile.max_auto_actions_per_day, Number(rule.max_auto_per_day));
 
-  let decision: "recommend" | "prepare" | "approval" | "allow" | "block";
+  const existingApproval = existingApprovalResult.data;
+  if (existingApproval) {
+    let decision: Decision = "approval";
+    let reason = existingApproval.reason || "La acción requiere aprobación explícita.";
+
+    if (existingApproval.status === "approved") {
+      decision = "allow";
+      reason = "La acción ya fue aprobada explícitamente para este request.";
+    } else if (
+      existingApproval.status === "rejected" ||
+      existingApproval.status === "expired" ||
+      existingApproval.status === "cancelled"
+    ) {
+      decision = "block";
+      reason = `La aprobación está en estado ${existingApproval.status}.`;
+    } else if (existingApproval.status === "consumed") {
+      decision = "block";
+      reason = "La aprobación ya fue consumida por una ejecución anterior.";
+    } else if (new Date(existingApproval.expires_at).getTime() <= Date.now()) {
+      decision = "block";
+      reason = "La aprobación asociada a este request ya venció.";
+    }
+
+    return NextResponse.json(
+      responseBody({
+        requestId,
+        action,
+        decision,
+        reason,
+        configuredLevel,
+        effectiveLevel,
+        systemRisk,
+        riskTier,
+        riskPoints,
+        autoCount,
+        actionLimit,
+        usedRisk,
+        riskLimit: profile.max_daily_risk_points,
+        approval: existingApproval,
+        idempotent: true,
+      }),
+      { headers: noStoreHeaders() },
+    );
+  }
+
+  const { data: priorEvents, error: priorEventError } = await supabase
+    .from("eos_autonomy_events_v12")
+    .select("event_type,detail,created_at")
+    .eq("usuario_id", user.id)
+    .contains("detail", { request_id: requestId, accion: action })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (priorEventError) {
+    console.error("No se pudo comprobar idempotencia de autonomía:", priorEventError);
+  } else if (priorEvents?.length) {
+    const detail = safeObject(priorEvents[0].detail);
+    const previousDecision = detail.decision;
+    if (
+      previousDecision === "recommend" ||
+      previousDecision === "prepare" ||
+      previousDecision === "allow" ||
+      previousDecision === "block"
+    ) {
+      return NextResponse.json(
+        responseBody({
+          requestId,
+          action,
+          decision: previousDecision,
+          reason: String(detail.reason || "Evaluación reutilizada."),
+          configuredLevel: Number(detail.configured_level ?? configuredLevel),
+          effectiveLevel: Number(detail.effective_level ?? effectiveLevel),
+          systemRisk,
+          riskTier: Number(detail.risk_tier ?? riskTier),
+          riskPoints: Number(detail.risk_points ?? riskPoints),
+          autoCount,
+          actionLimit,
+          usedRisk,
+          riskLimit: profile.max_daily_risk_points,
+          idempotent: true,
+        }),
+        { headers: noStoreHeaders() },
+      );
+    }
+  }
+
+  let decision: Decision;
   let reason = "";
 
   if (!profile.enabled) {
@@ -149,9 +285,10 @@ export async function POST(request: Request) {
     reason = "EOS puede preparar la acción, pero no ejecutarla.";
   } else if (effectiveLevel === 2 || riskTier >= 2) {
     decision = "approval";
-    reason = riskTier >= 2
-      ? "El riesgo mínimo de sistema exige aprobación explícita."
-      : "La configuración del usuario exige aprobación explícita.";
+    reason =
+      riskTier >= 2
+        ? "El riesgo mínimo de sistema exige aprobación explícita."
+        : "La configuración del usuario exige aprobación explícita.";
   } else if (autoCount >= actionLimit) {
     decision = "block";
     reason = "Se alcanzó el límite diario de acciones automáticas.";
@@ -173,23 +310,20 @@ export async function POST(request: Request) {
 
     const { data, error } = await admin
       .from("eos_action_approvals_v12")
-      .upsert(
-        {
-          usuario_id: user.id,
-          request_id: requestId,
-          accion: action,
-          risk_tier: riskTier,
-          risk_points: riskPoints,
-          requested_level: configuredLevel,
-          effective_level: effectiveLevel,
-          status: "pending",
-          reason,
-          payload_snapshot: payload,
-          payload_fingerprint: stableFingerprint(payload),
-          expires_at: expiresAt,
-        },
-        { onConflict: "usuario_id,request_id,accion", ignoreDuplicates: false },
-      )
+      .insert({
+        usuario_id: user.id,
+        request_id: requestId,
+        accion: action,
+        risk_tier: riskTier,
+        risk_points: riskPoints,
+        requested_level: configuredLevel,
+        effective_level: effectiveLevel,
+        status: "pending",
+        reason,
+        payload_snapshot: payload,
+        payload_fingerprint: stableFingerprint(payload),
+        expires_at: expiresAt,
+      })
       .select("id,request_id,accion,status,risk_tier,risk_points,expires_at,created_at")
       .single();
 
@@ -239,24 +373,22 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    {
-      ok: true,
-      request_id: requestId,
-      accion: action,
+    responseBody({
+      requestId,
+      action,
       decision,
       reason,
-      configured_level: configuredLevel,
-      effective_level: effectiveLevel,
-      system_risk: systemRisk,
-      effective_risk: { tier: riskTier, points: riskPoints },
-      daily_limits: {
-        auto_count: autoCount,
-        auto_limit: actionLimit,
-        risk_used: usedRisk,
-        risk_limit: profile.max_daily_risk_points,
-      },
+      configuredLevel,
+      effectiveLevel,
+      systemRisk,
+      riskTier,
+      riskPoints,
+      autoCount,
+      actionLimit,
+      usedRisk,
+      riskLimit: profile.max_daily_risk_points,
       approval,
-    },
+    }),
     { headers: noStoreHeaders() },
   );
 }
