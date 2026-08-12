@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const POLICY_VERSION = "eos-worker-gate-v1";
+const POLICY_VERSION = "eos-worker-gate-v2";
 
 type SystemRisk = {
   tier: number;
@@ -131,7 +131,23 @@ async function logEvent(
 
   if (error) {
     console.error("Worker gate: no se pudo registrar evento:", error);
+    return false;
   }
+
+  return true;
+}
+
+function blockResponse(reason: string, status = 409) {
+  return NextResponse.json(
+    {
+      ok: false,
+      execute: false,
+      decision: "block",
+      reason,
+      policy_version: POLICY_VERSION,
+    },
+    { status, headers: noStoreHeaders() },
+  );
 }
 
 export async function POST(request: Request) {
@@ -241,6 +257,44 @@ export async function POST(request: Request) {
       );
     }
 
+    let command: {
+      id: string;
+      usuario_id: string;
+      request_id: string;
+      accion: string;
+      estado: string;
+    } | null = null;
+
+    if (commandId) {
+      const { data: commandData, error: commandError } = await admin
+        .from("eos_action_commands")
+        .select("id,usuario_id,request_id,accion,estado")
+        .eq("id", commandId)
+        .maybeSingle();
+
+      if (commandError || !commandData) {
+        return blockResponse("command_id no corresponde a una orden existente.", 404);
+      }
+
+      if (
+        commandData.usuario_id !== usuarioId ||
+        commandData.request_id !== requestId ||
+        commandData.accion !== action
+      ) {
+        return blockResponse(
+          "La orden no coincide exactamente con usuario, request_id y acción evaluados.",
+        );
+      }
+
+      if (!['recibida', 'ejecutando'].includes(commandData.estado)) {
+        return blockResponse(
+          `La orden está en estado no ejecutable: ${commandData.estado}.`,
+        );
+      }
+
+      command = commandData;
+    }
+
     if (consumeApproval && approvalId && commandId) {
       const { data, error } = await admin.rpc(
         "eos_consume_action_approval_v12",
@@ -252,15 +306,8 @@ export async function POST(request: Request) {
 
       if (error) {
         console.error("Worker gate: consumo de aprobación rechazado:", error);
-
-        return NextResponse.json(
-          {
-            ok: false,
-            execute: false,
-            decision: "block",
-            reason: "La aprobación no pudo consumirse de forma segura.",
-          },
-          { status: 409, headers: noStoreHeaders() },
+        return blockResponse(
+          "La aprobación no pudo consumirse de forma segura.",
         );
       }
 
@@ -271,6 +318,7 @@ export async function POST(request: Request) {
           decision: "allow",
           reason: "Aprobación explícita consumida de forma atómica.",
           consumed: true,
+          command_id: command?.id || commandId,
           approval: Array.isArray(data) ? data[0] || null : data,
           policy_version: POLICY_VERSION,
         },
@@ -278,46 +326,51 @@ export async function POST(request: Request) {
       );
     }
 
-    const [profileResult, ruleResult, approvalResult, priorEventResult, dailyEventsResult] =
-      await Promise.all([
-        admin
-          .from("eos_autonomy_profiles_v12")
-          .select(
-            "default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled",
-          )
-          .eq("usuario_id", usuarioId)
-          .maybeSingle(),
-        admin
-          .from("eos_autonomy_rules_v12")
-          .select(
-            "autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context",
-          )
-          .eq("usuario_id", usuarioId)
-          .eq("accion", action)
-          .maybeSingle(),
-        admin
-          .from("eos_action_approvals_v12")
-          .select(
-            "id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,decided_at,created_at",
-          )
-          .eq("usuario_id", usuarioId)
-          .eq("request_id", requestId)
-          .eq("accion", action)
-          .maybeSingle(),
-        admin
-          .from("eos_autonomy_events_v12")
-          .select("id,event_type,detail,created_at")
-          .eq("usuario_id", usuarioId)
-          .contains("detail", { request_id: requestId, accion: action })
-          .order("created_at", { ascending: false })
-          .limit(1),
-        admin
-          .from("eos_autonomy_events_v12")
-          .select("event_type,detail")
-          .eq("usuario_id", usuarioId)
-          .eq("event_type", "auto_allowed")
-          .gte("created_at", startOfUtcDay()),
-      ]);
+    const [
+      profileResult,
+      ruleResult,
+      approvalResult,
+      priorEventResult,
+      dailyEventsResult,
+    ] = await Promise.all([
+      admin
+        .from("eos_autonomy_profiles_v12")
+        .select(
+          "default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled",
+        )
+        .eq("usuario_id", usuarioId)
+        .maybeSingle(),
+      admin
+        .from("eos_autonomy_rules_v12")
+        .select(
+          "autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context",
+        )
+        .eq("usuario_id", usuarioId)
+        .eq("accion", action)
+        .maybeSingle(),
+      admin
+        .from("eos_action_approvals_v12")
+        .select(
+          "id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,decided_at,created_at",
+        )
+        .eq("usuario_id", usuarioId)
+        .eq("request_id", requestId)
+        .eq("accion", action)
+        .maybeSingle(),
+      admin
+        .from("eos_autonomy_events_v12")
+        .select("id,command_id,event_type,detail,created_at")
+        .eq("usuario_id", usuarioId)
+        .contains("detail", { request_id: requestId, accion: action })
+        .order("created_at", { ascending: false })
+        .limit(1),
+      admin
+        .from("eos_autonomy_events_v12")
+        .select("event_type,detail")
+        .eq("usuario_id", usuarioId)
+        .eq("event_type", "auto_allowed")
+        .gte("created_at", startOfUtcDay()),
+    ]);
 
     const readError =
       profileResult.error ||
@@ -328,14 +381,9 @@ export async function POST(request: Request) {
 
     if (readError) {
       console.error("Worker gate: error leyendo autonomía:", readError);
-      return NextResponse.json(
-        {
-          ok: false,
-          execute: false,
-          decision: "block",
-          reason: "No fue posible verificar la política de autonomía.",
-        },
-        { status: 500, headers: noStoreHeaders() },
+      return blockResponse(
+        "No fue posible verificar la política de autonomía.",
+        500,
       );
     }
 
@@ -375,7 +423,7 @@ export async function POST(request: Request) {
             execute: false,
             decision: "approval_ready",
             reason:
-              "La aprobación está lista. El Worker debe volver a llamar con consume_approval=true, approval_id y command_id justo antes del efecto secundario.",
+              "La aprobación está lista. Creá/asegurá el command_id y volvé a llamar con consume_approval=true justo antes del efecto secundario.",
             approval: existingApproval,
             policy_version: POLICY_VERSION,
           },
@@ -420,13 +468,29 @@ export async function POST(request: Request) {
       priorDetail.request_id === requestId &&
       priorDetail.accion === action
     ) {
+      if (!commandId || priorEvent.command_id !== commandId) {
+        return NextResponse.json(
+          {
+            ok: true,
+            execute: false,
+            decision: "allow",
+            reason:
+              "La política ya autorizó esta intención, pero falta presentar el command_id exacto para ejecutar.",
+            requires_command: true,
+            policy_version: POLICY_VERSION,
+          },
+          { headers: noStoreHeaders() },
+        );
+      }
+
       return NextResponse.json(
         {
           ok: true,
           execute: true,
           decision: "allow",
-          reason: "Evaluación automática idempotente ya registrada.",
+          reason: "Autorización automática idempotente vinculada al mismo comando.",
           idempotent: true,
+          command_id: commandId,
           policy_version: POLICY_VERSION,
         },
         { headers: noStoreHeaders() },
@@ -463,6 +527,12 @@ export async function POST(request: Request) {
     }
 
     if (decision === "approval") {
+      if (commandId) {
+        return blockResponse(
+          "No crees una orden ejecutable antes de obtener la aprobación. Evaluá sin command_id y crealo después de approval_ready.",
+        );
+      }
+
       const expiresAt = new Date(
         Date.now() + Number(profile.approval_ttl_minutes) * 60_000,
       ).toISOString();
@@ -490,21 +560,15 @@ export async function POST(request: Request) {
 
       if (approvalError) {
         console.error("Worker gate: no se pudo crear aprobación:", approvalError);
-        return NextResponse.json(
-          {
-            ok: false,
-            execute: false,
-            decision: "block",
-            reason: "No se pudo crear la solicitud de aprobación de forma segura.",
-          },
-          { status: 500, headers: noStoreHeaders() },
+        return blockResponse(
+          "No se pudo crear la solicitud de aprobación de forma segura.",
+          500,
         );
       }
 
       await logEvent(admin, {
         usuarioId,
         approvalId: approval.id,
-        commandId,
         eventType: "approval_requested",
         detail: {
           request_id: requestId,
@@ -531,6 +595,23 @@ export async function POST(request: Request) {
       );
     }
 
+    if (decision === "allow" && !commandId) {
+      return NextResponse.json(
+        {
+          ok: true,
+          execute: false,
+          decision: "allow",
+          reason:
+            "La política permite autoejecución. Creá/asegurá eos_action_commands y volvé a llamar con su command_id antes del efecto secundario.",
+          requires_command: true,
+          effective_level: effectiveLevel,
+          effective_risk: { tier: riskTier, points: riskPoints },
+          policy_version: POLICY_VERSION,
+        },
+        { headers: noStoreHeaders() },
+      );
+    }
+
     const eventType =
       decision === "allow"
         ? "auto_allowed"
@@ -538,7 +619,7 @@ export async function POST(request: Request) {
           ? "auto_blocked"
           : "evaluated";
 
-    await logEvent(admin, {
+    const eventLogged = await logEvent(admin, {
       usuarioId,
       commandId,
       eventType,
@@ -555,15 +636,24 @@ export async function POST(request: Request) {
         daily_auto_limit: actionLimit,
         daily_risk_used: usedRisk,
         daily_risk_limit: Number(profile.max_daily_risk_points),
+        command_binding_verified: decision === "allow" ? Boolean(command) : false,
       },
     });
+
+    if (decision === "allow" && !eventLogged) {
+      return blockResponse(
+        "No se pudo persistir la autorización automática; ejecución bloqueada por seguridad.",
+        500,
+      );
+    }
 
     return NextResponse.json(
       {
         ok: true,
-        execute: decision === "allow",
+        execute: decision === "allow" && eventLogged,
         decision,
         reason,
+        command_id: decision === "allow" ? commandId : null,
         effective_level: effectiveLevel,
         effective_risk: { tier: riskTier, points: riskPoints },
         daily_limits: {
