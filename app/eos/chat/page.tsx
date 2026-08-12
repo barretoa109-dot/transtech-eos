@@ -26,12 +26,14 @@ import {
 } from "../services/uploads";
 import type { DocumentoAdjunto, VistaEOS } from "../types/chat";
 
+type VistaWebEOS = VistaEOS | "documents";
+
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
   const [usuarioId, setUsuarioId] = useState("");
   const [usuarioCargado, setUsuarioCargado] = useState(false);
-  const [vista, setVista] = useState<VistaEOS>("chat");
+  const [vista, setVista] = useState<VistaWebEOS>("chat");
   const [busqueda, setBusqueda] = useState("");
   const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
 
