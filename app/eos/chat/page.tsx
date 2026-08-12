@@ -19,7 +19,10 @@ import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
 
-import { convertirImagenABase64 } from "../services/uploads";
+import {
+  convertirImagenABase64,
+  subirDocumentoEOS,
+} from "../services/uploads";
 import type { VistaEOS } from "../types/chat";
 
 export default function EOSPage() {
@@ -29,6 +32,7 @@ export default function EOSPage() {
   const [usuarioCargado, setUsuarioCargado] = useState(false);
   const [vista, setVista] = useState<VistaEOS>("chat");
   const [busqueda, setBusqueda] = useState("");
+  const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
 
   // Solo se utiliza en móviles.
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
@@ -64,6 +68,8 @@ export default function EOSPage() {
     cargando,
     imagenAdjunta,
     setImagenAdjunta,
+    documentoAdjunto,
+    setDocumentoAdjunto,
     enviarMensaje,
   } = useChat({
     usuarioId,
@@ -161,6 +167,8 @@ export default function EOSPage() {
     if (!usuarioId) return;
 
     await nuevaConversacion(usuarioId);
+    setImagenAdjunta(null);
+    setDocumentoAdjunto(null);
     setVista("chat");
     setMenuMovilAbierto(false);
   }
@@ -169,6 +177,7 @@ export default function EOSPage() {
     try {
       const imagen = await convertirImagenABase64(file);
 
+      setDocumentoAdjunto(null);
       setImagenAdjunta(imagen);
 
       if (!mensaje.trim()) {
@@ -180,8 +189,41 @@ export default function EOSPage() {
     }
   }
 
+  async function manejarArchivo(file: File) {
+    if (subiendoAdjunto || cargando) return;
+
+    if (file.type.startsWith("image/")) {
+      await manejarImagen(file);
+      return;
+    }
+
+    setSubiendoAdjunto(true);
+
+    try {
+      const documento = await subirDocumentoEOS(file, conversacionId || undefined);
+
+      setImagenAdjunta(null);
+      setDocumentoAdjunto(documento);
+
+      if (!mensaje.trim()) {
+        setMensaje(`Analizá este documento: ${documento.nombre}`);
+      }
+    } catch (error) {
+      console.error("No se pudo adjuntar el documento:", error);
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo adjuntar el documento.",
+      );
+    } finally {
+      setSubiendoAdjunto(false);
+    }
+  }
+
   async function manejarAbrirConversacion(id: string) {
     await abrirConversacion(id);
+    setImagenAdjunta(null);
+    setDocumentoAdjunto(null);
     setVista("chat");
     setMenuMovilAbierto(false);
   }
@@ -192,9 +234,25 @@ export default function EOSPage() {
   }
 
   function quitarImagenAdjunta() {
+    const nombreImagen = imagenAdjunta?.nombre;
     setImagenAdjunta(null);
 
-    if (mensaje.startsWith("Analizá esta imagen:")) {
+    if (
+      nombreImagen &&
+      mensaje.trim() === `Analizá esta imagen: ${nombreImagen}`
+    ) {
+      setMensaje("");
+    }
+  }
+
+  function quitarDocumentoAdjunto() {
+    const nombreDocumento = documentoAdjunto?.nombre;
+    setDocumentoAdjunto(null);
+
+    if (
+      nombreDocumento &&
+      mensaje.trim() === `Analizá este documento: ${nombreDocumento}`
+    ) {
       setMensaje("");
     }
   }
@@ -273,34 +331,69 @@ export default function EOSPage() {
                 onEnviarSugerencia={(texto) => enviarMensaje(texto)}
               />
 
-              {imagenAdjunta && (
-                <div className="eos-image-preview-wrapper">
-                  <div className="eos-image-preview">
-                    <div className="eos-image-preview-info">
-                      <span className="eos-image-icon">IMG</span>
+              {(imagenAdjunta || documentoAdjunto || subiendoAdjunto) && (
+                <div className="eos-attachment-preview-wrapper">
+                  <div className="eos-attachment-preview">
+                    <div className="eos-attachment-preview-info">
+                      <span className="eos-attachment-icon">
+                        {subiendoAdjunto
+                          ? "..."
+                          : imagenAdjunta
+                            ? "IMG"
+                            : "DOC"}
+                      </span>
 
-                      <span className="eos-image-text">
-                        <small>IMAGEN ADJUNTA</small>
-                        <strong>{imagenAdjunta.nombre}</strong>
+                      <span className="eos-attachment-text">
+                        <small>
+                          {subiendoAdjunto
+                            ? "PROCESANDO DOCUMENTO"
+                            : imagenAdjunta
+                              ? "IMAGEN ADJUNTA"
+                              : documentoAdjunto?.intelligence_status === "ready"
+                                ? "DOCUMENTO ANALIZADO"
+                                : "DOCUMENTO ADJUNTO"}
+                        </small>
+                        <strong>
+                          {subiendoAdjunto
+                            ? "EOS está preparando el archivo..."
+                            : imagenAdjunta?.nombre || documentoAdjunto?.nombre}
+                        </strong>
+                        {documentoAdjunto && (
+                          <span className="eos-attachment-status">
+                            {documentoAdjunto.document_type || "documento"}
+                            {" · "}
+                            {documentoAdjunto.extraction_status === "ready"
+                              ? "texto extraído"
+                              : documentoAdjunto.extraction_status === "partial"
+                                ? "extracción parcial"
+                                : "extracción pendiente"}
+                          </span>
+                        )}
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={quitarImagenAdjunta}
-                    >
-                      Quitar
-                    </button>
+                    {!subiendoAdjunto && (
+                      <button
+                        type="button"
+                        onClick={
+                          imagenAdjunta
+                            ? quitarImagenAdjunta
+                            : quitarDocumentoAdjunto
+                        }
+                      >
+                        Quitar
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
               <Composer
                 mensaje={mensaje}
-                cargando={cargando}
+                cargando={cargando || subiendoAdjunto}
                 onMensajeChange={setMensaje}
                 onEnviar={() => enviarMensaje()}
-                onImagenSeleccionada={manejarImagen}
+                onArchivoSeleccionado={(file) => void manejarArchivo(file)}
               />
             </>
           )}
@@ -323,20 +416,18 @@ export default function EOSPage() {
           )}
 
           {vista === "dashboard" && usuarioCargado && (
-  <DashboardView
-    key={`${usuarioId}-${nombre}`}
-    userName={nombre}
-    plan={plan}
-    totalConversations={conversaciones.length}
-    totalMessages={historial.length}
-    eosScore={briefingVisible.score || 0}
-    onOpenChat={() => setVista("chat")}
-  />
-)}
-
-          {vista === "decisions" && usuarioCargado && (
-            <DecisionsView />
+            <DashboardView
+              key={`${usuarioId}-${nombre}`}
+              userName={nombre}
+              plan={plan}
+              totalConversations={conversaciones.length}
+              totalMessages={historial.length}
+              eosScore={briefingVisible.score || 0}
+              onOpenChat={() => setVista("chat")}
+            />
           )}
+
+          {vista === "decisions" && usuarioCargado && <DecisionsView />}
 
           {vista === "context" && usuarioCargado && (
             <MasterContextView
@@ -347,9 +438,7 @@ export default function EOSPage() {
             />
           )}
 
-          {vista === "learnings" && usuarioCargado && (
-            <LearningsView />
-          )}
+          {vista === "learnings" && usuarioCargado && <LearningsView />}
 
           {vista === "perfil" && (
             <ProfileView
@@ -383,14 +472,12 @@ export default function EOSPage() {
         }
 
         .eos-content {
-    position: relative;
-    min-width: 0;
-
-    display: flex;
-    flex-direction: column;
-
-    min-height: 0;
-    height: 100%;
+          position: relative;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          height: 100%;
           background:
             radial-gradient(
               circle at 85% 10%,
@@ -406,18 +493,16 @@ export default function EOSPage() {
         }
 
         .eos-view-container {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #1d4ed8 transparent;
-}
+          position: relative;
+          flex: 1;
+          min-width: 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow-x: hidden;
+          scrollbar-width: thin;
+          scrollbar-color: #1d4ed8 transparent;
+        }
 
         .eos-mobile-sidebar,
         .eos-mobile-overlay,
@@ -425,7 +510,7 @@ export default function EOSPage() {
           display: none;
         }
 
-        .eos-image-preview-wrapper {
+        .eos-attachment-preview-wrapper {
           position: fixed;
           left: 280px;
           right: 0;
@@ -435,7 +520,7 @@ export default function EOSPage() {
           pointer-events: none;
         }
 
-        .eos-image-preview {
+        .eos-attachment-preview {
           width: min(100%, 900px);
           min-height: 62px;
           display: flex;
@@ -453,14 +538,14 @@ export default function EOSPage() {
           pointer-events: auto;
         }
 
-        .eos-image-preview-info {
+        .eos-attachment-preview-info {
           min-width: 0;
           display: flex;
           align-items: center;
           gap: 12px;
         }
 
-        .eos-image-icon {
+        .eos-attachment-icon {
           width: 38px;
           height: 38px;
           flex-shrink: 0;
@@ -473,21 +558,21 @@ export default function EOSPage() {
           font-weight: 900;
         }
 
-        .eos-image-text {
+        .eos-attachment-text {
           min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 3px;
         }
 
-        .eos-image-text small {
+        .eos-attachment-text small {
           color: #64748b;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.13em;
         }
 
-        .eos-image-text strong {
+        .eos-attachment-text strong {
           overflow: hidden;
           color: #071226;
           font-size: 11px;
@@ -495,7 +580,13 @@ export default function EOSPage() {
           white-space: nowrap;
         }
 
-        .eos-image-preview button {
+        .eos-attachment-status {
+          color: #64748b;
+          font-size: 9px;
+          font-weight: 700;
+        }
+
+        .eos-attachment-preview button {
           flex-shrink: 0;
           padding: 8px 12px;
           border: 1px solid rgba(239, 68, 68, 0.2);
@@ -519,10 +610,10 @@ export default function EOSPage() {
           }
 
           .eos-content {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+          }
 
           .eos-mobile-menu-button {
             position: fixed;
@@ -596,13 +687,13 @@ export default function EOSPage() {
             cursor: pointer;
           }
 
-          .eos-image-preview-wrapper {
+          .eos-attachment-preview-wrapper {
             left: 0;
             bottom: calc(105px + env(safe-area-inset-bottom));
             padding: 0 12px;
           }
 
-          .eos-image-preview {
+          .eos-attachment-preview {
             border-radius: 14px;
           }
         }
