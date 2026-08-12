@@ -1,12 +1,12 @@
-# EOS Worker Gate — contrato v1
+# EOS Worker Gate — contrato HTTP v1 / política v2
 
-Estado: preparado para integración final. El workflow actual de n8n todavía no llama a este contrato.
+Estado: preparado para integración final. El workflow actual de n8n todavía **no** llama a este contrato.
 
 ## Endpoint canónico
 
 `POST /api/internal/worker-gate/v1`
 
-No integrar contra `/api/internal/worker-gate` directamente. La ruta `/v1` es la versión estable del contrato. Una futura incompatibilidad debe publicarse como otra ruta versionada, por ejemplo `/v2`.
+La ruta `/v1` fija el contrato HTTP. La política interna vigente se identifica como `eos-worker-gate-v2`.
 
 ## Autenticación
 
@@ -14,34 +14,17 @@ Header obligatorio:
 
 `Authorization: Bearer <EOS_WORKER_GATE_SECRET>`
 
-El secreto debe existir únicamente en variables seguras del servidor/Worker. Nunca debe enviarse al navegador, guardarse en Supabase ni escribirse en logs.
+El secreto vive únicamente en servidor/Worker. Nunca se envía al navegador ni se guarda en logs/Supabase.
 
-Si falta la variable, el secreto es incorrecto o el gate falla, la respuesta es fail-closed: `execute: false`.
+Cualquier secreto ausente/incorrecto, timeout, error interno o respuesta inválida es fail-closed: `execute: false`.
 
-## Request — evaluación
+## Principio principal
 
-```json
-{
-  "usuario_id": "uuid",
-  "request_id": "uuid",
-  "accion": "CREAR_TAREA",
-  "payload": {
-    "titulo": "Ejemplo"
-  }
-}
-```
+**Solo `execute === true` habilita un efecto secundario.**
 
-Campos:
+No interpretar `decision: "allow"` por sí solo como permiso. En política v2 puede existir `decision: "allow"` + `execute: false` + `requires_command: true`.
 
-- `usuario_id`: obligatorio; propietario real de la acción.
-- `request_id`: obligatorio; UUID estable para idempotencia. Debe reutilizarse en reintentos de la misma intención.
-- `accion`: obligatorio; debe pertenecer al catálogo gobernado por EOS.
-- `payload`: opcional; datos necesarios para ejecutar. La auditoría no duplica el payload completo.
-- `command_id`: opcional durante evaluación; obligatorio al consumir una aprobación.
-- `approval_id`: obligatorio únicamente al consumir una aprobación.
-- `consume_approval`: `true` únicamente en el paso de consumo one-shot.
-
-## Catálogo v1
+## Catálogo gobernado
 
 - `RESPONDER`
 - `GENERAR_EXCEL`
@@ -55,61 +38,94 @@ Campos:
 
 Acciones fuera del catálogo se bloquean.
 
-## Respuesta estable
+## Evaluación inicial — sin command_id
 
-La versión contractual está fijada por la propia URL `/v1`. Las respuestas del gate incluyen la versión de política cuando corresponde:
+El Worker clasifica la acción y prepara el payload, pero todavía NO crea `eos_action_commands`.
 
 ```json
 {
-  "policy_version": "eos-worker-gate-v1",
-  "execute": false,
-  "decision": "approval"
+  "usuario_id": "uuid",
+  "request_id": "uuid-estable",
+  "accion": "CREAR_TAREA",
+  "payload": {
+    "titulo": "Ejemplo"
+  }
 }
 ```
 
-`execute` es el único indicador que habilita el efecto secundario. Si no es exactamente `true`, el Worker NO debe ejecutar.
+Campos:
+
+- `usuario_id`: obligatorio.
+- `request_id`: obligatorio y estable para la misma intención/reintentos.
+- `accion`: obligatorio y perteneciente al catálogo gobernado.
+- `payload`: opcional.
+- `command_id`: no enviarlo en la evaluación inicial.
+- `approval_id`: solo para consumo de aprobación.
+- `consume_approval`: `true` solo para consumo one-shot.
 
 ## Decisiones
 
 ### `recommend`
 
-EOS puede recomendar la acción, pero no prepararla ni ejecutarla como efecto secundario.
-
-Worker: no ejecutar.
+No ejecutar.
 
 ### `prepare`
 
-EOS puede preparar contenido/datos, pero no ejecutar el efecto secundario.
-
-Worker: no ejecutar.
+Puede prepararse contenido/datos, pero no producirse el efecto secundario.
 
 ### `approval`
 
-Existe una solicitud pendiente de aprobación.
-
-Worker: no ejecutar. Guardar/reutilizar `approval.id` y esperar decisión del usuario.
+Se creó o reutilizó una aprobación pendiente. No crear todavía una orden ejecutable; esperar la decisión del usuario.
 
 ### `approval_ready`
 
-El usuario ya aprobó, pero la aprobación todavía no fue consumida.
+El usuario aprobó. En este punto el Worker crea/asegura el `eos_action_commands` exacto de esa intención y vuelve al gate con `consume_approval: true`.
 
-Worker: crear o resolver el `command_id` correspondiente y llamar nuevamente al gate con `consume_approval: true`.
+### `allow` + `execute: false` + `requires_command: true`
 
-### `allow`
+La política permite autoejecución, pero todavía falta el anclaje idempotente de Fase 4.
 
-Solo ejecutar si `execute === true`.
+Worker:
+1. crear o recuperar el `eos_action_commands` para el mismo `usuario_id + request_id + accion`;
+2. volver a llamar al gate con ese `command_id`;
+3. no ejecutar todavía.
 
-Puede ocurrir por autonomía permitida o por consumo atómico exitoso de una aprobación.
+### `allow` + `execute: true`
+
+Única autorización válida para producir el efecto secundario.
 
 ### `block`
 
-La acción está bloqueada por política, límites, estado de aprobación, error de seguridad o fallo interno.
+No ejecutar.
 
-Worker: no ejecutar.
+## Autoejecución segura
+
+Segunda llamada inmediatamente anterior al efecto:
+
+```json
+{
+  "usuario_id": "uuid",
+  "request_id": "mismo-uuid",
+  "accion": "CREAR_TAREA",
+  "command_id": "uuid-de-eos_action_commands",
+  "payload": {
+    "titulo": "Ejemplo"
+  }
+}
+```
+
+El gate valida que `command_id` exista y coincida exactamente en:
+
+- `usuario_id`
+- `request_id`
+- `accion`
+- estado ejecutable (`recibida` o `ejecutando`)
+
+Solo después registra `auto_allowed` vinculado al mismo comando. Si esa auditoría no puede persistirse, el gate devuelve `execute: false`.
 
 ## Consumo one-shot de aprobación
 
-Request inmediatamente anterior al efecto secundario:
+Después de `approval_ready`, crear/asegurar el comando y llamar:
 
 ```json
 {
@@ -123,7 +139,12 @@ Request inmediatamente anterior al efecto secundario:
 }
 ```
 
-El gate llama `eos_consume_action_approval_v12()` y vincula la aprobación con `eos_action_commands` de forma atómica.
+`eos_consume_action_approval_v12()` verifica atómicamente que el comando coincide con la aprobación en:
+
+- propietario
+- `request_id`
+- `accion`
+- estado ejecutable
 
 Solo si responde simultáneamente:
 
@@ -132,74 +153,57 @@ Solo si responde simultáneamente:
 - `execute: true`
 - `consumed: true`
 
-el Worker puede ejecutar el efecto secundario aprobado.
+puede ejecutarse el efecto aprobado.
 
-La misma aprobación no puede consumirse dos veces.
+La aprobación no puede consumirse dos veces.
 
-## Secuencia de integración
+## Secuencia final recomendada en n8n
 
-1. El Worker determina una acción candidata, pero todavía no produce el efecto secundario.
-2. Genera/reutiliza `request_id` estable.
-3. Llama `/api/internal/worker-gate/v1` en modo evaluación.
-4. Si `execute: true`, continúa a la ejecución idempotente existente.
-5. Si `decision: approval`, no ejecuta y espera aprobación.
-6. Si después recibe `approval_ready`, garantiza que existe `command_id`.
-7. Llama otra vez con `consume_approval: true`.
-8. Solo con `execute: true` + `consumed: true` ejecuta.
-9. Registra el resultado mediante el sistema existente `eos_action_events`.
-10. Cualquier timeout, 4xx, 5xx, respuesta inválida o decisión desconocida equivale a BLOCK.
+1. Clasificar intención y preparar payload.
+2. Generar/reutilizar `request_id` estable.
+3. Llamar al gate **sin `command_id`**.
+4. Si `recommend`, `prepare`, `approval` o `block`: no ejecutar.
+5. Si `allow + requires_command:true`: crear/recuperar `eos_action_commands` y llamar nuevamente con `command_id`.
+6. Si `approval_ready`: crear/recuperar `eos_action_commands` y llamar con `approval_id + command_id + consume_approval:true`.
+7. Solo `execute:true` permite pasar al nodo de efecto secundario.
+8. Registrar resultado con `eos_action_events` como en Fase 4.
+9. Timeout, 4xx, 5xx, JSON inválido o ausencia de respuesta = BLOCK.
 
-## Punto exacto recomendado en n8n
+## Por qué no crear el comando antes de una aprobación
 
-Insertar el gate inmediatamente después de que el Worker ya haya clasificado la acción y preparado su payload, pero inmediatamente antes del nodo que crea el efecto secundario real.
-
-No colocarlo en Respuesta Rápida ni en la ruta conversacional que devuelve texto al usuario. No modificar el webhook de WhatsApp para integrar esta fase.
+Fase 4 inicia automáticamente el comando y crea un lease al insertarlo. Crear el comando antes de que el usuario apruebe provocaría órdenes `ejecutando` que pueden vencer mientras la aprobación sigue pendiente. Por eso el command se crea únicamente cuando la política ya está lista para ejecutar.
 
 ## Idempotencia
 
-- Reintentos de la misma intención deben conservar `request_id`.
-- `eos_action_commands` conserva su idempotencia actual.
-- Una aprobación usa `approval_id` único y consumo one-shot.
-- Los eventos de autonomía ya impiden que una decisión automática o una aprobación se conviertan en efectos repetidos sin control.
+- La misma intención conserva `request_id`.
+- `eos_action_commands` mantiene unicidad por `usuario_id + request_id + accion`.
+- Una autorización automática ejecutable queda vinculada al `command_id` exacto.
+- Una aprobación se consume una sola vez y queda ligada al comando exacto.
+- Reintentos con otro command no heredan autorización automáticamente.
 
 ## Auditoría
 
-Tabla: `eos_worker_gate_audit_v15`.
+La tabla `eos_worker_gate_audit_v15` se alimenta desde eventos reales de `eos_autonomy_events_v12`.
 
-La auditoría se genera en Supabase a partir de los eventos reales de `eos_autonomy_events_v12`, no desde el wrapper HTTP. Esto evita añadir lógica al camino crítico del gate.
-
-Se reflejan automáticamente:
-
-- evaluaciones del Worker Gate identificadas por `policy_version = eos-worker-gate-v1`;
-- solicitudes de aprobación del gate;
-- autorizaciones automáticas;
-- bloqueos de política;
-- consumos one-shot vinculados a `approval_id + command_id`.
-
-La bitácora conserva usuario, request, acción, modo `evaluate/consume`, decisión, `execute`, command/approval, fingerprint cuando está disponible, versión contractual, versión de política, motivo y referencia al evento de autonomía que la originó.
-
-Los rechazos que ocurren antes de aceptar una identidad/solicitud válida —por ejemplo secreto incorrecto o payload inválido— se bloquean fail-closed y no se registran como una decisión de usuario en esta tabla.
-
-El usuario autenticado solo puede leer sus propios registros por RLS. La escritura queda reservada al servidor.
-
-## Regla de seguridad principal
-
-**El Worker nunca interpreta silencio, error o ausencia de respuesta como permiso.**
-
-La única autorización válida es una respuesta explícita del gate con `execute === true`.
+La política v2 persiste `policy_version: eos-worker-gate-v2` en eventos nuevos. La auditoría no almacena secretos ni payloads completos.
 
 ## Activación futura
 
 Antes de conectar n8n:
 
-- configurar `EOS_WORKER_GATE_SECRET` en el deployment que expone el endpoint;
-- configurar el mismo secreto en las credenciales seguras del Worker;
-- probar con una acción de solo lectura;
-- probar un `prepare`;
-- probar una aprobación pendiente;
+- configurar `EOS_WORKER_GATE_SECRET` en el deployment del endpoint;
+- configurar el mismo secreto en credenciales seguras del Worker;
+- probar una acción `recommend`;
+- probar `prepare`;
+- probar autoejecución: evaluación sin command -> `requires_command` -> segunda llamada con command -> `execute:true`;
+- probar aprobación pendiente;
 - aprobar y consumir una vez;
-- verificar que el segundo consumo sea rechazado;
-- verificar que un secreto incorrecto bloquee;
-- verificar que un timeout bloquee;
+- comprobar que command con request/acción diferente sea rechazado;
+- comprobar que segundo consumo sea rechazado;
+- comprobar que secreto incorrecto y timeout bloqueen;
 - verificar auditoría en Supabase;
-- recién entonces activar el gate para efectos secundarios reales.
+- recién entonces conectar efectos secundarios reales.
+
+## Frontera
+
+Este contrato está listo del lado plataforma. **n8n y WhatsApp siguen sin modificar** y no se considera activa la autonomía sobre efectos reales hasta completar esa conexión final.
