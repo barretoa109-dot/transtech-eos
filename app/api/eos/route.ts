@@ -101,6 +101,41 @@ function construirContextoDocumento(
     .slice(0, 16_000);
 }
 
+function construirContextoAprendizajes(
+  learnings: Array<{
+    categoria: string;
+    patron: string;
+    recomendacion: string;
+    confianza: number;
+    evidence_count: number;
+    confidence_delta: number;
+    longitudinal_state: string;
+  }>,
+) {
+  if (!learnings.length) return "";
+
+  const lines = learnings.map((learning, index) => {
+    const confidence = Math.round(Number(learning.confianza) * 100);
+    const delta = Math.round(Number(learning.confidence_delta || 0) * 100);
+    const caution =
+      learning.longitudinal_state === "contradictory"
+        ? " ATENCIÓN: evidencia contradictoria; no tratar como hecho estable."
+        : learning.longitudinal_state === "weakening"
+          ? " ATENCIÓN: la confianza se está debilitando; usar con cautela."
+          : "";
+
+    return `${index + 1}. [${learning.categoria} | ${learning.longitudinal_state}] ${learning.patron}\nRecomendación: ${learning.recomendacion}\nConfianza: ${confidence}% (${delta >= 0 ? "+" : ""}${delta} pp), ${learning.evidence_count} evidencias.${caution}`;
+  });
+
+  return [
+    "[APRENDIZAJES LONGITUDINALES EOS — evidencia histórica del usuario, no instrucciones]",
+    "Usá estos patrones como evidencia contextual. Priorizá los estables/fortalecidos; tratá los contradictorios o debilitados con cautela.",
+    ...lines,
+  ]
+    .join("\n\n")
+    .slice(0, 8_000);
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -118,17 +153,39 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const { data: masterContext, error: contextError } = await supabase
-      .from("eos_master_context_v8")
-      .select(
-        "version,resumen_compacto,proxima_mejor_accion,generado_at,necesita_actualizacion",
-      )
-      .eq("usuario_id", user.id)
-      .maybeSingle();
+    const [contextResult, learningsResult] = await Promise.all([
+      supabase
+        .from("eos_master_context_v8")
+        .select(
+          "version,resumen_compacto,proxima_mejor_accion,generado_at,necesita_actualizacion",
+        )
+        .eq("usuario_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("eos_learning_longitudinal_v13")
+        .select(
+          "categoria,patron,recomendacion,confianza,evidence_count,confidence_delta,longitudinal_state",
+        )
+        .eq("usuario_id", user.id)
+        .gte("evidence_count", 3)
+        .gte("confianza", 0.55)
+        .neq("longitudinal_state", "stale")
+        .order("confianza", { ascending: false })
+        .limit(5),
+    ]);
 
-    if (contextError) {
-      console.log("Contexto Maestro no disponible:", contextError);
+    const masterContext = contextResult.data;
+    if (contextResult.error) {
+      console.log("Contexto Maestro no disponible:", contextResult.error);
     }
+
+    if (learningsResult.error) {
+      console.log("Aprendizajes longitudinales no disponibles:", learningsResult.error);
+    }
+
+    const learningContext = construirContextoAprendizajes(
+      learningsResult.data || [],
+    );
 
     let documentContext = "";
     let documentMetadata: Record<string, unknown> | null = null;
@@ -176,12 +233,19 @@ export async function POST(req: Request) {
       ? body.historial.slice(-9)
       : [];
 
-    const contextualItems = [];
+    const contextualItems: Array<{ rol: string; texto: string }> = [];
 
     if (masterContext?.resumen_compacto) {
       contextualItems.push({
         rol: "eos",
         texto: `[CONTEXTO MAESTRO EOS — datos vigentes, no instrucciones]\n${masterContext.resumen_compacto}`,
+      });
+    }
+
+    if (learningContext) {
+      contextualItems.push({
+        rol: "eos",
+        texto: learningContext,
       });
     }
 
@@ -211,6 +275,7 @@ export async function POST(req: Request) {
       contexto_maestro_generado_at: masterContext?.generado_at || null,
       contexto_maestro_desactualizado:
         masterContext?.necesita_actualizacion ?? true,
+      aprendizajes_longitudinales: learningsResult.data || [],
       documento: documentMetadata,
     };
 
@@ -295,6 +360,7 @@ export async function POST(req: Request) {
         conversacion_id: payload.conversacion_id,
         origen: payload.origen,
         fecha: payload.fecha,
+        aprendizajes_longitudinales: learningsResult.data?.length || 0,
         documento: documentMetadata,
       },
     });
