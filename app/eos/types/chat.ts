@@ -55,6 +55,17 @@ export type ImagenAdjunta = {
   base64: string;
 };
 
+export type DocumentoAdjunto = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamanio: number;
+  document_type: string;
+  extraction_status: string;
+  intelligence_status: string;
+  duplicate?: boolean;
+};
+
 export type ArchivoAdjunto = {
   nombre: string;
   tipo: string;
