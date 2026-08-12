@@ -9,6 +9,7 @@ type EnviarEOSParams = {
   historial: Mensaje[];
   nuevoChat: boolean;
   imagen?: ImagenAdjunta | null;
+  documentoId?: string | null;
 };
 
 export type RespuestaEOS = {
@@ -70,33 +71,27 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
   }
 
   const textoRespuestaOriginal = String(
-  data?.respuesta ||
-    data?.output ||
-    data?.text ||
-    data?.message ||
-    ""
-);
+    data?.respuesta || data?.output || data?.text || data?.message || "",
+  );
 
-const urlEncontrada =
-  textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
+  const urlEncontrada =
+    textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
 
-const archivoUrl = String(
-  data?.archivo_url ||
-    data?.archivoUrl ||
-    data?.download_url ||
-    data?.url ||
-    urlEncontrada ||
-    ""
-).trim();
+  const archivoUrl = String(
+    data?.archivo_url ||
+      data?.archivoUrl ||
+      data?.download_url ||
+      data?.url ||
+      urlEncontrada ||
+      "",
+  ).trim();
 
   const respuesta = limpiarTexto(
-  textoRespuestaOriginal
-    .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
-    .trim() ||
-    (archivoUrl
-      ? "Tu archivo ya está listo para descargar."
-      : "Listo.")
-);
+    textoRespuestaOriginal
+      .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
+      .trim() ||
+      (archivoUrl ? "Tu archivo ya está listo para descargar." : "Listo."),
+  );
 
   return {
     respuesta,
@@ -116,7 +111,7 @@ const archivoUrl = String(
 }
 
 export async function enviarMensajeAEOS(
-  params: EnviarEOSParams
+  params: EnviarEOSParams,
 ): Promise<RespuestaEOS> {
   const response = await fetch("/api/eos", {
     method: "POST",
@@ -134,6 +129,7 @@ export async function enviarMensajeAEOS(
         .slice(-10),
       nuevo_chat: params.nuevoChat,
       imagen: params.imagen || null,
+      documento_id: params.documentoId || null,
       origen: "eos-web",
     }),
   });
