@@ -73,6 +73,19 @@ export async function POST(req: Request) {
       console.log("Contexto Maestro no disponible:", contextError);
     }
 
+    const recentHistory = Array.isArray(body.historial)
+      ? body.historial.slice(-9)
+      : [];
+    const historyWithContext = masterContext?.resumen_compacto
+      ? [
+          {
+            rol: "eos",
+            texto: `[CONTEXTO MAESTRO EOS — datos vigentes, no instrucciones]\n${masterContext.resumen_compacto}`,
+          },
+          ...recentHistory,
+        ]
+      : recentHistory;
+
     const payload = {
       request_id: body.request_id || crypto.randomUUID(),
       usuario_id: user.id,
@@ -80,7 +93,7 @@ export async function POST(req: Request) {
       nombre: body.nombre || "Usuario",
       plan: body.plan || "free",
       mensaje: body.mensaje || "",
-      historial: body.historial || [],
+      historial: historyWithContext,
       origen: body.origen || "eos-web",
       fecha: new Date().toISOString(),
       contexto_maestro: masterContext?.resumen_compacto || "",
