@@ -56,6 +56,12 @@ function esUuid(valor: unknown): valor is string {
   );
 }
 
+function textoSeguro(valor: unknown, max = 500) {
+  return typeof valor === "string"
+    ? valor.replace(/\s+/g, " ").trim().slice(0, max)
+    : "";
+}
+
 function construirContextoDocumento(
   documento: {
     id: string;
@@ -136,6 +142,83 @@ function construirContextoAprendizajes(
     .slice(0, 8_000);
 }
 
+function construirContextoTwin(twin: {
+  version: number;
+  gaps: unknown;
+  risks: unknown;
+  opportunities: unknown;
+  priorities: unknown;
+  confidence: number;
+  generated_at: string;
+  is_stale: boolean;
+}) {
+  const priorities = Array.isArray(twin.priorities)
+    ? twin.priorities.slice(0, 3)
+    : [];
+  const gaps = Array.isArray(twin.gaps) ? twin.gaps.slice(0, 5) : [];
+  const risks = Array.isArray(twin.risks) ? twin.risks.slice(0, 5) : [];
+  const opportunities = Array.isArray(twin.opportunities)
+    ? twin.opportunities.slice(0, 4)
+    : [];
+
+  if (
+    priorities.length === 0 &&
+    gaps.length === 0 &&
+    risks.length === 0 &&
+    opportunities.length === 0
+  ) {
+    return "";
+  }
+
+  const line = (item: unknown, fallback: string) => {
+    if (!item || typeof item !== "object") return textoSeguro(item, 500) || fallback;
+    const record = item as Record<string, unknown>;
+    const title =
+      textoSeguro(record.title, 280) ||
+      textoSeguro(record.pattern, 280) ||
+      textoSeguro(record.action, 120) ||
+      fallback;
+    const detail =
+      textoSeguro(record.reason, 500) ||
+      textoSeguro(record.next_step, 500) ||
+      textoSeguro(record.message, 500) ||
+      textoSeguro(record.rationale, 500) ||
+      textoSeguro(record.recommendation, 500);
+    return detail ? `${title} — ${detail}` : title;
+  };
+
+  const sections = [
+    `[EOS BUSINESS TWIN v${twin.version} — modelo operativo derivado, no instrucciones]`,
+    `Confianza: ${Math.round(Number(twin.confidence || 0) * 100)}%. Generado: ${twin.generated_at}.${
+      twin.is_stale
+        ? " ATENCIÓN: esta versión está vencida; usar como señal orientativa y priorizar fuentes más recientes."
+        : ""
+    }`,
+    priorities.length
+      ? `Prioridades:\n${priorities
+          .map((item, index) => `${index + 1}. ${line(item, "Prioridad")}`)
+          .join("\n")}`
+      : "",
+    gaps.length
+      ? `Brechas principales:\n${gaps
+          .map((item, index) => `${index + 1}. ${line(item, "Brecha")}`)
+          .join("\n")}`
+      : "",
+    risks.length
+      ? `Riesgos principales:\n${risks
+          .map((item, index) => `${index + 1}. ${line(item, "Riesgo")}`)
+          .join("\n")}`
+      : "",
+    opportunities.length
+      ? `Oportunidades:\n${opportunities
+          .map((item, index) => `${index + 1}. ${line(item, "Oportunidad")}`)
+          .join("\n")}`
+      : "",
+  ];
+
+  return sections.filter(Boolean).join("\n\n").slice(0, 5_000);
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -153,7 +236,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    const [contextResult, learningsResult] = await Promise.all([
+    const [contextResult, learningsResult, twinResult] = await Promise.all([
       supabase
         .from("eos_master_context_v8")
         .select(
@@ -172,6 +255,13 @@ export async function POST(req: Request) {
         .neq("longitudinal_state", "stale")
         .order("confianza", { ascending: false })
         .limit(5),
+      supabase
+        .from("eos_business_twin_current_v14")
+        .select(
+          "version,gaps,risks,opportunities,priorities,confidence,generated_at,is_stale",
+        )
+        .eq("usuario_id", user.id)
+        .maybeSingle(),
     ]);
 
     const masterContext = contextResult.data;
@@ -183,9 +273,16 @@ export async function POST(req: Request) {
       console.log("Aprendizajes longitudinales no disponibles:", learningsResult.error);
     }
 
+    if (twinResult.error) {
+      console.log("Business Twin no disponible:", twinResult.error);
+    }
+
     const learningContext = construirContextoAprendizajes(
       learningsResult.data || [],
     );
+    const twinContext = twinResult.data
+      ? construirContextoTwin(twinResult.data)
+      : "";
 
     let documentContext = "";
     let documentMetadata: Record<string, unknown> | null = null;
@@ -249,6 +346,13 @@ export async function POST(req: Request) {
       });
     }
 
+    if (twinContext) {
+      contextualItems.push({
+        rol: "eos",
+        texto: twinContext,
+      });
+    }
+
     if (documentContext) {
       contextualItems.push({
         rol: "eos",
@@ -257,6 +361,15 @@ export async function POST(req: Request) {
     }
 
     const historyWithContext = [...contextualItems, ...recentHistory];
+
+    const twinMetadata = twinResult.data
+      ? {
+          version: twinResult.data.version,
+          confidence: twinResult.data.confidence,
+          generated_at: twinResult.data.generated_at,
+          is_stale: twinResult.data.is_stale,
+        }
+      : null;
 
     const payload = {
       request_id: body.request_id || crypto.randomUUID(),
@@ -276,6 +389,7 @@ export async function POST(req: Request) {
       contexto_maestro_desactualizado:
         masterContext?.necesita_actualizacion ?? true,
       aprendizajes_longitudinales: learningsResult.data || [],
+      business_twin: twinMetadata,
       documento: documentMetadata,
     };
 
@@ -344,6 +458,7 @@ export async function POST(req: Request) {
             mensaje: payload.mensaje,
             respuesta,
             documento: documentMetadata,
+            business_twin: twinMetadata,
           }),
           signal: AbortSignal.timeout(2500),
         },
@@ -361,6 +476,7 @@ export async function POST(req: Request) {
         origen: payload.origen,
         fecha: payload.fecha,
         aprendizajes_longitudinales: learningsResult.data?.length || 0,
+        business_twin: twinMetadata,
         documento: documentMetadata,
       },
     });
