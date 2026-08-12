@@ -62,6 +62,32 @@ function textoSeguro(valor: unknown, max = 500) {
     : "";
 }
 
+function textoEntrada(valor: unknown, max = 12_000) {
+  return typeof valor === "string" ? valor.trim().slice(0, max) : "";
+}
+
+function normalizarHistorial(valor: unknown) {
+  if (!Array.isArray(valor)) return [];
+
+  return valor
+    .slice(-10)
+    .flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+
+      const registro = item as Record<string, unknown>;
+      const rol =
+        registro.rol === "usuario"
+          ? "usuario"
+          : registro.rol === "eos"
+            ? "eos"
+            : "";
+      const texto = textoEntrada(registro.texto, 4_000);
+
+      return rol && texto ? [{ rol, texto }] : [];
+    })
+    .slice(-9);
+}
+
 function construirContextoDocumento(
   documento: {
     id: string;
@@ -171,7 +197,10 @@ function construirContextoTwin(twin: {
   }
 
   const line = (item: unknown, fallback: string) => {
-    if (!item || typeof item !== "object") return textoSeguro(item, 500) || fallback;
+    if (!item || typeof item !== "object") {
+      return textoSeguro(item, 500) || fallback;
+    }
+
     const record = item as Record<string, unknown>;
     const title =
       textoSeguro(record.title, 280) ||
@@ -184,6 +213,7 @@ function construirContextoTwin(twin: {
       textoSeguro(record.message, 500) ||
       textoSeguro(record.rationale, 500) ||
       textoSeguro(record.recommendation, 500);
+
     return detail ? `${title} — ${detail}` : title;
   };
 
@@ -234,35 +264,54 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
+    const body = (await req.json()) as Record<string, unknown>;
 
-    const [contextResult, learningsResult, twinResult] = await Promise.all([
-      supabase
-        .from("eos_master_context_v8")
-        .select(
-          "version,resumen_compacto,proxima_mejor_accion,generado_at,necesita_actualizacion",
-        )
-        .eq("usuario_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("eos_learning_longitudinal_v13")
-        .select(
-          "categoria,patron,recomendacion,confianza,evidence_count,confidence_delta,longitudinal_state",
-        )
-        .eq("usuario_id", user.id)
-        .gte("evidence_count", 3)
-        .gte("confianza", 0.55)
-        .neq("longitudinal_state", "stale")
-        .order("confianza", { ascending: false })
-        .limit(5),
-      supabase
-        .from("eos_business_twin_current_v14")
-        .select(
-          "version,gaps,risks,opportunities,priorities,confidence,generated_at,is_stale",
-        )
-        .eq("usuario_id", user.id)
-        .maybeSingle(),
-    ]);
+    const [profileResult, contextResult, learningsResult, twinResult] =
+      await Promise.all([
+        supabase
+          .from("usuarios")
+          .select("nombre,plan")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("eos_master_context_v8")
+          .select(
+            "version,resumen_compacto,proxima_mejor_accion,generado_at,necesita_actualizacion",
+          )
+          .eq("usuario_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("eos_learning_longitudinal_v13")
+          .select(
+            "categoria,patron,recomendacion,confianza,evidence_count,confidence_delta,longitudinal_state",
+          )
+          .eq("usuario_id", user.id)
+          .gte("evidence_count", 3)
+          .gte("confianza", 0.55)
+          .neq("longitudinal_state", "stale")
+          .order("confianza", { ascending: false })
+          .limit(5),
+        supabase
+          .from("eos_business_twin_current_v14")
+          .select(
+            "version,gaps,risks,opportunities,priorities,confidence,generated_at,is_stale",
+          )
+          .eq("usuario_id", user.id)
+          .maybeSingle(),
+      ]);
+
+    if (profileResult.error) {
+      console.log("Perfil comercial no disponible:", profileResult.error);
+    }
+
+    const nombreServidor =
+      textoSeguro(profileResult.data?.nombre, 120) ||
+      textoSeguro(user.user_metadata?.nombre, 120) ||
+      textoSeguro(user.user_metadata?.name, 120) ||
+      textoSeguro(user.email?.split("@")[0], 120) ||
+      "Usuario";
+    const planServidor =
+      textoSeguro(profileResult.data?.plan, 40).toLowerCase() || "free";
 
     const masterContext = contextResult.data;
     if (contextResult.error) {
@@ -270,7 +319,10 @@ export async function POST(req: Request) {
     }
 
     if (learningsResult.error) {
-      console.log("Aprendizajes longitudinales no disponibles:", learningsResult.error);
+      console.log(
+        "Aprendizajes longitudinales no disponibles:",
+        learningsResult.error,
+      );
     }
 
     if (twinResult.error) {
@@ -302,7 +354,9 @@ export async function POST(req: Request) {
       } else if (documento) {
         const { data: hallazgos, error: hallazgosError } = await supabase
           .from("eos_document_findings_v11")
-          .select("finding_type,title,value_text,evidence_text,importance,confidence")
+          .select(
+            "finding_type,title,value_text,evidence_text,importance,confidence",
+          )
           .eq("document_id", documento.id)
           .eq("usuario_id", user.id)
           .eq("status", "active")
@@ -314,7 +368,10 @@ export async function POST(req: Request) {
           console.log("Hallazgos documentales no disponibles:", hallazgosError);
         }
 
-        documentContext = construirContextoDocumento(documento, hallazgos || []);
+        documentContext = construirContextoDocumento(
+          documento,
+          hallazgos || [],
+        );
         documentMetadata = {
           id: documento.id,
           nombre: documento.nombre,
@@ -326,10 +383,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const recentHistory = Array.isArray(body.historial)
-      ? body.historial.slice(-9)
-      : [];
-
+    const recentHistory = normalizarHistorial(body.historial);
     const contextualItems: Array<{ rol: string; texto: string }> = [];
 
     if (masterContext?.resumen_compacto) {
@@ -372,15 +426,16 @@ export async function POST(req: Request) {
       : null;
 
     const payload = {
-      request_id: body.request_id || crypto.randomUUID(),
+      request_id: esUuid(body.request_id) ? body.request_id : crypto.randomUUID(),
       usuario_id: user.id,
-      conversacion_id: body.conversacion_id || "",
-      nombre: body.nombre || "Usuario",
-      plan: body.plan || "free",
-      mensaje: body.mensaje || "",
+      conversacion_id: textoSeguro(body.conversacion_id, 120),
+      nombre: nombreServidor,
+      plan: planServidor,
+      mensaje: textoEntrada(body.mensaje),
       historial: historyWithContext,
-      imagen: body.imagen || null,
-      origen: body.origen || "eos-web",
+      imagen:
+        body.imagen && typeof body.imagen === "object" ? body.imagen : null,
+      origen: "eos-web",
       fecha: new Date().toISOString(),
       contexto_maestro: masterContext?.resumen_compacto || "",
       contexto_maestro_version: masterContext?.version || null,
@@ -393,11 +448,10 @@ export async function POST(req: Request) {
       documento: documentMetadata,
     };
 
-    if (!payload.usuario_id || !payload.mensaje) {
+    if (!payload.mensaje) {
       return Response.json(
         {
-          respuesta:
-            "Necesito identificar tu usuario y recibir un mensaje para poder ayudarte bien.",
+          respuesta: "Necesito recibir un mensaje para poder ayudarte bien.",
         },
         { status: 400 },
       );
@@ -411,6 +465,7 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
       },
     );
 
@@ -481,14 +536,19 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
+    const timeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+
     console.log("Error proxy EOS:", error);
 
     return Response.json(
       {
-        respuesta:
-          "No pude conectarme con EOS en este momento. Probá nuevamente.",
+        respuesta: timeout
+          ? "EOS tardó más de lo esperado en responder. Probá nuevamente en unos segundos."
+          : "No pude conectarme con EOS en este momento. Probá nuevamente.",
       },
-      { status: 500 },
+      { status: timeout ? 504 : 500 },
     );
   }
 }
