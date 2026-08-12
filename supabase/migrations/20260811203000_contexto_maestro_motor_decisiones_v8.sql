@@ -121,7 +121,8 @@ grant all on table public.eos_master_context_runs to service_role;
 grant select on table public.eos_master_context_v8 to service_role;
 
 revoke all on function public.eos_prepare_master_context() from public, anon;
-grant execute on function public.eos_prepare_master_context() to authenticated, service_role;
+revoke all on function public.eos_prepare_master_context() from authenticated;
+grant execute on function public.eos_prepare_master_context() to service_role;
 
 comment on table public.eos_master_contexts is
   'EOS 4.0: contexto ejecutivo compacto y vigente, compuesto desde las fuentes canonicas del usuario.';
