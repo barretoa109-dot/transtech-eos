@@ -43,5 +43,13 @@ export type BriefingApiResponse = {
   briefing: Briefing | null;
   history: Briefing[];
   is_stale: boolean;
+  master_context?: {
+    resumen_compacto?: string;
+    proxima_mejor_accion?: { titulo?: string; razon?: string };
+    alertas?: Array<{ titulo?: string; mensaje?: string; severidad?: string }>;
+    objetivos?: Array<{ titulo?: string; progreso?: number; proximo_paso?: string }>;
+    necesita_actualizacion?: boolean;
+    generado_at?: string;
+  } | null;
   error?: string;
 };
