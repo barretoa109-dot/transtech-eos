@@ -1,19 +1,34 @@
 "use client";
 
-export default function TopBar() {
+import { Files } from "lucide-react";
+
+type TopBarProps = {
+  onOpenDocuments?: () => void;
+};
+
+export default function TopBar({ onOpenDocuments }: TopBarProps) {
   return (
     <header className="tt-header">
       <div className="tt-background" />
 
       <div className="tt-actions">
+        {onOpenDocuments && (
+          <button
+            type="button"
+            className="tt-documents"
+            onClick={onOpenDocuments}
+          >
+            <Files size={15} />
+            Documentos
+          </button>
+        )}
+
         <div className="tt-status">
           <span className="tt-dot" />
           Sistema activo
         </div>
 
-        <div className="tt-pill">
-          Memoria contextual
-        </div>
+        <div className="tt-pill">Memoria contextual</div>
       </div>
 
       <style jsx>{`
@@ -63,6 +78,32 @@ export default function TopBar() {
           gap: 14px;
         }
 
+        .tt-documents {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          border: 1px solid #bfdbfe;
+          border-radius: 999px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
+          transition:
+            transform 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease;
+        }
+
+        .tt-documents:hover {
+          transform: translateY(-1px);
+          border-color: #60a5fa;
+          box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+        }
+
         .tt-status {
           display: flex;
           align-items: center;
@@ -110,17 +151,22 @@ export default function TopBar() {
         @media (max-width: 640px) {
           .tt-header {
             min-height: 72px;
-            padding: 0 16px;
+            padding: 0 16px 0 64px;
           }
 
           .tt-actions {
-            gap: 8px;
+            gap: 7px;
           }
 
           .tt-status,
+          .tt-pill,
+          .tt-documents {
+            padding: 8px 10px;
+            font-size: 9px;
+          }
+
           .tt-pill {
-            padding: 9px 13px;
-            font-size: 10px;
+            display: none;
           }
         }
       `}</style>
