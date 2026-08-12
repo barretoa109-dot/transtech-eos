@@ -6,7 +6,7 @@ Estado: preparado para integración final. El workflow actual de n8n todavía no
 
 `POST /api/internal/worker-gate/v1`
 
-No integrar contra `/api/internal/worker-gate` directamente. La ruta `/v1` fija el contrato y añade auditoría independiente.
+No integrar contra `/api/internal/worker-gate` directamente. La ruta `/v1` es la versión estable del contrato. Una futura incompatibilidad debe publicarse como otra ruta versionada, por ejemplo `/v2`.
 
 ## Autenticación
 
@@ -36,7 +36,7 @@ Campos:
 - `usuario_id`: obligatorio; propietario real de la acción.
 - `request_id`: obligatorio; UUID estable para idempotencia. Debe reutilizarse en reintentos de la misma intención.
 - `accion`: obligatorio; debe pertenecer al catálogo gobernado por EOS.
-- `payload`: opcional; datos necesarios para ejecutar. El audit log guarda solo SHA-256 del payload, no su contenido.
+- `payload`: opcional; datos necesarios para ejecutar. La auditoría no duplica el payload completo.
 - `command_id`: opcional durante evaluación; obligatorio al consumir una aprobación.
 - `approval_id`: obligatorio únicamente al consumir una aprobación.
 - `consume_approval`: `true` únicamente en el paso de consumo one-shot.
@@ -57,11 +57,10 @@ Acciones fuera del catálogo se bloquean.
 
 ## Respuesta estable
 
-Toda respuesta de `/v1` incluye:
+La versión contractual está fijada por la propia URL `/v1`. Las respuestas del gate incluyen la versión de política cuando corresponde:
 
 ```json
 {
-  "contract_version": "eos-worker-gate-contract-v1",
   "policy_version": "eos-worker-gate-v1",
   "execute": false,
   "decision": "approval"
@@ -161,27 +160,25 @@ No colocarlo en Respuesta Rápida ni en la ruta conversacional que devuelve text
 - Reintentos de la misma intención deben conservar `request_id`.
 - `eos_action_commands` conserva su idempotencia actual.
 - Una aprobación usa `approval_id` único y consumo one-shot.
-- El audit log permite correlacionar `request_id`, acción, `command_id`, `approval_id` y fingerprint sin guardar el payload completo.
+- Los eventos de autonomía ya impiden que una decisión automática o una aprobación se conviertan en efectos repetidos sin control.
 
 ## Auditoría
 
 Tabla: `eos_worker_gate_audit_v15`.
 
-Registra:
+La auditoría se genera en Supabase a partir de los eventos reales de `eos_autonomy_events_v12`, no desde el wrapper HTTP. Esto evita añadir lógica al camino crítico del gate.
 
-- usuario
-- request
-- acción
-- modo `evaluate` / `consume`
-- decisión
-- execute
-- command / approval
-- fingerprint SHA-256
-- contract version
-- policy version
-- HTTP status
-- motivo/error
-- timestamp
+Se reflejan automáticamente:
+
+- evaluaciones del Worker Gate identificadas por `policy_version = eos-worker-gate-v1`;
+- solicitudes de aprobación del gate;
+- autorizaciones automáticas;
+- bloqueos de política;
+- consumos one-shot vinculados a `approval_id + command_id`.
+
+La bitácora conserva usuario, request, acción, modo `evaluate/consume`, decisión, `execute`, command/approval, fingerprint cuando está disponible, versión contractual, versión de política, motivo y referencia al evento de autonomía que la originó.
+
+Los rechazos que ocurren antes de aceptar una identidad/solicitud válida —por ejemplo secreto incorrecto o payload inválido— se bloquean fail-closed y no se registran como una decisión de usuario en esta tabla.
 
 El usuario autenticado solo puede leer sus propios registros por RLS. La escritura queda reservada al servidor.
 
