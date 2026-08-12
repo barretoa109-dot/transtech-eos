@@ -2,7 +2,7 @@
 
 import {
   ArrowUp,
-  ImagePlus,
+  FileText,
   LoaderCircle,
   Paperclip,
   Sparkles,
@@ -13,7 +13,7 @@ type ComposerProps = {
   cargando: boolean;
   onMensajeChange: (value: string) => void;
   onEnviar: () => void;
-  onImagenSeleccionada?: (file: File) => void;
+  onArchivoSeleccionado?: (file: File) => void;
   mobile?: boolean;
 };
 
@@ -22,7 +22,7 @@ export default function Composer({
   cargando,
   onMensajeChange,
   onEnviar,
-  onImagenSeleccionada,
+  onArchivoSeleccionado,
   mobile = false,
 }: ComposerProps) {
   const puedeEnviar = mensaje.trim().length > 0 && !cargando;
@@ -40,18 +40,18 @@ export default function Composer({
     >
       <div className="tt-composer-shell">
         <div className="tt-composer-box">
-          <label className="tt-attach-button" title="Adjuntar una imagen">
+          <label className="tt-attach-button" title="Adjuntar imagen o documento">
             <Paperclip size={19} strokeWidth={2.2} />
 
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv,application/json,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
 
-                if (file && onImagenSeleccionada) {
-                  onImagenSeleccionada(file);
+                if (file && onArchivoSeleccionado) {
+                  onArchivoSeleccionado(file);
                 }
 
                 event.target.value = "";
@@ -116,8 +116,8 @@ export default function Composer({
           </p>
 
           <span>
-            <ImagePlus size={12} />
-            Imágenes habilitadas
+            <FileText size={12} />
+            Imágenes y documentos
           </span>
         </div>
       </div>
