@@ -58,7 +58,7 @@ Esta evaluación es determinista y auditable. El aprendizaje longitudinal puede 
 - [x] Invalidación automática aplicada.
 - [x] TypeScript sin errores.
 - [x] ESLint de archivos modificados sin errores.
-- [x] Compilación Webpack completada hasta la fase que requiere secretos de entorno.
+- [x] Build de producción con Webpack completado usando variables sintéticas de prueba.
 - [x] Verificar y corregir RLS de `eos_profiles` y `eos_projects` en el entorno conectado.
 - [ ] Ejecutar prueba autenticada: reconstrucción → chat → decisión → resultado → invalidación → reconstrucción.
 - [ ] Publicar el cambio de prompt de n8n solo después de esa prueba.
