@@ -23,18 +23,25 @@ export async function GET() {
     );
   }
 
-  const { data, error } = await supabase
-    .from("eos_daily_briefings")
-    .select(BRIEFING_COLUMNS)
-    .eq("usuario_id", user.id)
-    .not("briefing_date", "is", null)
-    .eq("estado", "listo")
-    .order("briefing_date", { ascending: false })
-    .order("generated_at", { ascending: false })
-    .limit(7);
+  const [briefingResult, contextResult] = await Promise.all([
+    supabase
+      .from("eos_daily_briefings")
+      .select(BRIEFING_COLUMNS)
+      .eq("usuario_id", user.id)
+      .not("briefing_date", "is", null)
+      .eq("estado", "listo")
+      .order("briefing_date", { ascending: false })
+      .order("generated_at", { ascending: false })
+      .limit(7),
+    supabase
+      .from("eos_master_context_v8")
+      .select("resumen_compacto,proxima_mejor_accion,alertas,objetivos,necesita_actualizacion,generado_at")
+      .eq("usuario_id", user.id)
+      .maybeSingle(),
+  ]);
 
-  if (error) {
-    console.error("No se pudo cargar el briefing diario:", error);
+  if (briefingResult.error) {
+    console.error("No se pudo cargar el briefing diario:", briefingResult.error);
     return NextResponse.json(
       { error: "No pudimos cargar tu briefing en este momento." },
       {
@@ -44,13 +51,18 @@ export async function GET() {
     );
   }
 
-  const briefings = data ?? [];
+  if (contextResult.error) {
+    console.error("No se pudo cargar el Contexto Maestro para el briefing:", contextResult.error);
+  }
+
+  const briefings = briefingResult.data ?? [];
   const latest = briefings[0] ?? null;
 
   return NextResponse.json(
     {
       briefing: latest,
       history: briefings,
+      master_context: contextResult.data ?? null,
       is_stale:
         latest?.briefing_date !== currentDateInParaguay(),
     },
