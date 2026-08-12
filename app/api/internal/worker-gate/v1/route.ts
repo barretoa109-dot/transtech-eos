@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
-import { POST as runWorkerGate } from "../route";
+import { POST as runWorkerGate } from "@/lib/worker-gate-handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
