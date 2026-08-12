@@ -12,6 +12,7 @@ import type {
 export function useBriefing(nombre: string) {
   const supabase = useMemo(() => createClient(), []);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [masterContext, setMasterContext] = useState<BriefingApiResponse["master_context"]>(null);
   const [history, setHistory] = useState<Briefing[]>([]);
   const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export function useBriefing(nombre: string) {
       }
 
       setBriefing(data.briefing ? normalizeBriefing(data.briefing) : null);
+      setMasterContext(data.master_context ?? null);
       setHistory((data.history ?? []).map(normalizeBriefing));
       setIsStale(Boolean(data.is_stale));
       setError(null);
@@ -93,6 +95,13 @@ export function useBriefing(nombre: string) {
 
   const briefingVisible = useMemo<Briefing>(() => {
     const current = briefing ?? {};
+    const contextAlerts = masterContext?.alertas ?? [];
+    const contextGoals = masterContext?.objetivos ?? [];
+    const contextPriorities = [
+      ...contextAlerts.map((item) => item.titulo || item.mensaje),
+      ...contextGoals.map((item) => item.proximo_paso || item.titulo),
+    ].filter((item): item is string => Boolean(item));
+    const nextAction = masterContext?.proxima_mejor_accion?.titulo;
 
     return {
       ...current,
@@ -100,15 +109,18 @@ export function useBriefing(nombre: string) {
       titulo_dia: current.titulo_dia || "Tu foco para hoy",
       resumen:
         current.resumen ||
+        masterContext?.resumen_compacto ||
         "EOS está reuniendo tu contexto. Cuando registres objetivos, tareas y decisiones, acá vas a encontrar un panorama ejecutivo diario.",
       enfoque_dia:
         current.enfoque_dia ||
+        nextAction ||
         "Definí el resultado más importante que querés conseguir hoy.",
-      prioridad_1: current.prioridad_1 || "Definir qué querés mejorar",
-      prioridad_2: current.prioridad_2 || "Ordenar la información disponible",
-      prioridad_3: current.prioridad_3 || "Ejecutar el próximo paso concreto",
+      prioridad_1: current.prioridad_1 || contextPriorities[0] || "Definir qué querés mejorar",
+      prioridad_2: current.prioridad_2 || contextPriorities[1] || "Ordenar la información disponible",
+      prioridad_3: current.prioridad_3 || contextPriorities[2] || "Ejecutar el próximo paso concreto",
       recomendacion_principal:
         current.recomendacion_principal ||
+        nextAction ||
         "Contale a EOS qué resultado necesitás lograr para construir un briefing más preciso.",
       logros: current.logros ?? [],
       riesgos: current.riesgos ?? [],
@@ -123,7 +135,7 @@ export function useBriefing(nombre: string) {
       fuentes: current.fuentes ?? {},
       score: clampScore(current.score),
     };
-  }, [briefing, nombre]);
+  }, [briefing, masterContext, nombre]);
 
   return {
     briefing,
