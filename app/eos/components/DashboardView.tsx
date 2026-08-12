@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 
 import PlanUsageCard from "./PlanUsageCard";
+import { useEffect, useState } from "react";
+
+type IntelligenceScore = {
+  score: number;
+  dimensions: Record<"contexto" | "objetivos" | "ejecucion" | "decisiones" | "aprendizaje", number>;
+  explanation: { summary: string; next_action: string };
+};
 
 type DashboardViewProps = {
   // Propiedades usadas actualmente por app/eos/chat/page.tsx
@@ -63,8 +70,19 @@ export default function DashboardView({
   eosScore,
   onOpenChat,
 }: DashboardViewProps) {
+  const [intelligence, setIntelligence] = useState<IntelligenceScore | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/eos-kpis", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (active && data?.dimensions) setIntelligence(data); })
+      .catch((error) => console.error("No se pudo cargar EOS Intelligence Score:", error));
+    return () => { active = false; };
+  }, []);
+
   const scoreVisible = normalizarPorcentaje(
-    score ?? eosScore ?? 0,
+    intelligence?.score ?? score ?? eosScore ?? 0,
   );
 
   const conversacionesVisibles =
@@ -130,6 +148,28 @@ export default function DashboardView({
         </section>
 
         <PlanUsageCard />
+
+        {intelligence && (
+          <section className="intelligence-card">
+            <div className="intelligence-heading">
+              <div>
+                <span className="dashboard-section-label">EOS INTELLIGENCE SCORE</span>
+                <h2>Por qué tu score es {intelligence.score}</h2>
+                <p>{intelligence.explanation.summary}</p>
+              </div>
+              <button type="button" onClick={onOpenChat}>Mejorar mi score <ArrowRight size={15} /></button>
+            </div>
+            <div className="dimension-grid">
+              {Object.entries(intelligence.dimensions).map(([name, value]) => (
+                <div className="dimension-item" key={name}>
+                  <div><span>{capitalizar(name)}</span><strong>{value}</strong></div>
+                  <div className="dimension-track"><span style={{ width: `${value}%` }} /></div>
+                </div>
+              ))}
+            </div>
+            <p className="intelligence-next"><strong>Próxima mejora:</strong> {intelligence.explanation.next_action}</p>
+          </section>
+        )}
 
         <section className="dashboard-section">
           <div className="dashboard-section-header">
@@ -387,6 +427,20 @@ export default function DashboardView({
       </div>
 
       <style jsx>{`
+        .intelligence-card { margin: 22px 0; padding: 27px; border: 1px solid #dbeafe; border-radius: 28px; background: rgba(255,255,255,.92); box-shadow: 0 20px 60px rgba(37,99,235,.07); }
+        .intelligence-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+        .intelligence-heading h2 { margin:8px 0 0; color:#071226; font-size:26px; letter-spacing:-.035em; }
+        .intelligence-heading p { margin:8px 0 0; color:#64748b; font-size:11px; }
+        .intelligence-heading button { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 14px; border:0; border-radius:999px; background:#2563eb; color:white; font:800 9px inherit; cursor:pointer; }
+        .dimension-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:22px; }
+        .dimension-item { padding:14px; border-radius:16px; background:#f8fafc; }
+        .dimension-item > div:first-child { display:flex; justify-content:space-between; gap:8px; color:#475569; font-size:9px; font-weight:800; }
+        .dimension-item strong { color:#071226; font-size:15px; }
+        .dimension-track { height:6px; margin-top:10px; overflow:hidden; border-radius:999px; background:#e2e8f0; }
+        .dimension-track span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#60a5fa); }
+        .intelligence-next { margin:17px 0 0; padding:11px 13px; border-radius:13px; background:#eff6ff; color:#1d4ed8; font-size:10px; }
+        @media(max-width:980px){ .dimension-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+        @media(max-width:760px){ .intelligence-heading{flex-direction:column;} .intelligence-heading button{width:100%;justify-content:center;} .dimension-grid{grid-template-columns:1fr;} }
         .dashboard-page {
           position: relative;
           flex: 1;
