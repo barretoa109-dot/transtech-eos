@@ -14,6 +14,7 @@ import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
 import MasterContextView from "../components/MasterContextView";
+import DocumentsView from "../components/DocumentsView";
 
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
@@ -23,7 +24,7 @@ import {
   convertirImagenABase64,
   subirDocumentoEOS,
 } from "../services/uploads";
-import type { VistaEOS } from "../types/chat";
+import type { DocumentoAdjunto, VistaEOS } from "../types/chat";
 
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
@@ -34,9 +35,7 @@ export default function EOSPage() {
   const [busqueda, setBusqueda] = useState("");
   const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
 
-  // Solo se utiliza en móviles.
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
-
   const chatRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -85,7 +84,6 @@ export default function EOSPage() {
 
   async function iniciarEOS() {
     const supabase = createClient();
-
     const {
       data: { user },
       error: userError,
@@ -107,7 +105,6 @@ export default function EOSPage() {
       user.user_metadata?.nombre ??
       user.email?.split("@")[0] ??
       "Usuario";
-
     const planUsuario = usuario?.plan ?? "free";
 
     setUsuarioId(user.id);
@@ -144,12 +141,9 @@ export default function EOSPage() {
       });
     }, 100);
 
-    return () => {
-      window.clearTimeout(timeout);
-    };
+    return () => window.clearTimeout(timeout);
   }, [historial]);
 
-  // Evita que el fondo se desplace cuando el menú móvil está abierto.
   useEffect(() => {
     if (!menuMovilAbierto) {
       document.body.style.overflow = "";
@@ -157,7 +151,6 @@ export default function EOSPage() {
     }
 
     document.body.style.overflow = "hidden";
-
     return () => {
       document.body.style.overflow = "";
     };
@@ -165,7 +158,6 @@ export default function EOSPage() {
 
   async function manejarNuevoChat() {
     if (!usuarioId) return;
-
     await nuevaConversacion(usuarioId);
     setImagenAdjunta(null);
     setDocumentoAdjunto(null);
@@ -176,7 +168,6 @@ export default function EOSPage() {
   async function manejarImagen(file: File) {
     try {
       const imagen = await convertirImagenABase64(file);
-
       setDocumentoAdjunto(null);
       setImagenAdjunta(imagen);
 
@@ -201,7 +192,6 @@ export default function EOSPage() {
 
     try {
       const documento = await subirDocumentoEOS(file, conversacionId || undefined);
-
       setImagenAdjunta(null);
       setDocumentoAdjunto(documento);
 
@@ -218,6 +208,13 @@ export default function EOSPage() {
     } finally {
       setSubiendoAdjunto(false);
     }
+  }
+
+  function usarDocumentoEnChat(documento: DocumentoAdjunto) {
+    setImagenAdjunta(null);
+    setDocumentoAdjunto(documento);
+    setMensaje(`Analizá este documento: ${documento.nombre}`);
+    setVista("chat");
   }
 
   async function manejarAbrirConversacion(id: string) {
@@ -237,10 +234,7 @@ export default function EOSPage() {
     const nombreImagen = imagenAdjunta?.nombre;
     setImagenAdjunta(null);
 
-    if (
-      nombreImagen &&
-      mensaje.trim() === `Analizá esta imagen: ${nombreImagen}`
-    ) {
+    if (nombreImagen && mensaje.trim() === `Analizá esta imagen: ${nombreImagen}`) {
       setMensaje("");
     }
   }
@@ -260,7 +254,7 @@ export default function EOSPage() {
   const sidebarProps = {
     nombre,
     plan,
-    vista,
+    vista: vista === "documents" ? ("chat" as const) : vista,
     busqueda,
     conversacionId,
     conversaciones,
@@ -272,12 +266,10 @@ export default function EOSPage() {
 
   return (
     <main className="eos-page">
-      {/* Sidebar normal de escritorio. */}
       <div className="eos-desktop-sidebar">
         <Sidebar {...sidebarProps} />
       </div>
 
-      {/* Menú lateral móvil. */}
       <div
         className={`eos-mobile-overlay ${
           menuMovilAbierto ? "eos-mobile-overlay-open" : ""
@@ -299,14 +291,12 @@ export default function EOSPage() {
         >
           <X size={21} />
         </button>
-
         <Sidebar {...sidebarProps} />
       </aside>
 
       <section className="eos-content">
-        <TopBar />
+        <TopBar onOpenDocuments={() => setVista("documents")} />
 
-        {/* Botón visible solamente en celular. */}
         <button
           type="button"
           className="eos-mobile-menu-button"
@@ -318,9 +308,7 @@ export default function EOSPage() {
 
         <div
           className="eos-view-container"
-          style={{
-            overflowY: vista === "chat" ? "hidden" : "auto",
-          }}
+          style={{ overflowY: vista === "chat" ? "hidden" : "auto" }}
         >
           {vista === "chat" && (
             <>
@@ -336,11 +324,7 @@ export default function EOSPage() {
                   <div className="eos-attachment-preview">
                     <div className="eos-attachment-preview-info">
                       <span className="eos-attachment-icon">
-                        {subiendoAdjunto
-                          ? "..."
-                          : imagenAdjunta
-                            ? "IMG"
-                            : "DOC"}
+                        {subiendoAdjunto ? "..." : imagenAdjunta ? "IMG" : "DOC"}
                       </span>
 
                       <span className="eos-attachment-text">
@@ -376,9 +360,7 @@ export default function EOSPage() {
                       <button
                         type="button"
                         onClick={
-                          imagenAdjunta
-                            ? quitarImagenAdjunta
-                            : quitarDocumentoAdjunto
+                          imagenAdjunta ? quitarImagenAdjunta : quitarDocumentoAdjunto
                         }
                       >
                         Quitar
@@ -396,6 +378,10 @@ export default function EOSPage() {
                 onArchivoSeleccionado={(file) => void manejarArchivo(file)}
               />
             </>
+          )}
+
+          {vista === "documents" && usuarioCargado && (
+            <DocumentsView onUseInChat={usarDocumentoEnChat} />
           )}
 
           {vista === "briefing" && (
@@ -457,9 +443,7 @@ export default function EOSPage() {
           width: 100vw;
           height: 100dvh;
           display: grid;
-          grid-template-columns:
-            minmax(260px, 280px)
-            minmax(0, 1fr);
+          grid-template-columns: minmax(260px, 280px) minmax(0, 1fr);
           overflow: hidden;
           background: #f7faff;
           color: #071226;
@@ -479,17 +463,8 @@ export default function EOSPage() {
           min-height: 0;
           height: 100%;
           background:
-            radial-gradient(
-              circle at 85% 10%,
-              rgba(14, 165, 233, 0.07),
-              transparent 26%
-            ),
-            linear-gradient(
-              180deg,
-              #07101d 0%,
-              #091524 52%,
-              #07111f 100%
-            );
+            radial-gradient(circle at 85% 10%, rgba(14, 165, 233, 0.07), transparent 26%),
+            linear-gradient(180deg, #07101d 0%, #091524 52%, #07111f 100%);
         }
 
         .eos-view-container {
@@ -642,9 +617,7 @@ export default function EOSPage() {
             background: rgba(7, 18, 38, 0.48);
             opacity: 0;
             backdrop-filter: blur(4px);
-            transition:
-              opacity 220ms ease,
-              visibility 220ms ease;
+            transition: opacity 220ms ease, visibility 220ms ease;
           }
 
           .eos-mobile-overlay-open {
