@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const FORMULA_VERSION = "eos-intelligence-score-v1";
+const SCORE_TIME_ZONE = "America/Asuncion";
 
 type Dimensions = {
   contexto: number;
@@ -115,7 +116,7 @@ export async function GET() {
   const weakest = Object.entries(dimensions).sort(([, left], [, right]) => left - right)[0];
   const strongest = Object.entries(dimensions).sort(([, left], [, right]) => right - left)[0];
   const snapshots = (history.data ?? []) as Snapshot[];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentDateInTimeZone(SCORE_TIME_ZONE);
   const comparison = snapshots.find((item) => item.snapshot_day !== today && item.formula_version === FORMULA_VERSION) ?? null;
   const trend = buildTrend(score, dimensions, signals, comparison);
 
@@ -262,4 +263,15 @@ function nextAction(dimension: string) {
     decisiones: "Registrá el resultado real de una decisión que ya debía medirse.",
     aprendizaje: "Reuní al menos tres resultados comparables para validar un patrón.",
   } as Record<string, string>)[dimension] ?? "Revisá la próxima mejor acción de tu Contexto Maestro.";
+}
+
+function currentDateInTimeZone(timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
