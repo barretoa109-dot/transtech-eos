@@ -38,6 +38,7 @@ export default function EOSPage() {
   const {
     briefingVisible,
     history: briefingHistory,
+    attention: briefingAttention,
     isStale: briefingIsStale,
     loading: briefingLoading,
     refreshing: briefingRefreshing,
@@ -312,6 +313,7 @@ export default function EOSPage() {
               error={briefingError}
               isStale={briefingIsStale}
               historyCount={briefingHistory.length}
+              attention={briefingAttention}
               onRefresh={refreshBriefing}
               onOpenChat={(prompt) => {
                 setMensaje(prompt);
