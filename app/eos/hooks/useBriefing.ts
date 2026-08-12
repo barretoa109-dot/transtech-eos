@@ -14,6 +14,7 @@ export function useBriefing(nombre: string) {
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [masterContext, setMasterContext] = useState<BriefingApiResponse["master_context"]>(null);
   const [history, setHistory] = useState<Briefing[]>([]);
+  const [attention, setAttention] = useState<BriefingApiResponse["attention"]>();
   const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,6 +38,7 @@ export function useBriefing(nombre: string) {
       setBriefing(data.briefing ? normalizeBriefing(data.briefing) : null);
       setMasterContext(data.master_context ?? null);
       setHistory((data.history ?? []).map(normalizeBriefing));
+      setAttention(data.attention);
       setIsStale(Boolean(data.is_stale));
       setError(null);
     } catch (loadError) {
@@ -141,6 +143,7 @@ export function useBriefing(nombre: string) {
     briefing,
     briefingVisible,
     history,
+    attention,
     isStale,
     loading,
     refreshing,
