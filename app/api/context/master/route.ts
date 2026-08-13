@@ -37,7 +37,6 @@ export async function POST(request: Request) {
     actionsResult,
     decisionsResult,
     learningsResult,
-    existingResult,
   ] = await Promise.all([
     auth.supabase.from("usuarios").select("nombre, plan").eq("id", auth.userId).maybeSingle(),
     auth.supabase.from("eos_profiles").select("tipo_usuario, nombre_visible, rubro, etapa_actual, prioridad_actual, resumen_actual, score_general").eq("usuario_id", auth.userId).maybeSingle(),
@@ -47,10 +46,18 @@ export async function POST(request: Request) {
     auth.supabase.from("eos_action_commands").select("id, accion, estado, payload, created_at, updated_at").eq("usuario_id", auth.userId).in("estado", ["recibida", "ejecutando"]).order("created_at", { ascending: false }).limit(8),
     auth.supabase.from("eos_decision_registry_v6").select("id, titulo, decision, razon, resultado_esperado, estado, fecha_decision, fecha_revision, result_count, latest_result_type, latest_result_summary, latest_learning").eq("usuario_id", auth.userId).order("fecha_decision", { ascending: false }).limit(6),
     auth.supabase.from("eos_learnings").select("id, categoria, patron, recomendacion, tendencia, confianza, evidence_count, last_observed_at").eq("usuario_id", auth.userId).eq("estado", "activo").order("confianza", { ascending: false }).limit(5),
-    auth.supabase.from("eos_master_contexts").select("version, source_fingerprint").eq("usuario_id", auth.userId).maybeSingle(),
   ]);
 
-  const requiredErrors = [goalsResult.error, followupsResult.error, actionsResult.error, decisionsResult.error, learningsResult.error].filter(Boolean);
+  const requiredErrors = [
+    userResult.error,
+    profileResult.error,
+    goalsResult.error,
+    projectsResult.error,
+    followupsResult.error,
+    actionsResult.error,
+    decisionsResult.error,
+    learningsResult.error,
+  ].filter(Boolean);
   if (requiredErrors.length > 0) return databaseError("reconstruir", requiredErrors[0]);
 
   const user = userResult.data;
@@ -124,27 +131,25 @@ export async function POST(request: Request) {
   const nextAction = chooseNextAction(alertas, objetivos, compromisos, aprendizajes);
   const canonical = { identidad, estadoActual, objetivos, projects, compromisos, alertas, decisionesRecientes, aprendizajes, nextAction };
   const fingerprint = await sha256(stableStringify(canonical));
-  const changed = existingResult.data?.source_fingerprint !== fingerprint;
-  const version = changed ? (existingResult.data?.version ?? 0) + 1 : existingResult.data?.version ?? 1;
   const summary = compactSummary(identidad, estadoActual, objetivos, alertas, decisionesRecientes, nextAction);
 
-  const { data: context, error: saveError } = await auth.supabase
-    .from("eos_master_contexts")
-    .upsert({
-      usuario_id: auth.userId,
-      version,
-      identidad,
-      estado_actual: estadoActual,
-      objetivos,
-      proyectos: projects,
-      compromisos,
-      alertas,
-      decisiones_recientes: decisionesRecientes,
-      aprendizajes,
-      proxima_mejor_accion: nextAction,
-      resumen_compacto: summary,
-      source_fingerprint: fingerprint,
-      fuentes: {
+  const { data: commit, error: saveError } = await auth.supabase.rpc(
+    "eos_commit_master_context_v31",
+    {
+      p_request_id: requestId,
+      p_trigger_source: triggerSource,
+      p_identidad: identidad,
+      p_estado_actual: estadoActual,
+      p_objetivos: objetivos,
+      p_proyectos: projects,
+      p_compromisos: compromisos,
+      p_alertas: alertas,
+      p_decisiones_recientes: decisionesRecientes,
+      p_aprendizajes: aprendizajes,
+      p_proxima_mejor_accion: nextAction,
+      p_resumen_compacto: summary,
+      p_source_fingerprint: fingerprint,
+      p_fuentes: {
         goals: goals.length,
         projects: projects.length,
         followups: followups.length,
@@ -152,32 +157,36 @@ export async function POST(request: Request) {
         decisions: decisions.length,
         learnings: learnings.length,
       },
-      generado_at: new Date().toISOString(),
-      vigente_hasta: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-    }, { onConflict: "usuario_id" })
-    .select("*")
-    .single();
-
-  if (saveError) return databaseError("guardar", saveError);
-
-  await auth.supabase.from("eos_master_context_runs").insert({
-    usuario_id: auth.userId,
-    request_id: requestId,
-    trigger_source: triggerSource,
-    source_fingerprint: fingerprint,
-    changed,
-    section_counts: {
-      objetivos: objetivos.length,
-      proyectos: projects.length,
-      compromisos: compromisos.length,
-      alertas: alertas.length,
-      decisiones: decisionesRecientes.length,
-      aprendizajes: aprendizajes.length,
+      p_section_counts: {
+        objetivos: objetivos.length,
+        proyectos: projects.length,
+        compromisos: compromisos.length,
+        alertas: alertas.length,
+        decisiones: decisionesRecientes.length,
+        aprendizajes: aprendizajes.length,
+      },
+      p_duration_ms: Date.now() - startedAt,
     },
-    duration_ms: Date.now() - startedAt,
-  });
+  );
 
-  return NextResponse.json({ context, changed }, { headers: HEADERS });
+  if (saveError || !commit || typeof commit !== "object") {
+    return databaseError("guardar", saveError || "EOS_CONTEXT_COMMIT_EMPTY");
+  }
+
+  const committed = commit as {
+    context?: unknown;
+    changed?: boolean;
+    idempotent?: boolean;
+  };
+
+  return NextResponse.json(
+    {
+      context: committed.context ?? null,
+      changed: Boolean(committed.changed),
+      idempotent: Boolean(committed.idempotent),
+    },
+    { headers: HEADERS },
+  );
 }
 
 type RankedItem = { titulo?: string | null; severidad?: string | null; prioridad?: number | null; progreso?: number | null; recomendacion?: string | null; tipo?: string | null; id?: string };
