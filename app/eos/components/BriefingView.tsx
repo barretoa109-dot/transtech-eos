@@ -172,7 +172,13 @@ export default function BriefingView({
           </div>
         </section>
 
-        {attention && attention.items.length > 0 && (
+        {attention?.available === false && (
+          <p className="briefing-error">
+            EOS no pudo verificar tus alertas y preferencias en este momento. No recomendará interrupciones hasta recuperar esa información.
+          </p>
+        )}
+
+        {attention && attention.available !== false && attention.items.length > 0 && (
           <AttentionBoard
             attention={attention}
             onOpenChat={onOpenChat}
