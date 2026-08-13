@@ -83,6 +83,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (planError || !plan) {
+      console.error("No se pudo consultar el plan seleccionado:", planError);
       return NextResponse.json(
         { error: "No pudimos consultar el plan seleccionado." },
         { status: 404 },
@@ -142,20 +143,12 @@ export async function POST(request: Request) {
       .single();
 
     if (solicitudError || !solicitud) {
-  console.error("No se pudo crear la solicitud:", solicitudError);
-
-  return NextResponse.json(
-    {
-      error:
-        solicitudError?.message ||
-        "No pudimos generar la solicitud de pago.",
-      details: solicitudError?.details || null,
-      hint: solicitudError?.hint || null,
-      code: solicitudError?.code || null,
-    },
-    { status: 500 },
-  );
-}
+      console.error("No se pudo crear la solicitud:", solicitudError);
+      return NextResponse.json(
+        { error: "No pudimos generar la solicitud de pago." },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       ok: true,
@@ -167,12 +160,7 @@ export async function POST(request: Request) {
     console.error("Error creando pago por transferencia:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo crear el pedido.",
-      },
+      { error: "No se pudo crear el pedido." },
       { status: 500 },
     );
   }
