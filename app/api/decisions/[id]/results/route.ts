@@ -47,6 +47,9 @@ export async function POST(
   const resumen = typeof body?.resumen === "string" ? body.resumen.trim().slice(0, 3000) : "";
   const aprendizaje = typeof body?.aprendizaje === "string" ? body.aprendizaje.trim().slice(0, 3000) : "";
   const tipo = VALID_TYPES.has(body?.tipo) ? body.tipo : "observacion";
+  const requestId = isUuid(String(body?.request_id || ""))
+    ? String(body.request_id)
+    : crypto.randomUUID();
 
   if (!resumen) {
     return NextResponse.json(
@@ -77,50 +80,41 @@ export async function POST(
     );
   }
 
-  const { data, error } = await supabase
-    .from("eos_decision_results")
-    .insert({
-      decision_id: id,
-      usuario_id: user.id,
-      tipo,
-      resumen,
-      aprendizaje: aprendizaje || null,
-      fuente: "eos-web",
-    })
-    .select("*")
-    .single();
+  const evaluation = evaluateResult(tipo, resumen, aprendizaje);
+  const { data: committed, error } = await supabase.rpc(
+    "eos_record_decision_result_v32",
+    {
+      p_decision_id: id,
+      p_request_id: requestId,
+      p_tipo: tipo,
+      p_resumen: resumen,
+      p_aprendizaje: aprendizaje || null,
+      p_evaluation_status: evaluation.status,
+      p_evaluation_summary: evaluation.summary,
+      p_evaluation_confidence: evaluation.confidence,
+    },
+  );
 
-  if (error) {
-    console.error("No se pudo registrar el resultado:", error);
+  if (error || !committed || typeof committed !== "object") {
+    console.error("No se pudo registrar y evaluar el resultado:", error);
     return NextResponse.json(
       { error: "No pudimos registrar el resultado." },
       { status: 500, headers: noStoreHeaders() },
     );
   }
 
-  const evaluation = evaluateResult(tipo, resumen, aprendizaje);
-  const { error: evaluationError } = await supabase
-    .from("eos_decisions")
-    .update({
-      resultado_estado: evaluation.status,
-      evaluacion_eos: evaluation.summary,
-      evaluacion_confianza: evaluation.confidence,
-      evaluada_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("usuario_id", user.id);
-
-  if (evaluationError) {
-    console.error(
-      "El resultado se guardó, pero no se pudo evaluar la decisión:",
-      evaluationError,
-    );
-  }
+  const payload = committed as {
+    result?: unknown;
+    evaluation?: unknown;
+    idempotent?: boolean;
+  };
 
   return NextResponse.json(
     {
-      result: data,
-      evaluation: evaluationError ? null : evaluation,
+      result: payload.result ?? null,
+      evaluation: payload.evaluation ?? evaluation,
+      request_id: requestId,
+      idempotent: Boolean(payload.idempotent),
     },
     { status: 201, headers: noStoreHeaders() },
   );
