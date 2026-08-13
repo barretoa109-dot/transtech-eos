@@ -1,0 +1,67 @@
+name: Master Context v33 Route Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-master-context-atomic-v31
+    paths:
+      - .github/workflows/master-context-v33-route-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-master-context-atomic-v31
+          fetch-depth: 0
+
+      - name: Patch Master Context route to v33
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('app/api/context/master/route.ts')
+          text = path.read_text()
+
+          marker = '''  const requestId = validUuid(body?.request_id) ? body.request_id : crypto.randomUUID();\n  const triggerSource = cleanText(body?.trigger_source, 80) || "eos-web";\n\n  const [\n'''
+          replacement = '''  const requestId = validUuid(body?.request_id) ? body.request_id : crypto.randomUUID();\n  const triggerSource = cleanText(body?.trigger_source, 80) || "eos-web";\n\n  const { data: sourceRevision, error: revisionError } = await auth.supabase.rpc(\n    "eos_get_master_context_source_revision_v33",\n  );\n\n  if (revisionError || typeof sourceRevision !== "number") {\n    return databaseError(\n      "iniciar la reconstrucción de",\n      revisionError || "EOS_CONTEXT_SOURCE_REVISION_EMPTY",\n    );\n  }\n\n  const [\n'''
+          if marker not in text:
+            raise SystemExit('revision insertion marker missing')
+          text = text.replace(marker, replacement, 1)
+
+          text = text.replace('''    "eos_commit_master_context_v31",\n    {\n      p_request_id: requestId,\n''', '''    "eos_commit_master_context_v33",\n    {\n      p_request_id: requestId,\n      p_source_revision: sourceRevision,\n''', 1)
+
+          marker = '''  if (saveError || !commit || typeof commit !== "object") {\n    return databaseError("guardar", saveError || "EOS_CONTEXT_COMMIT_EMPTY");\n  }\n\n  const committed = commit as {\n    context?: unknown;\n    changed?: boolean;\n    idempotent?: boolean;\n  };\n'''
+          replacement = '''  if (saveError) {\n    if (saveError.message?.includes("EOS_CONTEXT_SOURCE_CHANGED")) {\n      console.warn(\n        "Contexto Maestro no comprometido porque una fuente cambió durante el rebuild.",\n        { requestId, sourceRevision },\n      );\n      return NextResponse.json(\n        {\n          error: "Los datos cambiaron mientras EOS actualizaba el contexto. Volvé a intentarlo.",\n          retryable: true,\n          request_id: requestId,\n        },\n        { status: 409, headers: HEADERS },\n      );\n    }\n    return databaseError("guardar", saveError);\n  }\n\n  if (!commit || typeof commit !== "object") {\n    return databaseError("guardar", "EOS_CONTEXT_COMMIT_EMPTY");\n  }\n\n  const committed = commit as {\n    context?: unknown;\n    changed?: boolean;\n    idempotent?: boolean;\n    source_revision?: number;\n    stale?: boolean;\n  };\n'''
+          if marker not in text:
+            raise SystemExit('commit error marker missing')
+          text = text.replace(marker, replacement, 1)
+
+          marker = '''      changed: Boolean(committed.changed),\n      idempotent: Boolean(committed.idempotent),\n    },\n'''
+          replacement = '''      changed: Boolean(committed.changed),\n      idempotent: Boolean(committed.idempotent),\n      source_revision: committed.source_revision ?? sourceRevision,\n      stale: Boolean(committed.stale),\n    },\n'''
+          if marker not in text:
+            raise SystemExit('response marker missing')
+          text = text.replace(marker, replacement, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify v33 route guard
+        run: |
+          grep -F 'eos_get_master_context_source_revision_v33' app/api/context/master/route.ts
+          grep -F 'eos_commit_master_context_v33' app/api/context/master/route.ts
+          grep -F 'p_source_revision: sourceRevision' app/api/context/master/route.ts
+          grep -F 'EOS_CONTEXT_SOURCE_CHANGED' app/api/context/master/route.ts
+          grep -F 'retryable: true' app/api/context/master/route.ts
+          if grep -F 'eos_commit_master_context_v31' app/api/context/master/route.ts; then exit 1; fi
+
+      - name: Commit route patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/context/master/route.ts
+          git commit -m 'fix(context): reject stale rebuilds with source revision v33'
+          git push origin HEAD:agent/eos-rc1-master-context-atomic-v31
