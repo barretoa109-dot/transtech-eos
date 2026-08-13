@@ -97,12 +97,7 @@ export async function GET() {
     console.error("Error listando pagos:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar los pagos.",
-      },
+      { error: "No se pudieron cargar los pagos." },
       { status: 500 },
     );
   }
