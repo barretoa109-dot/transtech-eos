@@ -1,0 +1,97 @@
+name: Dependency Lock Refresh
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-dependency-hardening
+    paths:
+      - package.json
+      - .github/workflows/dependency-lock-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-dependency-hardening
+          fetch-depth: 0
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Regenerate package lock
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Apply compatible audit fixes only
+        continue-on-error: true
+        run: npm audit fix --package-lock-only --ignore-scripts
+
+      - name: Clean install from regenerated lock
+        run: npm ci
+
+      - name: Verify dependency versions
+        run: npm ls xlsx@0.20.3 exceljs@4.4.0 --depth=0
+
+      - name: Verify SheetJS XLSX round-trip
+        run: |
+          node <<'NODE'
+          const XLSX = require('xlsx');
+          if (XLSX.version !== '0.20.3') throw new Error(`Expected xlsx 0.20.3, got ${XLSX.version}`);
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet([['producto','monto'],['EOS',12345]]);
+          XLSX.utils.book_append_sheet(wb, ws, 'Prueba');
+          const bytes = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+          const parsed = XLSX.read(bytes, { type: 'buffer' });
+          const rows = XLSX.utils.sheet_to_json(parsed.Sheets.Prueba, { header: 1 });
+          if (rows?.[1]?.[0] !== 'EOS' || rows?.[1]?.[1] !== 12345) throw new Error('SheetJS XLSX round-trip failed');
+          console.log('SheetJS XLSX round-trip PASS');
+          NODE
+
+      - name: Verify ExcelJS XLSX round-trip
+        run: |
+          node <<'NODE'
+          const ExcelJS = require('exceljs');
+          (async () => {
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Prueba');
+            ws.addRow(['producto','monto']);
+            ws.addRow(['EOS',12345]);
+            const bytes = await wb.xlsx.writeBuffer();
+            const parsed = new ExcelJS.Workbook();
+            await parsed.xlsx.load(bytes);
+            if (parsed.getWorksheet('Prueba').getCell('A2').value !== 'EOS' || parsed.getWorksheet('Prueba').getCell('B2').value !== 12345) {
+              throw new Error('ExcelJS XLSX round-trip failed');
+            }
+            console.log('ExcelJS XLSX round-trip PASS');
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Dependency audit snapshot
+        continue-on-error: true
+        run: npm audit --audit-level=low
+
+      - name: Commit regenerated lockfile
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo 'package-lock.json already current'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m 'chore(deps): apply compatible audit fixes [skip actions]'
+          git push origin HEAD:agent/eos-rc1-dependency-hardening
