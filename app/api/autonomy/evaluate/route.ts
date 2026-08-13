@@ -370,6 +370,13 @@ export async function POST(request: Request) {
 
   if (eventError) {
     console.error("No se pudo registrar evaluación de autonomía:", eventError);
+
+    if (decision === "allow") {
+      return NextResponse.json(
+        { error: "No pudimos confirmar la autorización automática de forma segura." },
+        { status: 503, headers: noStoreHeaders() },
+      );
+    }
   }
 
   return NextResponse.json(
