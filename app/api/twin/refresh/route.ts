@@ -2,7 +2,6 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -375,9 +374,29 @@ export async function POST() {
       );
     }
 
+    const { data: sourceRevisionRaw, error: sourceRevisionError } = await supabase.rpc(
+      "eos_get_business_twin_source_revision_v34",
+    );
+    const sourceRevision = Number(sourceRevisionRaw);
+
+    if (
+      sourceRevisionError ||
+      !Number.isSafeInteger(sourceRevision) ||
+      sourceRevision < 0
+    ) {
+      console.error(
+        "No se pudo iniciar el refresh seguro del Business Twin:",
+        sourceRevisionError || "EOS_TWIN_SOURCE_REVISION_INVALID",
+      );
+      return NextResponse.json(
+        { error: "No pudimos iniciar la actualización segura de tu Twin." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [masterResult, goalsResult, followupsResult, actionsResult, decisionsResult, learningsResult, autonomyResult, scoreResult, currentResult] =
+    const [masterResult, goalsResult, followupsResult, actionsResult, decisionsResult, learningsResult, autonomyResult, scoreResult] =
       await Promise.all([
         supabase
           .from("eos_master_context_v8")
@@ -429,11 +448,6 @@ export async function POST() {
           .order("snapshot_day", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("eos_business_twins_v14")
-          .select("version,source_fingerprint,generated_at")
-          .eq("usuario_id", user.id)
-          .maybeSingle(),
       ]);
 
     const sourceErrors = [
@@ -445,7 +459,6 @@ export async function POST() {
       learningsResult.error,
       autonomyResult.error,
       scoreResult.error,
-      currentResult.error,
     ].filter(Boolean);
 
     if (sourceErrors.length > 0) {
@@ -470,7 +483,6 @@ export async function POST() {
         ? {
             version: master.version,
             source_fingerprint: master.source_fingerprint,
-            generated_at: master.generado_at,
             stale: master.necesita_actualizacion,
           }
         : null,
@@ -486,30 +498,6 @@ export async function POST() {
       formula: MODEL_VERSION,
     };
     const sourceFingerprint = fingerprint(sourceDescriptor);
-    const current = currentResult.data;
-
-    if (current?.source_fingerprint === sourceFingerprint) {
-      const { data: existingTwin, error: existingError } = await supabase
-        .from("eos_business_twin_current_v14")
-        .select("*")
-        .eq("usuario_id", user.id)
-        .maybeSingle();
-
-      if (existingError) {
-        console.error("No se pudo devolver Twin sin cambios:", existingError);
-      }
-
-      return NextResponse.json(
-        {
-          ok: true,
-          changed: false,
-          twin: existingTwin || current,
-          reason: "Las fuentes operativas no cambiaron desde la última versión.",
-        },
-        { headers: noStoreHeaders() },
-      );
-    }
-
     const derived = buildTwin({
       master,
       goals,
@@ -520,103 +508,110 @@ export async function POST() {
       autonomy,
       score,
     });
-    const version = Number(current?.version || 0) + 1;
-    const generatedAt = new Date().toISOString();
-    const validUntil = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-
-    const twinPayload = {
-      usuario_id: user.id,
-      version,
-      model_version: MODEL_VERSION,
-      source_fingerprint: sourceFingerprint,
-      identity: derived.identity,
-      current_state: derived.current_state,
-      desired_state: derived.desired_state,
-      gaps: derived.gaps,
-      constraints: derived.constraints,
-      capabilities: derived.capabilities,
-      risks: derived.risks,
-      opportunities: derived.opportunities,
-      priorities: derived.priorities,
-      execution_profile: derived.execution_profile,
-      learning_profile: derived.learning_profile,
-      autonomy_profile: derived.autonomy_profile,
-      intelligence_score: derived.intelligence_score,
-      confidence: derived.confidence,
-      source_completeness: derived.source_completeness,
-      generated_at: generatedAt,
-      valid_until: validUntil,
-      metadata: {
-        confidence_version: CONFIDENCE_VERSION,
-        source_presence: derived.source_presence,
-        source_descriptor: {
-          master_context_version: master?.version ?? null,
-          goals: goals.length,
-          followups: followups.length,
-          actions_30d: actions.length,
-          decisions: decisions.length,
-          learnings: learnings.length,
-          autonomy: Boolean(autonomy),
-          intelligence_score: Boolean(score),
-        },
+    const metadata = {
+      confidence_version: CONFIDENCE_VERSION,
+      source_presence: derived.source_presence,
+      source_descriptor: {
+        master_context_version: master?.version ?? null,
+        goals: goals.length,
+        followups: followups.length,
+        actions_30d: actions.length,
+        decisions: decisions.length,
+        learnings: learnings.length,
+        autonomy: Boolean(autonomy),
+        intelligence_score: Boolean(score),
       },
     };
 
-    const admin: any = createAdminClient();
-    const { data: saved, error: saveError } = await admin
-      .from("eos_business_twins_v14")
-      .upsert(twinPayload, { onConflict: "usuario_id" })
-      .select("*")
-      .single();
+    const { data: commitResult, error: commitError } = await supabase.rpc(
+      "eos_commit_business_twin_v34",
+      {
+        p_source_revision: sourceRevision,
+        p_model_version: MODEL_VERSION,
+        p_source_fingerprint: sourceFingerprint,
+        p_identity: derived.identity,
+        p_current_state: derived.current_state,
+        p_desired_state: derived.desired_state,
+        p_gaps: derived.gaps,
+        p_constraints: derived.constraints,
+        p_capabilities: derived.capabilities,
+        p_risks: derived.risks,
+        p_opportunities: derived.opportunities,
+        p_priorities: derived.priorities,
+        p_execution_profile: derived.execution_profile,
+        p_learning_profile: derived.learning_profile,
+        p_autonomy_profile: derived.autonomy_profile,
+        p_intelligence_score: derived.intelligence_score,
+        p_confidence: derived.confidence,
+        p_source_completeness: derived.source_completeness,
+        p_metadata: metadata,
+      },
+    );
 
-    if (saveError || !saved) {
-      console.error("No se pudo guardar Business Twin:", saveError);
+    if (commitError) {
+      if (commitError.message?.includes("EOS_TWIN_SOURCE_CHANGED")) {
+        console.warn(
+          "Business Twin no comprometido porque una fuente cambió durante el refresh.",
+          { sourceRevision },
+        );
+        return NextResponse.json(
+          {
+            error: "Los datos cambiaron mientras EOS actualizaba tu Twin. Volvé a intentarlo.",
+            retryable: true,
+          },
+          { status: 409, headers: noStoreHeaders() },
+        );
+      }
+
+      console.error("No se pudo guardar Business Twin de forma atómica:", commitError);
       return NextResponse.json(
         { error: "No pudimos guardar la nueva versión de tu Twin." },
         { status: 500, headers: noStoreHeaders() },
       );
     }
 
-    const snapshotPayload = {
-      usuario_id: user.id,
-      version,
-      source_fingerprint: sourceFingerprint,
-      snapshot: {
-        model_version: MODEL_VERSION,
-        identity: saved.identity,
-        current_state: saved.current_state,
-        desired_state: saved.desired_state,
-        gaps: saved.gaps,
-        constraints: saved.constraints,
-        capabilities: saved.capabilities,
-        risks: saved.risks,
-        opportunities: saved.opportunities,
-        priorities: saved.priorities,
-        execution_profile: saved.execution_profile,
-        learning_profile: saved.learning_profile,
-        autonomy_profile: saved.autonomy_profile,
-        intelligence_score: saved.intelligence_score,
-      },
-      confidence: saved.confidence,
-      source_completeness: saved.source_completeness,
-      generated_at: generatedAt,
-    };
-
-    const { error: snapshotError } = await admin
-      .from("eos_business_twin_snapshots_v14")
-      .insert(snapshotPayload);
-
-    if (snapshotError) {
-      console.error("No se pudo guardar snapshot del Business Twin:", snapshotError);
+    if (!commitResult || typeof commitResult !== "object" || Array.isArray(commitResult)) {
+      console.error("Commit del Business Twin devolvió una respuesta inválida.");
+      return NextResponse.json(
+        { error: "No pudimos confirmar la nueva versión de tu Twin." },
+        { status: 500, headers: noStoreHeaders() },
+      );
     }
 
+    const committed = commitResult as {
+      twin?: unknown;
+      changed?: boolean;
+      refreshed?: boolean;
+      source_revision?: number;
+      stale?: boolean;
+    };
+    const saved = objectValue(committed.twin);
+
+    if (!saved.usuario_id) {
+      console.error("Commit del Business Twin no devolvió un Twin válido.", commitResult);
+      return NextResponse.json(
+        { error: "No pudimos confirmar la nueva versión de tu Twin." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    const changed = Boolean(committed.changed);
     return NextResponse.json(
       {
         ok: true,
-        changed: true,
-        twin: { ...saved, is_stale: false, age_minutes: 0 },
+        changed,
+        refreshed: Boolean(committed.refreshed),
+        source_revision: committed.source_revision ?? sourceRevision,
+        twin: {
+          ...saved,
+          is_stale: Boolean(committed.stale),
+          age_minutes: 0,
+        },
+        ...(changed
+          ? {}
+          : { reason: "Las fuentes operativas no cambiaron desde la última versión." }),
       },
-      { status: 201, headers: noStoreHeaders() },
+      { status: changed ? 201 : 200, headers: noStoreHeaders() },
     );
   } catch (error) {
     console.error("Error actualizando Business Twin:", error);
