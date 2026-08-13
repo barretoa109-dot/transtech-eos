@@ -28,6 +28,17 @@ export async function POST(request: Request) {
   const requestId = validUuid(body?.request_id) ? body.request_id : crypto.randomUUID();
   const triggerSource = cleanText(body?.trigger_source, 80) || "eos-web";
 
+  const { data: sourceRevision, error: revisionError } = await auth.supabase.rpc(
+    "eos_get_master_context_source_revision_v33",
+  );
+
+  if (revisionError || typeof sourceRevision !== "number") {
+    return databaseError(
+      "iniciar la reconstrucción de",
+      revisionError || "EOS_CONTEXT_SOURCE_REVISION_EMPTY",
+    );
+  }
+
   const [
     userResult,
     profileResult,
@@ -134,9 +145,10 @@ export async function POST(request: Request) {
   const summary = compactSummary(identidad, estadoActual, objetivos, alertas, decisionesRecientes, nextAction);
 
   const { data: commit, error: saveError } = await auth.supabase.rpc(
-    "eos_commit_master_context_v31",
+    "eos_commit_master_context_v33",
     {
       p_request_id: requestId,
+      p_source_revision: sourceRevision,
       p_trigger_source: triggerSource,
       p_identidad: identidad,
       p_estado_actual: estadoActual,
@@ -169,14 +181,34 @@ export async function POST(request: Request) {
     },
   );
 
-  if (saveError || !commit || typeof commit !== "object") {
-    return databaseError("guardar", saveError || "EOS_CONTEXT_COMMIT_EMPTY");
+  if (saveError) {
+    if (saveError.message?.includes("EOS_CONTEXT_SOURCE_CHANGED")) {
+      console.warn(
+        "Contexto Maestro no comprometido porque una fuente cambió durante el rebuild.",
+        { requestId, sourceRevision },
+      );
+      return NextResponse.json(
+        {
+          error: "Los datos cambiaron mientras EOS actualizaba el contexto. Volvé a intentarlo.",
+          retryable: true,
+          request_id: requestId,
+        },
+        { status: 409, headers: HEADERS },
+      );
+    }
+    return databaseError("guardar", saveError);
+  }
+
+  if (!commit || typeof commit !== "object") {
+    return databaseError("guardar", "EOS_CONTEXT_COMMIT_EMPTY");
   }
 
   const committed = commit as {
     context?: unknown;
     changed?: boolean;
     idempotent?: boolean;
+    source_revision?: number;
+    stale?: boolean;
   };
 
   return NextResponse.json(
@@ -184,6 +216,8 @@ export async function POST(request: Request) {
       context: committed.context ?? null,
       changed: Boolean(committed.changed),
       idempotent: Boolean(committed.idempotent),
+      source_revision: committed.source_revision ?? sourceRevision,
+      stale: Boolean(committed.stale),
     },
     { headers: HEADERS },
   );
