@@ -503,7 +503,15 @@ export async function POST(_request: Request, context: RouteContext) {
         .eq("id", run.id)
         .eq("usuario_id", user.id);
 
-      if (document.intelligence_status !== "ready") {
+      const analysisErrorMessage =
+        analysisError instanceof Error
+          ? analysisError.message
+          : analysisError && typeof analysisError === "object" && "message" in analysisError
+            ? String((analysisError as { message?: unknown }).message || "")
+            : "";
+      const staleAnalysisRun = analysisErrorMessage.includes("EOS_STALE_ANALYSIS_RUN");
+
+      if (!staleAnalysisRun && document.intelligence_status !== "ready") {
         await supabase
           .from("eos_documents_v11")
           .update({ intelligence_status: "error" })
