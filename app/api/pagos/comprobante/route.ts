@@ -72,6 +72,9 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (solicitudError || !solicitud) {
+      if (solicitudError) {
+        console.error("No se pudo consultar la solicitud del comprobante:", solicitudError);
+      }
       return NextResponse.json(
         { error: "No encontramos la solicitud de pago." },
         { status: 404 },
@@ -101,10 +104,7 @@ export async function POST(request: Request) {
       console.error("No se pudo subir el comprobante:", uploadError);
 
       return NextResponse.json(
-        {
-          error:
-            "No pudimos guardar el comprobante. Verificá que el bucket exista.",
-        },
+        { error: "No pudimos guardar el comprobante." },
         { status: 500 },
       );
     }
@@ -131,6 +131,7 @@ export async function POST(request: Request) {
       .eq("usuario_id", user.id);
 
     if (updateError) {
+      console.error("No se pudo asociar el comprobante al pedido:", updateError);
       await admin.storage.from("comprobantes-pago").remove([ruta]);
 
       return NextResponse.json(
@@ -148,12 +149,7 @@ export async function POST(request: Request) {
     console.error("Error subiendo comprobante:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo subir el comprobante.",
-      },
+      { error: "No se pudo subir el comprobante." },
       { status: 500 },
     );
   }
