@@ -50,9 +50,21 @@ function stableFingerprint(value: Record<string, unknown>) {
   return createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
 }
 
-function startOfUtcDay() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+const AUTONOMY_TIME_ZONE = "America/Asuncion";
+
+function dateInTimeZone(value: string, timeZone = AUTONOMY_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function recentAutonomyWindowStart() {
+  return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
 }
 
 function responseBody(params: {
@@ -140,10 +152,10 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("eos_autonomy_events_v12")
-        .select("event_type,detail")
+        .select("event_type,detail,created_at")
         .eq("usuario_id", user.id)
         .eq("event_type", "auto_allowed")
-        .gte("created_at", startOfUtcDay()),
+        .gte("created_at", recentAutonomyWindowStart()),
       supabase
         .from("eos_action_approvals_v12")
         .select("id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,created_at,decided_at")
@@ -173,7 +185,10 @@ export async function POST(request: Request) {
   const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
   const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
   const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
-  const autoEvents = dailyEventsResult.data || [];
+  const autonomyDay = dateInTimeZone(new Date().toISOString());
+  const autoEvents = (dailyEventsResult.data || []).filter(
+    (event) => dateInTimeZone(event.created_at) === autonomyDay,
+  );
   const autoCount = autoEvents.length;
   const usedRisk = autoEvents.reduce((total, event) => {
     const detail = safeObject(event.detail);
@@ -240,6 +255,10 @@ export async function POST(request: Request) {
 
   if (priorEventError) {
     console.error("No se pudo comprobar idempotencia de autonomía:", priorEventError);
+    return NextResponse.json(
+      { error: "No pudimos verificar de forma segura si esta acción ya fue evaluada." },
+      { status: 503, headers: noStoreHeaders() },
+    );
   } else if (priorEvents?.length) {
     const detail = safeObject(priorEvents[0].detail);
     const previousDecision = detail.decision;
@@ -370,6 +389,13 @@ export async function POST(request: Request) {
 
   if (eventError) {
     console.error("No se pudo registrar evaluación de autonomía:", eventError);
+
+    if (decision === "allow") {
+      return NextResponse.json(
+        { error: "No pudimos confirmar la autorización automática de forma segura." },
+        { status: 503, headers: noStoreHeaders() },
+      );
+    }
   }
 
   return NextResponse.json(

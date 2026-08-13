@@ -74,11 +74,21 @@ function fingerprint(value: Record<string, unknown>) {
     .digest("hex");
 }
 
-function startOfUtcDay() {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  ).toISOString();
+const AUTONOMY_TIME_ZONE = "America/Asuncion";
+
+function dateInTimeZone(value: string, timeZone = AUTONOMY_TIME_ZONE) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function recentAutonomyWindowStart() {
+  return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
 }
 
 function authorized(request: Request) {
@@ -366,10 +376,10 @@ export async function POST(request: Request) {
         .limit(1),
       admin
         .from("eos_autonomy_events_v12")
-        .select("event_type,detail")
+        .select("event_type,detail,created_at")
         .eq("usuario_id", usuarioId)
         .eq("event_type", "auto_allowed")
-        .gte("created_at", startOfUtcDay()),
+        .gte("created_at", recentAutonomyWindowStart()),
     ]);
 
     const readError =
@@ -396,7 +406,10 @@ export async function POST(request: Request) {
     const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
     const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
     const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
-    const autoEvents = dailyEventsResult.data || [];
+    const autonomyDay = dateInTimeZone(new Date().toISOString());
+    const autoEvents = (dailyEventsResult.data || []).filter(
+      (event: any) => dateInTimeZone(event.created_at) === autonomyDay,
+    );
     const autoCount = autoEvents.length;
     const usedRisk = autoEvents.reduce((total: number, event: any) => {
       const detail = safeObject(event.detail);

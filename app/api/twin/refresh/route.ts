@@ -621,12 +621,7 @@ export async function POST() {
   } catch (error) {
     console.error("Error actualizando Business Twin:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar el Business Twin.",
-      },
+      { error: "No se pudo actualizar el Business Twin." },
       { status: 500, headers: noStoreHeaders() },
     );
   }
