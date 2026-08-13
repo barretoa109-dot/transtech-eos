@@ -50,9 +50,24 @@ function stableFingerprint(value: Record<string, unknown>) {
   return createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
 }
 
-function startOfUtcDay() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+const PARAGUAY_DAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Asuncion",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function paraguayDayKey(value: Date) {
+  const parts = PARAGUAY_DAY_FORMATTER.formatToParts(value);
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+  return `${year}-${month}-${day}`;
+}
+
+function autonomyEventLookbackStart() {
+  // 36h safely covers the complete current Paraguay calendar day across timezone changes.
+  return new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
 }
 
 function responseBody(params: {
@@ -140,10 +155,10 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from("eos_autonomy_events_v12")
-        .select("event_type,detail")
+        .select("event_type,detail,created_at")
         .eq("usuario_id", user.id)
         .eq("event_type", "auto_allowed")
-        .gte("created_at", startOfUtcDay()),
+        .gte("created_at", autonomyEventLookbackStart()),
       supabase
         .from("eos_action_approvals_v12")
         .select("id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,created_at,decided_at")
@@ -173,7 +188,13 @@ export async function POST(request: Request) {
   const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
   const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
   const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
-  const autoEvents = dailyEventsResult.data || [];
+  const todayParaguay = paraguayDayKey(new Date());
+  const autoEvents = (dailyEventsResult.data || []).filter((event) => {
+    const createdAt = typeof event.created_at === "string" ? new Date(event.created_at) : null;
+    return createdAt && !Number.isNaN(createdAt.getTime())
+      ? paraguayDayKey(createdAt) === todayParaguay
+      : false;
+  });
   const autoCount = autoEvents.length;
   const usedRisk = autoEvents.reduce((total, event) => {
     const detail = safeObject(event.detail);
