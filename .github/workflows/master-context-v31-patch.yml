@@ -1,0 +1,65 @@
+name: Master Context v31 Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-master-context-atomic-v31
+    paths:
+      - .github/workflows/master-context-v31-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-master-context-atomic-v31
+          fetch-depth: 0
+
+      - name: Patch Master Context route
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('app/api/context/master/route.ts')
+          text = path.read_text()
+
+          old = '''    learningsResult,\n    existingResult,\n  ] = await Promise.all([\n'''
+          new = '''    learningsResult,\n  ] = await Promise.all([\n'''
+          if old not in text:
+            raise SystemExit('Promise result list marker missing')
+          text = text.replace(old, new, 1)
+
+          old = '''    auth.supabase.from("eos_learnings").select("id, categoria, patron, recomendacion, tendencia, confianza, evidence_count, last_observed_at").eq("usuario_id", auth.userId).eq("estado", "activo").order("confianza", { ascending: false }).limit(5),\n    auth.supabase.from("eos_master_contexts").select("version, source_fingerprint").eq("usuario_id", auth.userId).maybeSingle(),\n  ]);\n\n  const requiredErrors = [goalsResult.error, followupsResult.error, actionsResult.error, decisionsResult.error, learningsResult.error].filter(Boolean);\n'''
+          new = '''    auth.supabase.from("eos_learnings").select("id, categoria, patron, recomendacion, tendencia, confianza, evidence_count, last_observed_at").eq("usuario_id", auth.userId).eq("estado", "activo").order("confianza", { ascending: false }).limit(5),\n  ]);\n\n  const requiredErrors = [\n    userResult.error,\n    profileResult.error,\n    goalsResult.error,\n    projectsResult.error,\n    followupsResult.error,\n    actionsResult.error,\n    decisionsResult.error,\n    learningsResult.error,\n  ].filter(Boolean);\n'''
+          if old not in text:
+            raise SystemExit('source errors marker missing')
+          text = text.replace(old, new, 1)
+
+          old = '''  const fingerprint = await sha256(stableStringify(canonical));\n  const changed = existingResult.data?.source_fingerprint !== fingerprint;\n  const version = changed ? (existingResult.data?.version ?? 0) + 1 : existingResult.data?.version ?? 1;\n  const summary = compactSummary(identidad, estadoActual, objetivos, alertas, decisionesRecientes, nextAction);\n\n  const { data: context, error: saveError } = await auth.supabase\n    .from("eos_master_contexts")\n    .upsert({\n      usuario_id: auth.userId,\n      version,\n      identidad,\n      estado_actual: estadoActual,\n      objetivos,\n      proyectos: projects,\n      compromisos,\n      alertas,\n      decisiones_recientes: decisionesRecientes,\n      aprendizajes,\n      proxima_mejor_accion: nextAction,\n      resumen_compacto: summary,\n      source_fingerprint: fingerprint,\n      fuentes: {\n        goals: goals.length,\n        projects: projects.length,\n        followups: followups.length,\n        actions: actions.length,\n        decisions: decisions.length,\n        learnings: learnings.length,\n      },\n      generado_at: new Date().toISOString(),\n      vigente_hasta: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),\n    }, { onConflict: "usuario_id" })\n    .select("*")\n    .single();\n\n  if (saveError) return databaseError("guardar", saveError);\n\n  await auth.supabase.from("eos_master_context_runs").insert({\n    usuario_id: auth.userId,\n    request_id: requestId,\n    trigger_source: triggerSource,\n    source_fingerprint: fingerprint,\n    changed,\n    section_counts: {\n      objetivos: objetivos.length,\n      proyectos: projects.length,\n      compromisos: compromisos.length,\n      alertas: alertas.length,\n      decisiones: decisionesRecientes.length,\n      aprendizajes: aprendizajes.length,\n    },\n    duration_ms: Date.now() - startedAt,\n  });\n\n  return NextResponse.json({ context, changed }, { headers: HEADERS });\n'''
+          new = '''  const fingerprint = await sha256(stableStringify(canonical));\n  const summary = compactSummary(identidad, estadoActual, objetivos, alertas, decisionesRecientes, nextAction);\n\n  const { data: commit, error: saveError } = await auth.supabase.rpc(\n    "eos_commit_master_context_v31",\n    {\n      p_request_id: requestId,\n      p_trigger_source: triggerSource,\n      p_identidad: identidad,\n      p_estado_actual: estadoActual,\n      p_objetivos: objetivos,\n      p_proyectos: projects,\n      p_compromisos: compromisos,\n      p_alertas: alertas,\n      p_decisiones_recientes: decisionesRecientes,\n      p_aprendizajes: aprendizajes,\n      p_proxima_mejor_accion: nextAction,\n      p_resumen_compacto: summary,\n      p_source_fingerprint: fingerprint,\n      p_fuentes: {\n        goals: goals.length,\n        projects: projects.length,\n        followups: followups.length,\n        actions: actions.length,\n        decisions: decisions.length,\n        learnings: learnings.length,\n      },\n      p_section_counts: {\n        objetivos: objetivos.length,\n        proyectos: projects.length,\n        compromisos: compromisos.length,\n        alertas: alertas.length,\n        decisiones: decisionesRecientes.length,\n        aprendizajes: aprendizajes.length,\n      },\n      p_duration_ms: Date.now() - startedAt,\n    },\n  );\n\n  if (saveError || !commit || typeof commit !== "object") {\n    return databaseError("guardar", saveError || "EOS_CONTEXT_COMMIT_EMPTY");\n  }\n\n  const committed = commit as {\n    context?: unknown;\n    changed?: boolean;\n    idempotent?: boolean;\n  };\n\n  return NextResponse.json(\n    {\n      context: committed.context ?? null,\n      changed: Boolean(committed.changed),\n      idempotent: Boolean(committed.idempotent),\n    },\n    { headers: HEADERS },\n  );\n'''
+          if old not in text:
+            raise SystemExit('persistence block marker missing')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify focused route changes
+        run: |
+          grep -F 'eos_commit_master_context_v31' app/api/context/master/route.ts
+          grep -F 'userResult.error' app/api/context/master/route.ts
+          grep -F 'projectsResult.error' app/api/context/master/route.ts
+          grep -F 'idempotent: Boolean(committed.idempotent)' app/api/context/master/route.ts
+          if grep -F 'existingResult' app/api/context/master/route.ts; then exit 1; fi
+          if grep -F '.from("eos_master_context_runs").insert' app/api/context/master/route.ts; then exit 1; fi
+
+      - name: Commit route patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/context/master/route.ts
+          git commit -m 'fix(context): commit master context atomically with v31'
+          git push origin HEAD:agent/eos-rc1-master-context-atomic-v31
