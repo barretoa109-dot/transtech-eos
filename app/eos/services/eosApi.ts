@@ -8,6 +8,7 @@ type EnviarEOSParams = {
   mensaje: string;
   historial: Mensaje[];
   nuevoChat: boolean;
+  requestId: string;
   imagen?: ImagenAdjunta | null;
   documentoId?: string | null;
 };
@@ -21,6 +22,30 @@ export type RespuestaEOS = {
   accion?: string;
   metadata?: Record<string, unknown>;
 };
+
+export class EOSApiError extends Error {
+  code: string;
+  status: number;
+  upgradeUrl: string | null;
+  commercial: Record<string, unknown> | null;
+
+  constructor(
+    message: string,
+    options: {
+      code?: string;
+      status: number;
+      upgradeUrl?: string | null;
+      commercial?: Record<string, unknown> | null;
+    },
+  ) {
+    super(message);
+    this.name = "EOSApiError";
+    this.code = options.code || "EOS_API_ERROR";
+    this.status = options.status;
+    this.upgradeUrl = options.upgradeUrl || null;
+    this.commercial = options.commercial || null;
+  }
+}
 
 function limpiarTexto(valor: unknown): string {
   if (typeof valor !== "string") return "";
@@ -110,6 +135,12 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
   };
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export async function enviarMensajeAEOS(
   params: EnviarEOSParams,
 ): Promise<RespuestaEOS> {
@@ -128,6 +159,7 @@ export async function enviarMensajeAEOS(
         .filter((m) => !m.texto.includes("Este es un nuevo chat"))
         .slice(-10),
       nuevo_chat: params.nuevoChat,
+      request_id: params.requestId,
       imagen: params.imagen || null,
       documento_id: params.documentoId || null,
       origen: "eos-web",
@@ -137,7 +169,10 @@ export async function enviarMensajeAEOS(
   const raw = await response.text();
 
   if (!raw.trim()) {
-    throw new Error("EOS respondió vacío");
+    throw new EOSApiError("EOS respondió vacío", {
+      status: response.status || 502,
+      code: "EOS_EMPTY_HTTP_RESPONSE",
+    });
   }
 
   let contenido: unknown = raw;
@@ -151,7 +186,14 @@ export async function enviarMensajeAEOS(
   const resultado = normalizarRespuesta(contenido);
 
   if (!response.ok) {
-    throw new Error(resultado.respuesta || "Error en EOS");
+    const payload = objectValue(contenido);
+    throw new EOSApiError(resultado.respuesta || "Error en EOS", {
+      status: response.status,
+      code: typeof payload?.code === "string" ? payload.code : "EOS_API_ERROR",
+      upgradeUrl:
+        typeof payload?.upgrade_url === "string" ? payload.upgrade_url : null,
+      commercial: objectValue(payload?.commercial),
+    });
   }
 
   return resultado;

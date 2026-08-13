@@ -8,7 +8,7 @@ import type {
   Mensaje,
 } from "../types/chat";
 
-import { enviarMensajeAEOS } from "../services/eosApi";
+import { EOSApiError, enviarMensajeAEOS } from "../services/eosApi";
 import { guardarMensaje } from "../services/supabaseChat";
 
 type UseChatParams = {
@@ -101,6 +101,7 @@ export function useChat({
           );
         }
 
+        const requestId = crypto.randomUUID();
         const resultadoEOS = await enviarMensajeAEOS({
           usuarioId,
           conversacionId: conversacionActiva,
@@ -109,6 +110,7 @@ export function useChat({
           mensaje: textoUsuario,
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
+          requestId,
           imagen,
           documentoId: documento?.id || null,
         });
@@ -152,17 +154,28 @@ export function useChat({
         });
 
         await cargarBriefing(usuarioId);
+        window.dispatchEvent(new Event("eos:usage-changed"));
       } catch (error) {
         console.error("ERROR EOS:", error);
 
-        const respuestaError =
-          "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
+        const commercialError =
+          error instanceof EOSApiError
+          && ["EOS_MESSAGE_LIMIT_REACHED", "EOS_SUBSCRIPTION_INACTIVE"].includes(error.code);
+        const replayConflict =
+          error instanceof EOSApiError
+          && ["EOS_MESSAGE_REQUEST_IN_PROGRESS", "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED"].includes(error.code);
+        const userFacingError = commercialError || replayConflict;
+        const respuestaError = userFacingError
+          ? error.message
+          : "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
 
         const mensajeError: Mensaje = {
-          id: crearIdMensaje("error"),
+          id: crearIdMensaje(commercialError ? "plan" : replayConflict ? "estado" : "error"),
           rol: "eos",
           texto: respuestaError,
-          estado: "error",
+          estado: userFacingError ? "completado" : "error",
+          tipo: "texto",
+          accion: commercialError ? "ABRIR_PLANES" : "RESPONDER",
           creado_en: new Date().toISOString(),
         };
 
@@ -180,6 +193,9 @@ export function useChat({
         }
 
         setHistorial((actual) => [...actual, mensajeError]);
+        if (commercialError) {
+          window.dispatchEvent(new Event("eos:usage-changed"));
+        }
       } finally {
         setPensando(false);
         setCargando(false);
