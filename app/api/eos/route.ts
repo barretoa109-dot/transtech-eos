@@ -250,6 +250,8 @@ function construirContextoTwin(twin: {
 }
 
 export async function POST(req: Request) {
+  let releaseReservedQuota: ((reason: string) => Promise<void>) | null = null;
+
   try {
     const supabase = await createClient();
     const {
@@ -509,6 +511,8 @@ export async function POST(req: Request) {
       }
     };
 
+    releaseReservedQuota = releaseQuota;
+
     let response: Response;
     try {
       response = await fetch(
@@ -602,6 +606,9 @@ export async function POST(req: Request) {
       );
     }
 
+    quotaReleased = true;
+    releaseReservedQuota = null;
+
     try {
       await fetch(
         process.env.N8N_DECISION_CAPTURE_URL ||
@@ -648,6 +655,11 @@ export async function POST(req: Request) {
     const timeout =
       error instanceof Error &&
       (error.name === "TimeoutError" || error.name === "AbortError");
+
+    if (releaseReservedQuota) {
+      await releaseReservedQuota(timeout ? "unexpected_timeout" : "unexpected_proxy_error");
+      releaseReservedQuota = null;
+    }
 
     console.log("Error proxy EOS:", error);
 
