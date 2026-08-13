@@ -244,7 +244,7 @@ export async function POST(request: Request) {
 
     const raw = new Uint8Array(await file.arrayBuffer());
     const checksum = createHash("sha256").update(raw).digest("hex");
-    const admin = createAdminClient();
+    const admin: any = createAdminClient();
 
     const { data: duplicate, error: duplicateError } = await admin
       .from("eos_documents_v11")
@@ -372,7 +372,7 @@ export async function POST(request: Request) {
 
     if (uploadedPaths.length > 0) {
       try {
-        const admin = createAdminClient();
+        const admin: any = createAdminClient();
         await admin.storage.from("eos-documents").remove(uploadedPaths);
       } catch (cleanupError) {
         console.error("No se pudo limpiar documento huérfano:", cleanupError);
