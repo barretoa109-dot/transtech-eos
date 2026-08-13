@@ -13,6 +13,7 @@ import DashboardView from "../eos/components/DashboardView";
 import ProfileView from "../eos/components/ProfileView";
 import DecisionsView from "../eos/components/DecisionsView";
 import LearningsView from "../eos/components/LearningsView";
+import MasterContextView from "../eos/components/MasterContextView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
@@ -111,6 +112,17 @@ export default function MobileEOSPage() {
     setNombre(nombreUsuario);
     setPlan(planUsuario);
     setUsuarioCargado(true);
+
+    await fetch("/api/context/master", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: crypto.randomUUID(),
+        trigger_source: "eos-mobile-session-start",
+      }),
+    }).catch((contextError) => {
+      console.error("No se pudo actualizar el Contexto Maestro móvil:", contextError);
+    });
 
     await cargarBriefing(user.id);
     await cargarConversaciones(user.id, nombreUsuario);
@@ -369,6 +381,15 @@ export default function MobileEOSPage() {
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}
         {vista === "learnings" && usuarioCargado && <LearningsView />}
+
+        {vista === "context" && usuarioCargado && (
+          <MasterContextView
+            onOpenChat={(prompt) => {
+              setMensaje(prompt);
+              setVista("chat");
+            }}
+          />
+        )}
 
         {vista === "perfil" && (
           <ProfileView
