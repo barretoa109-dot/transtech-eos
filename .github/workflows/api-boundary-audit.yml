@@ -1,0 +1,61 @@
+name: API Boundary Audit
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-api-boundary-audit
+    paths:
+      - .github/workflows/api-boundary-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RC audit branch
+        uses: actions/checkout@v4
+
+      - name: Scan API response boundaries
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          roots = [Path('app/api')]
+          files = []
+          for root in roots:
+              if root.exists():
+                  files.extend(sorted(p for p in root.rglob('*') if p.is_file() and p.suffix in {'.ts', '.js'}))
+
+          patterns = {
+              'raw_error_message': re.compile(r'\berror\s*(?:instanceof\s+Error[^\n]{0,160})?\.message\b|\berror\.message\b', re.I),
+              'raw_error_fields': re.compile(r'\b(?:error\.)?(?:details|hint|code)\b', re.I),
+              'raw_error_object': re.compile(r'NextResponse\.json\s*\(\s*\{?\s*(?:error\s*[,}]|error\s*:\s*error\b)', re.I),
+              'serialized_error': re.compile(r'JSON\.stringify\s*\(\s*error\s*\)', re.I),
+              'env_reference': re.compile(r'process\.env\.[A-Z0-9_]+'),
+              'admin_client': re.compile(r'createAdminClient\s*\('),
+          }
+
+          print(f'API files scanned: {len(files)}')
+          counts = {k: 0 for k in patterns}
+          for path in files:
+              text = path.read_text(encoding='utf-8', errors='replace')
+              lines = text.splitlines()
+              hits = []
+              for i, line in enumerate(lines, 1):
+                  for kind, pattern in patterns.items():
+                      if pattern.search(line):
+                          counts[kind] += 1
+                          hits.append((i, kind, line.strip()))
+              if hits:
+                  print(f'\n### {path}')
+                  for i, kind, line in hits:
+                      safe = line[:400]
+                      print(f'{i}: [{kind}] {safe}')
+
+          print('\n=== SUMMARY ===')
+          for kind, count in counts.items():
+              print(f'{kind}: {count}')
+          PY
