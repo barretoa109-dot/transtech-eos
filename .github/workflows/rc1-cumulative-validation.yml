@@ -46,6 +46,7 @@ jobs:
           git fetch origin agent/eos-rc1-decision-result-atomic-v32
           git fetch origin agent/eos-rc1-score-history-consistency
           git fetch origin agent/eos-rc1-download-route-hardening
+          git fetch origin agent/eos-rc1-followup-briefing-hardening
 
       - name: Merge isolated hardenings ephemerally
         run: |
@@ -61,7 +62,8 @@ jobs:
           git merge --no-ff --no-edit origin/agent/eos-rc1-decision-result-atomic-v32
           git merge --no-ff --no-edit origin/agent/eos-rc1-score-history-consistency
           git merge --no-ff --no-edit origin/agent/eos-rc1-download-route-hardening
-          echo "Includes Master Context v31/v33 and Business Twin v34/v35 source-revision guards"
+          git merge --no-ff --no-edit origin/agent/eos-rc1-followup-briefing-hardening
+          echo "Includes Master Context v31/v33, Business Twin v34/v35, Followups v36/v37 and Briefing fail-closed"
           echo "Twin fingerprint is derived-semantic and deadlines use America/Asuncion business date"
           echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
 
