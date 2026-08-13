@@ -1,0 +1,73 @@
+name: API Boundary Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-api-boundary-hardening
+    paths:
+      - .github/workflows/api-boundary-patch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-api-boundary-hardening
+          fetch-depth: 0
+
+      - name: Apply focused boundary patches
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          replacements = {
+            "app/api/autonomy/evaluate/route.ts": [
+              (
+                '''  if (eventError) {\n    console.error("No se pudo registrar evaluación de autonomía:", eventError);\n  }\n''',
+                '''  if (eventError) {\n    console.error("No se pudo registrar evaluación de autonomía:", eventError);\n\n    if (decision === "allow") {\n      return NextResponse.json(\n        { error: "No pudimos confirmar la autorización automática de forma segura." },\n        { status: 503, headers: noStoreHeaders() },\n      );\n    }\n  }\n''',
+              ),
+            ],
+            "app/api/documents/[id]/analyze/route.ts": [
+              (
+                '''    return NextResponse.json(\n      {\n        error:\n          error instanceof Error\n            ? error.message\n            : "No se pudo analizar el documento.",\n      },\n      { status: 500, headers: noStoreHeaders() },\n    );\n''',
+                '''    return NextResponse.json(\n      { error: "No se pudo analizar el documento." },\n      { status: 500, headers: noStoreHeaders() },\n    );\n''',
+              ),
+            ],
+            "app/api/twin/refresh/route.ts": [
+              (
+                '''    return NextResponse.json(\n      {\n        error:\n          error instanceof Error\n            ? error.message\n            : "No se pudo actualizar el Business Twin.",\n      },\n      { status: 500, headers: noStoreHeaders() },\n    );\n''',
+                '''    return NextResponse.json(\n      { error: "No se pudo actualizar el Business Twin." },\n      { status: 500, headers: noStoreHeaders() },\n    );\n''',
+              ),
+            ],
+          }
+
+          for filename, pairs in replacements.items():
+            path = Path(filename)
+            text = path.read_text()
+            for old, new in pairs:
+              if old not in text:
+                raise SystemExit(f"Expected boundary snippet not found in {filename}")
+              text = text.replace(old, new, 1)
+            path.write_text(text)
+          PY
+
+      - name: Verify focused changes
+        run: |
+          grep -F 'No pudimos confirmar la autorización automática de forma segura.' app/api/autonomy/evaluate/route.ts
+          grep -F '{ error: "No se pudo analizar el documento." }' 'app/api/documents/[id]/analyze/route.ts'
+          grep -F '{ error: "No se pudo actualizar el Business Twin." }' app/api/twin/refresh/route.ts
+          if grep -n 'error instanceof Error' 'app/api/documents/[id]/analyze/route.ts'; then exit 1; fi
+          if grep -n 'error instanceof Error' app/api/twin/refresh/route.ts; then exit 1; fi
+
+      - name: Commit patches
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/autonomy/evaluate/route.ts 'app/api/documents/[id]/analyze/route.ts' app/api/twin/refresh/route.ts
+          git commit -m 'fix(api): fail closed and sanitize sensitive boundaries'
+          git push origin HEAD:agent/eos-rc1-api-boundary-hardening
