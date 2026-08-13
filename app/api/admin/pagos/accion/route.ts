@@ -207,12 +207,7 @@ export async function POST(request: Request) {
     console.error("Error procesando pago:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo procesar el pago.",
-      },
+      { error: "No se pudo procesar el pago." },
       { status: 500 },
     );
   }
