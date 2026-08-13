@@ -1,0 +1,87 @@
+name: Business Twin v34 Route Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-business-twin-source-guard-v34
+    paths:
+      - .github/workflows/business-twin-v34-route-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-business-twin-source-guard-v34
+          fetch-depth: 0
+
+      - name: Patch Business Twin refresh route
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('app/api/twin/refresh/route.ts')
+          text = path.read_text()
+
+          text = text.replace('import { createAdminClient } from "@/lib/supabase-admin";\n', '', 1)
+
+          marker = '''    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n\n'''
+          replacement = '''    const { data: sourceRevisionRaw, error: sourceRevisionError } = await supabase.rpc(\n      "eos_get_business_twin_source_revision_v34",\n    );\n    const sourceRevision = Number(sourceRevisionRaw);\n\n    if (\n      sourceRevisionError ||\n      !Number.isSafeInteger(sourceRevision) ||\n      sourceRevision < 0\n    ) {\n      console.error(\n        "No se pudo iniciar el refresh seguro del Business Twin:",\n        sourceRevisionError || "EOS_TWIN_SOURCE_REVISION_INVALID",\n      );\n      return NextResponse.json(\n        { error: "No pudimos iniciar la actualización segura de tu Twin." },\n        { status: 500, headers: noStoreHeaders() },\n      );\n    }\n\n    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n\n'''
+          if marker not in text:
+            raise SystemExit('source revision insertion marker missing')
+          text = text.replace(marker, replacement, 1)
+
+          old = '''    const [masterResult, goalsResult, followupsResult, actionsResult, decisionsResult, learningsResult, autonomyResult, scoreResult, currentResult] =\n      await Promise.all([\n'''
+          new = '''    const [masterResult, goalsResult, followupsResult, actionsResult, decisionsResult, learningsResult, autonomyResult, scoreResult] =\n      await Promise.all([\n'''
+          if old not in text:
+            raise SystemExit('Promise destructuring marker missing')
+          text = text.replace(old, new, 1)
+
+          current_query = '''        supabase\n          .from("eos_business_twins_v14")\n          .select("version,source_fingerprint,generated_at")\n          .eq("usuario_id", user.id)\n          .maybeSingle(),\n'''
+          if current_query not in text:
+            raise SystemExit('current Twin query marker missing')
+          text = text.replace(current_query, '', 1)
+
+          text = text.replace('''      scoreResult.error,\n      currentResult.error,\n''', '''      scoreResult.error,\n''', 1)
+
+          text = text.replace('''            source_fingerprint: master.source_fingerprint,\n            generated_at: master.generado_at,\n            stale: master.necesita_actualizacion,\n''', '''            source_fingerprint: master.source_fingerprint,\n            stale: master.necesita_actualizacion,\n''', 1)
+
+          start = text.find('    const current = currentResult.data;\n\n    if (current?.source_fingerprint === sourceFingerprint) {')
+          end = text.find('    const derived = buildTwin({', start)
+          if start == -1 or end == -1:
+            raise SystemExit('legacy unchanged-Twin block markers missing')
+          text = text[:start] + text[end:]
+
+          start = text.find('    const version = Number(current?.version || 0) + 1;')
+          end = text.find('  } catch (error) {', start)
+          if start == -1 or end == -1:
+            raise SystemExit('legacy Twin persistence block markers missing')
+
+          new_block = '''    const metadata = {\n      confidence_version: CONFIDENCE_VERSION,\n      source_presence: derived.source_presence,\n      source_descriptor: {\n        master_context_version: master?.version ?? null,\n        goals: goals.length,\n        followups: followups.length,\n        actions_30d: actions.length,\n        decisions: decisions.length,\n        learnings: learnings.length,\n        autonomy: Boolean(autonomy),\n        intelligence_score: Boolean(score),\n      },\n    };\n\n    const { data: commitResult, error: commitError } = await supabase.rpc(\n      "eos_commit_business_twin_v34",\n      {\n        p_source_revision: sourceRevision,\n        p_model_version: MODEL_VERSION,\n        p_source_fingerprint: sourceFingerprint,\n        p_identity: derived.identity,\n        p_current_state: derived.current_state,\n        p_desired_state: derived.desired_state,\n        p_gaps: derived.gaps,\n        p_constraints: derived.constraints,\n        p_capabilities: derived.capabilities,\n        p_risks: derived.risks,\n        p_opportunities: derived.opportunities,\n        p_priorities: derived.priorities,\n        p_execution_profile: derived.execution_profile,\n        p_learning_profile: derived.learning_profile,\n        p_autonomy_profile: derived.autonomy_profile,\n        p_intelligence_score: derived.intelligence_score,\n        p_confidence: derived.confidence,\n        p_source_completeness: derived.source_completeness,\n        p_metadata: metadata,\n      },\n    );\n\n    if (commitError) {\n      if (commitError.message?.includes("EOS_TWIN_SOURCE_CHANGED")) {\n        console.warn(\n          "Business Twin no comprometido porque una fuente cambió durante el refresh.",\n          { sourceRevision },\n        );\n        return NextResponse.json(\n          {\n            error: "Los datos cambiaron mientras EOS actualizaba tu Twin. Volvé a intentarlo.",\n            retryable: true,\n          },\n          { status: 409, headers: noStoreHeaders() },\n        );\n      }\n\n      console.error("No se pudo guardar Business Twin de forma atómica:", commitError);\n      return NextResponse.json(\n        { error: "No pudimos guardar la nueva versión de tu Twin." },\n        { status: 500, headers: noStoreHeaders() },\n      );\n    }\n\n    if (!commitResult || typeof commitResult !== "object" || Array.isArray(commitResult)) {\n      console.error("Commit del Business Twin devolvió una respuesta inválida.");\n      return NextResponse.json(\n        { error: "No pudimos confirmar la nueva versión de tu Twin." },\n        { status: 500, headers: noStoreHeaders() },\n      );\n    }\n\n    const committed = commitResult as {\n      twin?: unknown;\n      changed?: boolean;\n      refreshed?: boolean;\n      source_revision?: number;\n      stale?: boolean;\n    };\n    const saved = objectValue(committed.twin);\n\n    if (!saved.usuario_id) {\n      console.error("Commit del Business Twin no devolvió un Twin válido.", commitResult);\n      return NextResponse.json(\n        { error: "No pudimos confirmar la nueva versión de tu Twin." },\n        { status: 500, headers: noStoreHeaders() },\n      );\n    }\n\n    const changed = Boolean(committed.changed);\n    return NextResponse.json(\n      {\n        ok: true,\n        changed,\n        refreshed: Boolean(committed.refreshed),\n        source_revision: committed.source_revision ?? sourceRevision,\n        twin: {\n          ...saved,\n          is_stale: Boolean(committed.stale),\n          age_minutes: 0,\n        },\n        ...(changed\n          ? {}\n          : { reason: "Las fuentes operativas no cambiaron desde la última versión." }),\n      },\n      { status: changed ? 201 : 200, headers: noStoreHeaders() },\n    );\n'''
+          text = text[:start] + new_block + text[end:]
+          path.write_text(text)
+          PY
+
+      - name: Verify focused Twin changes
+        run: |
+          grep -F 'eos_get_business_twin_source_revision_v34' app/api/twin/refresh/route.ts
+          grep -F 'eos_commit_business_twin_v34' app/api/twin/refresh/route.ts
+          grep -F 'EOS_TWIN_SOURCE_CHANGED' app/api/twin/refresh/route.ts
+          grep -F 'retryable: true' app/api/twin/refresh/route.ts
+          grep -F 'p_source_revision: sourceRevision' app/api/twin/refresh/route.ts
+          if grep -F 'createAdminClient' app/api/twin/refresh/route.ts; then exit 1; fi
+          if grep -F 'eos_business_twin_snapshots_v14' app/api/twin/refresh/route.ts; then exit 1; fi
+          if grep -F 'currentResult' app/api/twin/refresh/route.ts; then exit 1; fi
+          if grep -F 'generated_at: master.generado_at' app/api/twin/refresh/route.ts; then exit 1; fi
+
+      - name: Commit route patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/twin/refresh/route.ts
+          git commit -m 'fix(twin): commit refresh atomically with source revision guard'
+          git push origin HEAD:agent/eos-rc1-business-twin-source-guard-v34
