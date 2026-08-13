@@ -25,39 +25,30 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
 
-          replacements = {
-              Path('app/api/documents/[id]/analyze/route.ts'): (
-'''    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo analizar el documento.",
-      },
-      { status: 500, headers: noStoreHeaders() },
-    );''',
-'''    return NextResponse.json(
-      { error: "No se pudo analizar el documento." },
-      { status: 500, headers: noStoreHeaders() },
-    );'''),
-              Path('app/api/twin/refresh/route.ts'): (
-'''    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar el Business Twin.",
-      },
-      { status: 500, headers: noStoreHeaders() },
-    );''',
-'''    return NextResponse.json(
-      { error: "No se pudo actualizar el Business Twin." },
-      { status: 500, headers: noStoreHeaders() },
-    );'''),
-          }
+          targets = [
+              (Path('app/api/documents/[id]/analyze/route.ts'), 'No se pudo analizar el documento.'),
+              (Path('app/api/twin/refresh/route.ts'), 'No se pudo actualizar el Business Twin.'),
+          ]
 
-          for path, (old, new) in replacements.items():
+          for path, message in targets:
               text = path.read_text(encoding='utf-8')
+              old = '\n'.join([
+                  '    return NextResponse.json(',
+                  '      {',
+                  '        error:',
+                  '          error instanceof Error',
+                  '            ? error.message',
+                  f'            : "{message}",',
+                  '      },',
+                  '      { status: 500, headers: noStoreHeaders() },',
+                  '    );',
+              ])
+              new = '\n'.join([
+                  '    return NextResponse.json(',
+                  f'      {{ error: "{message}" }},',
+                  '      { status: 500, headers: noStoreHeaders() },',
+                  '    );',
+              ])
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'{path}: expected exactly 1 target, found {count}')
@@ -80,15 +71,18 @@ jobs:
       - name: ESLint
         run: npm run lint
 
-      - name: Verify no raw catch leak remains in targets
+      - name: Verify target boundaries
         run: |
           python3 <<'PY'
           from pathlib import Path
-          for p in [Path('app/api/documents/[id]/analyze/route.ts'), Path('app/api/twin/refresh/route.ts')]:
-              text = p.read_text(encoding='utf-8')
-              tail = text[-1800:]
-              if '? error.message' in tail or 'error.message\n' in tail:
-                  raise SystemExit(f'raw error.message remains in final boundary: {p}')
+          targets = [
+              Path('app/api/documents/[id]/analyze/route.ts'),
+              Path('app/api/twin/refresh/route.ts'),
+          ]
+          for path in targets:
+              tail = path.read_text(encoding='utf-8')[-1800:]
+              if '? error.message' in tail:
+                  raise SystemExit(f'raw client-facing error.message remains: {path}')
           print('Target boundaries sanitized: PASS')
           PY
 
