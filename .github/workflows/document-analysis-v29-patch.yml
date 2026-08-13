@@ -1,0 +1,64 @@
+name: Document Analysis v29 Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-document-analysis-atomic-v29
+    paths:
+      - .github/workflows/document-analysis-v29-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-document-analysis-atomic-v29
+          fetch-depth: 0
+
+      - name: Replace non-atomic analysis persistence
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('app/api/documents/[id]/analyze/route.ts')
+          text = path.read_text()
+
+          start_marker = '''      await supabase\n        .from("eos_document_chunks_v11")\n        .delete()'''
+          end_marker = '''      if (runCompleteError) throw runCompleteError;\n'''
+          start = text.find(start_marker)
+          end_start = text.find(end_marker, start)
+          if start < 0 or end_start < 0:
+            raise SystemExit('Atomic replacement markers not found')
+          end = end_start + len(end_marker)
+
+          replacement = '''      const result = {\n        chunk_count: chunks.length,\n        finding_count: findings.length,\n        high_importance_count: findings.filter(\n          (finding) => finding.importance >= 4,\n        ).length,\n        finding_types: Array.from(\n          new Set(findings.map((finding) => finding.finding_type)),\n        ),\n      };\n      const analyzedAt = new Date().toISOString();\n\n      const { error: commitError } = await supabase.rpc(\n        "eos_commit_document_analysis_v29",\n        {\n          p_document_id: document.id,\n          p_run_id: run.id,\n          p_summary: summary,\n          p_chunks: chunks.map((chunk) => ({\n            ...chunk,\n            metadata: { chunker: "chars-overlap-v1" },\n          })),\n          p_findings: findings,\n          p_result: result,\n          p_analysis_metadata: {\n            version: "deterministic-v1",\n            chunk_count: chunks.length,\n            finding_count: findings.length,\n            analyzed_at: analyzedAt,\n          },\n        },\n      );\n\n      if (commitError) throw commitError;\n'''
+          text = text[:start] + replacement + text[end:]
+
+          old = '''      await supabase\n        .from("eos_documents_v11")\n        .update({ intelligence_status: "error" })\n        .eq("id", document.id)\n        .eq("usuario_id", user.id);\n'''
+          new = '''      if (document.intelligence_status !== "ready") {\n        await supabase\n          .from("eos_documents_v11")\n          .update({ intelligence_status: "error" })\n          .eq("id", document.id)\n          .eq("usuario_id", user.id);\n      }\n'''
+          if old not in text:
+            raise SystemExit('Failure-state preservation snippet not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify focused route changes
+        run: |
+          grep -F 'eos_commit_document_analysis_v29' 'app/api/documents/[id]/analyze/route.ts'
+          grep -F 'p_analysis_metadata' 'app/api/documents/[id]/analyze/route.ts'
+          grep -F 'document.intelligence_status !== "ready"' 'app/api/documents/[id]/analyze/route.ts'
+          if grep -F '.from("eos_document_chunks_v11")' 'app/api/documents/[id]/analyze/route.ts'; then exit 1; fi
+          if grep -F '.from("eos_document_findings_v11")' 'app/api/documents/[id]/analyze/route.ts'; then exit 1; fi
+
+      - name: Commit route patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'app/api/documents/[id]/analyze/route.ts'
+          git commit -m 'fix(documents): commit reanalysis atomically with v29'
+          git push origin HEAD:agent/eos-rc1-document-analysis-atomic-v29
