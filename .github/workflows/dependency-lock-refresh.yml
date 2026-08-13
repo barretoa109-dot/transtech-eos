@@ -33,12 +33,14 @@ jobs:
       - name: Clean install from regenerated lock
         run: npm ci
 
-      - name: Verify SheetJS version and XLSX round-trip
+      - name: Verify dependency versions
+        run: npm ls xlsx@0.20.3 exceljs@4.4.0 --depth=0
+
+      - name: Verify SheetJS XLSX round-trip
         run: |
           node <<'NODE'
           const XLSX = require('xlsx');
-          const pkg = require('xlsx/package.json');
-          if (pkg.version !== '0.20.3') throw new Error(`Expected xlsx 0.20.3, got ${pkg.version}`);
+          if (XLSX.version !== '0.20.3') throw new Error(`Expected xlsx 0.20.3, got ${XLSX.version}`);
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.aoa_to_sheet([['producto','monto'],['EOS',12345]]);
           XLSX.utils.book_append_sheet(wb, ws, 'Prueba');
@@ -49,12 +51,10 @@ jobs:
           console.log('SheetJS XLSX round-trip PASS');
           NODE
 
-      - name: Verify ExcelJS version and XLSX round-trip
+      - name: Verify ExcelJS XLSX round-trip
         run: |
           node <<'NODE'
           const ExcelJS = require('exceljs');
-          const pkg = require('exceljs/package.json');
-          if (pkg.version !== '4.4.0') throw new Error(`Expected exceljs 4.4.0, got ${pkg.version}`);
           (async () => {
             const wb = new ExcelJS.Workbook();
             const ws = wb.addWorksheet('Prueba');
