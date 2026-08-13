@@ -479,6 +479,9 @@ export async function POST(req: Request) {
     if (quota.allowed !== true) {
       const code = typeof quota.code === "string" ? quota.code : "EOS_MESSAGE_NOT_ALLOWED";
       const isLimit = code === "EOS_MESSAGE_LIMIT_REACHED";
+      const isInProgress = code === "EOS_MESSAGE_REQUEST_IN_PROGRESS";
+      const isConsumedReplay = code === "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED";
+      const isReplayConflict = isInProgress || isConsumedReplay;
       const isFree = quota.plan === "free";
       return Response.json(
         {
@@ -486,13 +489,17 @@ export async function POST(req: Request) {
             ? isFree
               ? "Llegaste a tus 5 mensajes gratuitos de hoy. Tu cupo se renueva mañana según la hora de Paraguay. Si querés seguir ahora, podés elegir un plan en Planes."
               : "Llegaste al límite de mensajes de tu plan actual. Podés revisar tus opciones en Planes."
-            : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
+            : isInProgress
+              ? "Este mensaje ya se está procesando. Esperá la respuesta antes de volver a enviarlo."
+              : isConsumedReplay
+                ? "Este mensaje ya fue procesado. Para continuar, enviá un mensaje nuevo."
+                : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
           code,
           commercial: quota,
-          upgrade_url: "/planes",
+          ...(isLimit || !isReplayConflict ? { upgrade_url: "/planes" } : {}),
         },
         {
-          status: isLimit ? 429 : 402,
+          status: isReplayConflict ? 409 : isLimit ? 429 : 402,
           headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" },
         },
       );

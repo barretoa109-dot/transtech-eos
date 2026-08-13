@@ -161,15 +161,19 @@ export function useChat({
         const commercialError =
           error instanceof EOSApiError
           && ["EOS_MESSAGE_LIMIT_REACHED", "EOS_SUBSCRIPTION_INACTIVE"].includes(error.code);
-        const respuestaError = commercialError
+        const replayConflict =
+          error instanceof EOSApiError
+          && ["EOS_MESSAGE_REQUEST_IN_PROGRESS", "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED"].includes(error.code);
+        const userFacingError = commercialError || replayConflict;
+        const respuestaError = userFacingError
           ? error.message
           : "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
 
         const mensajeError: Mensaje = {
-          id: crearIdMensaje(commercialError ? "plan" : "error"),
+          id: crearIdMensaje(commercialError ? "plan" : replayConflict ? "estado" : "error"),
           rol: "eos",
           texto: respuestaError,
-          estado: commercialError ? "completado" : "error",
+          estado: userFacingError ? "completado" : "error",
           tipo: "texto",
           accion: commercialError ? "ABRIR_PLANES" : "RESPONDER",
           creado_en: new Date().toISOString(),
