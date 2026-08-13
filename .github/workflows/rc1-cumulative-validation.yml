@@ -44,6 +44,7 @@ jobs:
           git fetch origin agent/eos-rc1-master-context-atomic-v31
           git fetch origin agent/eos-rc1-decision-result-atomic-v32
           git fetch origin agent/eos-rc1-score-history-consistency
+          git fetch origin agent/eos-rc1-download-route-hardening
 
       - name: Merge isolated hardenings ephemerally
         run: |
@@ -57,6 +58,7 @@ jobs:
           git merge --no-ff --no-edit origin/agent/eos-rc1-master-context-atomic-v31
           git merge --no-ff --no-edit origin/agent/eos-rc1-decision-result-atomic-v32
           git merge --no-ff --no-edit origin/agent/eos-rc1-score-history-consistency
+          git merge --no-ff --no-edit origin/agent/eos-rc1-download-route-hardening
           echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
 
       - name: Use Node 22
