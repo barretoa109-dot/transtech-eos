@@ -1,0 +1,101 @@
+name: RC1 Cumulative Validation
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-cumulative-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cumulative-build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "validation-placeholder"
+      SUPABASE_URL: "https://example.supabase.co"
+      SUPABASE_SERVICE_ROLE_KEY: "validation-placeholder"
+      ADMIN_EMAILS: "validation@example.com"
+      EOS_WORKER_GATE_SECRET: "validation-placeholder"
+      RESEND_API_KEY: "re_validation_placeholder"
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure ephemeral git identity
+        run: |
+          git config user.name "rc1-validation-bot"
+          git config user.email "rc1-validation@example.invalid"
+
+      - name: Fetch isolated RC hardenings
+        run: |
+          git fetch origin agent/eos-rc1-input-error-hardening
+          git fetch origin agent/eos-rc1-payment-error-sanitization
+          git fetch origin agent/eos-rc1-twin-atomic-snapshots
+          git fetch origin agent/eos-rc1-dependency-hardening
+          git fetch origin agent/eos-rc1-admin-payment-error-sanitization
+
+      - name: Merge isolated hardenings ephemerally
+        run: |
+          git merge --no-ff --no-edit origin/agent/eos-rc1-input-error-hardening
+          git merge --no-ff --no-edit origin/agent/eos-rc1-payment-error-sanitization
+          git merge --no-ff --no-edit origin/agent/eos-rc1-twin-atomic-snapshots
+          git merge --no-ff --no-edit origin/agent/eos-rc1-dependency-hardening
+          git merge --no-ff --no-edit origin/agent/eos-rc1-admin-payment-error-sanitization
+          echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Verify hardened XLSX dependencies
+        run: npm ls xlsx@0.20.3 exceljs@4.4.0 --depth=0
+
+      - name: Verify XLSX round trips
+        run: |
+          node <<'NODE'
+          const XLSX = require('xlsx');
+          const ExcelJS = require('exceljs');
+          if (XLSX.version !== '0.20.3') throw new Error(`Expected xlsx 0.20.3, got ${XLSX.version}`);
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet([['producto','monto'],['EOS',12345]]);
+          XLSX.utils.book_append_sheet(wb, ws, 'Prueba');
+          const bytes = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+          const parsed = XLSX.read(bytes, { type: 'buffer' });
+          const rows = XLSX.utils.sheet_to_json(parsed.Sheets.Prueba, { header: 1 });
+          if (rows?.[1]?.[0] !== 'EOS' || rows?.[1]?.[1] !== 12345) throw new Error('SheetJS round-trip failed');
+          (async () => {
+            const book = new ExcelJS.Workbook();
+            const sheet = book.addWorksheet('Prueba');
+            sheet.addRow(['producto','monto']);
+            sheet.addRow(['EOS',12345]);
+            const out = await book.xlsx.writeBuffer();
+            const readBook = new ExcelJS.Workbook();
+            await readBook.xlsx.load(out);
+            if (readBook.getWorksheet('Prueba').getCell('A2').value !== 'EOS') throw new Error('ExcelJS round-trip failed');
+            console.log('XLSX compatibility PASS');
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Next production build
+        run: npm run build
+
+      - name: Dependency audit snapshot
+        continue-on-error: true
+        run: npm audit --audit-level=low
