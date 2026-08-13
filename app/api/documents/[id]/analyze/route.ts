@@ -569,12 +569,7 @@ export async function POST(_request: Request, context: RouteContext) {
     console.error("Error en Document Intelligence analyze:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo analizar el documento.",
-      },
+      { error: "No se pudo analizar el documento." },
       { status: 500, headers: noStoreHeaders() },
     );
   }
