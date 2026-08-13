@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 12 * 1024 * 1024;
 const MAX_EXTRACTED_CHARS = 250_000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const SUPPORTED_MIME_TYPES = new Set([
   "text/plain",
@@ -209,6 +211,13 @@ export async function POST(request: Request) {
     const file = formData.get("archivo");
     const conversacionId = String(formData.get("conversacion_id") || "").trim();
 
+    if (conversacionId && !UUID_PATTERN.test(conversacionId)) {
+      return NextResponse.json(
+        { error: "La conversación indicada no es válida." },
+        { status: 400, headers: noStoreHeaders() },
+      );
+    }
+
     if (!(file instanceof File)) {
       return NextResponse.json(
         { error: "No recibí un archivo válido." },
@@ -235,7 +244,7 @@ export async function POST(request: Request) {
 
     const raw = new Uint8Array(await file.arrayBuffer());
     const checksum = createHash("sha256").update(raw).digest("hex");
-    const admin: any = createAdminClient();
+    const admin = createAdminClient();
 
     const { data: duplicate, error: duplicateError } = await admin
       .from("eos_documents_v11")
@@ -363,7 +372,7 @@ export async function POST(request: Request) {
 
     if (uploadedPaths.length > 0) {
       try {
-        const admin: any = createAdminClient();
+        const admin = createAdminClient();
         await admin.storage.from("eos-documents").remove(uploadedPaths);
       } catch (cleanupError) {
         console.error("No se pudo limpiar documento huérfano:", cleanupError);
@@ -371,12 +380,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo procesar el documento.",
-      },
+      { error: "No se pudo procesar el documento." },
       { status: 500, headers: noStoreHeaders() },
     );
   }
