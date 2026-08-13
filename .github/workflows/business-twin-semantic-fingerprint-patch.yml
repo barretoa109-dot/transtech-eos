@@ -1,0 +1,94 @@
+name: Business Twin Semantic Fingerprint Patch
+
+on:
+  push:
+    branches:
+      - agent/eos-rc1-business-twin-source-guard-v34
+    paths:
+      - .github/workflows/business-twin-semantic-fingerprint-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/eos-rc1-business-twin-source-guard-v34
+          fetch-depth: 0
+
+      - name: Patch semantic fingerprint and Paraguay business date
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('app/api/twin/refresh/route.ts')
+          text = path.read_text()
+
+          text = text.replace(
+            'const CONFIDENCE_VERSION = "business-twin-confidence-v1";\n',
+            'const CONFIDENCE_VERSION = "business-twin-confidence-v1";\nconst TWIN_TIME_ZONE = "America/Asuncion";\n',
+            1,
+          )
+
+          old = '''function dateValue(value: unknown) {\n  if (typeof value !== "string" || !value) return null;\n  const date = new Date(value);\n  return Number.isNaN(date.getTime()) ? null : date;\n}\n'''
+          new = '''function currentDateInTimeZone(timeZone: string, value = new Date()) {\n  const parts = new Intl.DateTimeFormat("en-US", {\n    timeZone,\n    year: "numeric",\n    month: "2-digit",\n    day: "2-digit",\n  }).formatToParts(value);\n  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));\n  return `${values.year}-${values.month}-${values.day}`;\n}\n\nfunction calendarDateValue(value: unknown) {\n  if (typeof value !== "string" || !value) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return value;\n  const date = new Date(value);\n  return Number.isNaN(date.getTime())\n    ? null\n    : currentDateInTimeZone(TWIN_TIME_ZONE, date);\n}\n'''
+          if old not in text:
+            raise SystemExit('dateValue marker missing')
+          text = text.replace(old, new, 1)
+
+          old = '''function goalState(goal: Record<string, unknown>) {\n  const progress = Math.round(clamp(numberValue(goal.progreso) / 100) * 100);\n  const deadline = dateValue(goal.fecha_limite);\n  const overdue = Boolean(\n    deadline && deadline.getTime() < Date.now() && progress < 100,\n  );\n'''
+          new = '''function goalState(goal: Record<string, unknown>, businessDay: string) {\n  const progress = Math.round(clamp(numberValue(goal.progreso) / 100) * 100);\n  const deadline = calendarDateValue(goal.fecha_limite);\n  const overdue = Boolean(deadline && deadline < businessDay && progress < 100);\n'''
+          if old not in text:
+            raise SystemExit('goalState marker missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+            '''    deadline: typeof goal.fecha_limite === "string" ? goal.fecha_limite : null,\n''',
+            '''    deadline,\n''',
+            1,
+          )
+
+          old = '''  score: Record<string, unknown> | null;\n}) {\n  const { master, goals, followups, actions, decisions, learnings, autonomy, score } =\n    params;\n\n  const goalStates = goals.map(goalState);\n'''
+          new = '''  score: Record<string, unknown> | null;\n  businessDay: string;\n}) {\n  const { master, goals, followups, actions, decisions, learnings, autonomy, score, businessDay } =\n    params;\n\n  const goalStates = goals.map((goal) => goalState(goal, businessDay));\n'''
+          if old not in text:
+            raise SystemExit('buildTwin params marker missing')
+          text = text.replace(old, new, 1)
+
+          start = text.find('    const sourceDescriptor = {')
+          derived_end_marker = '''    const derived = buildTwin({\n      master,\n      goals,\n      followups,\n      actions,\n      decisions,\n      learnings,\n      autonomy,\n      score,\n    });\n'''
+          end_start = text.find(derived_end_marker, start)
+          if start == -1 or end_start == -1:
+            raise SystemExit('source descriptor / derived block markers missing')
+          end = end_start + len(derived_end_marker)
+          replacement = '''    const businessDay = currentDateInTimeZone(TWIN_TIME_ZONE);\n    const derived = buildTwin({\n      master,\n      goals,\n      followups,\n      actions,\n      decisions,\n      learnings,\n      autonomy,\n      score,\n      businessDay,\n    });\n    const sourceFingerprint = fingerprint({\n      model_version: MODEL_VERSION,\n      confidence_version: CONFIDENCE_VERSION,\n      derived,\n    });\n'''
+          text = text[:start] + replacement + text[end:]
+
+          marker = '''      source_descriptor: {\n        master_context_version: master?.version ?? null,\n'''
+          replacement = '''      source_descriptor: {\n        business_day: businessDay,\n        master_context_version: master?.version ?? null,\n'''
+          if marker not in text:
+            raise SystemExit('metadata descriptor marker missing')
+          text = text.replace(marker, replacement, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify semantic fingerprint behavior
+        run: |
+          grep -F 'TWIN_TIME_ZONE = "America/Asuncion"' app/api/twin/refresh/route.ts
+          grep -F 'deadline < businessDay' app/api/twin/refresh/route.ts
+          grep -F 'goalState(goal, businessDay)' app/api/twin/refresh/route.ts
+          grep -F 'business_day: businessDay' app/api/twin/refresh/route.ts
+          grep -F 'confidence_version: CONFIDENCE_VERSION' app/api/twin/refresh/route.ts
+          grep -F 'derived,' app/api/twin/refresh/route.ts
+          if grep -F 'generated_at: master.generado_at' app/api/twin/refresh/route.ts; then exit 1; fi
+          if grep -F 'deadline.getTime() < Date.now()' app/api/twin/refresh/route.ts; then exit 1; fi
+          if grep -F 'dateValue(' app/api/twin/refresh/route.ts; then exit 1; fi
+
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/twin/refresh/route.ts
+          git commit -m 'fix(twin): fingerprint derived semantics and use Paraguay deadlines'
+          git push origin HEAD:agent/eos-rc1-business-twin-source-guard-v34
