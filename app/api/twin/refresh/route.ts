@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const MODEL_VERSION = "business-twin-v14";
 const CONFIDENCE_VERSION = "business-twin-confidence-v1";
+const TWIN_TIME_ZONE = "America/Asuncion";
 
 function noStoreHeaders() {
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
@@ -72,10 +73,24 @@ function numberValue(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function dateValue(value: unknown) {
+function currentDateInTimeZone(timeZone: string, value = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function calendarDateValue(value: unknown) {
   if (typeof value !== "string" || !value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return Number.isNaN(date.getTime())
+    ? null
+    : currentDateInTimeZone(TWIN_TIME_ZONE, date);
 }
 
 function severityRank(value: unknown) {
@@ -93,12 +108,10 @@ function compactUnknownArray(value: unknown, max = 8) {
   });
 }
 
-function goalState(goal: Record<string, unknown>) {
+function goalState(goal: Record<string, unknown>, businessDay: string) {
   const progress = Math.round(clamp(numberValue(goal.progreso) / 100) * 100);
-  const deadline = dateValue(goal.fecha_limite);
-  const overdue = Boolean(
-    deadline && deadline.getTime() < Date.now() && progress < 100,
-  );
+  const deadline = calendarDateValue(goal.fecha_limite);
+  const overdue = Boolean(deadline && deadline < businessDay && progress < 100);
 
   return {
     id: goal.id,
@@ -113,7 +126,7 @@ function goalState(goal: Record<string, unknown>) {
     unit: cleanText(goal.unidad, 60),
     success_criterion: cleanText(goal.criterio_exito, 500),
     next_step: cleanText(goal.proximo_paso, 500),
-    deadline: typeof goal.fecha_limite === "string" ? goal.fecha_limite : null,
+    deadline,
     overdue,
     gap_percent: Math.max(0, 100 - progress),
   };
@@ -128,11 +141,12 @@ function buildTwin(params: {
   learnings: Record<string, unknown>[];
   autonomy: Record<string, unknown> | null;
   score: Record<string, unknown> | null;
+  businessDay: string;
 }) {
-  const { master, goals, followups, actions, decisions, learnings, autonomy, score } =
+  const { master, goals, followups, actions, decisions, learnings, autonomy, score, businessDay } =
     params;
 
-  const goalStates = goals.map(goalState);
+  const goalStates = goals.map((goal) => goalState(goal, businessDay));
   const activeGoals = goalStates.filter(
     (goal) => !["completado", "completed", "cancelado", "cancelled"].includes(goal.status.toLowerCase()),
   );
@@ -478,26 +492,7 @@ export async function POST() {
     const autonomy = autonomyResult.data as Record<string, unknown> | null;
     const score = scoreResult.data as Record<string, unknown> | null;
 
-    const sourceDescriptor = {
-      master: master
-        ? {
-            version: master.version,
-            source_fingerprint: master.source_fingerprint,
-            stale: master.necesita_actualizacion,
-          }
-        : null,
-      goals: goals.map((item) => [item.id, item.updated_at, item.progreso, item.estado]),
-      followups: followups.map((item) => [item.id, item.updated_at, item.estado, item.severidad]),
-      actions: actions.map((item) => [item.id, item.updated_at, item.estado]),
-      decisions: decisions.map((item) => [item.id, item.updated_at, item.result_count, item.estado]),
-      learnings: learnings.map((item) => [item.id, item.updated_at, item.confianza, item.evidence_count, item.longitudinal_state]),
-      autonomy: autonomy
-        ? [autonomy.updated_at, autonomy.enabled, autonomy.default_level, autonomy.max_auto_actions_per_day, autonomy.max_daily_risk_points]
-        : null,
-      score: score ? [score.snapshot_day, score.score, score.formula_version, score.calculated_at] : null,
-      formula: MODEL_VERSION,
-    };
-    const sourceFingerprint = fingerprint(sourceDescriptor);
+    const businessDay = currentDateInTimeZone(TWIN_TIME_ZONE);
     const derived = buildTwin({
       master,
       goals,
@@ -507,11 +502,18 @@ export async function POST() {
       learnings,
       autonomy,
       score,
+      businessDay,
+    });
+    const sourceFingerprint = fingerprint({
+      model_version: MODEL_VERSION,
+      confidence_version: CONFIDENCE_VERSION,
+      derived,
     });
     const metadata = {
       confidence_version: CONFIDENCE_VERSION,
       source_presence: derived.source_presence,
       source_descriptor: {
+        business_day: businessDay,
         master_context_version: master?.version ?? null,
         goals: goals.length,
         followups: followups.length,
