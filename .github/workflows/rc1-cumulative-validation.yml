@@ -62,6 +62,7 @@ jobs:
           git merge --no-ff --no-edit origin/agent/eos-rc1-score-history-consistency
           git merge --no-ff --no-edit origin/agent/eos-rc1-download-route-hardening
           echo "Includes Master Context v31/v33 and Business Twin v34/v35 source-revision guards"
+          echo "Twin fingerprint is derived-semantic and deadlines use America/Asuncion business date"
           echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
 
       - name: Use Node 22
