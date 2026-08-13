@@ -63,7 +63,7 @@ jobs:
           git merge --no-ff --no-edit origin/agent/eos-rc1-score-history-consistency
           git merge --no-ff --no-edit origin/agent/eos-rc1-download-route-hardening
           git merge --no-ff --no-edit origin/agent/eos-rc1-followup-briefing-hardening
-          echo "Includes Master Context v31/v33, Business Twin v34/v35, Followups v36/v37 and Briefing fail-closed"
+          echo "Includes Master Context v31/v33, Business Twin v34/v35, Followups v36/v37 and Briefing fail-closed/order guard v38"
           echo "Twin fingerprint is derived-semantic and deadlines use America/Asuncion business date"
           echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
 
