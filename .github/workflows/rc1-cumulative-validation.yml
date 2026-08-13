@@ -40,6 +40,7 @@ jobs:
           git fetch origin agent/eos-rc1-dependency-hardening
           git fetch origin agent/eos-rc1-admin-payment-error-sanitization
           git fetch origin agent/eos-rc1-api-boundary-hardening
+          git fetch origin agent/eos-rc1-document-analysis-atomic-v29
 
       - name: Merge isolated hardenings ephemerally
         run: |
@@ -49,6 +50,7 @@ jobs:
           git merge --no-ff --no-edit origin/agent/eos-rc1-dependency-hardening
           git merge --no-ff --no-edit origin/agent/eos-rc1-admin-payment-error-sanitization
           git merge --no-ff --no-edit origin/agent/eos-rc1-api-boundary-hardening
+          git merge --no-ff --no-edit origin/agent/eos-rc1-document-analysis-atomic-v29
           echo "Ephemeral cumulative head: $(git rev-parse HEAD)"
 
       - name: Use Node 22
