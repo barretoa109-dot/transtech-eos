@@ -42,6 +42,9 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (error || !solicitud) {
+      if (error) {
+        console.error("No se pudo consultar la solicitud de pago:", error);
+      }
       return NextResponse.json(
         { error: "No encontramos la solicitud." },
         { status: 404 },
@@ -50,13 +53,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, solicitud });
   } catch (error) {
+    console.error("Error consultando solicitud de pago:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo consultar la solicitud.",
-      },
+      { error: "No se pudo consultar la solicitud." },
       { status: 500 },
     );
   }
