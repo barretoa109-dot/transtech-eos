@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +121,8 @@ export async function GET() {
   const comparison = snapshots.find((item) => item.snapshot_day !== today && item.formula_version === FORMULA_VERSION) ?? null;
   const trend = buildTrend(score, dimensions, signals, comparison);
 
-  const { error: snapshotError } = await supabase
+  const admin: any = createAdminClient();
+  const { error: snapshotError } = await admin
     .from("eos_intelligence_score_snapshots_v10")
     .upsert({
       usuario_id: user.id,
