@@ -58,7 +58,7 @@ Campos:
 - `usuario_id`: obligatorio.
 - `request_id`: obligatorio y estable para la misma intención/reintentos.
 - `accion`: obligatorio y perteneciente al catálogo gobernado.
-- `payload`: opcional.
+- `payload`: objeto exacto que describe el efecto a evaluar.
 - `command_id`: no enviarlo en la evaluación inicial.
 - `approval_id`: solo para consumo de aprobación.
 - `consume_approval`: `true` solo para consumo one-shot.
@@ -79,15 +79,15 @@ Se creó o reutilizó una aprobación pendiente. No crear todavía una orden eje
 
 ### `approval_ready`
 
-El usuario aprobó. En este punto el Worker crea/asegura el `eos_action_commands` exacto de esa intención y vuelve al gate con `consume_approval: true`.
+El usuario aprobó. En este punto el Worker crea/asegura el `eos_action_commands` exacto de esa intención, usando **el mismo payload aprobado**, y vuelve al gate con `consume_approval: true`.
 
 ### `allow` + `execute: false` + `requires_command: true`
 
 La política permite autoejecución, pero todavía falta el anclaje idempotente de Fase 4.
 
 Worker:
-1. crear o recuperar el `eos_action_commands` para el mismo `usuario_id + request_id + accion`;
-2. volver a llamar al gate con ese `command_id`;
+1. crear o recuperar `eos_action_commands` para el mismo `usuario_id + request_id + accion` y con el mismo payload evaluado;
+2. volver a llamar al gate con ese `command_id` y el mismo payload;
 3. no ejecutar todavía.
 
 ### `allow` + `execute: true`
@@ -97,6 +97,19 @@ Worker:
 ### `block`
 
 No ejecutar.
+
+## Binding obligatorio de payload
+
+A partir del hardening RC1 v50, la identidad de una intención ejecutable no termina en `usuario_id + request_id + accion + command_id`.
+
+También se exige que:
+
+- el `payload` presentado en cualquier llamada que incluya `command_id` sea exactamente igual a `eos_action_commands.payload`;
+- para consumo de aprobación, `eos_action_commands.payload` sea exactamente igual a `eos_action_approvals_v12.payload_snapshot`;
+- una diferencia de contenido bloquea la ejecución aunque usuario, request, acción y command coincidan;
+- el control se realiza en la frontera HTTP y también dentro del RPC one-shot de PostgreSQL.
+
+Esto impide aprobar una tarea/objetivo con contenido A y ejecutar luego contenido B reutilizando la misma aprobación.
 
 ## Autoejecución segura
 
@@ -120,12 +133,13 @@ El gate valida que `command_id` exista y coincida exactamente en:
 - `request_id`
 - `accion`
 - estado ejecutable (`recibida` o `ejecutando`)
+- **payload exacto de la orden**
 
 Solo después registra `auto_allowed` vinculado al mismo comando. Si esa auditoría no puede persistirse, el gate devuelve `execute: false`.
 
 ## Consumo one-shot de aprobación
 
-Después de `approval_ready`, crear/asegurar el comando y llamar:
+Después de `approval_ready`, crear/asegurar el comando con el **payload exacto aprobado** y llamar:
 
 ```json
 {
@@ -135,16 +149,19 @@ Después de `approval_ready`, crear/asegurar el comando y llamar:
   "command_id": "uuid-de-eos_action_commands",
   "approval_id": "uuid-de-la-aprobacion",
   "consume_approval": true,
-  "payload": {}
+  "payload": {
+    "titulo": "Objetivo aprobado"
+  }
 }
 ```
 
-`eos_consume_action_approval_v12()` verifica atómicamente que el comando coincide con la aprobación en:
+La frontera HTTP y `eos_consume_action_approval_v12()` verifican que el comando coincide con la aprobación en:
 
 - propietario
 - `request_id`
 - `accion`
 - estado ejecutable
+- **payload exacto aprobado**
 
 Solo si responde simultáneamente:
 
@@ -161,13 +178,13 @@ La aprobación no puede consumirse dos veces.
 
 1. Clasificar intención y preparar payload.
 2. Generar/reutilizar `request_id` estable.
-3. Llamar al gate **sin `command_id`**.
+3. Llamar al gate **sin `command_id`** con ese payload.
 4. Si `recommend`, `prepare`, `approval` o `block`: no ejecutar.
-5. Si `allow + requires_command:true`: crear/recuperar `eos_action_commands` y llamar nuevamente con `command_id`.
-6. Si `approval_ready`: crear/recuperar `eos_action_commands` y llamar con `approval_id + command_id + consume_approval:true`.
+5. Si `allow + requires_command:true`: crear/recuperar `eos_action_commands` con exactamente ese payload y llamar nuevamente con `command_id + payload`.
+6. Si `approval_ready`: crear/recuperar `eos_action_commands` con exactamente el payload aprobado y llamar con `approval_id + command_id + consume_approval:true + payload`.
 7. Solo `execute:true` permite pasar al nodo de efecto secundario.
 8. Registrar resultado con `eos_action_events` como en Fase 4.
-9. Timeout, 4xx, 5xx, JSON inválido o ausencia de respuesta = BLOCK.
+9. Timeout, 4xx, 5xx, JSON inválido, payload distinto o ausencia de respuesta = BLOCK.
 
 ## Por qué no crear el comando antes de una aprobación
 
@@ -177,15 +194,15 @@ Fase 4 inicia automáticamente el comando y crea un lease al insertarlo. Crear e
 
 - La misma intención conserva `request_id`.
 - `eos_action_commands` mantiene unicidad por `usuario_id + request_id + accion`.
-- Una autorización automática ejecutable queda vinculada al `command_id` exacto.
-- Una aprobación se consume una sola vez y queda ligada al comando exacto.
-- Reintentos con otro command no heredan autorización automáticamente.
+- Una autorización automática ejecutable queda vinculada al `command_id` exacto **y a su payload exacto**.
+- Una aprobación se consume una sola vez y queda ligada al comando y payload exactos.
+- Reintentos con otro command o contenido distinto no heredan autorización automáticamente.
 
 ## Auditoría
 
 La tabla `eos_worker_gate_audit_v15` se alimenta desde eventos reales de `eos_autonomy_events_v12`.
 
-La política v2 persiste `policy_version: eos-worker-gate-v2` en eventos nuevos. La auditoría no almacena secretos ni payloads completos.
+La política v2 persiste `policy_version: eos-worker-gate-v2` en eventos nuevos. La auditoría no almacena secretos ni payloads completos; para aprobaciones conserva la huella del payload aprobado.
 
 ## Activación futura
 
@@ -195,9 +212,11 @@ Antes de conectar n8n:
 - configurar el mismo secreto en credenciales seguras del Worker;
 - probar una acción `recommend`;
 - probar `prepare`;
-- probar autoejecución: evaluación sin command -> `requires_command` -> segunda llamada con command -> `execute:true`;
+- probar autoejecución: evaluación sin command → `requires_command` → segunda llamada con command + mismo payload → `execute:true`;
+- comprobar que cambiar el payload entre evaluación y ejecución sea bloqueado;
 - probar aprobación pendiente;
-- aprobar y consumir una vez;
+- aprobar y consumir una vez con el mismo payload;
+- comprobar que una aprobación A no pueda consumir una orden con payload B;
 - comprobar que command con request/acción diferente sea rechazado;
 - comprobar que segundo consumo sea rechazado;
 - comprobar que secreto incorrecto y timeout bloqueen;
