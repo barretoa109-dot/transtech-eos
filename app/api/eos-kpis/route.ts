@@ -148,6 +148,19 @@ export async function GET() {
     console.error("No se pudo persistir el EOS Intelligence Score:", snapshotError);
   }
 
+  const comparableHistory = snapshots
+    .filter((item) => item.formula_version === FORMULA_VERSION);
+  const historyForResponse = snapshotError
+    ? comparableHistory
+    : [
+        ...comparableHistory.filter((item) => item.snapshot_day !== today),
+        {
+          snapshot_day: today,
+          score,
+          formula_version: FORMULA_VERSION,
+        } as Snapshot,
+      ];
+
   return NextResponse.json({
     score,
     dimensions,
@@ -159,11 +172,15 @@ export async function GET() {
     },
     trend,
     signals,
-    history: snapshots
-      .filter((item) => item.formula_version === FORMULA_VERSION)
+    history: historyForResponse
+      .sort((left, right) => right.snapshot_day.localeCompare(left.snapshot_day))
       .slice(0, 14)
       .map((item) => ({ day: item.snapshot_day, score: item.score }))
       .reverse(),
+    persistence: {
+      snapshot_persisted: !snapshotError,
+      history_loaded: !history.error,
+    },
     formula_version: FORMULA_VERSION,
     calculated_at: new Date().toISOString(),
   }, { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } });

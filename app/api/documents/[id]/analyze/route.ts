@@ -442,69 +442,6 @@ export async function POST(_request: Request, context: RouteContext) {
       const findings = deriveFindings(text);
       const summary = buildSummary(text, findings);
 
-      await supabase
-        .from("eos_document_chunks_v11")
-        .delete()
-        .eq("document_id", document.id)
-        .eq("usuario_id", user.id);
-
-      await supabase
-        .from("eos_document_findings_v11")
-        .delete()
-        .eq("document_id", document.id)
-        .eq("usuario_id", user.id)
-        .eq("status", "active");
-
-      if (chunks.length > 0) {
-        const { error: chunksError } = await supabase
-          .from("eos_document_chunks_v11")
-          .insert(
-            chunks.map((chunk) => ({
-              document_id: document.id,
-              usuario_id: user.id,
-              ...chunk,
-              metadata: { chunker: "chars-overlap-v1" },
-            })),
-          );
-
-        if (chunksError) throw chunksError;
-      }
-
-      if (findings.length > 0) {
-        const { error: findingsError } = await supabase
-          .from("eos_document_findings_v11")
-          .insert(
-            findings.map((finding) => ({
-              document_id: document.id,
-              usuario_id: user.id,
-              ...finding,
-            })),
-          );
-
-        if (findingsError) throw findingsError;
-      }
-
-      const { error: updateDocumentError } = await supabase
-        .from("eos_documents_v11")
-        .update({
-          intelligence_status: "ready",
-          summary,
-          processed_at: new Date().toISOString(),
-          metadata: {
-            ...(document.metadata || {}),
-            intelligence: {
-              version: "deterministic-v1",
-              chunk_count: chunks.length,
-              finding_count: findings.length,
-              analyzed_at: new Date().toISOString(),
-            },
-          },
-        })
-        .eq("id", document.id)
-        .eq("usuario_id", user.id);
-
-      if (updateDocumentError) throw updateDocumentError;
-
       const result = {
         chunk_count: chunks.length,
         finding_count: findings.length,
@@ -515,18 +452,30 @@ export async function POST(_request: Request, context: RouteContext) {
           new Set(findings.map((finding) => finding.finding_type)),
         ),
       };
+      const analyzedAt = new Date().toISOString();
 
-      const { error: runCompleteError } = await supabase
-        .from("eos_document_intelligence_runs_v11")
-        .update({
-          status: "completed",
-          result,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", run.id)
-        .eq("usuario_id", user.id);
+      const { error: commitError } = await supabase.rpc(
+        "eos_commit_document_analysis_v29",
+        {
+          p_document_id: document.id,
+          p_run_id: run.id,
+          p_summary: summary,
+          p_chunks: chunks.map((chunk) => ({
+            ...chunk,
+            metadata: { chunker: "chars-overlap-v1" },
+          })),
+          p_findings: findings,
+          p_result: result,
+          p_analysis_metadata: {
+            version: "deterministic-v1",
+            chunk_count: chunks.length,
+            finding_count: findings.length,
+            analyzed_at: analyzedAt,
+          },
+        },
+      );
 
-      if (runCompleteError) throw runCompleteError;
+      if (commitError) throw commitError;
 
       return NextResponse.json(
         {
@@ -554,11 +503,21 @@ export async function POST(_request: Request, context: RouteContext) {
         .eq("id", run.id)
         .eq("usuario_id", user.id);
 
-      await supabase
-        .from("eos_documents_v11")
-        .update({ intelligence_status: "error" })
-        .eq("id", document.id)
-        .eq("usuario_id", user.id);
+      const analysisErrorMessage =
+        analysisError instanceof Error
+          ? analysisError.message
+          : analysisError && typeof analysisError === "object" && "message" in analysisError
+            ? String((analysisError as { message?: unknown }).message || "")
+            : "";
+      const staleAnalysisRun = analysisErrorMessage.includes("EOS_STALE_ANALYSIS_RUN");
+
+      if (!staleAnalysisRun && document.intelligence_status !== "ready") {
+        await supabase
+          .from("eos_documents_v11")
+          .update({ intelligence_status: "error" })
+          .eq("id", document.id)
+          .eq("usuario_id", user.id);
+      }
 
       return NextResponse.json(
         { error: "No pudimos completar el análisis documental." },
@@ -569,12 +528,7 @@ export async function POST(_request: Request, context: RouteContext) {
     console.error("Error en Document Intelligence analyze:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo analizar el documento.",
-      },
+      { error: "No se pudo analizar el documento." },
       { status: 500, headers: noStoreHeaders() },
     );
   }

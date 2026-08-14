@@ -64,12 +64,19 @@ export type BriefingApiResponse = {
     generado_at?: string;
   } | null;
   attention?: {
+    available?: boolean;
     items: ExecutiveAttentionItem[];
     total_pending: number;
     suppressed_count: number;
     daily_limit: number;
     interruption_recommended: boolean;
     quiet_hours: boolean;
+  };
+  data_health?: {
+    complete: boolean;
+    master_context: boolean;
+    followups: boolean;
+    preferences: boolean;
   };
   error?: string;
 };
