@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import type {
+  DocumentoAdjunto,
   ImagenAdjunta,
   Mensaje,
 } from "../types/chat";
@@ -17,33 +18,23 @@ type UseChatParams = {
   conversacionId: string;
   historial: Mensaje[];
 
-  setHistorial: React.Dispatch<
-    React.SetStateAction<Mensaje[]>
-  >;
+  setHistorial: React.Dispatch<React.SetStateAction<Mensaje[]>>;
 
-  nuevaConversacion: (
-    usuarioId: string,
-  ) => Promise<string | null>;
+  nuevaConversacion: (usuarioId: string) => Promise<string | null>;
 
   actualizarTituloSiHaceFalta: (
     id: string,
     textoUsuario: string,
   ) => Promise<void>;
 
-  cargarBriefing: (
-    usuarioId: string,
-  ) => Promise<void>;
+  cargarBriefing: (usuarioId: string) => Promise<void>;
 };
 
 function crearIdMensaje(prefijo: string) {
-  return `${prefijo}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 9)}`;
+  return `${prefijo}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function obtenerUltimoMensajeUsuario(
-  mensajes: Mensaje[],
-): Mensaje | null {
+function obtenerUltimoMensajeUsuario(mensajes: Mensaje[]): Mensaje | null {
   for (let index = mensajes.length - 1; index >= 0; index -= 1) {
     if (mensajes[index]?.rol === "usuario") {
       return mensajes[index];
@@ -53,9 +44,10 @@ function obtenerUltimoMensajeUsuario(
   return null;
 }
 
-function limpiarReferenciaDeImagen(texto: string) {
+function limpiarReferenciasAdjuntas(texto: string) {
   return texto
     .replace(/\n\n\[Imagen adjunta:[^\]]+\]\s*$/i, "")
+    .replace(/\n\n\[Documento adjunto:[^\]]+\]\s*$/i, "")
     .trim();
 }
 
@@ -74,8 +66,9 @@ export function useChat({
   const [cargando, setCargando] = useState(false);
   const [pensando, setPensando] = useState(false);
 
-  const [imagenAdjunta, setImagenAdjunta] =
-    useState<ImagenAdjunta | null>(null);
+  const [imagenAdjunta, setImagenAdjunta] = useState<ImagenAdjunta | null>(null);
+  const [documentoAdjunto, setDocumentoAdjunto] =
+    useState<DocumentoAdjunto | null>(null);
 
   const ejecutarEOS = useCallback(
     async ({
@@ -83,6 +76,7 @@ export function useChat({
       conversacionActiva,
       historialParaContexto,
       imagen,
+      documento,
       guardarUsuario,
       reemplazarUltimaRespuesta,
     }: {
@@ -90,6 +84,7 @@ export function useChat({
       conversacionActiva: string;
       historialParaContexto: Mensaje[];
       imagen: ImagenAdjunta | null;
+      documento: DocumentoAdjunto | null;
       guardarUsuario: boolean;
       reemplazarUltimaRespuesta: boolean;
     }) => {
@@ -98,11 +93,7 @@ export function useChat({
 
       try {
         if (guardarUsuario) {
-          await guardarMensaje(
-            conversacionActiva,
-            "usuario",
-            textoUsuario,
-          );
+          await guardarMensaje(conversacionActiva, "usuario", textoUsuario);
 
           await actualizarTituloSiHaceFalta(
             conversacionActiva,
@@ -119,6 +110,7 @@ export function useChat({
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
           imagen,
+          documentoId: documento?.id || null,
         });
 
         const textoEOS =
@@ -132,23 +124,15 @@ export function useChat({
           rol: "eos",
           texto: textoEOS,
           estado: "completado",
-          archivo_url:
-            resultadoEOS.archivo_url || "",
-          archivo_tipo:
-            resultadoEOS.archivo_tipo || "",
-          archivo_nombre:
-            resultadoEOS.archivo_nombre || "",
+          archivo_url: resultadoEOS.archivo_url || "",
+          archivo_tipo: resultadoEOS.archivo_tipo || "",
+          archivo_nombre: resultadoEOS.archivo_nombre || "",
           tipo: resultadoEOS.tipo || "texto",
-          accion:
-            resultadoEOS.accion || "RESPONDER",
+          accion: resultadoEOS.accion || "RESPONDER",
           creado_en: new Date().toISOString(),
         };
 
-        await guardarMensaje(
-          conversacionActiva,
-          "eos",
-          textoEOS,
-        );
+        await guardarMensaje(conversacionActiva, "eos", textoEOS);
 
         setHistorial((actual) => {
           if (!reemplazarUltimaRespuesta) {
@@ -157,11 +141,7 @@ export function useChat({
 
           const copia = [...actual];
 
-          for (
-            let index = copia.length - 1;
-            index >= 0;
-            index -= 1
-          ) {
+          for (let index = copia.length - 1; index >= 0; index -= 1) {
             if (copia[index]?.rol === "eos") {
               copia.splice(index, 1);
               break;
@@ -199,10 +179,7 @@ export function useChat({
           );
         }
 
-        setHistorial((actual) => [
-          ...actual,
-          mensajeError,
-        ]);
+        setHistorial((actual) => [...actual, mensajeError]);
       } finally {
         setPensando(false);
         setCargando(false);
@@ -219,15 +196,13 @@ export function useChat({
   );
 
   async function enviarMensaje(textoManual?: string) {
-    const textoFinal =
-      typeof textoManual === "string"
-        ? textoManual
-        : mensaje;
+    const textoFinal = typeof textoManual === "string" ? textoManual : mensaje;
 
     const tieneTexto = textoFinal.trim().length > 0;
     const tieneImagen = Boolean(imagenAdjunta);
+    const tieneDocumento = Boolean(documentoAdjunto);
 
-    if ((!tieneTexto && !tieneImagen) || cargando) {
+    if ((!tieneTexto && !tieneImagen && !tieneDocumento) || cargando) {
       return;
     }
 
@@ -242,9 +217,7 @@ export function useChat({
       const nueva = await nuevaConversacion(usuarioId);
 
       if (!nueva) {
-        window.alert(
-          "No se pudo iniciar una nueva conversación.",
-        );
+        window.alert("No se pudo iniciar una nueva conversación.");
         return;
       }
 
@@ -252,19 +225,27 @@ export function useChat({
     }
 
     const imagenActual = imagenAdjunta;
+    const documentoActual = documentoAdjunto;
 
     const textoUsuario =
       textoFinal.trim() ||
-      `Analizá esta imagen: ${
-        imagenActual?.nombre || "imagen adjunta"
-      }`;
+      (documentoActual
+        ? `Analizá este documento: ${documentoActual.nombre}`
+        : `Analizá esta imagen: ${imagenActual?.nombre || "imagen adjunta"}`);
+
+    const referencias = [
+      imagenActual ? `[Imagen adjunta: ${imagenActual.nombre}]` : "",
+      documentoActual
+        ? `[Documento adjunto: ${documentoActual.nombre} | ${documentoActual.id}]`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const mensajeUsuario: Mensaje = {
       id: crearIdMensaje("usuario"),
       rol: "usuario",
-      texto: imagenActual
-        ? `${textoUsuario}\n\n[Imagen adjunta: ${imagenActual.nombre}]`
-        : textoUsuario,
+      texto: referencias ? `${textoUsuario}\n\n${referencias}` : textoUsuario,
       estado: "completado",
       creado_en: new Date().toISOString(),
     };
@@ -273,17 +254,16 @@ export function useChat({
 
     setMensaje("");
     setImagenAdjunta(null);
+    setDocumentoAdjunto(null);
 
-    setHistorial((actual) => [
-      ...actual,
-      mensajeUsuario,
-    ]);
+    setHistorial((actual) => [...actual, mensajeUsuario]);
 
     await ejecutarEOS({
       textoUsuario,
       conversacionActiva,
       historialParaContexto: historialAntesDelEnvio,
       imagen: imagenActual,
+      documento: documentoActual,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
     });
@@ -295,24 +275,18 @@ export function useChat({
     }
 
     if (!conversacionId) {
-      window.alert(
-        "Todavía no hay una conversación para regenerar.",
-      );
+      window.alert("Todavía no hay una conversación para regenerar.");
       return;
     }
 
-    const ultimoUsuario =
-      obtenerUltimoMensajeUsuario(historial);
+    const ultimoUsuario = obtenerUltimoMensajeUsuario(historial);
 
     if (!ultimoUsuario) {
-      window.alert(
-        "No encontré un mensaje anterior para regenerar.",
-      );
+      window.alert("No encontré un mensaje anterior para regenerar.");
       return;
     }
 
-    const textoUsuario =
-      limpiarReferenciaDeImagen(ultimoUsuario.texto);
+    const textoUsuario = limpiarReferenciasAdjuntas(ultimoUsuario.texto);
 
     const historialSinUltimaRespuesta = [...historial];
 
@@ -330,9 +304,9 @@ export function useChat({
     await ejecutarEOS({
       textoUsuario,
       conversacionActiva: conversacionId,
-      historialParaContexto:
-        historialSinUltimaRespuesta.slice(-10),
+      historialParaContexto: historialSinUltimaRespuesta.slice(-10),
       imagen: null,
+      documento: null,
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
     });
@@ -347,6 +321,9 @@ export function useChat({
 
     imagenAdjunta,
     setImagenAdjunta,
+
+    documentoAdjunto,
+    setDocumentoAdjunto,
 
     enviarMensaje,
     regenerarRespuesta,

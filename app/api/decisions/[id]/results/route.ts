@@ -53,5 +53,45 @@ export async function POST(
     return NextResponse.json({ error: "No pudimos registrar el resultado." }, { status: 500 });
   }
 
-  return NextResponse.json({ result: data }, { status: 201 });
+  const evaluation = evaluateResult(tipo, resumen, aprendizaje);
+  const { error: evaluationError } = await supabase
+    .from("eos_decisions")
+    .update({
+      resultado_estado: evaluation.status,
+      evaluacion_eos: evaluation.summary,
+      evaluacion_confianza: evaluation.confidence,
+      evaluada_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("usuario_id", user.id);
+
+  if (evaluationError) {
+    console.error("El resultado se guardó, pero no se pudo evaluar la decisión:", evaluationError);
+  }
+
+  return NextResponse.json(
+    {
+      result: data,
+      evaluation: evaluationError ? null : evaluation,
+    },
+    { status: 201 },
+  );
+}
+
+function evaluateResult(tipo: string, resumen: string, aprendizaje: string) {
+  const labels: Record<string, { status: string; confidence: number; verdict: string }> = {
+    positivo: { status: "validado", confidence: 0.8, verdict: "produjo un resultado positivo" },
+    neutral: { status: "validado", confidence: 0.65, verdict: "produjo un resultado neutral" },
+    negativo: { status: "validado", confidence: 0.8, verdict: "produjo un resultado negativo" },
+    inconcluso: { status: "inconcluso", confidence: 0.45, verdict: "todavía no permite una conclusión firme" },
+    observacion: { status: "midiendo", confidence: 0.35, verdict: "sigue en etapa de medición" },
+  };
+  const selected = labels[tipo] ?? labels.observacion;
+  const evidence = aprendizaje || resumen;
+
+  return {
+    status: selected.status,
+    confidence: selected.confidence,
+    summary: `La decisión ${selected.verdict}. Evidencia registrada: ${evidence}`.slice(0, 3000),
+  };
 }

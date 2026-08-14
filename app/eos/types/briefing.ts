@@ -6,6 +6,18 @@ export type BriefingItem = {
   nivel?: "alto" | "medio" | "bajo";
 };
 
+export type ExecutiveAttentionItem = {
+  id: string;
+  tipo: "objetivo_vencido" | "vence_pronto" | "sin_avance";
+  severidad: "media" | "alta" | "critica";
+  titulo: string;
+  mensaje: string;
+  score: number;
+  razon: string;
+  programado_para?: string;
+  objetivo_id?: string;
+};
+
 export type BriefingSources = {
   objetivos_activos?: number;
   progreso_promedio?: number;
@@ -43,5 +55,21 @@ export type BriefingApiResponse = {
   briefing: Briefing | null;
   history: Briefing[];
   is_stale: boolean;
+  master_context?: {
+    resumen_compacto?: string;
+    proxima_mejor_accion?: { titulo?: string; razon?: string };
+    alertas?: Array<{ titulo?: string; mensaje?: string; severidad?: string }>;
+    objetivos?: Array<{ titulo?: string; progreso?: number; proximo_paso?: string }>;
+    necesita_actualizacion?: boolean;
+    generado_at?: string;
+  } | null;
+  attention?: {
+    items: ExecutiveAttentionItem[];
+    total_pending: number;
+    suppressed_count: number;
+    daily_limit: number;
+    interruption_recommended: boolean;
+    quiet_hours: boolean;
+  };
   error?: string;
 };

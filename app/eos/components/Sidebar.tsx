@@ -5,6 +5,7 @@ import {
   BrainCircuit,
   ChevronRight,
   FileText,
+  Network,
   Scale,
   MessageSquareText,
   Plus,
@@ -21,7 +22,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "perfil";
+type Vista = "chat" | "briefing" | "context" | "decisions" | "learnings" | "dashboard" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -151,6 +152,14 @@ export default function Sidebar({
             descripcion="Resumen ejecutivo"
             activo={vista === "briefing"}
             onClick={() => onVistaChange("briefing")}
+          />
+
+          <NavButton
+            icono={<Network size={18} />}
+            texto="Contexto"
+            descripcion="Tu realidad actual"
+            activo={vista === "context"}
+            onClick={() => onVistaChange("context")}
           />
 
           <NavButton

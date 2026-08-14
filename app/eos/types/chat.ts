@@ -43,6 +43,7 @@ export type Conversacion = {
 export type VistaEOS =
   | "chat"
   | "briefing"
+  | "context"
   | "decisions"
   | "learnings"
   | "dashboard"
@@ -52,6 +53,17 @@ export type ImagenAdjunta = {
   nombre: string;
   tipo: string;
   base64: string;
+};
+
+export type DocumentoAdjunto = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamanio: number;
+  document_type: string;
+  extraction_status: string;
+  intelligence_status: string;
+  duplicate?: boolean;
 };
 
 export type ArchivoAdjunto = {

@@ -13,13 +13,22 @@ import DashboardView from "../eos/components/DashboardView";
 import ProfileView from "../eos/components/ProfileView";
 import DecisionsView from "../eos/components/DecisionsView";
 import LearningsView from "../eos/components/LearningsView";
+import MasterContextView from "../eos/components/MasterContextView";
+import DocumentsView from "../eos/components/DocumentsView";
+import AutonomyView from "../eos/components/AutonomyView";
+import BusinessTwinView from "../eos/components/BusinessTwinView";
 
 import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
 import { useChat } from "../eos/hooks/useChat";
 
-import { convertirImagenABase64 } from "../eos/services/uploads";
-import type { VistaEOS } from "../eos/types/chat";
+import {
+  convertirImagenABase64,
+  subirDocumentoEOS,
+} from "../eos/services/uploads";
+import type { DocumentoAdjunto, VistaEOS } from "../eos/types/chat";
+
+type VistaMobileEOS = VistaEOS | "documents" | "autonomy" | "twin";
 
 export default function MobileEOSPage() {
   const router = useRouter();
@@ -30,7 +39,7 @@ export default function MobileEOSPage() {
   const [usuarioCargado, setUsuarioCargado] = useState(false);
   const [inicializando, setInicializando] = useState(true);
 
-  const [vista, setVista] = useState<VistaEOS>("chat");
+  const [vista, setVista] = useState<VistaMobileEOS>("chat");
   const [busqueda, setBusqueda] = useState("");
   const [menuAbierto, setMenuAbierto] = useState(false);
 
@@ -39,6 +48,7 @@ export default function MobileEOSPage() {
   const {
     briefingVisible,
     history: briefingHistory,
+    attention: briefingAttention,
     isStale: briefingIsStale,
     loading: briefingLoading,
     refreshing: briefingRefreshing,
@@ -65,6 +75,8 @@ export default function MobileEOSPage() {
     pensando,
     imagenAdjunta,
     setImagenAdjunta,
+    documentoAdjunto,
+    setDocumentoAdjunto,
     enviarMensaje,
     regenerarRespuesta,
   } = useChat({
@@ -110,6 +122,17 @@ export default function MobileEOSPage() {
     setNombre(nombreUsuario);
     setPlan(planUsuario);
     setUsuarioCargado(true);
+
+    await fetch("/api/context/master", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: crypto.randomUUID(),
+        trigger_source: "eos-mobile-session-start",
+      }),
+    }).catch((contextError) => {
+      console.error("No se pudo actualizar el Contexto Maestro móvil:", contextError);
+    });
 
     await cargarBriefing(user.id);
     await cargarConversaciones(user.id, nombreUsuario);
@@ -164,6 +187,7 @@ export default function MobileEOSPage() {
   async function manejarImagen(file: File) {
     try {
       const imagen = await convertirImagenABase64(file);
+      setDocumentoAdjunto(null);
       setImagenAdjunta(imagen);
 
       if (!mensaje.trim()) {
@@ -175,10 +199,52 @@ export default function MobileEOSPage() {
     }
   }
 
+  async function manejarArchivo(file: File) {
+    if (file.type.startsWith("image/")) {
+      await manejarImagen(file);
+      return;
+    }
+
+    try {
+      const documento = await subirDocumentoEOS(
+        file,
+        conversacionId || undefined,
+      );
+      setImagenAdjunta(null);
+      setDocumentoAdjunto(documento);
+
+      if (!mensaje.trim()) {
+        setMensaje(`Analizá este documento: ${documento.nombre}`);
+      }
+    } catch (error) {
+      console.error("No se pudo cargar el documento:", error);
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el documento.",
+      );
+    }
+  }
+
+  function usarDocumentoEnChat(documento: DocumentoAdjunto) {
+    setImagenAdjunta(null);
+    setDocumentoAdjunto(documento);
+    setMensaje(`Analizá este documento: ${documento.nombre}`);
+    setVista("chat");
+  }
+
   function quitarImagenAdjunta() {
     setImagenAdjunta(null);
 
     if (mensaje.startsWith("Analizá esta imagen:")) {
+      setMensaje("");
+    }
+  }
+
+  function quitarDocumentoAdjunto() {
+    setDocumentoAdjunto(null);
+
+    if (mensaje.startsWith("Analizá este documento:")) {
       setMensaje("");
     }
   }
@@ -241,7 +307,10 @@ export default function MobileEOSPage() {
   const sidebarProps = {
     nombre,
     plan,
-    vista,
+    vista:
+      vista === "documents" || vista === "autonomy" || vista === "twin"
+        ? ("chat" as VistaEOS)
+        : vista,
     busqueda,
     conversacionId,
     conversaciones,
@@ -272,6 +341,30 @@ export default function MobileEOSPage() {
 
         <div className="mobile-header-spacer" />
       </header>
+
+      <nav className="mobile-eos4-nav" aria-label="Herramientas EOS 4.0">
+        <button
+          type="button"
+          className={vista === "documents" ? "active" : ""}
+          onClick={() => setVista("documents")}
+        >
+          Documentos
+        </button>
+        <button
+          type="button"
+          className={vista === "autonomy" ? "active" : ""}
+          onClick={() => setVista("autonomy")}
+        >
+          Autonomía
+        </button>
+        <button
+          type="button"
+          className={vista === "twin" ? "active" : ""}
+          onClick={() => setVista("twin")}
+        >
+          Business Twin
+        </button>
+      </nav>
 
       <div
         className={`mobile-overlay ${menuAbierto ? "mobile-overlay-open" : ""}`}
@@ -314,7 +407,7 @@ export default function MobileEOSPage() {
             />
 
             {imagenAdjunta && (
-              <div className="mobile-image-preview">
+              <div className="mobile-attachment-preview">
                 <div>
                   <small>IMAGEN ADJUNTA</small>
                   <strong>{imagenAdjunta.nombre}</strong>
@@ -326,12 +419,25 @@ export default function MobileEOSPage() {
               </div>
             )}
 
+            {documentoAdjunto && (
+              <div className="mobile-attachment-preview">
+                <div>
+                  <small>DOCUMENTO ADJUNTO</small>
+                  <strong>{documentoAdjunto.nombre}</strong>
+                </div>
+
+                <button type="button" onClick={quitarDocumentoAdjunto}>
+                  Quitar
+                </button>
+              </div>
+            )}
+
             <Composer
               mensaje={mensaje}
               cargando={cargando}
               onMensajeChange={setMensaje}
               onEnviar={() => enviarMensaje()}
-              onImagenSeleccionada={manejarImagen}
+              onArchivoSeleccionado={(file) => void manejarArchivo(file)}
               mobile
             />
           </>
@@ -345,6 +451,7 @@ export default function MobileEOSPage() {
             error={briefingError}
             isStale={briefingIsStale}
             historyCount={briefingHistory.length}
+            attention={briefingAttention}
             onRefresh={refreshBriefing}
             onOpenChat={(prompt) => {
               setMensaje(prompt);
@@ -367,6 +474,22 @@ export default function MobileEOSPage() {
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}
         {vista === "learnings" && usuarioCargado && <LearningsView />}
+
+        {vista === "context" && usuarioCargado && (
+          <MasterContextView
+            onOpenChat={(prompt) => {
+              setMensaje(prompt);
+              setVista("chat");
+            }}
+          />
+        )}
+
+        {vista === "documents" && usuarioCargado && (
+          <DocumentsView onUseInChat={usarDocumentoEnChat} />
+        )}
+
+        {vista === "autonomy" && usuarioCargado && <AutonomyView />}
+        {vista === "twin" && usuarioCargado && <BusinessTwinView />}
 
         {vista === "perfil" && (
           <ProfileView
@@ -470,6 +593,41 @@ export default function MobileEOSPage() {
           height: 42px;
         }
 
+        .mobile-eos4-nav {
+          position: relative;
+          z-index: 55;
+          display: flex;
+          gap: 8px;
+          overflow-x: auto;
+          padding: 8px 12px;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+          background: rgba(7, 16, 29, 0.88);
+          scrollbar-width: none;
+        }
+
+        .mobile-eos4-nav::-webkit-scrollbar {
+          display: none;
+        }
+
+        .mobile-eos4-nav button {
+          flex: 0 0 auto;
+          padding: 8px 11px;
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          border-radius: 999px;
+          background: rgba(15, 23, 42, 0.74);
+          color: #94a3b8;
+          font-family: inherit;
+          font-size: 10px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+
+        .mobile-eos4-nav button.active {
+          border-color: rgba(96, 165, 250, 0.35);
+          background: rgba(37, 99, 235, 0.18);
+          color: #dbeafe;
+        }
+
         .mobile-overlay {
           position: fixed;
           inset: 0;
@@ -532,7 +690,7 @@ export default function MobileEOSPage() {
           padding-bottom: env(safe-area-inset-bottom);
         }
 
-        .mobile-image-preview {
+        .mobile-attachment-preview {
           position: absolute;
           left: 12px;
           right: 12px;
@@ -550,21 +708,21 @@ export default function MobileEOSPage() {
           backdrop-filter: blur(18px);
         }
 
-        .mobile-image-preview div {
+        .mobile-attachment-preview div {
           min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 3px;
         }
 
-        .mobile-image-preview small {
+        .mobile-attachment-preview small {
           color: #64748b;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.12em;
         }
 
-        .mobile-image-preview strong {
+        .mobile-attachment-preview strong {
           overflow: hidden;
           color: #e2e8f0;
           font-size: 11px;
@@ -572,7 +730,7 @@ export default function MobileEOSPage() {
           white-space: nowrap;
         }
 
-        .mobile-image-preview button {
+        .mobile-attachment-preview button {
           flex-shrink: 0;
           padding: 8px 11px;
           border: 1px solid rgba(239, 68, 68, 0.22);
