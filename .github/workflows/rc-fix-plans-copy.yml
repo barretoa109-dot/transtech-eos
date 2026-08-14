@@ -28,23 +28,20 @@ jobs:
 
           path = Path('app/planes/page.tsx')
           text = path.read_text()
-          old = '''            <span className="plans-section-label">ACTUALIZACIÓN AUTOMÁTICA</span>
-            <h2>Tu acceso cambia en cuanto el pago es confirmado.</h2>
-            <p>
-              No necesitás esperar una aprobación manual. La confirmación
-              segura del proveedor de pago actualizará el plan, los límites
-              y las funciones disponibles en EOS.
-            </p>'''
-          new = '''            <span className="plans-section-label">ACTIVACIÓN SEGURA</span>
-            <h2>Tu acceso cambia cuando TransTech confirma el pago.</h2>
-            <p>
-              En pagos por transferencia, el comprobante pasa por revisión
-              antes de activar el plan. Una vez confirmado, EOS actualiza tus
-              límites y funciones disponibles.
-            </p>'''
-          if old not in text:
-              raise SystemExit('Expected plans copy not found; refusing broad rewrite')
-          path.write_text(text.replace(old, new, 1))
+          replacements = [
+              ('ACTUALIZACIÓN AUTOMÁTICA', 'ACTIVACIÓN SEGURA'),
+              ('Tu acceso cambia en cuanto el pago es confirmado.', 'Tu acceso cambia cuando TransTech confirma el pago.'),
+              ('No necesitás esperar una aprobación manual. La confirmación', 'En pagos por transferencia, el comprobante pasa por revisión'),
+              ('segura del proveedor de pago actualizará el plan, los límites\n              y las funciones disponibles en EOS.', 'antes de activar el plan. Una vez confirmado, EOS actualiza tus\n              límites y funciones disponibles.'),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match for {old!r}; found {count}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
           PY
 
           git diff --check
