@@ -76,6 +76,7 @@ type GuardarMensajeParams = {
   rol: RolMensaje;
   texto: string;
   reemplazarAnterior?: boolean;
+  reemplazarRequestId?: string;
   metadata?: Record<string, unknown>;
 };
 
@@ -85,6 +86,7 @@ export async function guardarMensaje({
   rol,
   texto,
   reemplazarAnterior = false,
+  reemplazarRequestId,
   metadata = {},
 }: GuardarMensajeParams) {
   if (!conversacionId || !requestId || !texto.trim()) {
@@ -100,6 +102,7 @@ export async function guardarMensaje({
       rol,
       texto,
       reemplazar_anterior: reemplazarAnterior,
+      replace_request_id: reemplazarRequestId || null,
       metadata,
     }),
   });
