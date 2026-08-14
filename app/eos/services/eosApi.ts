@@ -1,10 +1,8 @@
 import type { ImagenAdjunta, Mensaje } from "../types/chat";
 
 type EnviarEOSParams = {
-  usuarioId: string;
+  requestId: string;
   conversacionId: string;
-  nombre: string;
-  plan: string;
   mensaje: string;
   historial: Mensaje[];
   nuevoChat: boolean;
@@ -119,10 +117,8 @@ export async function enviarMensajeAEOS(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      usuario_id: params.usuarioId,
+      request_id: params.requestId,
       conversacion_id: params.conversacionId,
-      nombre: params.nombre,
-      plan: params.plan,
       mensaje: params.mensaje,
       historial: params.historial
         .filter((m) => !m.texto.includes("Este es un nuevo chat"))
