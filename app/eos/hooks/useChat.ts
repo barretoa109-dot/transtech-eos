@@ -8,7 +8,7 @@ import type {
   Mensaje,
 } from "../types/chat";
 
-import { enviarMensajeAEOS } from "../services/eosApi";
+import { EOSApiError, enviarMensajeAEOS } from "../services/eosApi";
 import { guardarMensaje } from "../services/supabaseChat";
 
 type UseChatParams = {
@@ -89,6 +89,26 @@ function stringMetadata(
 
 function esUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function clasificarErrorEOS(error: unknown) {
+  const commercial =
+    error instanceof EOSApiError &&
+    ["EOS_MESSAGE_LIMIT_REACHED", "EOS_SUBSCRIPTION_INACTIVE"].includes(
+      error.code,
+    );
+  const replay =
+    error instanceof EOSApiError &&
+    [
+      "EOS_MESSAGE_REQUEST_IN_PROGRESS",
+      "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED",
+    ].includes(error.code);
+
+  return {
+    commercial,
+    replay,
+    userFacing: commercial || replay,
+  };
 }
 
 export function useChat({
@@ -237,21 +257,37 @@ export function useChat({
         } catch (briefingError) {
           console.error("No se pudo refrescar el briefing:", briefingError);
         }
+
+        window.dispatchEvent(new Event("eos:usage-changed"));
       } catch (error) {
         console.error("ERROR EOS:", error);
 
-        const respuestaError =
-          "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
+        const errorType = clasificarErrorEOS(error);
+        const respuestaError = errorType.userFacing && error instanceof Error
+          ? error.message
+          : "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
+
+        if (errorType.commercial) {
+          window.dispatchEvent(new Event("eos:usage-changed"));
+        }
 
         if (reemplazarUltimaRespuesta) {
           window.alert(respuestaError);
         } else {
           const mensajeError: Mensaje = {
-            id: crearIdMensaje("error"),
+            id: crearIdMensaje(
+              errorType.commercial
+                ? "plan"
+                : errorType.replay
+                  ? "estado"
+                  : "error",
+            ),
             request_id: requestId,
             rol: "eos",
             texto: respuestaError,
-            estado: "error",
+            estado: errorType.userFacing ? "completado" : "error",
+            tipo: "texto",
+            accion: errorType.commercial ? "ABRIR_PLANES" : "RESPONDER",
             creado_en: new Date().toISOString(),
           };
 

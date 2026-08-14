@@ -20,6 +20,7 @@ type CommercialState = {
   expiresAt: string | null;
   provider: string | null;
   usage: UsageItem[];
+  messageQuotaScope: "daily" | "monthly" | null;
 };
 
 const EMPTY_STATE: CommercialState = {
@@ -28,6 +29,7 @@ const EMPTY_STATE: CommercialState = {
   expiresAt: null,
   provider: null,
   usage: [],
+  messageQuotaScope: null,
 };
 
 export default function PlanUsageCard() {
@@ -121,6 +123,17 @@ export default function PlanUsageCard() {
       supabase.removeChannel(channel);
     };
   }, [loadCommercialState, supabase, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const refreshFromChat = () => loadCommercialState(userId, true);
+    window.addEventListener("eos:usage-changed", refreshFromChat);
+
+    return () => {
+      window.removeEventListener("eos:usage-changed", refreshFromChat);
+    };
+  }, [loadCommercialState, userId]);
 
   const visibleUsage = commercial.usage.length
     ? commercial.usage
@@ -450,6 +463,8 @@ function normalizeCommercialState(raw: unknown): CommercialState {
   );
   const limits = objectFrom(root.limites, root.limits, subscription.limites);
   const usage = objectFrom(root.uso, root.consumo, root.usage, subscription.uso);
+  const messageQuota = objectFrom(root.cuota_mensajes);
+  const messageQuotaScope = stringFrom(messageQuota.scope);
 
   return {
     plan: stringFrom(
@@ -479,15 +494,34 @@ function normalizeCommercialState(raw: unknown): CommercialState {
       root.proveedor_pago,
       root.proveedor,
     ),
-    usage: buildUsageItems(usage, limits),
+    usage: buildUsageItems(
+      usage,
+      limits,
+      messageQuotaScope === "daily" || messageQuotaScope === "monthly"
+        ? messageQuotaScope
+        : null,
+    ),
+    messageQuotaScope:
+      messageQuotaScope === "daily" || messageQuotaScope === "monthly"
+        ? messageQuotaScope
+        : null,
   };
 }
 
-function buildUsageItems(usage: AnyObject, limits: AnyObject): UsageItem[] {
+function buildUsageItems(
+  usage: AnyObject,
+  limits: AnyObject,
+  messageQuotaScope: "daily" | "monthly" | null,
+): UsageItem[] {
   const definitions = [
     {
       key: "mensaje",
-      label: "Mensajes",
+      label:
+        messageQuotaScope === "daily"
+          ? "Mensajes hoy"
+          : messageQuotaScope === "monthly"
+            ? "Mensajes este mes"
+            : "Mensajes",
       used: ["mensajes", "mensaje", "mensajes_usados"],
       limit: ["mensajes", "limite_mensajes", "mensajes_limite"],
     },

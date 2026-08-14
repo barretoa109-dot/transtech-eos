@@ -78,38 +78,63 @@ export async function GET() {
 
   const briefings = briefingResult.data ?? [];
   const latest = briefings[0] ?? null;
-  const dailyLimit = preferencesResult.data?.max_alertas_dia ?? 3;
+  const contextAvailable = !contextResult.error;
+  const followupsAvailable = !followupsResult.error;
+  const preferencesAvailable = !preferencesResult.error;
+  const attentionAvailable = followupsAvailable && preferencesAvailable;
+  const dailyLimit = attentionAvailable
+    ? preferencesResult.data?.max_alertas_dia ?? 3
+    : 0;
   const minimumSeverity = normalizeSeverity(preferencesResult.data?.severidad_minima);
   const minimumScore = { media: 40, alta: 70, critica: 90 }[minimumSeverity];
-  const attentionItems = (followupsResult.data ?? [])
-    .map(rankAttentionItem)
-    .filter((item) => item.score >= minimumScore)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, dailyLimit);
-  const proactiveEnabled = preferencesResult.data?.habilitado !== false
+  const attentionItems = attentionAvailable
+    ? (followupsResult.data ?? [])
+        .map(rankAttentionItem)
+        .filter((item) => item.score >= minimumScore)
+        .sort((left, right) => right.score - left.score)
+        .slice(0, dailyLimit)
+    : [];
+  const proactiveEnabled = attentionAvailable
+    && preferencesResult.data?.habilitado !== false
     && preferencesResult.data?.canal_web !== false;
-  const localHour = hourInTimeZone(preferencesResult.data?.zona_horaria ?? "America/Asuncion");
-  const quietHours = isWithinQuietHours(
-    localHour,
-    preferencesResult.data?.silencio_desde ?? 21,
-    preferencesResult.data?.silencio_hasta ?? 7,
-  );
+  const localHour = attentionAvailable
+    ? hourInTimeZone(preferencesResult.data?.zona_horaria ?? "America/Asuncion")
+    : 0;
+  const quietHours = attentionAvailable
+    ? isWithinQuietHours(
+        localHour,
+        preferencesResult.data?.silencio_desde ?? 21,
+        preferencesResult.data?.silencio_hasta ?? 7,
+      )
+    : true;
 
   return NextResponse.json(
     {
       briefing: latest,
       history: briefings,
-      master_context: contextResult.data ?? null,
+      master_context: contextAvailable ? contextResult.data ?? null : null,
       attention: {
+        available: attentionAvailable,
         items: proactiveEnabled ? attentionItems : [],
-        total_pending: followupsResult.data?.length ?? 0,
-        suppressed_count: proactiveEnabled
-          ? Math.max(0, (followupsResult.data?.length ?? 0) - attentionItems.length)
-          : followupsResult.data?.length ?? 0,
+        total_pending: attentionAvailable ? followupsResult.data?.length ?? 0 : 0,
+        suppressed_count: attentionAvailable
+          ? proactiveEnabled
+            ? Math.max(0, (followupsResult.data?.length ?? 0) - attentionItems.length)
+            : followupsResult.data?.length ?? 0
+          : 0,
         daily_limit: dailyLimit,
         interruption_recommended:
-          proactiveEnabled && !quietHours && attentionItems.some((item) => item.score >= 70),
+          attentionAvailable
+          && proactiveEnabled
+          && !quietHours
+          && attentionItems.some((item) => item.score >= 70),
         quiet_hours: quietHours,
+      },
+      data_health: {
+        complete: contextAvailable && followupsAvailable && preferencesAvailable,
+        master_context: contextAvailable,
+        followups: followupsAvailable,
+        preferences: preferencesAvailable,
       },
       is_stale:
         latest?.briefing_date !== currentDateInParaguay(),

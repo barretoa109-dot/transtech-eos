@@ -1,7 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const VALID_TYPES = new Set(["positivo", "neutral", "negativo", "inconcluso", "observacion"]);
+export const dynamic = "force-dynamic";
+
+const VALID_TYPES = new Set([
+  "positivo",
+  "neutral",
+  "negativo",
+  "inconcluso",
+  "observacion",
+]);
+
+function noStoreHeaders() {
+  return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
 
 export async function POST(
   request: Request,
@@ -11,70 +29,94 @@ export async function POST(
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Sesión no válida." },
+      { status: 401, headers: noStoreHeaders() },
+    );
   }
 
   const { id } = await context.params;
+  if (!isUuid(id)) {
+    return NextResponse.json(
+      { error: "Decisión no válida." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const resumen = typeof body?.resumen === "string" ? body.resumen.trim().slice(0, 3000) : "";
   const aprendizaje = typeof body?.aprendizaje === "string" ? body.aprendizaje.trim().slice(0, 3000) : "";
   const tipo = VALID_TYPES.has(body?.tipo) ? body.tipo : "observacion";
+  const requestId = isUuid(String(body?.request_id || ""))
+    ? String(body.request_id)
+    : crypto.randomUUID();
 
   if (!resumen) {
-    return NextResponse.json({ error: "El resultado es obligatorio." }, { status: 400 });
+    return NextResponse.json(
+      { error: "El resultado es obligatorio." },
+      { status: 400, headers: noStoreHeaders() },
+    );
   }
 
-  const { data: decision } = await supabase
+  const { data: decision, error: decisionError } = await supabase
     .from("eos_decisions")
     .select("id")
     .eq("id", id)
     .eq("usuario_id", user.id)
     .maybeSingle();
 
-  if (!decision) {
-    return NextResponse.json({ error: "Decisión no encontrada." }, { status: 404 });
+  if (decisionError) {
+    console.error("No se pudo verificar la decisión:", decisionError);
+    return NextResponse.json(
+      { error: "No pudimos verificar la decisión." },
+      { status: 500, headers: noStoreHeaders() },
+    );
   }
 
-  const { data, error } = await supabase
-    .from("eos_decision_results")
-    .insert({
-      decision_id: id,
-      usuario_id: user.id,
-      tipo,
-      resumen,
-      aprendizaje: aprendizaje || null,
-      fuente: "eos-web",
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error("No se pudo registrar el resultado:", error);
-    return NextResponse.json({ error: "No pudimos registrar el resultado." }, { status: 500 });
+  if (!decision) {
+    return NextResponse.json(
+      { error: "Decisión no encontrada." },
+      { status: 404, headers: noStoreHeaders() },
+    );
   }
 
   const evaluation = evaluateResult(tipo, resumen, aprendizaje);
-  const { error: evaluationError } = await supabase
-    .from("eos_decisions")
-    .update({
-      resultado_estado: evaluation.status,
-      evaluacion_eos: evaluation.summary,
-      evaluacion_confianza: evaluation.confidence,
-      evaluada_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("usuario_id", user.id);
+  const { data: committed, error } = await supabase.rpc(
+    "eos_record_decision_result_v32",
+    {
+      p_decision_id: id,
+      p_request_id: requestId,
+      p_tipo: tipo,
+      p_resumen: resumen,
+      p_aprendizaje: aprendizaje || null,
+      p_evaluation_status: evaluation.status,
+      p_evaluation_summary: evaluation.summary,
+      p_evaluation_confidence: evaluation.confidence,
+    },
+  );
 
-  if (evaluationError) {
-    console.error("El resultado se guardó, pero no se pudo evaluar la decisión:", evaluationError);
+  if (error || !committed || typeof committed !== "object") {
+    console.error("No se pudo registrar y evaluar el resultado:", error);
+    return NextResponse.json(
+      { error: "No pudimos registrar el resultado." },
+      { status: 500, headers: noStoreHeaders() },
+    );
   }
+
+  const payload = committed as {
+    result?: unknown;
+    evaluation?: unknown;
+    idempotent?: boolean;
+  };
 
   return NextResponse.json(
     {
-      result: data,
-      evaluation: evaluationError ? null : evaluation,
+      result: payload.result ?? null,
+      evaluation: payload.evaluation ?? evaluation,
+      request_id: requestId,
+      idempotent: Boolean(payload.idempotent),
     },
-    { status: 201 },
+    { status: 201, headers: noStoreHeaders() },
   );
 }
 
