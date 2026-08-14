@@ -22,6 +22,7 @@ export type Mensaje = {
   texto: string;
 
   id?: string;
+  request_id?: string | null;
   estado?: EstadoMensaje;
 
   archivo_url?: string;
@@ -32,6 +33,7 @@ export type Mensaje = {
   accion?: string;
 
   creado_en?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type Conversacion = {
