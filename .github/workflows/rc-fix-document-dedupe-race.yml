@@ -1,0 +1,94 @@
+name: RC Fix Document Dedupe Race
+
+on:
+  push:
+    branches:
+      - release/eos-4.0-rc1
+    paths:
+      - .github/workflows/rc-fix-document-dedupe-race.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-dedupe:
+    if: ${{ !contains(github.event.head_commit.message, '[skip document-dedupe-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/eos-4.0-rc1
+          fetch-depth: 0
+
+      - name: Make duplicate insert race idempotent
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/api/documents/ingest/route.ts')
+          text = path.read_text()
+          old = '''    if (insertError || !document) {
+      console.error("No se pudo registrar documento:", insertError);
+      await admin.storage.from("eos-documents").remove([storagePath]);
+      uploadedPaths.length = 0;
+
+      return NextResponse.json(
+        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }'''
+          new = '''    if (insertError || !document) {
+      console.error("No se pudo registrar documento:", insertError);
+      await admin.storage.from("eos-documents").remove([storagePath]);
+      uploadedPaths.length = 0;
+
+      if (insertError?.code === "23505") {
+        const { data: concurrentDuplicate, error: concurrentDuplicateError } =
+          await admin
+            .from("eos_documents_v11")
+            .select(
+              "id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at",
+            )
+            .eq("usuario_id", user.id)
+            .eq("checksum_sha256", checksum)
+            .maybeSingle();
+
+        if (!concurrentDuplicateError && concurrentDuplicate) {
+          return NextResponse.json(
+            { ok: true, duplicate: true, document: concurrentDuplicate },
+            { headers: noStoreHeaders() },
+          );
+        }
+
+        if (concurrentDuplicateError) {
+          console.error(
+            "No se pudo recuperar duplicado documental concurrente:",
+            concurrentDuplicateError,
+          );
+        }
+      }
+
+      return NextResponse.json(
+        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }'''
+
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one insert error block; found {count}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          git diff --check
+          git diff -- app/api/documents/ingest/route.ts
+
+      - name: Commit exact dedupe fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/api/documents/ingest/route.ts
+          git commit -m 'fix(documents): recover concurrent duplicate uploads [skip document-dedupe-fix]'
+          git push origin HEAD:release/eos-4.0-rc1
