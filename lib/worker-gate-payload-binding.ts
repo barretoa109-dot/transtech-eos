@@ -81,10 +81,13 @@ function block(reason: string, status = 409) {
 /**
  * Defense-in-depth boundary immediately before the canonical Worker Gate.
  *
- * A command is the idempotent execution anchor from Fase 4. Once command_id
- * exists, the payload presented to the gate must be exactly the JSON payload
- * stored on that command. For explicit approvals the command payload must also
- * be exactly the payload_snapshot the user approved.
+ * It enforces two invariants that must hold before policy can authorize a real
+ * side effect:
+ * 1) a rule that explicitly requires fresh context cannot proceed with missing
+ *    or stale Contexto Maestro;
+ * 2) once command_id exists, the payload presented to the gate must be exactly
+ *    the JSON payload stored on the command. For explicit approvals the command
+ *    payload must also be exactly the payload_snapshot approved by the user.
  *
  * Returning null means the canonical handler may continue evaluating policy.
  */
@@ -116,6 +119,54 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
   }
 
   const body = await request.clone().json().catch(() => null);
+  const usuarioId = body?.usuario_id;
+  const requestId = body?.request_id;
+  const action = typeof body?.accion === "string" ? body.accion.trim() : "";
+
+  // Let the canonical handler own the normal request-shape error contract.
+  if (!isUuid(usuarioId) || !isUuid(requestId) || !action) return null;
+
+  const admin: any = createAdminClient();
+  const { data: rule, error: ruleError } = await admin
+    .from("eos_autonomy_rules_v12")
+    .select("enabled,require_fresh_context")
+    .eq("usuario_id", usuarioId)
+    .eq("accion", action)
+    .maybeSingle();
+
+  if (ruleError) {
+    console.error(
+      "Worker gate fresh-context guard: no se pudo leer la regla:",
+      ruleError,
+    );
+    return block("No fue posible verificar de forma segura la regla de autonomía.", 500);
+  }
+
+  if (rule?.enabled !== false && rule?.require_fresh_context === true) {
+    const { data: context, error: contextError } = await admin
+      .from("eos_master_context_v8")
+      .select("necesita_actualizacion,vigente_hasta")
+      .eq("usuario_id", usuarioId)
+      .maybeSingle();
+
+    if (contextError) {
+      console.error(
+        "Worker gate fresh-context guard: no se pudo leer Contexto Maestro:",
+        contextError,
+      );
+      return block(
+        "No fue posible verificar de forma segura la vigencia del Contexto Maestro.",
+        500,
+      );
+    }
+
+    if (!context || context.necesita_actualizacion === true) {
+      return block(
+        "Esta regla exige Contexto Maestro vigente. Actualizá el contexto antes de continuar.",
+      );
+    }
+  }
+
   const commandId = body?.command_id ?? null;
 
   // Initial evaluation deliberately happens before a command exists.
@@ -133,15 +184,7 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
     );
   }
 
-  const usuarioId = body?.usuario_id;
-  const requestId = body?.request_id;
-  const action = typeof body?.accion === "string" ? body.accion.trim() : "";
-
-  // Let the canonical handler own the normal request-shape error contract.
-  if (!isUuid(usuarioId) || !isUuid(requestId) || !action) return null;
-
   const payload = safeObject(body?.payload);
-  const admin: any = createAdminClient();
   const { data: command, error: commandError } = await admin
     .from("eos_action_commands")
     .select("id,usuario_id,request_id,accion,estado,payload")
