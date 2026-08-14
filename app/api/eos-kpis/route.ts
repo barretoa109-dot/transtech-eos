@@ -52,9 +52,9 @@ export async function GET() {
   const [goals, followups, actions, decisions, learnings, context, history] = await Promise.all([
     supabase.from("eos_goals").select("progreso,estado").eq("usuario_id", user.id),
     supabase.from("eos_proactive_followups").select("severidad,estado").eq("usuario_id", user.id).in("estado", ["pendiente", "visto"]),
-    supabase.from("eos_action_commands").select("estado").eq("usuario_id", user.id).limit(100),
-    supabase.from("eos_decision_registry_v6").select("estado,result_count").eq("usuario_id", user.id).limit(100),
-    supabase.from("eos_learnings").select("confianza,evidence_count,estado").eq("usuario_id", user.id).eq("estado", "activo").limit(100),
+    supabase.from("eos_action_commands").select("estado").eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100),
+    supabase.from("eos_decision_registry_v6").select("estado,result_count").eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100),
+    supabase.from("eos_learnings").select("confianza,evidence_count,estado").eq("usuario_id", user.id).eq("estado", "activo").order("updated_at", { ascending: false }).limit(100),
     supabase.from("eos_master_context_v8").select("identidad,estado_actual,objetivos,proyectos,compromisos,necesita_actualizacion").eq("usuario_id", user.id).maybeSingle(),
     supabase
       .from("eos_intelligence_score_snapshots_v10")
