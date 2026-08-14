@@ -209,6 +209,8 @@ export function useChat({
           metadata: metadataEOS,
         };
 
+        let respuestaPersistida = true;
+
         try {
           await guardarMensaje({
             conversacionId: conversacionActiva,
@@ -220,13 +222,24 @@ export function useChat({
             metadata: metadataEOS,
           });
         } catch (persistenceError) {
+          respuestaPersistida = false;
           console.error(
             "EOS respondió, pero no se pudo persistir la respuesta:",
             persistenceError,
           );
+
+          if (reemplazarUltimaRespuesta) {
+            window.alert(
+              "EOS generó una nueva respuesta, pero no pudo guardarla de forma segura. La respuesta anterior se conserva.",
+            );
+          }
         }
 
         setHistorial((actual) => {
+          if (reemplazarUltimaRespuesta && !respuestaPersistida) {
+            return actual;
+          }
+
           if (!reemplazarUltimaRespuesta || !reemplazarRequestId) {
             return [...actual, mensajeEOS];
           }
