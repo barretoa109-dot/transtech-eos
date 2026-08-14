@@ -1,0 +1,366 @@
+name: EOS Score UI temp
+
+on:
+  push:
+    branches:
+      - release/eos-4.0-rc1
+    paths:
+      - .github/workflows/eos-score-ui-temp.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/eos-4.0-rc1
+          fetch-depth: 0
+
+      - name: Apply Score UI and deterministic sampling
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dashboard_path = Path('app/eos/components/DashboardView.tsx')
+          text = dashboard_path.read_text()
+
+          old_type = '''type IntelligenceScore = {
+            score: number;
+            dimensions: Record<"contexto" | "objetivos" | "ejecucion" | "decisiones" | "aprendizaje", number>;
+            explanation: { summary: string; next_action: string };
+          };'''
+          new_type = '''type IntelligenceTrendDirection = "up" | "down" | "stable" | "new";
+
+          type IntelligenceDriver = {
+            key: string;
+            label: string;
+            delta: number;
+            impact: "positivo" | "negativo";
+          };
+
+          type IntelligenceScore = {
+            score: number;
+            dimensions: Record<"contexto" | "objetivos" | "ejecucion" | "decisiones" | "aprendizaje", number>;
+            explanation: { summary: string; next_action: string };
+            trend: {
+              direction: IntelligenceTrendDirection;
+              delta: number;
+              summary: string;
+              drivers: IntelligenceDriver[];
+              previous_day: string | null;
+              previous_score: number | null;
+            };
+            history: Array<{ day: string; score: number }>;
+            persistence: {
+              snapshot_persisted: boolean;
+              history_loaded: boolean;
+              writer: string;
+            };
+            calculated_at: string;
+          };'''
+          if old_type not in text:
+              raise SystemExit('IntelligenceScore type block not found')
+          text = text.replace(old_type, new_type, 1)
+
+          old_section = '''        {intelligence && (
+                  <section className="intelligence-card">
+                    <div className="intelligence-heading">
+                      <div>
+                        <span className="dashboard-section-label">EOS INTELLIGENCE SCORE</span>
+                        <h2>Por qué tu score es {intelligence.score}</h2>
+                        <p>{intelligence.explanation.summary}</p>
+                      </div>
+                      <button type="button" onClick={onOpenChat}>Mejorar mi score <ArrowRight size={15} /></button>
+                    </div>
+                    <div className="dimension-grid">
+                      {Object.entries(intelligence.dimensions).map(([name, value]) => (
+                        <div className="dimension-item" key={name}>
+                          <div><span>{capitalizar(name)}</span><strong>{value}</strong></div>
+                          <div className="dimension-track"><span style={{ width: `${value}%` }} /></div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="intelligence-next"><strong>Próxima mejora:</strong> {intelligence.explanation.next_action}</p>
+                  </section>
+                )}'''
+          new_section = '''        {intelligence && (
+                  <section className="intelligence-card">
+                    <div className="intelligence-heading">
+                      <div className="intelligence-title-block">
+                        <span className="dashboard-section-label">EOS INTELLIGENCE SCORE</span>
+                        <div className="intelligence-title-line">
+                          <h2>Por qué tu score es {intelligence.score}</h2>
+                          <span className={`intelligence-trend-badge intelligence-trend-${intelligence.trend.direction}`}>
+                            {obtenerIconoTendencia(intelligence.trend.direction)}
+                            {obtenerEtiquetaTendencia(intelligence.trend)}
+                          </span>
+                        </div>
+                        <p>{intelligence.explanation.summary}</p>
+                      </div>
+                      <button type="button" onClick={onOpenChat}>
+                        Mejorar mi score <ArrowRight size={15} />
+                      </button>
+                    </div>
+
+                    <div className="dimension-grid">
+                      {Object.entries(intelligence.dimensions).map(([name, value]) => (
+                        <div className="dimension-item" key={name}>
+                          <div><span>{capitalizar(name)}</span><strong>{value}</strong></div>
+                          <div className="dimension-track"><span style={{ width: `${value}%` }} /></div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="intelligence-analysis-grid">
+                      <div className="intelligence-trend-panel">
+                        <span className="intelligence-panel-label">EVOLUCIÓN</span>
+                        <p>{intelligence.trend.summary}</p>
+                        {intelligence.trend.drivers.length > 0 && (
+                          <div className="intelligence-drivers">
+                            {intelligence.trend.drivers.map((driver) => (
+                              <span
+                                key={`${driver.key}-${driver.label}`}
+                                className={`intelligence-driver intelligence-driver-${driver.impact}`}
+                              >
+                                {driver.label} {driver.delta > 0 ? "+" : ""}{driver.delta}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {intelligence.history.length > 1 && (
+                        <div className="intelligence-history-panel">
+                          <div className="intelligence-history-heading">
+                            <span className="intelligence-panel-label">HISTORIAL COMPARABLE</span>
+                            <small>Hasta 14 mediciones</small>
+                          </div>
+                          <div className="intelligence-history-bars" aria-label="Historial del EOS Intelligence Score">
+                            {intelligence.history.map((point) => (
+                              <div
+                                className="intelligence-history-column"
+                                key={point.day}
+                                title={`${formatearDiaScore(point.day)}: ${point.score}`}
+                              >
+                                <span className="intelligence-history-value">{point.score}</span>
+                                <div className="intelligence-history-track">
+                                  <span style={{ height: `${Math.max(8, normalizarPorcentaje(point.score))}%` }} />
+                                </div>
+                                <small>{formatearDiaScore(point.day)}</small>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="intelligence-next">
+                      <span><strong>Próxima mejora:</strong> {intelligence.explanation.next_action}</span>
+                      <small>
+                        {intelligence.persistence.snapshot_persisted
+                          ? `Último cálculo persistido ${formatearFechaCalculo(intelligence.calculated_at)}`
+                          : "Cálculo disponible; el historial no pudo persistirse en esta carga."}
+                      </small>
+                    </div>
+                  </section>
+                )}'''
+          if old_section not in text:
+              raise SystemExit('Intelligence section not found')
+          text = text.replace(old_section, new_section, 1)
+
+          old_css = '''        .intelligence-card { margin: 22px 0; padding: 27px; border: 1px solid #dbeafe; border-radius: 28px; background: rgba(255,255,255,.92); box-shadow: 0 20px 60px rgba(37,99,235,.07); }
+                  .intelligence-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+                  .intelligence-heading h2 { margin:8px 0 0; color:#071226; font-size:26px; letter-spacing:-.035em; }
+                  .intelligence-heading p { margin:8px 0 0; color:#64748b; font-size:11px; }
+                  .intelligence-heading button { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 14px; border:0; border-radius:999px; background:#2563eb; color:white; font:800 9px inherit; cursor:pointer; }
+                  .dimension-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:22px; }
+                  .dimension-item { padding:14px; border-radius:16px; background:#f8fafc; }
+                  .dimension-item > div:first-child { display:flex; justify-content:space-between; gap:8px; color:#475569; font-size:9px; font-weight:800; }
+                  .dimension-item strong { color:#071226; font-size:15px; }
+                  .dimension-track { height:6px; margin-top:10px; overflow:hidden; border-radius:999px; background:#e2e8f0; }
+                  .dimension-track span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2563eb,#60a5fa); }
+                  .intelligence-next { margin:17px 0 0; padding:11px 13px; border-radius:13px; background:#eff6ff; color:#1d4ed8; font-size:10px; }
+                  @media(max-width:980px){ .dimension-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+                  @media(max-width:760px){ .intelligence-heading{flex-direction:column;} .intelligence-heading button{width:100%;justify-content:center;} .dimension-grid{grid-template-columns:1fr;} }'''
+          new_css = '''        .intelligence-card {
+                  margin: 22px 0;
+                  padding: 27px;
+                  border: 1px solid #dbeafe;
+                  border-radius: 28px;
+                  background: rgba(255,255,255,.92);
+                  box-shadow: 0 20px 60px rgba(37,99,235,.07);
+                }
+
+                .intelligence-heading {
+                  display: flex;
+                  align-items: flex-start;
+                  justify-content: space-between;
+                  gap: 20px;
+                }
+
+                .intelligence-title-block { min-width: 0; }
+                .intelligence-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+                .intelligence-heading h2 { margin: 0; color: #071226; font-size: 26px; letter-spacing: -.035em; }
+                .intelligence-heading p { margin: 8px 0 0; color: #64748b; font-size: 11px; line-height: 1.6; }
+                .intelligence-heading button {
+                  display: inline-flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 7px;
+                  min-height: 38px;
+                  padding: 0 14px;
+                  border: 0;
+                  border-radius: 999px;
+                  background: #2563eb;
+                  color: white;
+                  font-family: inherit;
+                  font-size: 9px;
+                  font-weight: 800;
+                  cursor: pointer;
+                }
+
+                .intelligence-trend-badge {
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 5px;
+                  min-height: 26px;
+                  padding: 0 9px;
+                  border-radius: 999px;
+                  font-size: 9px;
+                  font-weight: 850;
+                  white-space: nowrap;
+                }
+                .intelligence-trend-up { background: #ecfdf5; color: #15803d; }
+                .intelligence-trend-down { background: #fff1f2; color: #be123c; }
+                .intelligence-trend-stable { background: #f1f5f9; color: #475569; }
+                .intelligence-trend-new { background: #eff6ff; color: #1d4ed8; }
+
+                .dimension-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; margin-top: 22px; }
+                .dimension-item { padding: 14px; border-radius: 16px; background: #f8fafc; }
+                .dimension-item > div:first-child { display: flex; justify-content: space-between; gap: 8px; color: #475569; font-size: 9px; font-weight: 800; }
+                .dimension-item strong { color: #071226; font-size: 15px; }
+                .dimension-track { height: 6px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+                .dimension-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2563eb,#60a5fa); }
+
+                .intelligence-analysis-grid { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 14px; margin-top: 16px; }
+                .intelligence-trend-panel,
+                .intelligence-history-panel { min-width: 0; padding: 16px; border: 1px solid #e8eef8; border-radius: 18px; background: #fbfdff; }
+                .intelligence-panel-label { color: #64748b; font-size: 8px; font-weight: 850; letter-spacing: .08em; }
+                .intelligence-trend-panel p { margin: 8px 0 0; color: #334155; font-size: 10px; line-height: 1.6; }
+                .intelligence-drivers { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+                .intelligence-driver { padding: 6px 8px; border-radius: 999px; font-size: 8px; font-weight: 800; }
+                .intelligence-driver-positivo { background: #ecfdf5; color: #15803d; }
+                .intelligence-driver-negativo { background: #fff1f2; color: #be123c; }
+                .intelligence-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+                .intelligence-history-heading small { color: #94a3b8; font-size: 8px; }
+                .intelligence-history-bars { display: flex; align-items: stretch; gap: 5px; height: 126px; margin-top: 10px; overflow-x: auto; padding: 0 1px 2px; }
+                .intelligence-history-column { min-width: 24px; flex: 1 0 24px; display: grid; grid-template-rows: 18px 1fr 18px; align-items: end; text-align: center; }
+                .intelligence-history-value { color: #64748b; font-size: 8px; font-weight: 800; }
+                .intelligence-history-track { height: 78px; display: flex; align-items: flex-end; overflow: hidden; border-radius: 7px; background: #eef2f7; }
+                .intelligence-history-track span { display: block; width: 100%; min-height: 6px; border-radius: 7px; background: linear-gradient(180deg,#60a5fa,#2563eb); }
+                .intelligence-history-column small { color: #94a3b8; font-size: 7px; }
+
+                .intelligence-next {
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 16px;
+                  margin: 17px 0 0;
+                  padding: 11px 13px;
+                  border-radius: 13px;
+                  background: #eff6ff;
+                  color: #1d4ed8;
+                  font-size: 10px;
+                  line-height: 1.5;
+                }
+                .intelligence-next small { color: #64748b; font-size: 8px; text-align: right; }
+
+                @media(max-width:980px){
+                  .dimension-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+                  .intelligence-analysis-grid { grid-template-columns: 1fr; }
+                }
+                @media(max-width:760px){
+                  .intelligence-card { padding: 20px; border-radius: 22px; }
+                  .intelligence-heading { flex-direction: column; }
+                  .intelligence-heading button { width: 100%; }
+                  .dimension-grid { grid-template-columns: 1fr; }
+                  .intelligence-next { align-items: flex-start; flex-direction: column; }
+                  .intelligence-next small { text-align: left; }
+                }'''
+          if old_css not in text:
+              raise SystemExit('Intelligence CSS block not found')
+          text = text.replace(old_css, new_css, 1)
+
+          marker = '''function normalizarPorcentaje(value: number) {'''
+          helpers = '''function obtenerIconoTendencia(direction: IntelligenceTrendDirection) {
+            if (direction === "up") return "↑";
+            if (direction === "down") return "↓";
+            if (direction === "stable") return "→";
+            return "•";
+          }
+
+          function obtenerEtiquetaTendencia(trend: IntelligenceScore["trend"]) {
+            if (trend.direction === "new") return "Punto de partida";
+            if (trend.direction === "stable") return "Sin cambio";
+            return `${trend.delta > 0 ? "+" : ""}${trend.delta} pts`;
+          }
+
+          function formatearDiaScore(day: string) {
+            const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(day);
+            if (!match) return day;
+            return `${match[3]}/${match[2]}`;
+          }
+
+          function formatearFechaCalculo(value: string) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return "recientemente";
+            return new Intl.DateTimeFormat("es-PY", {
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(date);
+          }
+
+          ''' + marker
+          if marker not in text:
+              raise SystemExit('normalizarPorcentaje marker not found')
+          text = text.replace(marker, helpers, 1)
+          dashboard_path.write_text(text)
+
+          api_path = Path('app/api/eos-kpis/route.ts')
+          api = api_path.read_text()
+          replacements = [
+              (
+                  'supabase.from("eos_action_commands").select("estado").eq("usuario_id", user.id).limit(100),',
+                  'supabase.from("eos_action_commands").select("estado").eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100),',
+              ),
+              (
+                  'supabase.from("eos_decision_registry_v6").select("estado,result_count").eq("usuario_id", user.id).limit(100),',
+                  'supabase.from("eos_decision_registry_v6").select("estado,result_count").eq("usuario_id", user.id).order("created_at", { ascending: false }).limit(100),',
+              ),
+              (
+                  'supabase.from("eos_learnings").select("confianza,evidence_count,estado").eq("usuario_id", user.id).eq("estado", "activo").limit(100),',
+                  'supabase.from("eos_learnings").select("confianza,evidence_count,estado").eq("usuario_id", user.id).eq("estado", "activo").order("updated_at", { ascending: false }).limit(100),',
+              ),
+          ]
+          for old, new in replacements:
+              if old not in api:
+                  raise SystemExit(f'API sampling block not found: {old}')
+              api = api.replace(old, new, 1)
+          api_path.write_text(api)
+          PY
+
+      - name: Commit RC changes and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/eos-score-ui-temp.yml
+          git add app/eos/components/DashboardView.tsx app/api/eos-kpis/route.ts
+          git commit -m "feat(score): surface trend and history in dashboard"
+          git push origin HEAD:release/eos-4.0-rc1
