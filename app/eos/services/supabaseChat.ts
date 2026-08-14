@@ -1,5 +1,5 @@
 import { supabase } from "../../../lib/supabase";
-import type { Conversacion, Mensaje } from "../types/chat";
+import type { Conversacion, Mensaje, RolMensaje } from "../types/chat";
 
 export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
   const { data, error } = await supabase
@@ -34,7 +34,7 @@ export async function crearConversacion(usuarioId: string): Promise<Conversacion
 export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]> {
   const { data, error } = await supabase
     .from("mensajes")
-    .select("*")
+    .select("id,rol,texto,created_at,request_id,metadata")
     .eq("conversacion_id", conversacionId)
     .order("created_at", { ascending: true });
 
@@ -43,36 +43,68 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
     return [];
   }
 
-  return (data || []).map((m: any) => ({
-    rol: m.remitente === "usuario" || m.rol === "usuario" ? "usuario" : "eos",
-    texto: m.mensaje || m.texto || "",
-  }));
+  return (data || []).flatMap((item: any) => {
+    const rol = item.rol === "usuario" ? "usuario" : item.rol === "eos" ? "eos" : null;
+    const texto = typeof item.texto === "string" ? item.texto : "";
+
+    if (!rol || !texto) return [];
+
+    return [{
+      id: item.id,
+      rol,
+      texto,
+      request_id: item.request_id || null,
+      creado_en: item.created_at || undefined,
+      metadata:
+        item.metadata && typeof item.metadata === "object"
+          ? item.metadata
+          : {},
+    } satisfies Mensaje];
+  });
 }
 
-export async function guardarMensaje(
-  conversacionId: string,
-  remitente: "usuario" | "eos",
-  texto: string
-) {
-  if (!conversacionId || !texto.trim()) return;
+type GuardarMensajeParams = {
+  conversacionId: string;
+  requestId: string;
+  rol: RolMensaje;
+  texto: string;
+  reemplazarAnterior?: boolean;
+  metadata?: Record<string, unknown>;
+};
 
-  const { error } = await supabase.from("mensajes").insert([
-    {
+export async function guardarMensaje({
+  conversacionId,
+  requestId,
+  rol,
+  texto,
+  reemplazarAnterior = false,
+  metadata = {},
+}: GuardarMensajeParams) {
+  if (!conversacionId || !requestId || !texto.trim()) {
+    throw new Error("El turno de chat no tiene los datos requeridos.");
+  }
+
+  const response = await fetch("/api/chat/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       conversacion_id: conversacionId,
-      remitente,
-      mensaje: texto,
-    },
-  ]);
-
-  if (!error) return;
-
-  await supabase.from("mensajes").insert([
-    {
-      conversacion_id: conversacionId,
-      rol: remitente,
+      request_id: requestId,
+      rol,
       texto,
-    },
-  ]);
+      reemplazar_anterior: reemplazarAnterior,
+      metadata,
+    }),
+  });
+
+  if (response.ok) return;
+
+  const payload = await response.json().catch(() => null);
+  throw new Error(
+    typeof payload?.error === "string"
+      ? payload.error
+      : "No se pudo guardar el mensaje.",
+  );
 }
 
 export async function actualizarTituloConversacion(
