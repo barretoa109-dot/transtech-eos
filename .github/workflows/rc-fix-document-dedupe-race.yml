@@ -28,57 +28,13 @@ jobs:
 
           path = Path('app/api/documents/ingest/route.ts')
           text = path.read_text()
-          old = '''    if (insertError || !document) {
-      console.error("No se pudo registrar documento:", insertError);
-      await admin.storage.from("eos-documents").remove([storagePath]);
-      uploadedPaths.length = 0;
+          anchor = '      uploadedPaths.length = 0;\n\n      return NextResponse.json(\n        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },\n        { status: 500, headers: noStoreHeaders() },\n      );'
+          replacement = '      uploadedPaths.length = 0;\n\n      if (insertError?.code === "23505") {\n        const { data: concurrentDuplicate, error: concurrentDuplicateError } =\n          await admin\n            .from("eos_documents_v11")\n            .select(\n              "id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at",\n            )\n            .eq("usuario_id", user.id)\n            .eq("checksum_sha256", checksum)\n            .maybeSingle();\n\n        if (!concurrentDuplicateError && concurrentDuplicate) {\n          return NextResponse.json(\n            { ok: true, duplicate: true, document: concurrentDuplicate },\n            { headers: noStoreHeaders() },\n          );\n        }\n\n        if (concurrentDuplicateError) {\n          console.error(\n            "No se pudo recuperar duplicado documental concurrente:",\n            concurrentDuplicateError,\n          );\n        }\n      }\n\n      return NextResponse.json(\n        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },\n        { status: 500, headers: noStoreHeaders() },\n      );'
 
-      return NextResponse.json(
-        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },
-        { status: 500, headers: noStoreHeaders() },
-      );
-    }'''
-          new = '''    if (insertError || !document) {
-      console.error("No se pudo registrar documento:", insertError);
-      await admin.storage.from("eos-documents").remove([storagePath]);
-      uploadedPaths.length = 0;
-
-      if (insertError?.code === "23505") {
-        const { data: concurrentDuplicate, error: concurrentDuplicateError } =
-          await admin
-            .from("eos_documents_v11")
-            .select(
-              "id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at",
-            )
-            .eq("usuario_id", user.id)
-            .eq("checksum_sha256", checksum)
-            .maybeSingle();
-
-        if (!concurrentDuplicateError && concurrentDuplicate) {
-          return NextResponse.json(
-            { ok: true, duplicate: true, document: concurrentDuplicate },
-            { headers: noStoreHeaders() },
-          );
-        }
-
-        if (concurrentDuplicateError) {
-          console.error(
-            "No se pudo recuperar duplicado documental concurrente:",
-            concurrentDuplicateError,
-          );
-        }
-      }
-
-      return NextResponse.json(
-        { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },
-        { status: 500, headers: noStoreHeaders() },
-      );
-    }'''
-
-          count = text.count(old)
+          count = text.count(anchor)
           if count != 1:
-              raise SystemExit(f'Expected exactly one insert error block; found {count}')
-          path.write_text(text.replace(old, new, 1))
+              raise SystemExit(f'Expected exactly one insert error anchor; found {count}')
+          path.write_text(text.replace(anchor, replacement, 1))
           PY
 
           git diff --check
