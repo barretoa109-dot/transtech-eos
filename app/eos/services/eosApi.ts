@@ -48,6 +48,7 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
         accion: "RESPONDER",
         archivo_url: "",
         archivo_tipo: "",
+        archivo_nombre: "",
         metadata: {},
       };
     }
@@ -84,6 +85,16 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
       "",
   ).trim();
 
+  const archivoNombre = archivoUrl
+    ? String(
+        data?.archivo_nombre ||
+          data?.archivoNombre ||
+          data?.filename ||
+          data?.file_name ||
+          "",
+      ).trim()
+    : "";
+
   const respuesta = limpiarTexto(
     textoRespuestaOriginal
       .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
@@ -101,6 +112,7 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
     archivo_tipo: archivoUrl
       ? String(data?.archivo_tipo || data?.archivoTipo || "excel")
       : "",
+    archivo_nombre: archivoNombre,
     metadata:
       data?.metadata && typeof data.metadata === "object"
         ? data.metadata
