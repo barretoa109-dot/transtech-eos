@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -120,29 +121,36 @@ export async function GET() {
   const comparison = snapshots.find((item) => item.snapshot_day !== today && item.formula_version === FORMULA_VERSION) ?? null;
   const trend = buildTrend(score, dimensions, signals, comparison);
 
-  const { error: snapshotError } = await supabase
-    .from("eos_intelligence_score_snapshots_v10")
-    .upsert({
-      usuario_id: user.id,
-      snapshot_day: today,
-      score,
-      contexto: dimensions.contexto,
-      objetivos: dimensions.objetivos,
-      ejecucion: dimensions.ejecucion,
-      decisiones: dimensions.decisiones,
-      aprendizaje: dimensions.aprendizaje,
-      active_goals: signals.active_goals,
-      pending_alerts: signals.pending_alerts,
-      critical_alerts: signals.critical_alerts,
-      completed_actions: signals.completed_actions,
-      measured_decisions: signals.measured_decisions,
-      learning_evidence: signals.learning_evidence,
-      strongest_dimension: strongest[0],
-      weakest_dimension: weakest[0],
-      formula_version: FORMULA_VERSION,
-      calculated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "usuario_id,snapshot_day" });
+  let snapshotError: unknown = null;
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("eos_intelligence_score_snapshots_v10")
+      .upsert({
+        usuario_id: user.id,
+        snapshot_day: today,
+        score,
+        contexto: dimensions.contexto,
+        objetivos: dimensions.objetivos,
+        ejecucion: dimensions.ejecucion,
+        decisiones: dimensions.decisiones,
+        aprendizaje: dimensions.aprendizaje,
+        active_goals: signals.active_goals,
+        pending_alerts: signals.pending_alerts,
+        critical_alerts: signals.critical_alerts,
+        completed_actions: signals.completed_actions,
+        measured_decisions: signals.measured_decisions,
+        learning_evidence: signals.learning_evidence,
+        strongest_dimension: strongest[0],
+        weakest_dimension: weakest[0],
+        formula_version: FORMULA_VERSION,
+        calculated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "usuario_id,snapshot_day" });
+    snapshotError = error;
+  } catch (error) {
+    snapshotError = error;
+  }
 
   if (snapshotError) {
     console.error("No se pudo persistir el EOS Intelligence Score:", snapshotError);
@@ -180,6 +188,7 @@ export async function GET() {
     persistence: {
       snapshot_persisted: !snapshotError,
       history_loaded: !history.error,
+      writer: "server",
     },
     formula_version: FORMULA_VERSION,
     calculated_at: new Date().toISOString(),
