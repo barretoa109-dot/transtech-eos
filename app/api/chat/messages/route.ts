@@ -50,6 +50,62 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient() as any;
+    const metadata = {
+      source: "chat-persistence-v28",
+      replace_previous: replacePrevious,
+      ...messageMetadata,
+    };
+
+    const { error: insertError } = await admin.from("mensajes").insert({
+      usuario_id: user.id,
+      conversacion_id: conversationId,
+      request_id: requestId,
+      rol: role,
+      texto: text,
+      origen: "eos-web",
+      metadata,
+    });
+
+    if (insertError) {
+      if (insertError.code !== "23505") {
+        console.error("No se pudo persistir el turno de chat:", insertError);
+        return json({ error: "No se pudo guardar el mensaje." }, 500);
+      }
+
+      const { data: existing, error: existingError } = await admin
+        .from("mensajes")
+        .select("id,conversacion_id,texto")
+        .eq("usuario_id", user.id)
+        .eq("request_id", requestId)
+        .eq("rol", role)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("No se pudo verificar replay del turno de chat:", existingError);
+        return json({ error: "No se pudo verificar el mensaje existente." }, 500);
+      }
+
+      if (!existing || existing.conversacion_id !== conversationId || existing.texto !== text) {
+        return json(
+          {
+            error: "El request_id ya fue utilizado con un contenido diferente.",
+            code: "EOS_CHAT_REQUEST_CONFLICT",
+          },
+          409,
+        );
+      }
+
+      if (replacePrevious) {
+        await removePreviousResponses({
+          admin,
+          userId: user.id,
+          conversationId,
+          currentRequestId: requestId,
+        });
+      }
+
+      return json({ ok: true, idempotent: true }, 200);
+    }
 
     if (replacePrevious) {
       await removePreviousResponses({
@@ -60,26 +116,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const { error: insertError } = await admin.from("mensajes").insert({
-      usuario_id: user.id,
-      conversacion_id: conversationId,
-      request_id: requestId,
-      rol: role,
-      texto: text,
-      origen: "eos-web",
-      metadata: {
-        source: "chat-persistence-v28",
-        replace_previous: replacePrevious,
-        ...messageMetadata,
-      },
-    });
-
-    if (insertError) {
-      console.error("No se pudo persistir el turno de chat:", insertError);
-      return json({ error: "No se pudo guardar el mensaje." }, 500);
-    }
-
-    return json({ ok: true }, 200);
+    return json({ ok: true, idempotent: false }, 200);
   } catch (error) {
     console.error("Error persistiendo turno de chat:", error);
     return json({ error: "No se pudo guardar el mensaje." }, 500);
