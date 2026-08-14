@@ -419,6 +419,32 @@ export async function POST(request: Request) {
       await admin.storage.from("eos-documents").remove([storagePath]);
       uploadedPaths.length = 0;
 
+      if (insertError?.code === "23505") {
+        const { data: concurrentDuplicate, error: concurrentDuplicateError } =
+          await admin
+            .from("eos_documents_v11")
+            .select(
+              "id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at",
+            )
+            .eq("usuario_id", user.id)
+            .eq("checksum_sha256", checksum)
+            .maybeSingle();
+
+        if (!concurrentDuplicateError && concurrentDuplicate) {
+          return NextResponse.json(
+            { ok: true, duplicate: true, document: concurrentDuplicate },
+            { headers: noStoreHeaders() },
+          );
+        }
+
+        if (concurrentDuplicateError) {
+          console.error(
+            "No se pudo recuperar duplicado documental concurrente:",
+            concurrentDuplicateError,
+          );
+        }
+      }
+
       return NextResponse.json(
         { error: "El archivo se subió, pero no pudimos registrarlo en EOS." },
         { status: 500, headers: noStoreHeaders() },
