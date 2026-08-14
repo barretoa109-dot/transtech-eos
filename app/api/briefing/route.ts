@@ -35,7 +35,7 @@ export async function GET() {
       .limit(7),
     supabase
       .from("eos_master_context_v8")
-      .select("resumen_compacto,proxima_mejor_accion,alertas,objetivos,necesita_actualizacion,generado_at")
+      .select("resumen_compacto,estado_actual,proxima_mejor_accion,alertas,objetivos,necesita_actualizacion,generado_at")
       .eq("usuario_id", user.id)
       .maybeSingle(),
     supabase
@@ -78,6 +78,8 @@ export async function GET() {
 
   const briefings = briefingResult.data ?? [];
   const latest = briefings[0] ?? null;
+  const today = currentDateInParaguay();
+  const latestIsToday = latest?.briefing_date === today;
   const contextAvailable = !contextResult.error;
   const followupsAvailable = !followupsResult.error;
   const preferencesAvailable = !preferencesResult.error;
@@ -110,7 +112,7 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      briefing: latest,
+      briefing: latestIsToday ? latest : null,
       history: briefings,
       master_context: contextAvailable ? contextResult.data ?? null : null,
       attention: {
@@ -136,8 +138,7 @@ export async function GET() {
         followups: followupsAvailable,
         preferences: preferencesAvailable,
       },
-      is_stale:
-        latest?.briefing_date !== currentDateInParaguay(),
+      is_stale: !latestIsToday,
     },
     { headers: noStoreHeaders() },
   );
