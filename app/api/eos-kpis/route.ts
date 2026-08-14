@@ -271,8 +271,8 @@ function trendSummary(
   const direction = delta > 0 ? `subió ${delta} puntos` : delta < 0 ? `bajó ${Math.abs(delta)} puntos` : "se mantuvo estable";
   const main = drivers[0];
   if (!main) return `Tu EOS Intelligence Score ${direction} desde la última medición comparable.`;
-  const movement = main.delta > 0 ? `mejoró ${Math.abs(main.delta)}` : `cambió ${Math.abs(main.delta)}`;
-  return `Tu EOS Intelligence Score ${direction}. El principal factor fue ${main.label}, que ${movement}.`;
+  const movement = main.impact === "positivo" ? "ayudó al score" : "presionó el score a la baja";
+  return `Tu EOS Intelligence Score ${direction}. El principal factor fue ${main.label} (${main.delta > 0 ? "+" : ""}${main.delta}), que ${movement}.`;
 }
 
 function clamp(value: number) {
