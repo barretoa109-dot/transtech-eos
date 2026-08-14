@@ -153,7 +153,7 @@ export async function POST(request: Request) {
       razon_social: razonSocial,
     };
 
-    const { data, error } = await admin.rpc(
+    const { data, error } = await (admin as any).rpc(
       "eos_create_or_reuse_transfer_request_v47",
       {
         p_usuario_id: user.id,
