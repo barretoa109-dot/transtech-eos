@@ -52,18 +52,19 @@ type ActionDefinition = {
   description: string;
   riskTier: number;
   riskPoints: number;
+  maxLevel: number;
 };
 
 const ACTIONS: ActionDefinition[] = [
-  { accion: "RESPONDER", label: "Responder", description: "Responder dentro del chat.", riskTier: 0, riskPoints: 0 },
-  { accion: "VER_DASHBOARD", label: "Consultar dashboard", description: "Leer indicadores del Centro de Control.", riskTier: 0, riskPoints: 0 },
-  { accion: "VER_BRIEFING", label: "Consultar briefing", description: "Leer el briefing ejecutivo vigente.", riskTier: 0, riskPoints: 0 },
-  { accion: "GUARDAR_MEMORIA", label: "Guardar memoria", description: "Persistir información útil para futuras conversaciones.", riskTier: 1, riskPoints: 1 },
-  { accion: "GENERAR_EXCEL", label: "Generar Excel", description: "Preparar un archivo Excel solicitado.", riskTier: 1, riskPoints: 1 },
-  { accion: "GENERAR_PDF", label: "Generar PDF", description: "Preparar un documento PDF solicitado.", riskTier: 1, riskPoints: 1 },
-  { accion: "GENERAR_WORD", label: "Generar Word", description: "Preparar un documento Word solicitado.", riskTier: 1, riskPoints: 1 },
-  { accion: "CREAR_TAREA", label: "Crear tarea", description: "Crear una tarea operativa en EOS.", riskTier: 1, riskPoints: 2 },
-  { accion: "CREAR_OBJETIVO", label: "Crear objetivo", description: "Crear un objetivo vivo. Siempre requiere aprobación como mínimo.", riskTier: 2, riskPoints: 4 },
+  { accion: "RESPONDER", label: "Responder", description: "Responder dentro del chat.", riskTier: 0, riskPoints: 0, maxLevel: 3 },
+  { accion: "VER_DASHBOARD", label: "Consultar dashboard", description: "Leer indicadores del Centro de Control.", riskTier: 0, riskPoints: 0, maxLevel: 3 },
+  { accion: "VER_BRIEFING", label: "Consultar briefing", description: "Leer el briefing ejecutivo vigente.", riskTier: 0, riskPoints: 0, maxLevel: 3 },
+  { accion: "GUARDAR_MEMORIA", label: "Guardar memoria", description: "Persistir información útil para futuras conversaciones.", riskTier: 1, riskPoints: 1, maxLevel: 3 },
+  { accion: "GENERAR_EXCEL", label: "Generar Excel", description: "Preparar un archivo Excel solicitado.", riskTier: 1, riskPoints: 1, maxLevel: 3 },
+  { accion: "GENERAR_PDF", label: "Generar PDF", description: "Preparar un documento PDF solicitado.", riskTier: 1, riskPoints: 1, maxLevel: 3 },
+  { accion: "GENERAR_WORD", label: "Generar Word", description: "Preparar un documento Word solicitado.", riskTier: 1, riskPoints: 1, maxLevel: 3 },
+  { accion: "CREAR_TAREA", label: "Crear tarea", description: "Crear una tarea operativa en EOS.", riskTier: 1, riskPoints: 2, maxLevel: 3 },
+  { accion: "CREAR_OBJETIVO", label: "Crear objetivo", description: "Crear un objetivo vivo. Siempre requiere aprobación como mínimo.", riskTier: 2, riskPoints: 4, maxLevel: 2 },
 ];
 
 const LEVELS = [
@@ -128,8 +129,16 @@ export default function AutonomyView() {
     }
   }
 
-  async function setActionLevel(definition: ActionDefinition, level: number) {
+  async function saveActionRule(
+    definition: ActionDefinition,
+    changes: { level?: number; requireFreshContext?: boolean },
+  ) {
     const current = rulesByAction.get(definition.accion);
+    const requestedLevel = changes.level ?? current?.autonomy_level ?? data?.profile.default_level ?? 1;
+    const level = Math.min(requestedLevel, definition.maxLevel);
+    const requireFreshContext =
+      changes.requireFreshContext ?? current?.require_fresh_context ?? true;
+
     setSaving(true);
     setError("");
 
@@ -143,8 +152,8 @@ export default function AutonomyView() {
           risk_tier: Math.max(definition.riskTier, current?.risk_tier || 0),
           risk_points: Math.max(definition.riskPoints, current?.risk_points || 0),
           max_auto_per_day: current?.max_auto_per_day ?? null,
-          enabled: true,
-          require_fresh_context: current?.require_fresh_context ?? true,
+          enabled: current?.enabled ?? true,
+          require_fresh_context: requireFreshContext,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -343,24 +352,45 @@ export default function AutonomyView() {
         <div className="panel-heading">
           <div>
             <h2>Reglas por acción</h2>
-            <p>El riesgo mínimo de EOS no puede rebajarse desde esta pantalla.</p>
+            <p>El riesgo y el nivel máximo de sistema no pueden rebajarse desde esta pantalla.</p>
           </div>
         </div>
         <div className="rules-list">
           {ACTIONS.map((definition) => {
             const rule = rulesByAction.get(definition.accion);
-            const level = rule?.autonomy_level ?? profile.default_level;
-            const capped = definition.riskTier >= 2 && level > 2;
+            const configuredLevel = rule?.autonomy_level ?? profile.default_level;
+            const level = Math.min(configuredLevel, definition.maxLevel);
+            const requireFreshContext = rule?.require_fresh_context ?? true;
             return (
               <article className="rule-card" key={definition.accion}>
                 <div className="rule-copy">
                   <strong>{definition.label}</strong>
                   <p>{definition.description}</p>
-                  <small>Riesgo mínimo EOS: nivel {definition.riskTier} · {definition.riskPoints} pts{capped ? " · autoejecución bloqueada por sistema" : ""}</small>
+                  <small>
+                    Riesgo mínimo EOS: nivel {definition.riskTier} · {definition.riskPoints} pts
+                    {definition.maxLevel < 3 ? " · máximo permitido: Pedir aprobación" : ""}
+                  </small>
                 </div>
-                <select value={level} disabled={saving} onChange={(event) => void setActionLevel(definition, Number(event.target.value))}>
-                  {LEVELS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
+                <div className="rule-controls">
+                  <select
+                    value={level}
+                    disabled={saving}
+                    onChange={(event) => void saveActionRule(definition, { level: Number(event.target.value) })}
+                  >
+                    {LEVELS.filter((item) => item.value <= definition.maxLevel).map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                  <label className="fresh-context-toggle">
+                    <input
+                      type="checkbox"
+                      checked={requireFreshContext}
+                      disabled={saving}
+                      onChange={(event) => void saveActionRule(definition, { requireFreshContext: event.target.checked })}
+                    />
+                    <span>Exigir Contexto Maestro vigente</span>
+                  </label>
+                </div>
               </article>
             );
           })}
@@ -394,7 +424,10 @@ export default function AutonomyView() {
         .rule-copy strong, .approval-card strong { color: #f8fafc; font-size: 13px; }
         .rule-copy p, .approval-card p { margin-top: 4px; font-size: 11px; }
         .rule-copy small, .approval-card small { display: block; margin-top: 6px; color: #64748b; font-size: 9px; }
-        .rule-card select { width: 180px; flex-shrink: 0; }
+        .rule-controls { width: 230px; flex-shrink: 0; display: grid; gap: 9px; }
+        .rule-controls select { width: 100%; }
+        .fresh-context-toggle { display: flex; align-items: center; gap: 7px; color: #cbd5e1; font-size: 10px; line-height: 1.35; cursor: pointer; }
+        .fresh-context-toggle span { display: inline; margin: 0; color: #94a3b8; font-size: 9px; font-weight: 650; }
         .approval-actions { display: flex; gap: 8px; flex-shrink: 0; }
         .approval-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 10px; font-family: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
         .reject { border: 1px solid rgba(248,113,113,.28); background: rgba(127,29,29,.22); color: #fecaca; }
@@ -402,7 +435,7 @@ export default function AutonomyView() {
         .spin { animation: spin .8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 900px) { .summary-grid, .profile-controls { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-        @media (max-width: 620px) { .autonomy-view { padding: 24px 14px 50px; } .autonomy-header, .panel-heading, .rule-card, .approval-card { flex-direction: column; align-items: stretch; } .summary-grid, .profile-controls { grid-template-columns: 1fr; } .rule-card select { width: 100%; } .approval-actions button { flex: 1; justify-content: center; } }
+        @media (max-width: 620px) { .autonomy-view { padding: 24px 14px 50px; } .autonomy-header, .panel-heading, .rule-card, .approval-card { flex-direction: column; align-items: stretch; } .summary-grid, .profile-controls { grid-template-columns: 1fr; } .rule-controls { width: 100%; } .approval-actions button { flex: 1; justify-content: center; } }
       `}</style>
     </section>
   );
