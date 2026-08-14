@@ -34,6 +34,7 @@ type CrearPagoRpc = {
 };
 
 const PLANES_PAGOS = new Set(["personal", "pro", "business"]);
+const PERIODICIDADES_PAGO = new Set(["mensual", "anual"]);
 
 const CUENTA_DESTINO = {
   banco: "Banco Continental S.A.E.C.A.",
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => null)) as CrearPagoBody | null;
     const planCodigo = limpiarTexto(body?.plan, 40).toLowerCase();
-    const periodicidad = body?.periodicidad === "anual" ? "anual" : "mensual";
+    const periodicidadEntrada = limpiarTexto(body?.periodicidad, 20).toLowerCase();
 
     if (!PLANES_PAGOS.has(planCodigo)) {
       return NextResponse.json(
@@ -119,6 +120,14 @@ export async function POST(request: Request) {
       );
     }
 
+    if (periodicidadEntrada && !PERIODICIDADES_PAGO.has(periodicidadEntrada)) {
+      return NextResponse.json(
+        { error: "La periodicidad seleccionada no es válida." },
+        { status: 400 },
+      );
+    }
+
+    const periodicidad = periodicidadEntrada === "anual" ? "anual" : "mensual";
     const nombre = limpiarTexto(body?.nombre, 120);
     const email = limpiarTexto(body?.email, 180).toLowerCase();
     const telefono = limpiarTexto(body?.telefono, 40);
