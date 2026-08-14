@@ -190,12 +190,46 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: "Los datos cambiaron mientras EOS actualizaba el contexto. Volvé a intentarlo.",
+          code: "EOS_CONTEXT_SOURCE_CHANGED",
           retryable: true,
           request_id: requestId,
         },
         { status: 409, headers: HEADERS },
       );
     }
+
+    if (saveError.message?.includes("EOS_CONTEXT_REQUEST_CONFLICT")) {
+      console.warn(
+        "Contexto Maestro rechazó un request_id reutilizado con otro rebuild.",
+        { requestId },
+      );
+      return NextResponse.json(
+        {
+          error: "Este intento de actualización ya fue usado con datos diferentes. Iniciá una actualización nueva.",
+          code: "EOS_CONTEXT_REQUEST_CONFLICT",
+          retryable: false,
+          request_id: requestId,
+        },
+        { status: 409, headers: HEADERS },
+      );
+    }
+
+    if (saveError.message?.includes("EOS_CONTEXT_IDEMPOTENCY_SUPERSEDED")) {
+      console.warn(
+        "Contexto Maestro rechazó el replay de una reconstrucción ya supersedida.",
+        { requestId },
+      );
+      return NextResponse.json(
+        {
+          error: "Ese intento ya fue reemplazado por un contexto más reciente. Volvé a actualizar para usar el estado actual.",
+          code: "EOS_CONTEXT_IDEMPOTENCY_SUPERSEDED",
+          retryable: true,
+          request_id: requestId,
+        },
+        { status: 409, headers: HEADERS },
+      );
+    }
+
     return databaseError("guardar", saveError);
   }
 
