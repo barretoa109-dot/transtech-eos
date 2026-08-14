@@ -1,0 +1,70 @@
+name: RC1 Dependency Remediation Temp
+
+on:
+  push:
+    branches:
+      - release/eos-4.0-rc1
+    paths:
+      - .github/workflows/rc1-dependency-remediation-temp.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/eos-4.0-rc1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Move Capacitor CLI to dev and pin safe uuid
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const cli = pkg.dependencies?.['@capacitor/cli'];
+          if (!cli) throw new Error('@capacitor/cli missing from dependencies');
+          delete pkg.dependencies['@capacitor/cli'];
+          pkg.devDependencies = pkg.devDependencies || {};
+          pkg.devDependencies['@capacitor/cli'] = cli;
+          pkg.overrides = { ...(pkg.overrides || {}), uuid: '11.1.1' };
+          fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts
+          npm ci
+      - name: Dependency compatibility smoke
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const { v4, v5 } = require('uuid');
+          if (!v4() || !v5('eos', v5.URL)) throw new Error('uuid CJS compatibility failed');
+          require('xcode');
+          const ExcelJS = require('exceljs');
+          (async () => {
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Smoke');
+            ws.addRow(['EOS', 4]);
+            const buf = await wb.xlsx.writeBuffer();
+            if (!buf || buf.length < 1000) throw new Error('ExcelJS workbook smoke failed');
+            console.log('ExcelJS bytes', buf.length);
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+          npx cap --version
+          npm audit --omit=dev
+          npm run build
+      - name: Commit remediation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --check
+          git commit -m "security(deps): remediate residual uuid advisory [skip dep-remediation]"
+          git push origin HEAD:release/eos-4.0-rc1
