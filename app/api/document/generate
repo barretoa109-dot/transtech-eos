@@ -1,7 +1,7 @@
 // app/api/document/generate/route.ts
 
+import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +9,6 @@ export async function POST(req: Request) {
 
     const tipo = body.tipo || "excel";
     const rubro = body.rubro || "negocio";
-    const plantilla = body.plantilla || "business";
     const nombre = body.nombre || "usuario";
 
     if (tipo !== "excel") {
@@ -19,40 +18,33 @@ export async function POST(req: Request) {
       });
     }
 
-    const wb = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
 
-    const ventas = [
-      ["Fecha", "Producto", "Cantidad", "Precio unitario", "Total"],
-      ["2026-07-07", "Producto ejemplo", 1, 10000, { f: "C2*D2" }],
-    ];
+    const ventas = workbook.addWorksheet("Ventas diarias");
+    ventas.addRow(["Fecha", "Producto", "Cantidad", "Precio unitario", "Total"]);
+    ventas.addRow(["2026-07-07", "Producto ejemplo", 1, 10000]);
+    ventas.getCell("E2").value = { formula: "C2*D2" };
 
-    const inventario = [
-      ["Producto", "Stock inicial", "Entradas", "Salidas", "Stock final"],
-      ["Producto ejemplo", 10, 5, 2, { f: "B2+C2-D2" }],
-    ];
+    const inventario = workbook.addWorksheet("Inventario");
+    inventario.addRow(["Producto", "Stock inicial", "Entradas", "Salidas", "Stock final"]);
+    inventario.addRow(["Producto ejemplo", 10, 5, 2]);
+    inventario.getCell("E2").value = { formula: "B2+C2-D2" };
 
-    const costos = [
-      ["Ingrediente / Insumo", "Cantidad usada", "Costo unitario", "Costo total"],
-      ["Insumo ejemplo", 3, 5000, { f: "B2*C2" }],
-    ];
+    const costos = workbook.addWorksheet("Costos");
+    costos.addRow(["Ingrediente / Insumo", "Cantidad usada", "Costo unitario", "Costo total"]);
+    costos.addRow(["Insumo ejemplo", 3, 5000]);
+    costos.getCell("D2").value = { formula: "B2*C2" };
 
-    const resumen = [
-      ["Indicador", "Valor"],
-      ["Total ventas", { f: "'Ventas diarias'!E2" }],
-      ["Total costos", { f: "Costos!D2" }],
-      ["Margen bruto", { f: "B2-B3" }],
-    ];
+    const resumen = workbook.addWorksheet("Resumen mensual");
+    resumen.addRow(["Indicador", "Valor"]);
+    resumen.addRow(["Total ventas"]);
+    resumen.getCell("B2").value = { formula: "'Ventas diarias'!E2" };
+    resumen.addRow(["Total costos"]);
+    resumen.getCell("B3").value = { formula: "Costos!D2" };
+    resumen.addRow(["Margen bruto"]);
+    resumen.getCell("B4").value = { formula: "B2-B3" };
 
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ventas), "Ventas diarias");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inventario), "Inventario");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(costos), "Costos");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen mensual");
-
-    const buffer = XLSX.write(wb, {
-      type: "buffer",
-      bookType: "xlsx",
-    });
-
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
     const base64 = buffer.toString("base64");
 
     return NextResponse.json({
@@ -64,13 +56,13 @@ export async function POST(req: Request) {
       base64,
       mensaje: "Archivo Excel generado correctamente.",
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
         error: "No se pudo generar el documento.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
