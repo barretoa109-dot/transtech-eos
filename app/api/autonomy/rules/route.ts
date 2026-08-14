@@ -4,17 +4,23 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const ACTIONS = new Set([
-  "RESPONDER",
-  "GENERAR_EXCEL",
-  "GENERAR_PDF",
-  "GENERAR_WORD",
-  "CREAR_TAREA",
-  "CREAR_OBJETIVO",
-  "GUARDAR_MEMORIA",
-  "VER_DASHBOARD",
-  "VER_BRIEFING",
-]);
+type SystemPolicy = {
+  minRiskTier: number;
+  minRiskPoints: number;
+  maxLevel: number;
+};
+
+const SYSTEM_POLICY: Record<string, SystemPolicy> = {
+  RESPONDER: { minRiskTier: 0, minRiskPoints: 0, maxLevel: 3 },
+  VER_DASHBOARD: { minRiskTier: 0, minRiskPoints: 0, maxLevel: 3 },
+  VER_BRIEFING: { minRiskTier: 0, minRiskPoints: 0, maxLevel: 3 },
+  GUARDAR_MEMORIA: { minRiskTier: 1, minRiskPoints: 1, maxLevel: 3 },
+  GENERAR_EXCEL: { minRiskTier: 1, minRiskPoints: 1, maxLevel: 3 },
+  GENERAR_PDF: { minRiskTier: 1, minRiskPoints: 1, maxLevel: 3 },
+  GENERAR_WORD: { minRiskTier: 1, minRiskPoints: 1, maxLevel: 3 },
+  CREAR_TAREA: { minRiskTier: 1, minRiskPoints: 2, maxLevel: 3 },
+  CREAR_OBJETIVO: { minRiskTier: 2, minRiskPoints: 4, maxLevel: 2 },
+};
 
 function noStoreHeaders() {
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
@@ -48,6 +54,7 @@ export async function PUT(request: Request) {
 
   const body = await request.json().catch(() => null);
   const action = typeof body?.accion === "string" ? body.accion.trim() : "";
+  const systemPolicy = SYSTEM_POLICY[action];
   const autonomyLevel = integer(body?.autonomy_level, 0, 3);
   const riskTier = integer(body?.risk_tier, 0, 3);
   const riskPoints = integer(body?.risk_points, 0, 100);
@@ -62,7 +69,7 @@ export async function PUT(request: Request) {
       : null;
 
   if (
-    !ACTIONS.has(action) ||
+    !systemPolicy ||
     autonomyLevel === null ||
     riskTier === null ||
     riskPoints === null ||
@@ -74,6 +81,29 @@ export async function PUT(request: Request) {
   ) {
     return NextResponse.json(
       { error: "La regla de autonomía contiene valores inválidos." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  if (autonomyLevel > systemPolicy.maxLevel) {
+    return NextResponse.json(
+      {
+        error: "El nivel solicitado supera el máximo permitido por EOS para esta acción.",
+        code: "EOS_AUTONOMY_LEVEL_EXCEEDS_SYSTEM_MAX",
+      },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  if (
+    riskTier < systemPolicy.minRiskTier ||
+    riskPoints < systemPolicy.minRiskPoints
+  ) {
+    return NextResponse.json(
+      {
+        error: "El riesgo configurado no puede rebajar el mínimo de seguridad de EOS.",
+        code: "EOS_AUTONOMY_RISK_BELOW_SYSTEM_MIN",
+      },
       { status: 400, headers: noStoreHeaders() },
     );
   }
@@ -122,7 +152,7 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = (searchParams.get("accion") || "").trim();
 
-  if (!ACTIONS.has(action)) {
+  if (!SYSTEM_POLICY[action]) {
     return NextResponse.json(
       { error: "Acción inválida." },
       { status: 400, headers: noStoreHeaders() },
