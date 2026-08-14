@@ -188,7 +188,7 @@ export async function POST(request: Request) {
       solicitud_id: resultado.solicitud_id || solicitudId,
       plan_codigo: resultado.plan_codigo || null,
       renovacion_mismo_plan: resultado.same_plan_renewal === true,
-      dias_acreditados: resultado.credited_days || null,
+      dias_acreditados: resultado.credited_days ?? null,
     });
   } catch (error) {
     console.error("Error procesando pago:", error);
