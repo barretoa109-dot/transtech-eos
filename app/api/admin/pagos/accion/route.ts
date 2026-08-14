@@ -10,6 +10,23 @@ type AccionBody = {
   accion?: "aprobar" | "rechazar";
 };
 
+type ErrorRpc = {
+  code?: unknown;
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+};
+
+type ProcesarPagoRpc = {
+  ok?: boolean;
+  status?: string;
+  idempotent?: boolean;
+  solicitud_id?: string;
+  plan_codigo?: string;
+  same_plan_renewal?: boolean;
+  credited_days?: number;
+};
+
 function correosAdministradores() {
   return (process.env.ADMIN_EMAILS || "")
     .split(",")
@@ -39,6 +56,75 @@ async function validarAdministrador() {
   return user;
 }
 
+function textoErrorRpc(error: unknown) {
+  if (!error || typeof error !== "object") return "";
+
+  const detalle = error as ErrorRpc;
+
+  return [detalle.code, detalle.message, detalle.details, detalle.hint]
+    .filter((valor): valor is string => typeof valor === "string")
+    .join(" ");
+}
+
+function respuestaErrorRpc(error: unknown) {
+  const texto = textoErrorRpc(error);
+
+  if (texto.includes("EOS_PAYMENT_REQUEST_NOT_FOUND")) {
+    return NextResponse.json(
+      { error: "No encontramos la solicitud indicada." },
+      { status: 404 },
+    );
+  }
+
+  if (texto.includes("EOS_PAYMENT_REFERENCE_CONFLICT")) {
+    return NextResponse.json(
+      {
+        error:
+          "La referencia de esta transferencia ya está asociada a otra solicitud.",
+      },
+      { status: 409 },
+    );
+  }
+
+  if (
+    texto.includes("EOS_PAYMENT_TERMINAL_CONFLICT") ||
+    texto.includes("EOS_PAYMENT_NOT_REVIEWABLE")
+  ) {
+    return NextResponse.json(
+      { error: "La solicitud ya fue procesada o no está en revisión." },
+      { status: 409 },
+    );
+  }
+
+  if (texto.includes("EOS_PAYMENT_PROVIDER_INVALID")) {
+    return NextResponse.json(
+      { error: "La solicitud no corresponde a una transferencia válida." },
+      { status: 409 },
+    );
+  }
+
+  if (texto.includes("EOS_PAYMENT_PERIOD_INVALID")) {
+    return NextResponse.json(
+      { error: "La periodicidad del pago no es válida." },
+      { status: 409 },
+    );
+  }
+
+  if (texto.includes("EOS_PAYMENT_USER_NOT_FOUND")) {
+    return NextResponse.json(
+      { error: "No encontramos el usuario asociado a esta solicitud." },
+      { status: 409 },
+    );
+  }
+
+  console.error("Error RPC procesando pago manual:", error);
+
+  return NextResponse.json(
+    { error: "No se pudo procesar el pago." },
+    { status: 500 },
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const administrador = await validarAdministrador();
@@ -50,9 +136,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as AccionBody;
-    const solicitudId = String(body.solicitud_id || "").trim();
-    const accion = body.accion;
+    const body = (await request.json().catch(() => null)) as AccionBody | null;
+    const solicitudId = String(body?.solicitud_id || "").trim();
+    const accion = body?.accion;
 
     if (!solicitudId || !["aprobar", "rechazar"].includes(accion || "")) {
       return NextResponse.json(
@@ -61,158 +147,51 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin: any = createAdminClient();
+    const adminEmail = administrador.email?.trim().toLowerCase() || "";
 
-    const { data: solicitud, error: solicitudError } = await admin
-      .from("solicitudes_pago")
-      .select("*")
-      .eq("id", solicitudId)
-      .eq("proveedor", "transferencia")
-      .maybeSingle();
-
-    if (solicitudError || !solicitud) {
+    if (!adminEmail) {
       return NextResponse.json(
-        { error: "No encontramos la solicitud indicada." },
-        { status: 404 },
+        { error: "No tenés permiso para realizar esta acción." },
+        { status: 403 },
       );
     }
 
-    if (solicitud.estado !== "en_revision") {
-      return NextResponse.json(
-        {
-          error:
-            "La solicitud ya fue procesada o no se encuentra en revisión.",
-        },
-        { status: 409 },
-      );
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("eos_process_manual_payment_v42", {
+      p_solicitud_id: solicitudId,
+      p_action: accion,
+      p_admin_email: adminEmail,
+    });
+
+    if (error) {
+      return respuestaErrorRpc(error);
     }
 
-    if (accion === "rechazar") {
-      const { error: rechazoError } = await admin
-        .from("solicitudes_pago")
-        .update({
-          estado: "rechazado",
-          updated_at: new Date().toISOString(),
-          metadata: {
-            ...(solicitud.metadata || {}),
-            revision_manual: {
-              accion: "rechazado",
-              administrador_id: administrador.id,
-              administrador_email: administrador.email,
-              fecha: new Date().toISOString(),
-            },
-          },
-        })
-        .eq("id", solicitud.id)
-        .eq("estado", "en_revision");
+    const resultado = (data || {}) as ProcesarPagoRpc;
 
-      if (rechazoError) {
-        throw rechazoError;
-      }
-
-      return NextResponse.json({
-        ok: true,
-        estado: "rechazado",
-      });
-    }
-
-    const duracionDias = solicitud.periodicidad === "anual" ? 365 : 30;
-
-    const { data: asignacion, error: asignacionError } = await admin.rpc(
-      "asignar_plan_eos",
-      {
-        p_usuario_id: solicitud.usuario_id,
-        p_plan_codigo: solicitud.plan_codigo,
-        p_duracion_dias: duracionDias,
-      },
-    );
-
-    if (asignacionError) {
-      console.error("No se pudo activar el plan:", asignacionError);
+    if (resultado.ok !== true || !resultado.status) {
+      console.error("RPC de pago manual devolvió un resultado inesperado:", data);
 
       return NextResponse.json(
-        {
-          error:
-            "El comprobante fue aceptado, pero no se pudo activar el plan.",
-        },
+        { error: "No se pudo confirmar el procesamiento del pago." },
         { status: 500 },
-      );
-    }
-
-    const pagadoAt = new Date().toISOString();
-
-    const { error: updateError } = await admin
-      .from("solicitudes_pago")
-      .update({
-        estado: "pagado",
-        pagado_at: pagadoAt,
-        updated_at: pagadoAt,
-        metadata: {
-          ...(solicitud.metadata || {}),
-          revision_manual: {
-            accion: "aprobado",
-            administrador_id: administrador.id,
-            administrador_email: administrador.email,
-            fecha: pagadoAt,
-          },
-          asignacion_plan: asignacion,
-        },
-      })
-      .eq("id", solicitud.id)
-      .eq("estado", "en_revision");
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    const referenciaExterna = solicitud.referencia_interna;
-
-    const { error: historialError } = await admin
-      .from("historial_pagos")
-      .upsert(
-        {
-          solicitud_pago_id: solicitud.id,
-          usuario_id: solicitud.usuario_id,
-          plan_codigo: solicitud.plan_codigo,
-          periodicidad: solicitud.periodicidad,
-          monto: solicitud.monto,
-          moneda: solicitud.moneda,
-          proveedor: "transferencia",
-          referencia_externa: referenciaExterna,
-          estado: "pagado",
-          pagado_at: pagadoAt,
-          metadata: {
-            revision_manual: true,
-            administrador_email: administrador.email,
-          },
-        },
-        {
-          onConflict: "proveedor,referencia_externa",
-          ignoreDuplicates: false,
-        },
-      );
-
-    if (historialError) {
-      console.error(
-        "El plan se activó pero no se guardó el historial:",
-        historialError,
       );
     }
 
     return NextResponse.json({
       ok: true,
-      estado: "pagado",
+      estado: resultado.status,
+      idempotente: resultado.idempotent === true,
+      solicitud_id: resultado.solicitud_id || solicitudId,
+      plan_codigo: resultado.plan_codigo || null,
+      renovacion_mismo_plan: resultado.same_plan_renewal === true,
+      dias_acreditados: resultado.credited_days || null,
     });
   } catch (error) {
     console.error("Error procesando pago:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo procesar el pago.",
-      },
+      { error: "No se pudo procesar el pago." },
       { status: 500 },
     );
   }
