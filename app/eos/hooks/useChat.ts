@@ -196,7 +196,10 @@ export function useChat({
         const metadataEOS = metadataRespuesta(resultadoEOS, metadataTurno);
         const mensajeEOS: Mensaje = {
           id: crearIdMensaje("eos"),
-          request_id: requestId,
+          request_id:
+            reemplazarUltimaRespuesta && reemplazarRequestId
+              ? reemplazarRequestId
+              : requestId,
           rol: "eos",
           texto: textoEOS,
           estado: "completado",
