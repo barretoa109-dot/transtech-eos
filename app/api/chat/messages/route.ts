@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     const role = VALID_ROLES.has(body?.rol) ? body.rol : "";
     const text = cleanText(body?.texto, 16_000);
     const replacePrevious = body?.reemplazar_anterior === true && role === "eos";
+    const attachmentMetadata = cleanAttachmentMetadata(body?.metadata);
 
     if (!conversationId || !requestId || !role || !text) {
       return json({ error: "El mensaje no es válido." }, 400);
@@ -52,7 +53,6 @@ export async function POST(request: Request) {
 
     if (replacePrevious) {
       await removePreviousResponses({
-        supabase,
         admin,
         userId: user.id,
         conversationId,
@@ -70,6 +70,7 @@ export async function POST(request: Request) {
       metadata: {
         source: "chat-persistence-v28",
         replace_previous: replacePrevious,
+        ...attachmentMetadata,
       },
     });
 
@@ -86,19 +87,17 @@ export async function POST(request: Request) {
 }
 
 async function removePreviousResponses({
-  supabase,
   admin,
   userId,
   conversationId,
   currentRequestId,
 }: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
   admin: ReturnType<typeof createAdminClient>;
   userId: string;
   conversationId: string;
   currentRequestId: string;
 }) {
-  const { data: latestUserMessage, error: latestUserError } = await supabase
+  const { data: latestUserMessage, error: latestUserError } = await admin
     .from("mensajes")
     .select("id,created_at")
     .eq("usuario_id", userId)
@@ -147,6 +146,23 @@ async function removePreviousResponses({
   if (deleteError) {
     console.error("No se pudieron reemplazar respuestas anteriores:", deleteError);
   }
+}
+
+function cleanAttachmentMetadata(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const documentoId = isUuid(record.documento_id) ? record.documento_id : null;
+  const documentoNombre = cleanText(record.documento_nombre, 240);
+  const imagenNombre = cleanText(record.imagen_nombre, 240);
+
+  return {
+    ...(documentoId ? { documento_id: documentoId } : {}),
+    ...(documentoNombre ? { documento_nombre: documentoNombre } : {}),
+    ...(imagenNombre ? { imagen_nombre: imagenNombre } : {}),
+  };
 }
 
 function isUuid(value: unknown): value is string {
