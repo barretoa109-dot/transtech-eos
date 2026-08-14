@@ -39,7 +39,7 @@ const EXCEL_MIME_TYPES = new Set([XLS_MIME_TYPE, XLSX_MIME_TYPE]);
 
 type ExtractionResult = {
   text: string;
-  status: "ready" | "partial" | "unsupported";
+  status: "ready" | "partial" | "unsupported" | "error";
   language: string | null;
   metadata: Record<string, unknown>;
 };
@@ -343,7 +343,7 @@ export async function POST(request: Request) {
       console.error("No se pudo extraer el documento:", extractionError);
       extraction = {
         text: "",
-        status: "partial",
+        status: "error",
         language: null,
         metadata: {
           extractor: "error",
