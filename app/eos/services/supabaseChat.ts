@@ -49,16 +49,23 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
 
     if (!rol || !texto) return [];
 
+    const metadata =
+      item.metadata && typeof item.metadata === "object"
+        ? (item.metadata as Record<string, unknown>)
+        : {};
+
     return [{
       id: item.id,
       rol,
       texto,
       request_id: item.request_id || null,
       creado_en: item.created_at || undefined,
-      metadata:
-        item.metadata && typeof item.metadata === "object"
-          ? item.metadata
-          : {},
+      metadata,
+      archivo_url: stringMetadata(metadata, "archivo_url"),
+      archivo_tipo: stringMetadata(metadata, "archivo_tipo"),
+      archivo_nombre: stringMetadata(metadata, "archivo_nombre"),
+      tipo: stringMetadata(metadata, "tipo") || "texto",
+      accion: stringMetadata(metadata, "accion") || "RESPONDER",
     } satisfies Mensaje];
   });
 }
@@ -154,4 +161,8 @@ export async function actualizarTituloConversacion(
   await supabase.from("conversaciones").update({ titulo }).eq("id", conversacionId);
 
   return titulo;
+}
+
+function stringMetadata(metadata: Record<string, unknown>, key: string) {
+  return typeof metadata[key] === "string" ? (metadata[key] as string) : "";
 }
