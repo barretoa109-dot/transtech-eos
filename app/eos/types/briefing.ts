@@ -57,6 +57,11 @@ export type BriefingApiResponse = {
   is_stale: boolean;
   master_context?: {
     resumen_compacto?: string;
+    estado_actual?: {
+      resumen?: string;
+      prioridad?: string;
+      score?: number;
+    };
     proxima_mejor_accion?: { titulo?: string; razon?: string };
     alertas?: Array<{ titulo?: string; mensaje?: string; severidad?: string }>;
     objetivos?: Array<{ titulo?: string; progreso?: number; proximo_paso?: string }>;
