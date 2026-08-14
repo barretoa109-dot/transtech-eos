@@ -248,7 +248,7 @@ export default function DashboardView({
               <p className="intelligence-next"><strong>Próxima mejora:</strong> {intelligence.explanation.next_action}</p>
               <span className="intelligence-calculated">
                 {intelligence.persistence.snapshot_persisted ? "Snapshot guardado" : "Cálculo no persistido"}
-                {intelligence.calculated_at ? ` · ${new Date(intelligence.calculated_at).toLocaleString("es-PY", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                {intelligence.calculated_at ? ` · ${new Date(intelligence.calculated_at).toLocaleString("es-PY", { dateStyle: "short", timeStyle: "short", timeZone: "America/Asuncion" })}` : ""}
               </span>
             </div>
           </section>
