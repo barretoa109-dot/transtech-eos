@@ -84,20 +84,56 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  const decisionTime = new Date().toISOString();
   const { data, error } = await supabase
     .from("eos_action_approvals_v12")
     .update({ status })
     .eq("id", id)
     .eq("usuario_id", user.id)
     .eq("status", "pending")
+    .gt("expires_at", decisionTime)
     .select("id,request_id,accion,status,risk_tier,risk_points,effective_level,expires_at,decided_at")
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error("No se pudo resolver aprobación EOS:", error);
     return NextResponse.json(
       { error: "No pudimos registrar tu decisión." },
       { status: 500, headers: noStoreHeaders() },
+    );
+  }
+
+  if (!data) {
+    const { data: latest, error: latestError } = await supabase
+      .from("eos_action_approvals_v12")
+      .select("id,request_id,accion,status,risk_tier,risk_points,effective_level,expires_at,decided_at")
+      .eq("id", id)
+      .eq("usuario_id", user.id)
+      .maybeSingle();
+
+    if (latestError) {
+      console.error("No se pudo reconciliar aprobación EOS:", latestError);
+      return NextResponse.json(
+        { error: "No pudimos confirmar el estado final de la solicitud." },
+        { status: 503, headers: noStoreHeaders() },
+      );
+    }
+
+    if (!latest) {
+      return NextResponse.json(
+        { error: "Solicitud no encontrada." },
+        { status: 404, headers: noStoreHeaders() },
+      );
+    }
+
+    const expired = new Date(latest.expires_at).getTime() <= Date.now();
+    return NextResponse.json(
+      {
+        error: expired ? "La solicitud ya venció." : "La solicitud ya fue resuelta.",
+        code: expired ? "EOS_APPROVAL_EXPIRED" : "EOS_APPROVAL_ALREADY_DECIDED",
+        approval: latest,
+      },
+      { status: 409, headers: noStoreHeaders() },
     );
   }
 
