@@ -27,10 +27,34 @@ export async function POST(request: Request) {
     const role = VALID_ROLES.has(body?.rol) ? body.rol : "";
     const text = cleanText(body?.texto, 16_000);
     const replacePrevious = body?.reemplazar_anterior === true && role === "eos";
+    const replaceRequestId =
+      replacePrevious && isUuid(body?.replace_request_id)
+        ? body.replace_request_id
+        : "";
     const messageMetadata = cleanMessageMetadata(body?.metadata);
 
     if (!conversationId || !requestId || !role || !text) {
       return json({ error: "El mensaje no es válido." }, 400);
+    }
+
+    if (replacePrevious && !replaceRequestId) {
+      return json(
+        {
+          error: "La regeneración no tiene un turno original válido.",
+          code: "EOS_CHAT_REGENERATION_TARGET_REQUIRED",
+        },
+        400,
+      );
+    }
+
+    if (replacePrevious && replaceRequestId === requestId) {
+      return json(
+        {
+          error: "La regeneración no puede reemplazarse a sí misma.",
+          code: "EOS_CHAT_REGENERATION_TARGET_INVALID",
+        },
+        400,
+      );
     }
 
     const { data: conversation, error: conversationError } = await supabase
@@ -50,9 +74,43 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient() as any;
+
+    if (replacePrevious) {
+      const { data: targetUserMessage, error: targetUserError } = await admin
+        .from("mensajes")
+        .select("id")
+        .eq("usuario_id", user.id)
+        .eq("conversacion_id", conversationId)
+        .eq("request_id", replaceRequestId)
+        .eq("rol", "usuario")
+        .maybeSingle();
+
+      if (targetUserError) {
+        console.error(
+          "No se pudo validar el turno original de regeneración:",
+          targetUserError,
+        );
+        return json(
+          { error: "No se pudo validar el turno que querés regenerar." },
+          500,
+        );
+      }
+
+      if (!targetUserMessage) {
+        return json(
+          {
+            error: "El turno original ya no está disponible para regenerar.",
+            code: "EOS_CHAT_REGENERATION_TARGET_NOT_FOUND",
+          },
+          409,
+        );
+      }
+    }
+
     const metadata = {
-      source: "chat-persistence-v28",
+      source: "chat-persistence-v29",
       replace_previous: replacePrevious,
+      ...(replaceRequestId ? { replace_request_id: replaceRequestId } : {}),
       ...messageMetadata,
     };
 
@@ -74,7 +132,7 @@ export async function POST(request: Request) {
 
       const { data: existing, error: existingError } = await admin
         .from("mensajes")
-        .select("id,conversacion_id,texto")
+        .select("id,conversacion_id,texto,metadata")
         .eq("usuario_id", user.id)
         .eq("request_id", requestId)
         .eq("rol", role)
@@ -85,7 +143,17 @@ export async function POST(request: Request) {
         return json({ error: "No se pudo verificar el mensaje existente." }, 500);
       }
 
-      if (!existing || existing.conversacion_id !== conversationId || existing.texto !== text) {
+      if (
+        !existing ||
+        existing.conversacion_id !== conversationId ||
+        existing.texto !== text ||
+        !replayMetadataMatches({
+          existingMetadata: existing.metadata,
+          messageMetadata,
+          replacePrevious,
+          replaceRequestId,
+        })
+      ) {
         return json(
           {
             error: "El request_id ya fue utilizado con un contenido diferente.",
@@ -96,11 +164,11 @@ export async function POST(request: Request) {
       }
 
       if (replacePrevious) {
-        await removePreviousResponses({
+        await removePreviousResponseByRequestId({
           admin,
           userId: user.id,
           conversationId,
-          currentRequestId: requestId,
+          replaceRequestId,
         });
       }
 
@@ -108,11 +176,11 @@ export async function POST(request: Request) {
     }
 
     if (replacePrevious) {
-      await removePreviousResponses({
+      await removePreviousResponseByRequestId({
         admin,
         userId: user.id,
         conversationId,
-        currentRequestId: requestId,
+        replaceRequestId,
       });
     }
 
@@ -123,66 +191,56 @@ export async function POST(request: Request) {
   }
 }
 
-async function removePreviousResponses({
+async function removePreviousResponseByRequestId({
   admin,
   userId,
   conversationId,
-  currentRequestId,
+  replaceRequestId,
 }: {
   admin: any;
   userId: string;
   conversationId: string;
-  currentRequestId: string;
+  replaceRequestId: string;
 }) {
-  const { data: latestUserMessage, error: latestUserError } = await admin
-    .from("mensajes")
-    .select("id,created_at")
-    .eq("usuario_id", userId)
-    .eq("conversacion_id", conversationId)
-    .eq("rol", "usuario")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestUserError) {
-    console.error("No se pudo localizar el último turno del usuario:", latestUserError);
-    return;
-  }
-
-  if (!latestUserMessage?.created_at) return;
-
-  const { data: responseCandidates, error: candidatesError } = await admin
-    .from("mensajes")
-    .select("id,request_id,created_at")
-    .eq("usuario_id", userId)
-    .eq("conversacion_id", conversationId)
-    .eq("rol", "eos")
-    .gt("created_at", latestUserMessage.created_at)
-    .order("created_at", { ascending: false })
-    .limit(12);
-
-  if (candidatesError) {
-    console.error("No se pudieron localizar respuestas anteriores:", candidatesError);
-    return;
-  }
-
-  const previousIds = (responseCandidates || [])
-    .filter((item: any) => item.request_id !== currentRequestId)
-    .map((item: any) => item.id)
-    .filter(Boolean);
-
-  if (previousIds.length === 0) return;
-
   const { error: deleteError } = await admin
     .from("mensajes")
     .delete()
     .eq("usuario_id", userId)
     .eq("conversacion_id", conversationId)
-    .in("id", previousIds);
+    .eq("request_id", replaceRequestId)
+    .eq("rol", "eos");
 
   if (deleteError) {
-    console.error("No se pudieron reemplazar respuestas anteriores:", deleteError);
+    console.error("No se pudo reemplazar la respuesta anterior:", deleteError);
   }
+}
+
+function replayMetadataMatches({
+  existingMetadata,
+  messageMetadata,
+  replacePrevious,
+  replaceRequestId,
+}: {
+  existingMetadata: unknown;
+  messageMetadata: Record<string, unknown>;
+  replacePrevious: boolean;
+  replaceRequestId: string;
+}) {
+  const existingRecord =
+    existingMetadata && typeof existingMetadata === "object"
+      ? (existingMetadata as Record<string, unknown>)
+      : {};
+  const existingReplacePrevious = existingRecord.replace_previous === true;
+  const existingReplaceRequestId = isUuid(existingRecord.replace_request_id)
+    ? existingRecord.replace_request_id
+    : "";
+  const existingMessageMetadata = cleanMessageMetadata(existingRecord);
+
+  return (
+    existingReplacePrevious === replacePrevious &&
+    existingReplaceRequestId === replaceRequestId &&
+    JSON.stringify(existingMessageMetadata) === JSON.stringify(messageMetadata)
+  );
 }
 
 function cleanMessageMetadata(value: unknown) {
