@@ -34,10 +34,14 @@ function crearIdMensaje(prefijo: string) {
   return `${prefijo}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function obtenerUltimoMensajeUsuario(mensajes: Mensaje[]): Mensaje | null {
+function crearRequestId() {
+  return crypto.randomUUID();
+}
+
+function obtenerUltimoMensajeUsuario(mensajes: Mensaje[]) {
   for (let index = mensajes.length - 1; index >= 0; index -= 1) {
     if (mensajes[index]?.rol === "usuario") {
-      return mensajes[index];
+      return { mensaje: mensajes[index], index };
     }
   }
 
@@ -51,10 +55,44 @@ function limpiarReferenciasAdjuntas(texto: string) {
     .trim();
 }
 
+function metadataAdjuntos(
+  imagen: ImagenAdjunta | null,
+  documento: DocumentoAdjunto | null,
+): Record<string, unknown> {
+  return {
+    ...(imagen?.nombre ? { imagen_nombre: imagen.nombre } : {}),
+    ...(documento?.id ? { documento_id: documento.id } : {}),
+    ...(documento?.nombre ? { documento_nombre: documento.nombre } : {}),
+  };
+}
+
+function metadataRespuesta(
+  resultado: Awaited<ReturnType<typeof enviarMensajeAEOS>>,
+  adjuntos: Record<string, unknown>,
+) {
+  return {
+    ...adjuntos,
+    ...(resultado.archivo_url ? { archivo_url: resultado.archivo_url } : {}),
+    ...(resultado.archivo_tipo ? { archivo_tipo: resultado.archivo_tipo } : {}),
+    ...(resultado.archivo_nombre ? { archivo_nombre: resultado.archivo_nombre } : {}),
+    ...(resultado.tipo ? { tipo: resultado.tipo } : {}),
+    ...(resultado.accion ? { accion: resultado.accion } : {}),
+  };
+}
+
+function stringMetadata(
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+) {
+  return typeof metadata?.[key] === "string" ? (metadata[key] as string) : "";
+}
+
+function esUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export function useChat({
   usuarioId,
-  nombre,
-  plan,
   conversacionId,
   historial,
   setHistorial,
@@ -72,19 +110,25 @@ export function useChat({
 
   const ejecutarEOS = useCallback(
     async ({
+      requestId,
       textoUsuario,
+      textoUsuarioPersistido,
       conversacionActiva,
       historialParaContexto,
       imagen,
-      documento,
+      documentoId,
+      metadataTurno,
       guardarUsuario,
       reemplazarUltimaRespuesta,
     }: {
+      requestId: string;
       textoUsuario: string;
+      textoUsuarioPersistido: string;
       conversacionActiva: string;
       historialParaContexto: Mensaje[];
       imagen: ImagenAdjunta | null;
-      documento: DocumentoAdjunto | null;
+      documentoId: string | null;
+      metadataTurno: Record<string, unknown>;
       guardarUsuario: boolean;
       reemplazarUltimaRespuesta: boolean;
     }) => {
@@ -93,24 +137,32 @@ export function useChat({
 
       try {
         if (guardarUsuario) {
-          await guardarMensaje(conversacionActiva, "usuario", textoUsuario);
+          await guardarMensaje({
+            conversacionId: conversacionActiva,
+            requestId,
+            rol: "usuario",
+            texto: textoUsuarioPersistido,
+            metadata: metadataTurno,
+          });
 
-          await actualizarTituloSiHaceFalta(
-            conversacionActiva,
-            textoUsuario,
-          );
+          try {
+            await actualizarTituloSiHaceFalta(
+              conversacionActiva,
+              textoUsuario,
+            );
+          } catch (titleError) {
+            console.error("No se pudo actualizar el título del chat:", titleError);
+          }
         }
 
         const resultadoEOS = await enviarMensajeAEOS({
-          usuarioId,
+          requestId,
           conversacionId: conversacionActiva,
-          nombre,
-          plan,
           mensaje: textoUsuario,
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
           imagen,
-          documentoId: documento?.id || null,
+          documentoId,
         });
 
         const textoEOS =
@@ -119,8 +171,10 @@ export function useChat({
             ? "Tu archivo ya está listo para descargar."
             : "Listo.");
 
+        const metadataEOS = metadataRespuesta(resultadoEOS, metadataTurno);
         const mensajeEOS: Mensaje = {
           id: crearIdMensaje("eos"),
+          request_id: requestId,
           rol: "eos",
           texto: textoEOS,
           estado: "completado",
@@ -130,9 +184,24 @@ export function useChat({
           tipo: resultadoEOS.tipo || "texto",
           accion: resultadoEOS.accion || "RESPONDER",
           creado_en: new Date().toISOString(),
+          metadata: metadataEOS,
         };
 
-        await guardarMensaje(conversacionActiva, "eos", textoEOS);
+        try {
+          await guardarMensaje({
+            conversacionId: conversacionActiva,
+            requestId,
+            rol: "eos",
+            texto: textoEOS,
+            reemplazarAnterior: reemplazarUltimaRespuesta,
+            metadata: metadataEOS,
+          });
+        } catch (persistenceError) {
+          console.error(
+            "EOS respondió, pero no se pudo persistir la respuesta:",
+            persistenceError,
+          );
+        }
 
         setHistorial((actual) => {
           if (!reemplazarUltimaRespuesta) {
@@ -140,8 +209,20 @@ export function useChat({
           }
 
           const copia = [...actual];
+          let ultimoUsuarioIndex = -1;
 
           for (let index = copia.length - 1; index >= 0; index -= 1) {
+            if (copia[index]?.rol === "usuario") {
+              ultimoUsuarioIndex = index;
+              break;
+            }
+          }
+
+          for (
+            let index = copia.length - 1;
+            index > ultimoUsuarioIndex;
+            index -= 1
+          ) {
             if (copia[index]?.rol === "eos") {
               copia.splice(index, 1);
               break;
@@ -151,35 +232,31 @@ export function useChat({
           return [...copia, mensajeEOS];
         });
 
-        await cargarBriefing(usuarioId);
+        try {
+          await cargarBriefing(usuarioId);
+        } catch (briefingError) {
+          console.error("No se pudo refrescar el briefing:", briefingError);
+        }
       } catch (error) {
         console.error("ERROR EOS:", error);
 
         const respuestaError =
           "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
 
-        const mensajeError: Mensaje = {
-          id: crearIdMensaje("error"),
-          rol: "eos",
-          texto: respuestaError,
-          estado: "error",
-          creado_en: new Date().toISOString(),
-        };
+        if (reemplazarUltimaRespuesta) {
+          window.alert(respuestaError);
+        } else {
+          const mensajeError: Mensaje = {
+            id: crearIdMensaje("error"),
+            request_id: requestId,
+            rol: "eos",
+            texto: respuestaError,
+            estado: "error",
+            creado_en: new Date().toISOString(),
+          };
 
-        try {
-          await guardarMensaje(
-            conversacionActiva,
-            "eos",
-            respuestaError,
-          );
-        } catch (errorGuardado) {
-          console.error(
-            "No se pudo guardar el mensaje de error:",
-            errorGuardado,
-          );
+          setHistorial((actual) => [...actual, mensajeError]);
         }
-
-        setHistorial((actual) => [...actual, mensajeError]);
       } finally {
         setPensando(false);
         setCargando(false);
@@ -188,8 +265,6 @@ export function useChat({
     [
       actualizarTituloSiHaceFalta,
       cargarBriefing,
-      nombre,
-      plan,
       setHistorial,
       usuarioId,
     ],
@@ -224,6 +299,7 @@ export function useChat({
       conversacionActiva = nueva;
     }
 
+    const requestId = crearRequestId();
     const imagenActual = imagenAdjunta;
     const documentoActual = documentoAdjunto;
 
@@ -242,12 +318,19 @@ export function useChat({
       .filter(Boolean)
       .join("\n");
 
+    const textoUsuarioPersistido = referencias
+      ? `${textoUsuario}\n\n${referencias}`
+      : textoUsuario;
+    const metadataTurno = metadataAdjuntos(imagenActual, documentoActual);
+
     const mensajeUsuario: Mensaje = {
       id: crearIdMensaje("usuario"),
+      request_id: requestId,
       rol: "usuario",
-      texto: referencias ? `${textoUsuario}\n\n${referencias}` : textoUsuario,
+      texto: textoUsuarioPersistido,
       estado: "completado",
       creado_en: new Date().toISOString(),
+      metadata: metadataTurno,
     };
 
     const historialAntesDelEnvio = historial.slice(-10);
@@ -259,11 +342,14 @@ export function useChat({
     setHistorial((actual) => [...actual, mensajeUsuario]);
 
     await ejecutarEOS({
+      requestId,
       textoUsuario,
+      textoUsuarioPersistido,
       conversacionActiva,
       historialParaContexto: historialAntesDelEnvio,
       imagen: imagenActual,
-      documento: documentoActual,
+      documentoId: documentoActual?.id || null,
+      metadataTurno,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
     });
@@ -286,27 +372,41 @@ export function useChat({
       return;
     }
 
-    const textoUsuario = limpiarReferenciasAdjuntas(ultimoUsuario.texto);
+    const documentoId = stringMetadata(
+      ultimoUsuario.mensaje.metadata,
+      "documento_id",
+    );
+    const imagenNombre = stringMetadata(
+      ultimoUsuario.mensaje.metadata,
+      "imagen_nombre",
+    );
 
-    const historialSinUltimaRespuesta = [...historial];
-
-    for (
-      let index = historialSinUltimaRespuesta.length - 1;
-      index >= 0;
-      index -= 1
-    ) {
-      if (historialSinUltimaRespuesta[index]?.rol === "eos") {
-        historialSinUltimaRespuesta.splice(index, 1);
-        break;
-      }
+    if (imagenNombre && !documentoId) {
+      window.alert(
+        "Para regenerar una respuesta basada en una imagen, volvé a adjuntar la imagen original.",
+      );
+      return;
     }
 
+    const documentoIdSeguro =
+      documentoId && esUuid(documentoId) ? documentoId : null;
+    const textoUsuario = limpiarReferenciasAdjuntas(
+      ultimoUsuario.mensaje.texto,
+    );
+    const historialParaContexto = historial
+      .slice(0, ultimoUsuario.index)
+      .slice(-10);
+    const requestId = crearRequestId();
+
     await ejecutarEOS({
+      requestId,
       textoUsuario,
+      textoUsuarioPersistido: ultimoUsuario.mensaje.texto,
       conversacionActiva: conversacionId,
-      historialParaContexto: historialSinUltimaRespuesta.slice(-10),
+      historialParaContexto,
       imagen: null,
-      documento: null,
+      documentoId: documentoIdSeguro,
+      metadataTurno: ultimoUsuario.mensaje.metadata || {},
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
     });
