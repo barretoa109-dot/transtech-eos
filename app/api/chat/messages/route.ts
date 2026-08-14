@@ -164,24 +164,58 @@ export async function POST(request: Request) {
       }
 
       if (replacePrevious) {
-        await removePreviousResponseByRequestId({
+        const replaced = await removePreviousResponseByRequestId({
           admin,
           userId: user.id,
           conversationId,
           replaceRequestId,
         });
+
+        if (!replaced) {
+          await rollbackRegeneratedResponse({
+            admin,
+            userId: user.id,
+            conversationId,
+            requestId,
+          });
+
+          return json(
+            {
+              error: "No pudimos completar el reemplazo de la respuesta anterior.",
+              code: "EOS_CHAT_REPLACEMENT_INCOMPLETE",
+            },
+            500,
+          );
+        }
       }
 
       return json({ ok: true, idempotent: true }, 200);
     }
 
     if (replacePrevious) {
-      await removePreviousResponseByRequestId({
+      const replaced = await removePreviousResponseByRequestId({
         admin,
         userId: user.id,
         conversationId,
         replaceRequestId,
       });
+
+      if (!replaced) {
+        await rollbackRegeneratedResponse({
+          admin,
+          userId: user.id,
+          conversationId,
+          requestId,
+        });
+
+        return json(
+          {
+            error: "No pudimos completar el reemplazo de la respuesta anterior.",
+            code: "EOS_CHAT_REPLACEMENT_INCOMPLETE",
+          },
+          500,
+        );
+      }
     }
 
     return json({ ok: true, idempotent: false }, 200);
@@ -212,6 +246,36 @@ async function removePreviousResponseByRequestId({
 
   if (deleteError) {
     console.error("No se pudo reemplazar la respuesta anterior:", deleteError);
+    return false;
+  }
+
+  return true;
+}
+
+async function rollbackRegeneratedResponse({
+  admin,
+  userId,
+  conversationId,
+  requestId,
+}: {
+  admin: any;
+  userId: string;
+  conversationId: string;
+  requestId: string;
+}) {
+  const { error: rollbackError } = await admin
+    .from("mensajes")
+    .delete()
+    .eq("usuario_id", userId)
+    .eq("conversacion_id", conversationId)
+    .eq("request_id", requestId)
+    .eq("rol", "eos");
+
+  if (rollbackError) {
+    console.error(
+      "No se pudo revertir la nueva respuesta tras fallar el reemplazo:",
+      rollbackError,
+    );
   }
 }
 
