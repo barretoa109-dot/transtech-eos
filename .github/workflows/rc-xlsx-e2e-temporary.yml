@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+
 jobs:
   xlsx-e2e:
     runs-on: ubuntu-latest
