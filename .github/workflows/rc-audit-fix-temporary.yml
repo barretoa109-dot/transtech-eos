@@ -26,15 +26,15 @@ jobs:
           node-version: 22
 
       - name: Apply non-breaking audit fixes to lockfile only
-        run: npm audit fix --package-lock-only --ignore-scripts --no-fund
+        run: npm audit fix --package-lock-only --ignore-scripts --no-fund || true
 
       - name: Guard package policy
         run: |
           git diff --exit-code -- package.json
           node -e "const l=require('./package-lock.json'); if(l.packages['node_modules/xlsx']) process.exit(1); if(l.packages['node_modules/exceljs']?.version !== '4.4.0') process.exit(2);"
 
-      - name: Show remaining audit
-        run: npm audit --audit-level=high || true
+      - name: Require zero high advisories
+        run: npm audit --audit-level=high
 
       - name: Commit lockfile only
         run: |
