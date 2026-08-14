@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Move Capacitor CLI to dev and pin safe uuid
+      - name: Prepare dependency remediation
         shell: bash
         run: |
           node <<'NODE'
@@ -39,13 +39,12 @@ jobs:
           NODE
           npm install --package-lock-only --ignore-scripts
           npm ci
-      - name: Dependency compatibility smoke
+      - name: UUID compatibility
+        run: node -e "const u=require('uuid'); if(!u.v4() || !u.v5('eos',u.v5.URL)) process.exit(1)"
+      - name: ExcelJS compatibility
         shell: bash
         run: |
           node - <<'NODE'
-          const { v4, v5 } = require('uuid');
-          if (!v4() || !v5('eos', v5.URL)) throw new Error('uuid CJS compatibility failed');
-          require('xcode');
           const ExcelJS = require('exceljs');
           (async () => {
             const wb = new ExcelJS.Workbook();
@@ -56,9 +55,16 @@ jobs:
             console.log('ExcelJS bytes', buf.length);
           })().catch((error) => { console.error(error); process.exit(1); });
           NODE
+      - name: Capacitor CLI compatibility
+        shell: bash
+        run: |
+          require_xcode=$(node -e "require('xcode'); process.stdout.write('ok')")
+          test "$require_xcode" = "ok"
           npx cap --version
-          npm audit --omit=dev
-          npm run build
+      - name: Production audit
+        run: npm audit --omit=dev
+      - name: Application build
+        run: npm run build
       - name: Commit remediation
         shell: bash
         run: |
