@@ -9,6 +9,22 @@ export const dynamic = "force-dynamic";
 
 type SystemRisk = { tier: number; points: number; maxLevel: number };
 type Decision = "recommend" | "prepare" | "approval" | "allow" | "block";
+type ApprovalLike = {
+  id?: string;
+  request_id?: string;
+  accion?: string;
+  status?: string;
+  risk_tier?: number;
+  risk_points?: number;
+  requested_level?: number;
+  effective_level?: number;
+  reason?: string | null;
+  expires_at?: string;
+  created_at?: string;
+  decided_at?: string | null;
+  payload_snapshot?: unknown;
+  payload_fingerprint?: string | null;
+};
 
 const SYSTEM_RISK: Record<string, SystemRisk> = {
   RESPONDER: { tier: 0, points: 0, maxLevel: 3 },
@@ -40,14 +56,62 @@ function safeObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = canonicalJson((value as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
 function stableFingerprint(value: Record<string, unknown>) {
-  const sorted = Object.keys(value)
-    .sort()
-    .reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = value[key];
-      return acc;
-    }, {});
-  return createHash("sha256").update(JSON.stringify(sorted)).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalJson(value)))
+    .digest("hex");
+}
+
+function samePayload(left: unknown, right: unknown) {
+  return JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+}
+
+function approvalDecision(approval: ApprovalLike): { decision: Decision; reason: string } {
+  let decision: Decision = "approval";
+  let reason = approval.reason || "La acción requiere aprobación explícita.";
+
+  if (approval.status === "approved") {
+    decision = "allow";
+    reason = "La acción ya fue aprobada explícitamente para este request.";
+  } else if (
+    approval.status === "rejected" ||
+    approval.status === "expired" ||
+    approval.status === "cancelled"
+  ) {
+    decision = "block";
+    reason = `La aprobación está en estado ${approval.status}.`;
+  } else if (approval.status === "consumed") {
+    decision = "block";
+    reason = "La aprobación ya fue consumida por una ejecución anterior.";
+  } else if (
+    approval.expires_at &&
+    new Date(approval.expires_at).getTime() <= Date.now()
+  ) {
+    decision = "block";
+    reason = "La aprobación asociada a este request ya venció.";
+  }
+
+  return { decision, reason };
+}
+
+function rpcErrorContains(error: unknown, marker: string) {
+  const candidate = safeObject(error);
+  return [candidate.message, candidate.details, candidate.hint, candidate.code]
+    .filter((value) => typeof value === "string")
+    .some((value) => String(value).includes(marker));
 }
 
 const AUTONOMY_TIME_ZONE = "America/Asuncion";
@@ -136,6 +200,7 @@ export async function POST(request: Request) {
       ? body.request_id
       : crypto.randomUUID();
   const payload = safeObject(body?.payload);
+  const payloadFingerprint = stableFingerprint(payload);
 
   const [profileResult, ruleResult, dailyEventsResult, existingApprovalResult] =
     await Promise.all([
@@ -158,7 +223,7 @@ export async function POST(request: Request) {
         .gte("created_at", recentAutonomyWindowStart()),
       supabase
         .from("eos_action_approvals_v12")
-        .select("id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,created_at,decided_at")
+        .select("id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,payload_snapshot,payload_fingerprint,expires_at,created_at,decided_at")
         .eq("usuario_id", user.id)
         .eq("request_id", requestId)
         .eq("accion", action)
@@ -241,35 +306,28 @@ export async function POST(request: Request) {
     }
   }
 
-  const existingApproval = existingApprovalResult.data;
+  const existingApproval = existingApprovalResult.data as ApprovalLike | null;
   if (existingApproval) {
-    let decision: Decision = "approval";
-    let reason = existingApproval.reason || "La acción requiere aprobación explícita.";
-
-    if (existingApproval.status === "approved") {
-      decision = "allow";
-      reason = "La acción ya fue aprobada explícitamente para este request.";
-    } else if (
-      existingApproval.status === "rejected" ||
-      existingApproval.status === "expired" ||
-      existingApproval.status === "cancelled"
-    ) {
-      decision = "block";
-      reason = `La aprobación está en estado ${existingApproval.status}.`;
-    } else if (existingApproval.status === "consumed") {
-      decision = "block";
-      reason = "La aprobación ya fue consumida por una ejecución anterior.";
-    } else if (new Date(existingApproval.expires_at).getTime() <= Date.now()) {
-      decision = "block";
-      reason = "La aprobación asociada a este request ya venció.";
+    if (!samePayload(existingApproval.payload_snapshot, payload)) {
+      return NextResponse.json(
+        {
+          error:
+            "El request_id ya está asociado a una aprobación con un contenido distinto. Generá un nuevo request_id para esta acción.",
+          code: "EOS_APPROVAL_PAYLOAD_MISMATCH",
+          request_id: requestId,
+          accion: action,
+        },
+        { status: 409, headers: noStoreHeaders() },
+      );
     }
 
+    const state = approvalDecision(existingApproval);
     return NextResponse.json(
       responseBody({
         requestId,
         action,
-        decision,
-        reason,
+        decision: state.decision,
+        reason: state.reason,
         configuredLevel,
         effectiveLevel,
         systemRisk,
@@ -303,6 +361,22 @@ export async function POST(request: Request) {
   } else if (priorEvents?.length) {
     const detail = safeObject(priorEvents[0].detail);
     const previousDecision = detail.decision;
+    const previousFingerprint =
+      typeof detail.payload_fingerprint === "string" ? detail.payload_fingerprint : null;
+
+    if (!previousFingerprint || previousFingerprint !== payloadFingerprint) {
+      return NextResponse.json(
+        {
+          error:
+            "El request_id ya fue evaluado con un contenido distinto o sin una huella verificable. Generá un nuevo request_id para esta acción.",
+          code: "EOS_AUTONOMY_PAYLOAD_MISMATCH",
+          request_id: requestId,
+          accion: action,
+        },
+        { status: 409, headers: noStoreHeaders() },
+      );
+    }
+
     if (
       previousDecision === "recommend" ||
       previousDecision === "prepare" ||
@@ -361,41 +435,84 @@ export async function POST(request: Request) {
   }
 
   const admin: any = createAdminClient();
-  let approval = null;
+  let approval: ApprovalLike | null = null;
+  let approvalIdempotent = false;
 
   if (decision === "approval") {
     const expiresAt = new Date(
       Date.now() + Number(profile.approval_ttl_minutes) * 60_000,
     ).toISOString();
 
-    const { data, error } = await admin
-      .from("eos_action_approvals_v12")
-      .insert({
-        usuario_id: user.id,
-        request_id: requestId,
-        accion: action,
-        risk_tier: riskTier,
-        risk_points: riskPoints,
-        requested_level: configuredLevel,
-        effective_level: effectiveLevel,
-        status: "pending",
-        reason,
-        payload_snapshot: payload,
-        payload_fingerprint: stableFingerprint(payload),
-        expires_at: expiresAt,
-      })
-      .select("id,request_id,accion,status,risk_tier,risk_points,expires_at,created_at")
-      .single();
+    const { data, error } = await admin.rpc("eos_get_or_create_action_approval_v53", {
+      p_usuario_id: user.id,
+      p_request_id: requestId,
+      p_accion: action,
+      p_risk_tier: riskTier,
+      p_risk_points: riskPoints,
+      p_requested_level: configuredLevel,
+      p_effective_level: effectiveLevel,
+      p_reason: reason,
+      p_payload_snapshot: payload,
+      p_payload_fingerprint: payloadFingerprint,
+      p_expires_at: expiresAt,
+    });
 
     if (error) {
-      console.error("No se pudo crear aprobación EOS:", error);
+      if (rpcErrorContains(error, "EOS_APPROVAL_PAYLOAD_MISMATCH")) {
+        return NextResponse.json(
+          {
+            error:
+              "El request_id ya está asociado a una aprobación con un contenido distinto. Generá un nuevo request_id para esta acción.",
+            code: "EOS_APPROVAL_PAYLOAD_MISMATCH",
+            request_id: requestId,
+            accion: action,
+          },
+          { status: 409, headers: noStoreHeaders() },
+        );
+      }
+
+      console.error("No se pudo crear o reutilizar aprobación EOS:", error);
       return NextResponse.json(
         { error: "No pudimos crear la solicitud de aprobación." },
         { status: 500, headers: noStoreHeaders() },
       );
     }
 
-    approval = data;
+    const rpcResult = safeObject(data);
+    approval = safeObject(rpcResult.approval) as ApprovalLike;
+    approvalIdempotent = rpcResult.idempotent === true;
+
+    if (!approval.id) {
+      console.error("La RPC de aprobación EOS devolvió un resultado incompleto:", data);
+      return NextResponse.json(
+        { error: "No pudimos confirmar la solicitud de aprobación." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    if (approvalIdempotent) {
+      const state = approvalDecision(approval);
+      return NextResponse.json(
+        responseBody({
+          requestId,
+          action,
+          decision: state.decision,
+          reason: state.reason,
+          configuredLevel,
+          effectiveLevel,
+          systemRisk,
+          riskTier,
+          riskPoints,
+          autoCount,
+          actionLimit,
+          usedRisk,
+          riskLimit: profile.max_daily_risk_points,
+          approval,
+          idempotent: true,
+        }),
+        { headers: noStoreHeaders() },
+      );
+    }
   }
 
   const eventType =
@@ -425,6 +542,7 @@ export async function POST(request: Request) {
       daily_auto_limit: actionLimit,
       daily_risk_used: usedRisk,
       daily_risk_limit: profile.max_daily_risk_points,
+      payload_fingerprint: payloadFingerprint,
     },
   });
 
