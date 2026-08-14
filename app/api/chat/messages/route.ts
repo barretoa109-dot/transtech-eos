@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         replace_previous: replacePrevious,
         ...messageMetadata,
       },
-    });
+    } as never);
 
     if (insertError) {
       console.error("No se pudo persistir el turno de chat:", insertError);
