@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       return json({ error: "Conversación no encontrada." }, 404);
     }
 
-    const admin = createAdminClient();
+    const admin = createAdminClient() as any;
 
     if (replacePrevious) {
       await removePreviousResponses({
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         replace_previous: replacePrevious,
         ...messageMetadata,
       },
-    } as never);
+    });
 
     if (insertError) {
       console.error("No se pudo persistir el turno de chat:", insertError);
@@ -92,7 +92,7 @@ async function removePreviousResponses({
   conversationId,
   currentRequestId,
 }: {
-  admin: ReturnType<typeof createAdminClient>;
+  admin: any;
   userId: string;
   conversationId: string;
   currentRequestId: string;
@@ -130,8 +130,8 @@ async function removePreviousResponses({
   }
 
   const previousIds = (responseCandidates || [])
-    .filter((item) => item.request_id !== currentRequestId)
-    .map((item) => item.id)
+    .filter((item: any) => item.request_id !== currentRequestId)
+    .map((item: any) => item.id)
     .filter(Boolean);
 
   if (previousIds.length === 0) return;
