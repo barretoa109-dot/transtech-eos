@@ -140,6 +140,7 @@ export function useChat({
       metadataTurno,
       guardarUsuario,
       reemplazarUltimaRespuesta,
+      reemplazarRequestId,
     }: {
       requestId: string;
       textoUsuario: string;
@@ -151,6 +152,7 @@ export function useChat({
       metadataTurno: Record<string, unknown>;
       guardarUsuario: boolean;
       reemplazarUltimaRespuesta: boolean;
+      reemplazarRequestId: string | null;
     }) => {
       setCargando(true);
       setPensando(true);
@@ -214,6 +216,7 @@ export function useChat({
             rol: "eos",
             texto: textoEOS,
             reemplazarAnterior: reemplazarUltimaRespuesta,
+            reemplazarRequestId: reemplazarRequestId || undefined,
             metadata: metadataEOS,
           });
         } catch (persistenceError) {
@@ -224,29 +227,18 @@ export function useChat({
         }
 
         setHistorial((actual) => {
-          if (!reemplazarUltimaRespuesta) {
+          if (!reemplazarUltimaRespuesta || !reemplazarRequestId) {
             return [...actual, mensajeEOS];
           }
 
           const copia = [...actual];
-          let ultimoUsuarioIndex = -1;
+          const respuestaAnteriorIndex = copia.findIndex(
+            (item) =>
+              item.rol === "eos" && item.request_id === reemplazarRequestId,
+          );
 
-          for (let index = copia.length - 1; index >= 0; index -= 1) {
-            if (copia[index]?.rol === "usuario") {
-              ultimoUsuarioIndex = index;
-              break;
-            }
-          }
-
-          for (
-            let index = copia.length - 1;
-            index > ultimoUsuarioIndex;
-            index -= 1
-          ) {
-            if (copia[index]?.rol === "eos") {
-              copia.splice(index, 1);
-              break;
-            }
+          if (respuestaAnteriorIndex >= 0) {
+            copia.splice(respuestaAnteriorIndex, 1);
           }
 
           return [...copia, mensajeEOS];
@@ -388,6 +380,7 @@ export function useChat({
       metadataTurno,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
+      reemplazarRequestId: null,
     });
   }
 
@@ -405,6 +398,17 @@ export function useChat({
 
     if (!ultimoUsuario) {
       window.alert("No encontré un mensaje anterior para regenerar.");
+      return;
+    }
+
+    const requestIdOriginal = String(
+      ultimoUsuario.mensaje.request_id || "",
+    );
+
+    if (!esUuid(requestIdOriginal)) {
+      window.alert(
+        "Este turno pertenece a un historial anterior y no puede regenerarse de forma segura. Enviá el mensaje nuevamente para generar una respuesta nueva.",
+      );
       return;
     }
 
@@ -445,6 +449,7 @@ export function useChat({
       metadataTurno: ultimoUsuario.mensaje.metadata || {},
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
+      reemplazarRequestId: requestIdOriginal,
     });
   }
 
