@@ -122,9 +122,10 @@ export async function GET() {
   const trend = buildTrend(score, dimensions, signals, comparison);
 
   let snapshotError: unknown = null;
+  let persistedCalculatedAt: string | null = null;
   try {
     const admin = createAdminClient() as any;
-    const { error } = await admin
+    const { data, error } = await admin
       .from("eos_intelligence_score_snapshots_v10")
       .upsert({
         usuario_id: user.id,
@@ -146,8 +147,13 @@ export async function GET() {
         formula_version: FORMULA_VERSION,
         calculated_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: "usuario_id,snapshot_day" });
+      }, { onConflict: "usuario_id,snapshot_day" })
+      .select("calculated_at")
+      .maybeSingle();
     snapshotError = error;
+    persistedCalculatedAt = typeof data?.calculated_at === "string"
+      ? data.calculated_at
+      : null;
   } catch (error) {
     snapshotError = error;
   }
@@ -191,7 +197,7 @@ export async function GET() {
       writer: "server",
     },
     formula_version: FORMULA_VERSION,
-    calculated_at: new Date().toISOString(),
+    calculated_at: persistedCalculatedAt ?? new Date().toISOString(),
   }, { headers: { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" } });
 }
 
