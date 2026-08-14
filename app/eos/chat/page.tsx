@@ -14,6 +14,7 @@ import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
 import MasterContextView from "../components/MasterContextView";
+import BusinessTwinView from "../components/BusinessTwinView";
 import DocumentsView from "../components/DocumentsView";
 import AutonomyView from "../components/AutonomyView";
 
@@ -436,6 +437,8 @@ export default function EOSPage() {
           )}
 
           {vista === "learnings" && usuarioCargado && <LearningsView />}
+
+          {vista === "twin" && usuarioCargado && <BusinessTwinView />}
 
           {vista === "perfil" && (
             <ProfileView

@@ -165,7 +165,7 @@ export default function BusinessTwinView() {
 
       setData(payload);
 
-      if (!payload?.twin) {
+      if (!payload?.twin || payload?.needs_refresh) {
         const refreshResponse = await fetch("/api/twin/refresh", {
           method: "POST",
         });

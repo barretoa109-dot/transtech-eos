@@ -48,6 +48,7 @@ export type VistaEOS =
   | "context"
   | "decisions"
   | "learnings"
+  | "twin"
   | "dashboard"
   | "perfil";
 

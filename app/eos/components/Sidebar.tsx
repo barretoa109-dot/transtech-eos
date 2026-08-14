@@ -22,7 +22,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "context" | "decisions" | "learnings" | "dashboard" | "perfil";
+type Vista = "chat" | "briefing" | "context" | "decisions" | "learnings" | "twin" | "dashboard" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -176,6 +176,14 @@ export default function Sidebar({
             descripcion="Patrones comprobados"
             activo={vista === "learnings"}
             onClick={() => onVistaChange("learnings")}
+          />
+
+          <NavButton
+            icono={<Network size={18} />}
+            texto="Business Twin"
+            descripcion="Modelo operativo vivo"
+            activo={vista === "twin"}
+            onClick={() => onVistaChange("twin")}
           />
 
           <NavButton
