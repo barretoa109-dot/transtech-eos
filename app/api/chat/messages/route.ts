@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const VALID_ROLES = new Set(["usuario", "eos"]);
+const MAX_REGENERATION_HISTORY = 12;
 
 export async function POST(request: Request) {
   try {
@@ -76,235 +77,371 @@ export async function POST(request: Request) {
     const admin = createAdminClient() as any;
 
     if (replacePrevious) {
-      const { data: targetUserMessage, error: targetUserError } = await admin
-        .from("mensajes")
-        .select("id")
-        .eq("usuario_id", user.id)
-        .eq("conversacion_id", conversationId)
-        .eq("request_id", replaceRequestId)
-        .eq("rol", "usuario")
-        .maybeSingle();
-
-      if (targetUserError) {
-        console.error(
-          "No se pudo validar el turno original de regeneración:",
-          targetUserError,
-        );
-        return json(
-          { error: "No se pudo validar el turno que querés regenerar." },
-          500,
-        );
-      }
-
-      if (!targetUserMessage) {
-        return json(
-          {
-            error: "El turno original ya no está disponible para regenerar.",
-            code: "EOS_CHAT_REGENERATION_TARGET_NOT_FOUND",
-          },
-          409,
-        );
-      }
-    }
-
-    const metadata = {
-      source: "chat-persistence-v29",
-      replace_previous: replacePrevious,
-      ...(replaceRequestId ? { replace_request_id: replaceRequestId } : {}),
-      ...messageMetadata,
-    };
-
-    const { error: insertError } = await admin.from("mensajes").insert({
-      usuario_id: user.id,
-      conversacion_id: conversationId,
-      request_id: requestId,
-      rol: role,
-      texto: text,
-      origen: "eos-web",
-      metadata,
-    });
-
-    if (insertError) {
-      if (insertError.code !== "23505") {
-        console.error("No se pudo persistir el turno de chat:", insertError);
-        return json({ error: "No se pudo guardar el mensaje." }, 500);
-      }
-
-      const { data: existing, error: existingError } = await admin
-        .from("mensajes")
-        .select("id,conversacion_id,texto,metadata")
-        .eq("usuario_id", user.id)
-        .eq("request_id", requestId)
-        .eq("rol", role)
-        .maybeSingle();
-
-      if (existingError) {
-        console.error("No se pudo verificar replay del turno de chat:", existingError);
-        return json({ error: "No se pudo verificar el mensaje existente." }, 500);
-      }
-
-      if (
-        !existing ||
-        existing.conversacion_id !== conversationId ||
-        existing.texto !== text ||
-        !replayMetadataMatches({
-          existingMetadata: existing.metadata,
-          messageMetadata,
-          replacePrevious,
-          replaceRequestId,
-        })
-      ) {
-        return json(
-          {
-            error: "El request_id ya fue utilizado con un contenido diferente.",
-            code: "EOS_CHAT_REQUEST_CONFLICT",
-          },
-          409,
-        );
-      }
-
-      if (replacePrevious) {
-        const replaced = await removePreviousResponseByRequestId({
-          admin,
-          userId: user.id,
-          conversationId,
-          replaceRequestId,
-        });
-
-        if (!replaced) {
-          await rollbackRegeneratedResponse({
-            admin,
-            userId: user.id,
-            conversationId,
-            requestId,
-          });
-
-          return json(
-            {
-              error: "No pudimos completar el reemplazo de la respuesta anterior.",
-              code: "EOS_CHAT_REPLACEMENT_INCOMPLETE",
-            },
-            500,
-          );
-        }
-      }
-
-      return json({ ok: true, idempotent: true }, 200);
-    }
-
-    if (replacePrevious) {
-      const replaced = await removePreviousResponseByRequestId({
+      return persistRegeneratedResponse({
         admin,
         userId: user.id,
         conversationId,
-        replaceRequestId,
+        operationRequestId: requestId,
+        targetRequestId: replaceRequestId,
+        text,
+        messageMetadata,
       });
-
-      if (!replaced) {
-        await rollbackRegeneratedResponse({
-          admin,
-          userId: user.id,
-          conversationId,
-          requestId,
-        });
-
-        return json(
-          {
-            error: "No pudimos completar el reemplazo de la respuesta anterior.",
-            code: "EOS_CHAT_REPLACEMENT_INCOMPLETE",
-          },
-          500,
-        );
-      }
     }
 
-    return json({ ok: true, idempotent: false }, 200);
+    return persistRegularMessage({
+      admin,
+      userId: user.id,
+      conversationId,
+      requestId,
+      role,
+      text,
+      messageMetadata,
+    });
   } catch (error) {
     console.error("Error persistiendo turno de chat:", error);
     return json({ error: "No se pudo guardar el mensaje." }, 500);
   }
 }
 
-async function removePreviousResponseByRequestId({
-  admin,
-  userId,
-  conversationId,
-  replaceRequestId,
-}: {
-  admin: any;
-  userId: string;
-  conversationId: string;
-  replaceRequestId: string;
-}) {
-  const { error: deleteError } = await admin
-    .from("mensajes")
-    .delete()
-    .eq("usuario_id", userId)
-    .eq("conversacion_id", conversationId)
-    .eq("request_id", replaceRequestId)
-    .eq("rol", "eos");
-
-  if (deleteError) {
-    console.error("No se pudo reemplazar la respuesta anterior:", deleteError);
-    return false;
-  }
-
-  return true;
-}
-
-async function rollbackRegeneratedResponse({
+async function persistRegularMessage({
   admin,
   userId,
   conversationId,
   requestId,
+  role,
+  text,
+  messageMetadata,
 }: {
   admin: any;
   userId: string;
   conversationId: string;
   requestId: string;
+  role: string;
+  text: string;
+  messageMetadata: Record<string, unknown>;
 }) {
-  const { error: rollbackError } = await admin
-    .from("mensajes")
-    .delete()
-    .eq("usuario_id", userId)
-    .eq("conversacion_id", conversationId)
-    .eq("request_id", requestId)
-    .eq("rol", "eos");
+  const metadata = {
+    source: "chat-persistence-v30",
+    replace_previous: false,
+    ...messageMetadata,
+  };
 
-  if (rollbackError) {
-    console.error(
-      "No se pudo revertir la nueva respuesta tras fallar el reemplazo:",
-      rollbackError,
+  const { error: insertError } = await admin.from("mensajes").insert({
+    usuario_id: userId,
+    conversacion_id: conversationId,
+    request_id: requestId,
+    rol: role,
+    texto: text,
+    origen: "eos-web",
+    metadata,
+  });
+
+  if (!insertError) {
+    return json({ ok: true, idempotent: false }, 200);
+  }
+
+  if (insertError.code !== "23505") {
+    console.error("No se pudo persistir el turno de chat:", insertError);
+    return json({ error: "No se pudo guardar el mensaje." }, 500);
+  }
+
+  const { data: existing, error: existingError } = await admin
+    .from("mensajes")
+    .select("id,conversacion_id,texto,metadata")
+    .eq("usuario_id", userId)
+    .eq("request_id", requestId)
+    .eq("rol", role)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("No se pudo verificar replay del turno de chat:", existingError);
+    return json({ error: "No se pudo verificar el mensaje existente." }, 500);
+  }
+
+  if (
+    !existing ||
+    existing.conversacion_id !== conversationId ||
+    existing.texto !== text ||
+    !regularReplayMatches(existing.metadata, messageMetadata)
+  ) {
+    return json(
+      {
+        error: "El request_id ya fue utilizado con un contenido diferente.",
+        code: "EOS_CHAT_REQUEST_CONFLICT",
+      },
+      409,
     );
   }
+
+  return json({ ok: true, idempotent: true }, 200);
 }
 
-function replayMetadataMatches({
-  existingMetadata,
+async function persistRegeneratedResponse({
+  admin,
+  userId,
+  conversationId,
+  operationRequestId,
+  targetRequestId,
+  text,
   messageMetadata,
-  replacePrevious,
-  replaceRequestId,
 }: {
-  existingMetadata: unknown;
+  admin: any;
+  userId: string;
+  conversationId: string;
+  operationRequestId: string;
+  targetRequestId: string;
+  text: string;
   messageMetadata: Record<string, unknown>;
-  replacePrevious: boolean;
-  replaceRequestId: string;
 }) {
-  const existingRecord =
-    existingMetadata && typeof existingMetadata === "object"
-      ? (existingMetadata as Record<string, unknown>)
-      : {};
-  const existingReplacePrevious = existingRecord.replace_previous === true;
-  const existingReplaceRequestId = isUuid(existingRecord.replace_request_id)
+  const { data: targetUserMessage, error: targetUserError } = await admin
+    .from("mensajes")
+    .select("id")
+    .eq("usuario_id", userId)
+    .eq("conversacion_id", conversationId)
+    .eq("request_id", targetRequestId)
+    .eq("rol", "usuario")
+    .maybeSingle();
+
+  if (targetUserError) {
+    console.error(
+      "No se pudo validar el turno original de regeneración:",
+      targetUserError,
+    );
+    return json(
+      { error: "No se pudo validar el turno que querés regenerar." },
+      500,
+    );
+  }
+
+  if (!targetUserMessage) {
+    return json(
+      {
+        error: "El turno original ya no está disponible para regenerar.",
+        code: "EOS_CHAT_REGENERATION_TARGET_NOT_FOUND",
+      },
+      409,
+    );
+  }
+
+  const { data: existingResponse, error: existingResponseError } = await admin
+    .from("mensajes")
+    .select("id,texto,metadata")
+    .eq("usuario_id", userId)
+    .eq("conversacion_id", conversationId)
+    .eq("request_id", targetRequestId)
+    .eq("rol", "eos")
+    .maybeSingle();
+
+  if (existingResponseError) {
+    console.error(
+      "No se pudo cargar la respuesta canónica para regenerar:",
+      existingResponseError,
+    );
+    return json({ error: "No se pudo cargar la respuesta anterior." }, 500);
+  }
+
+  if (!existingResponse) {
+    const metadata = buildRegenerationMetadata({
+      previousMetadata: null,
+      operationRequestId,
+      targetRequestId,
+      messageMetadata,
+    });
+
+    const { error: insertError } = await admin.from("mensajes").insert({
+      usuario_id: userId,
+      conversacion_id: conversationId,
+      request_id: targetRequestId,
+      rol: "eos",
+      texto: text,
+      origen: "eos-web",
+      metadata,
+    });
+
+    if (!insertError) {
+      return json({ ok: true, idempotent: false, replaced: true }, 200);
+    }
+
+    if (insertError.code === "23505") {
+      return json(
+        {
+          error: "Otra regeneración actualizó este turno al mismo tiempo.",
+          code: "EOS_CHAT_REGENERATION_CONFLICT",
+        },
+        409,
+      );
+    }
+
+    console.error("No se pudo crear la respuesta regenerada:", insertError);
+    return json({ error: "No se pudo guardar la respuesta regenerada." }, 500);
+  }
+
+  const existingRecord = asRecord(existingResponse.metadata);
+  const existingOperationRequestId = isUuid(
+    existingRecord.regeneration_request_id,
+  )
+    ? existingRecord.regeneration_request_id
+    : "";
+  const existingTargetRequestId = isUuid(existingRecord.replace_request_id)
     ? existingRecord.replace_request_id
     : "";
-  const existingMessageMetadata = cleanMessageMetadata(existingRecord);
+  const regenerationHistory = readRegenerationHistory(existingRecord);
+
+  if (existingOperationRequestId === operationRequestId) {
+    if (
+      existingResponse.texto === text &&
+      existingTargetRequestId === targetRequestId &&
+      sameMessageMetadata(existingRecord, messageMetadata)
+    ) {
+      return json({ ok: true, idempotent: true, replaced: true }, 200);
+    }
+
+    return json(
+      {
+        error: "La regeneración ya fue registrada con otro contenido.",
+        code: "EOS_CHAT_REQUEST_CONFLICT",
+      },
+      409,
+    );
+  }
+
+  if (regenerationHistory.includes(operationRequestId)) {
+    return json(
+      {
+        error: "Esta regeneración ya fue reemplazada por una versión más reciente.",
+        code: "EOS_CHAT_REGENERATION_SUPERSEDED",
+      },
+      409,
+    );
+  }
+
+  const metadata = buildRegenerationMetadata({
+    previousMetadata: existingRecord,
+    operationRequestId,
+    targetRequestId,
+    messageMetadata,
+  });
+
+  let updateQuery = admin
+    .from("mensajes")
+    .update({
+      texto: text,
+      origen: "eos-web",
+      metadata,
+    })
+    .eq("id", existingResponse.id)
+    .eq("usuario_id", userId)
+    .eq("conversacion_id", conversationId)
+    .eq("request_id", targetRequestId)
+    .eq("rol", "eos");
+
+  if (existingResponse.metadata == null) {
+    updateQuery = updateQuery.is("metadata", null);
+  } else {
+    updateQuery = updateQuery.eq("metadata", existingResponse.metadata);
+  }
+
+  const { data: updated, error: updateError } = await updateQuery
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("No se pudo actualizar la respuesta regenerada:", updateError);
+    return json({ error: "No se pudo guardar la respuesta regenerada." }, 500);
+  }
+
+  if (!updated) {
+    return json(
+      {
+        error: "Otra regeneración actualizó este turno al mismo tiempo.",
+        code: "EOS_CHAT_REGENERATION_CONFLICT",
+      },
+      409,
+    );
+  }
+
+  return json({ ok: true, idempotent: false, replaced: true }, 200);
+}
+
+function buildRegenerationMetadata({
+  previousMetadata,
+  operationRequestId,
+  targetRequestId,
+  messageMetadata,
+}: {
+  previousMetadata: Record<string, unknown> | null;
+  operationRequestId: string;
+  targetRequestId: string;
+  messageMetadata: Record<string, unknown>;
+}) {
+  const previousRecord = previousMetadata || {};
+  const history = readRegenerationHistory(previousRecord);
+  const previousOperationRequestId = isUuid(
+    previousRecord.regeneration_request_id,
+  )
+    ? previousRecord.regeneration_request_id
+    : "";
+
+  const nextHistory = Array.from(
+    new Set(
+      [...history, previousOperationRequestId]
+        .filter((value) => isUuid(value))
+        .slice(-MAX_REGENERATION_HISTORY),
+    ),
+  );
+
+  return {
+    source: "chat-persistence-v30",
+    replace_previous: true,
+    replace_request_id: targetRequestId,
+    regeneration_request_id: operationRequestId,
+    regeneration_history: nextHistory,
+    ...messageMetadata,
+  };
+}
+
+function regularReplayMatches(
+  existingMetadata: unknown,
+  messageMetadata: Record<string, unknown>,
+) {
+  const existingRecord = asRecord(existingMetadata);
+  const replacePrevious = existingRecord.replace_previous === true;
+  const replaceRequestId = isUuid(existingRecord.replace_request_id)
+    ? existingRecord.replace_request_id
+    : "";
 
   return (
-    existingReplacePrevious === replacePrevious &&
-    existingReplaceRequestId === replaceRequestId &&
-    JSON.stringify(existingMessageMetadata) === JSON.stringify(messageMetadata)
+    !replacePrevious &&
+    !replaceRequestId &&
+    sameMessageMetadata(existingRecord, messageMetadata)
   );
+}
+
+function sameMessageMetadata(
+  existingMetadata: unknown,
+  messageMetadata: Record<string, unknown>,
+) {
+  return (
+    JSON.stringify(cleanMessageMetadata(existingMetadata)) ===
+    JSON.stringify(messageMetadata)
+  );
+}
+
+function readRegenerationHistory(metadata: unknown) {
+  const record = asRecord(metadata);
+  const rawHistory = Array.isArray(record.regeneration_history)
+    ? record.regeneration_history
+    : [];
+
+  return rawHistory
+    .filter((value): value is string => isUuid(value))
+    .slice(-MAX_REGENERATION_HISTORY);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function cleanMessageMetadata(value: unknown) {
