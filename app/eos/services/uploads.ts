@@ -52,11 +52,12 @@ export async function subirDocumentoEOS(
 
   const document = data.document;
   let analysis: Record<string, unknown> | null = null;
-
-  if (
+  const extractionReady =
     document.extraction_status === "ready" ||
-    document.extraction_status === "partial"
-  ) {
+    document.extraction_status === "partial";
+  const alreadyAnalyzed = document.intelligence_status === "ready";
+
+  if (extractionReady && !alreadyAnalyzed) {
     const analysisResponse = await fetch(
       `/api/documents/${document.id}/analyze`,
       { method: "POST" },
