@@ -157,11 +157,14 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { data, error } = await admin.rpc("eos_process_manual_payment_v42", {
-      p_solicitud_id: solicitudId,
-      p_action: accion,
-      p_admin_email: adminEmail,
-    });
+    const { data, error } = await (admin as any).rpc(
+      "eos_process_manual_payment_v42",
+      {
+        p_solicitud_id: solicitudId,
+        p_action: accion,
+        p_admin_email: adminEmail,
+      },
+    );
 
     if (error) {
       return respuestaErrorRpc(error);
