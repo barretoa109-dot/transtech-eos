@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const role = VALID_ROLES.has(body?.rol) ? body.rol : "";
     const text = cleanText(body?.texto, 16_000);
     const replacePrevious = body?.reemplazar_anterior === true && role === "eos";
-    const attachmentMetadata = cleanAttachmentMetadata(body?.metadata);
+    const messageMetadata = cleanMessageMetadata(body?.metadata);
 
     if (!conversationId || !requestId || !role || !text) {
       return json({ error: "El mensaje no es válido." }, 400);
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       metadata: {
         source: "chat-persistence-v28",
         replace_previous: replacePrevious,
-        ...attachmentMetadata,
+        ...messageMetadata,
       },
     });
 
@@ -148,7 +148,7 @@ async function removePreviousResponses({
   }
 }
 
-function cleanAttachmentMetadata(value: unknown) {
+function cleanMessageMetadata(value: unknown) {
   if (!value || typeof value !== "object") {
     return {};
   }
@@ -157,11 +157,21 @@ function cleanAttachmentMetadata(value: unknown) {
   const documentoId = isUuid(record.documento_id) ? record.documento_id : null;
   const documentoNombre = cleanText(record.documento_nombre, 240);
   const imagenNombre = cleanText(record.imagen_nombre, 240);
+  const archivoUrl = cleanText(record.archivo_url, 2_048);
+  const archivoTipo = cleanText(record.archivo_tipo, 80);
+  const archivoNombre = cleanText(record.archivo_nombre, 240);
+  const tipo = cleanText(record.tipo, 80);
+  const accion = cleanText(record.accion, 120);
 
   return {
     ...(documentoId ? { documento_id: documentoId } : {}),
     ...(documentoNombre ? { documento_nombre: documentoNombre } : {}),
     ...(imagenNombre ? { imagen_nombre: imagenNombre } : {}),
+    ...(archivoUrl ? { archivo_url: archivoUrl } : {}),
+    ...(archivoTipo ? { archivo_tipo: archivoTipo } : {}),
+    ...(archivoNombre ? { archivo_nombre: archivoNombre } : {}),
+    ...(tipo ? { tipo } : {}),
+    ...(accion ? { accion } : {}),
   };
 }
 
