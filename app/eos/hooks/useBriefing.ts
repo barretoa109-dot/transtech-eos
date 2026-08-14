@@ -97,13 +97,17 @@ export function useBriefing(nombre: string) {
 
   const briefingVisible = useMemo<Briefing>(() => {
     const current = briefing ?? {};
-    const contextAlerts = masterContext?.alertas ?? [];
-    const contextGoals = masterContext?.objetivos ?? [];
+    const freshMasterContext = masterContext?.necesita_actualizacion === true
+      ? null
+      : masterContext;
+    const contextCurrent = freshMasterContext?.estado_actual ?? {};
+    const contextAlerts = freshMasterContext?.alertas ?? [];
+    const contextGoals = freshMasterContext?.objetivos ?? [];
     const contextPriorities = [
       ...contextAlerts.map((item) => item.titulo || item.mensaje),
       ...contextGoals.map((item) => item.proximo_paso || item.titulo),
     ].filter((item): item is string => Boolean(item));
-    const nextAction = masterContext?.proxima_mejor_accion?.titulo;
+    const nextAction = freshMasterContext?.proxima_mejor_accion?.titulo;
 
     return {
       ...current,
@@ -111,13 +115,19 @@ export function useBriefing(nombre: string) {
       titulo_dia: current.titulo_dia || "Tu foco para hoy",
       resumen:
         current.resumen ||
-        masterContext?.resumen_compacto ||
+        contextCurrent.resumen ||
+        freshMasterContext?.resumen_compacto ||
         "EOS está reuniendo tu contexto. Cuando registres objetivos, tareas y decisiones, acá vas a encontrar un panorama ejecutivo diario.",
       enfoque_dia:
         current.enfoque_dia ||
         nextAction ||
+        contextCurrent.prioridad ||
         "Definí el resultado más importante que querés conseguir hoy.",
-      prioridad_1: current.prioridad_1 || contextPriorities[0] || "Definir qué querés mejorar",
+      prioridad_1:
+        current.prioridad_1 ||
+        contextCurrent.prioridad ||
+        contextPriorities[0] ||
+        "Definir qué querés mejorar",
       prioridad_2: current.prioridad_2 || contextPriorities[1] || "Ordenar la información disponible",
       prioridad_3: current.prioridad_3 || contextPriorities[2] || "Ejecutar el próximo paso concreto",
       recomendacion_principal:
@@ -135,7 +145,7 @@ export function useBriefing(nombre: string) {
               { titulo: "Ejecutá la primera acción" },
             ],
       fuentes: current.fuentes ?? {},
-      score: clampScore(current.score),
+      score: clampScore(current.score ?? contextCurrent.score),
     };
   }, [briefing, masterContext, nombre]);
 
