@@ -123,7 +123,7 @@ export async function GET() {
 
   let snapshotError: unknown = null;
   try {
-    const admin = createAdminClient();
+    const admin = createAdminClient() as any;
     const { error } = await admin
       .from("eos_intelligence_score_snapshots_v10")
       .upsert({
