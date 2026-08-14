@@ -88,6 +88,16 @@ function respuestaErrorRpc(error: unknown) {
     );
   }
 
+  if (texto.includes("EOS_PAYMENT_ALREADY_IN_REVIEW")) {
+    return NextResponse.json(
+      {
+        error:
+          "Ya tenés un comprobante de este plan en revisión. Esperá la validación antes de generar otra solicitud.",
+      },
+      { status: 409 },
+    );
+  }
+
   console.error("No se pudo crear o reutilizar la solicitud:", error);
 
   return NextResponse.json(
