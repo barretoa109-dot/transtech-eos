@@ -1,0 +1,90 @@
+name: RC XLSX E2E Temporary
+
+on:
+  push:
+    branches:
+      - release/eos-4.0-rc1
+    paths:
+      - .github/workflows/rc-xlsx-e2e-temporary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  xlsx-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RC branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/eos-4.0-rc1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start app
+        run: |
+          npm start -- -p 3100 > /tmp/eos-next.log 2>&1 &
+          echo $! > /tmp/eos-next.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3100/ >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/eos-next.log
+          exit 1
+
+      - name: Generate XLSX through HTTP route
+        run: |
+          STATUS=$(curl -sS -o /tmp/generate.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:3100/api/document/generate \
+            -H 'Content-Type: application/json' \
+            --data '{"tipo":"excel","rubro":"smoke","nombre":"rc1"}')
+          test "$STATUS" = "200"
+          node - <<'NODE'
+          const fs = require('fs');
+          const ExcelJS = require('exceljs');
+          (async () => {
+            const response = JSON.parse(fs.readFileSync('/tmp/generate.json','utf8'));
+            if (!response.ok) throw new Error(`generator not ok: ${JSON.stringify(response)}`);
+            if (response.filename !== 'control_smoke_rc1.xlsx') throw new Error(`unexpected filename ${response.filename}`);
+            const buffer = Buffer.from(response.base64, 'base64');
+            if (buffer.length < 1000) throw new Error(`xlsx unexpectedly small: ${buffer.length}`);
+            const wb = new ExcelJS.Workbook();
+            await wb.xlsx.load(buffer);
+            const expected = ['Ventas diarias','Inventario','Costos','Resumen mensual'];
+            const actual = wb.worksheets.map(s => s.name);
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+              throw new Error(`unexpected sheets ${JSON.stringify(actual)}`);
+            }
+            const checks = [
+              ['Ventas diarias','E2','C2*D2'],
+              ['Inventario','E2','B2+C2-D2'],
+              ['Costos','D2','B2*C2'],
+              ['Resumen mensual','B4','B2-B3'],
+            ];
+            for (const [sheet, cell, formula] of checks) {
+              const value = wb.getWorksheet(sheet).getCell(cell).value;
+              if (!value || typeof value !== 'object' || value.formula !== formula) {
+                throw new Error(`formula mismatch ${sheet}!${cell}: ${JSON.stringify(value)}`);
+              }
+            }
+            console.log(JSON.stringify({ok:true, bytes:buffer.length, sheets:actual, formulas:checks.length}));
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f /tmp/eos-next.pid ]; then kill $(cat /tmp/eos-next.pid) || true; fi
+          tail -n 60 /tmp/eos-next.log || true
