@@ -200,6 +200,47 @@ export async function POST(request: Request) {
       ? profile.max_auto_actions_per_day
       : Math.min(profile.max_auto_actions_per_day, Number(rule.max_auto_per_day));
 
+  if (rule?.enabled !== false && rule?.require_fresh_context === true) {
+    const { data: context, error: contextError } = await supabase
+      .from("eos_master_context_v8")
+      .select("necesita_actualizacion,vigente_hasta")
+      .eq("usuario_id", user.id)
+      .maybeSingle();
+
+    if (contextError) {
+      console.error(
+        "No se pudo comprobar el Contexto Maestro para Autonomía:",
+        contextError,
+      );
+      return NextResponse.json(
+        { error: "No pudimos verificar la vigencia del Contexto Maestro." },
+        { status: 500, headers: noStoreHeaders() },
+      );
+    }
+
+    if (!context || context.necesita_actualizacion === true) {
+      return NextResponse.json(
+        responseBody({
+          requestId,
+          action,
+          decision: "block",
+          reason:
+            "Esta regla exige Contexto Maestro vigente. Actualizá el contexto antes de continuar.",
+          configuredLevel,
+          effectiveLevel,
+          systemRisk,
+          riskTier,
+          riskPoints,
+          autoCount,
+          actionLimit,
+          usedRisk,
+          riskLimit: profile.max_daily_risk_points,
+        }),
+        { status: 409, headers: noStoreHeaders() },
+      );
+    }
+  }
+
   const existingApproval = existingApprovalResult.data;
   if (existingApproval) {
     let decision: Decision = "approval";
