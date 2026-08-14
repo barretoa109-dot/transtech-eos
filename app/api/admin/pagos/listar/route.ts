@@ -71,13 +71,18 @@ export async function GET() {
         const ruta = pago.metadata?.comprobante?.ruta;
         let comprobanteUrl: string | null = null;
 
-        if (ruta) {
+        if (typeof ruta === "string" && ruta.trim()) {
           const { data: signedData, error: signedError } =
             await admin.storage
               .from("comprobantes-pago")
               .createSignedUrl(ruta, 10 * 60);
 
-          if (!signedError) {
+          if (signedError) {
+            console.error(
+              `No se pudo firmar el comprobante de la solicitud ${pago.id}:`,
+              signedError,
+            );
+          } else {
             comprobanteUrl = signedData?.signedUrl || null;
           }
         }
@@ -97,12 +102,7 @@ export async function GET() {
     console.error("Error listando pagos:", error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar los pagos.",
-      },
+      { error: "No se pudieron cargar los pagos." },
       { status: 500 },
     );
   }

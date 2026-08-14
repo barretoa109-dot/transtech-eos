@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ConsultarPagoBody = {
+  solicitud_id?: string;
+};
+
 export async function POST(request: Request) {
   try {
-    const { solicitud_id } = (await request.json()) as {
-      solicitud_id?: string;
-    };
+    const body = (await request.json().catch(() => null)) as ConsultarPagoBody | null;
+    const solicitudId = String(body?.solicitud_id || "").trim();
 
-    if (!solicitud_id) {
+    if (!solicitudId) {
       return NextResponse.json(
         { error: "Falta el identificador de la solicitud." },
         { status: 400 },
@@ -21,27 +23,34 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json(
         { error: "Debés iniciar sesión." },
         { status: 401 },
       );
     }
 
-    const admin: any = createAdminClient();
-
-    const { data: solicitud, error } = await admin
+    const { data: solicitud, error } = await (supabase as any)
       .from("solicitudes_pago")
       .select(
         "id,plan_codigo,periodicidad,monto,moneda,estado,referencia_interna,pagado_at,created_at",
       )
-      .eq("id", solicitud_id)
-      .eq("usuario_id", user.id)
+      .eq("id", solicitudId)
       .maybeSingle();
 
-    if (error || !solicitud) {
+    if (error) {
+      console.error("Error consultando solicitud de pago:", error);
+
+      return NextResponse.json(
+        { error: "No pudimos consultar la solicitud." },
+        { status: 500 },
+      );
+    }
+
+    if (!solicitud) {
       return NextResponse.json(
         { error: "No encontramos la solicitud." },
         { status: 404 },
@@ -50,13 +59,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, solicitud });
   } catch (error) {
+    console.error("Error inesperado consultando solicitud de pago:", error);
+
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo consultar la solicitud.",
-      },
+      { error: "No se pudo consultar la solicitud." },
       { status: 500 },
     );
   }

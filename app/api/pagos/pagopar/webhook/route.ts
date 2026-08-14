@@ -417,12 +417,7 @@ export async function POST(request: Request) {
     );
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo procesar la notificación.",
-      },
+      { error: "No se pudo procesar la notificación." },
       { status: 500 },
     );
   }

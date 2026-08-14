@@ -14,6 +14,8 @@ type Solicitud = {
   referencia_interna?: string;
 };
 
+const INTERVALO_REVISION_MS = 15_000;
+
 export default function ResultadoPago() {
   const router = useRouter();
   const params = useSearchParams();
@@ -25,6 +27,12 @@ export default function ResultadoPago() {
 
   useEffect(() => {
     let activo = true;
+    let temporizador: ReturnType<typeof setTimeout> | null = null;
+
+    function programarNuevaConsulta() {
+      if (!activo) return;
+      temporizador = setTimeout(consultar, INTERVALO_REVISION_MS);
+    }
 
     async function consultar() {
       if (!solicitudId) {
@@ -38,6 +46,7 @@ export default function ResultadoPago() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ solicitud_id: solicitudId }),
+          cache: "no-store",
         });
 
         const resultado = await respuesta.json().catch(() => null);
@@ -55,15 +64,20 @@ export default function ResultadoPago() {
         if (valor === "pagado") {
           setEstado("pagado");
           setMensaje("El pago fue aprobado y tu plan de TransTech EOS ya está activo.");
-        } else if (valor === "rechazado" || valor === "cancelado") {
+          return;
+        }
+
+        if (valor === "rechazado" || valor === "cancelado") {
           setEstado("rechazado");
           setMensaje("El comprobante no pudo ser aprobado. Contactá con TransTech.");
-        } else {
-          setEstado("revision");
-          setMensaje(
-            "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan.",
-          );
+          return;
         }
+
+        setEstado("revision");
+        setMensaje(
+          "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan. Esta pantalla se actualizará automáticamente.",
+        );
+        programarNuevaConsulta();
       } catch (error) {
         if (!activo) return;
         setEstado("error");
@@ -74,7 +88,11 @@ export default function ResultadoPago() {
     }
 
     consultar();
-    return () => { activo = false; };
+
+    return () => {
+      activo = false;
+      if (temporizador) clearTimeout(temporizador);
+    };
   }, [solicitudId]);
 
   const monto =
