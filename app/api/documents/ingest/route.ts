@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "crypto";
+import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -13,13 +13,17 @@ const MAX_EXTRACTED_CHARS = 250_000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const XLS_MIME_TYPE = "application/vnd.ms-excel";
+const XLSX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
 const SUPPORTED_MIME_TYPES = new Set([
   "text/plain",
   "text/csv",
   "application/json",
   "application/pdf",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  XLS_MIME_TYPE,
+  XLSX_MIME_TYPE,
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -31,10 +35,7 @@ const TEXT_MIME_TYPES = new Set([
   "application/json",
 ]);
 
-const EXCEL_MIME_TYPES = new Set([
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]);
+const EXCEL_MIME_TYPES = new Set([XLS_MIME_TYPE, XLSX_MIME_TYPE]);
 
 type ExtractionResult = {
   text: string;
@@ -44,22 +45,30 @@ type ExtractionResult = {
 };
 
 function cleanFileName(value: string) {
-  return value
-    .trim()
-    .replace(/[\\/]+/g, "-")
-    .replace(/[^\p{L}\p{N}._()\- ]/gu, "")
-    .slice(0, 180) || "documento";
+  return (
+    value
+      .trim()
+      .replace(/[\\/]+/g, "-")
+      .replace(/[^\p{L}\p{N}._()\- ]/gu, "")
+      .slice(0, 180) || "documento"
+  );
 }
 
 function extensionFromName(name: string) {
   const value = name.trim();
   const lastDot = value.lastIndexOf(".");
   if (lastDot <= 0 || lastDot === value.length - 1) return "";
-  return value.slice(lastDot + 1).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
+  return value
+    .slice(lastDot + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 12);
 }
 
 function documentTypeFromMime(mimeType: string) {
-  if (EXCEL_MIME_TYPES.has(mimeType) || mimeType === "text/csv") return "spreadsheet";
+  if (EXCEL_MIME_TYPES.has(mimeType) || mimeType === "text/csv") {
+    return "spreadsheet";
+  }
   if (mimeType === "application/pdf") return "report";
   if (mimeType.startsWith("image/")) return "image";
   if (TEXT_MIME_TYPES.has(mimeType)) return "text";
@@ -76,6 +85,41 @@ function clipText(text: string) {
     text: normalized.slice(0, MAX_EXTRACTED_CHARS),
     clipped: true,
   };
+}
+
+function csvEscape(value: unknown) {
+  if (value === null || value === undefined) return "";
+
+  let text: string;
+  if (value instanceof Date) {
+    text = value.toISOString();
+  } else if (typeof value === "object") {
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.text === "string") {
+      text = candidate.text;
+    } else if (typeof candidate.result === "string" || typeof candidate.result === "number") {
+      text = String(candidate.result);
+    } else if (typeof candidate.formula === "string") {
+      text = `=${candidate.formula}`;
+    } else if (Array.isArray(candidate.richText)) {
+      text = candidate.richText
+        .map((part) =>
+          part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+            ? String((part as { text: string }).text)
+            : "",
+        )
+        .join("");
+    } else {
+      text = JSON.stringify(value);
+    }
+  } else {
+    text = String(value);
+  }
+
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
 }
 
 function extractTextFile(bytes: Uint8Array, mimeType: string): ExtractionResult {
@@ -121,28 +165,34 @@ function extractTextFile(bytes: Uint8Array, mimeType: string): ExtractionResult 
   };
 }
 
-function extractSpreadsheet(bytes: Uint8Array): ExtractionResult {
-  const workbook = XLSX.read(bytes, { type: "array", cellDates: true });
+async function extractXlsx(bytes: Uint8Array): Promise<ExtractionResult> {
+  const workbook = new ExcelJS.Workbook();
+  const source = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  await workbook.xlsx.load(source as unknown as ExcelJS.Buffer);
+
   const sections: string[] = [];
   const sheets: Array<{ name: string; rows: number; columns: number }> = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const worksheet = workbook.Sheets[sheetName];
-    if (!worksheet) continue;
+  workbook.eachSheet((worksheet) => {
+    const rows: string[] = [];
+    let maxColumns = 0;
 
-    const csv = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
-    const range = worksheet["!ref"] ? XLSX.utils.decode_range(worksheet["!ref"] as string) : null;
-
-    sheets.push({
-      name: sheetName,
-      rows: range ? range.e.r - range.s.r + 1 : 0,
-      columns: range ? range.e.c - range.s.c + 1 : 0,
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+      maxColumns = Math.max(maxColumns, values.length);
+      rows.push(values.map(csvEscape).join(","));
     });
 
-    if (csv.trim()) {
-      sections.push(`# Hoja: ${sheetName}\n${csv.trim()}`);
+    sheets.push({
+      name: worksheet.name,
+      rows: worksheet.rowCount,
+      columns: Math.max(worksheet.columnCount, maxColumns),
+    });
+
+    if (rows.length > 0) {
+      sections.push(`# Hoja: ${worksheet.name}\n${rows.join("\n")}`);
     }
-  }
+  });
 
   const clipped = clipText(sections.join("\n\n"));
 
@@ -151,21 +201,37 @@ function extractSpreadsheet(bytes: Uint8Array): ExtractionResult {
     status: clipped.clipped ? "partial" : "ready",
     language: null,
     metadata: {
-      extractor: "xlsx",
+      extractor: "exceljs-xlsx",
       sheets,
-      sheet_count: workbook.SheetNames.length,
+      sheet_count: workbook.worksheets.length,
       clipped: clipped.clipped,
     },
   };
 }
 
-function extract(bytes: Uint8Array, mimeType: string): ExtractionResult {
+async function extract(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<ExtractionResult> {
   if (TEXT_MIME_TYPES.has(mimeType)) {
     return extractTextFile(bytes, mimeType);
   }
 
-  if (EXCEL_MIME_TYPES.has(mimeType)) {
-    return extractSpreadsheet(bytes);
+  if (mimeType === XLSX_MIME_TYPE) {
+    return extractXlsx(bytes);
+  }
+
+  if (mimeType === XLS_MIME_TYPE) {
+    return {
+      text: "",
+      status: "unsupported",
+      language: null,
+      metadata: {
+        extractor: "deferred",
+        reason:
+          "XLS binario legado almacenado de forma segura. La extracción inmediata se pospone hasta disponer de un parser XLS sin advisories conocidos.",
+      },
+    };
   }
 
   return {
@@ -248,7 +314,9 @@ export async function POST(request: Request) {
 
     const { data: duplicate, error: duplicateError } = await admin
       .from("eos_documents_v11")
-      .select("id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at")
+      .select(
+        "id,nombre,mime_type,document_type,extraction_status,intelligence_status,summary,storage_path,created_at",
+      )
       .eq("usuario_id", user.id)
       .eq("checksum_sha256", checksum)
       .maybeSingle();
@@ -270,7 +338,7 @@ export async function POST(request: Request) {
 
     let extraction: ExtractionResult;
     try {
-      extraction = extract(raw, file.type);
+      extraction = await extract(raw, file.type);
     } catch (extractionError) {
       console.error("No se pudo extraer el documento:", extractionError);
       extraction = {
@@ -311,7 +379,8 @@ export async function POST(request: Request) {
 
     const documentType = documentTypeFromMime(file.type);
     const now = new Date().toISOString();
-    const extractionReady = extraction.status === "ready" || extraction.status === "partial";
+    const extractionReady =
+      extraction.status === "ready" || extraction.status === "partial";
 
     const { data: document, error: insertError } = await admin
       .from("eos_documents_v11")
@@ -327,7 +396,7 @@ export async function POST(request: Request) {
         source: "chat_upload",
         document_type: documentType,
         extraction_status: extraction.status,
-        intelligence_status: extractionReady ? "pending" : "pending",
+        intelligence_status: "pending",
         extracted_text: extraction.text || null,
         extracted_char_count: extraction.text.length,
         language: extraction.language,
@@ -337,10 +406,12 @@ export async function POST(request: Request) {
           ...extraction.metadata,
           original_name: file.name,
           uploaded_at: now,
-          ingestion_version: "document-intelligence-v11",
+          ingestion_version: "document-intelligence-v11-exceljs",
         },
       })
-      .select("id,nombre,mime_type,extension,size_bytes,document_type,extraction_status,intelligence_status,extracted_char_count,storage_path,created_at")
+      .select(
+        "id,nombre,mime_type,extension,size_bytes,document_type,extraction_status,intelligence_status,extracted_char_count,storage_path,created_at",
+      )
       .single();
 
     if (insertError || !document) {
