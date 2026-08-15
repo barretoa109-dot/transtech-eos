@@ -31,7 +31,9 @@ function isUuid(value: unknown): value is string {
 
 function positiveInteger(value: unknown) {
   const numeric = Number(value);
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+  return Number.isInteger(numeric) && numeric > 0 && numeric <= 10
+    ? numeric
+    : null;
 }
 
 function objectOrEmpty(value: unknown): Record<string, unknown> {
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const commandId = body?.command_id;
+    const leaseToken = body?.lease_token;
     const attemptCount = positiveInteger(body?.attempt_count);
     const estado = cleanText(body?.estado, 40).toLowerCase();
     const resultado = objectOrEmpty(body?.resultado);
@@ -95,6 +98,10 @@ export async function POST(request: Request) {
       return respond({ ok: false, error: "command_id inválido." }, 400);
     }
 
+    if (!isUuid(leaseToken)) {
+      return respond({ ok: false, error: "lease_token inválido." }, 400);
+    }
+
     if (!attemptCount) {
       return respond({ ok: false, error: "attempt_count inválido." }, 400);
     }
@@ -103,11 +110,19 @@ export async function POST(request: Request) {
       return respond({ ok: false, error: "Estado terminal inválido." }, 400);
     }
 
+    if (estado === "error" && !errorMessage) {
+      return respond(
+        { ok: false, error: "error_message es obligatorio para estado error." },
+        400,
+      );
+    }
+
     const admin: any = createAdminClient();
     const { data, error } = await admin.rpc(
-      "eos_finalize_action_command_v68",
+      "eos_finalize_action_command_v70",
       {
         p_command_id: commandId,
+        p_lease_token: leaseToken,
         p_attempt_count: attemptCount,
         p_estado: estado,
         p_resultado: resultado,
@@ -137,9 +152,16 @@ export async function POST(request: Request) {
         );
       }
 
-      if (message.includes("EOS_ACTION_STALE_ATTEMPT")) {
+      if (
+        message.includes("EOS_ACTION_STALE_ATTEMPT") ||
+        message.includes("EOS_ACTION_LEASE_EXPIRED")
+      ) {
         return respond(
-          { ok: false, error: "El resultado pertenece a un intento stale y fue rechazado." },
+          {
+            ok: false,
+            error:
+              "El intento o fencing token ya no posee un lease válido para cerrar el efecto.",
+          },
           409,
         );
       }
