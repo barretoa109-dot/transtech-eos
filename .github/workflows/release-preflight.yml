@@ -37,6 +37,11 @@ jobs:
         continue-on-error: true
         run: npm audit --audit-level=high
 
+      - name: Worker Gate smoke harness syntax
+        id: worker_smoke_syntax
+        continue-on-error: true
+        run: node --check scripts/worker-gate-smoke.mjs
+
       - name: ESLint
         id: lint
         continue-on-error: true
@@ -50,5 +55,6 @@ jobs:
       - name: Quality gate
         if: always()
         run: |
+          test "${{ steps.worker_smoke_syntax.outcome }}" = "success"
           test "${{ steps.lint.outcome }}" = "success"
           test "${{ steps.typecheck.outcome }}" = "success"
