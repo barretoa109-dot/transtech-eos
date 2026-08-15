@@ -1,183 +1,172 @@
 # n8n → EOS Worker Gate: cutover seguro
 
-Estado: el backend RC ya dispone de autorización, command binding y ejecución idempotente para efectos internos. El workflow live de n8n/Railway todavía no fue modificado desde esta sesión.
+Estado: backend RC preparado y probado para autorización, command binding, efectos internos idempotentes y fencing de efectos externos. El workflow live de n8n/Railway todavía no fue modificado desde esta sesión.
 
-## Hallazgos del workflow recuperado
+## Brecha del workflow recuperado
 
-El Conversational Gateway exportado llama a `/webhook/eos-worker`, pero `01 GW Preparar Entrada` no conserva `request_id` y `08 GW Lanzar Worker` tampoco lo envía. El Background Worker exportado tampoco exige `request_id`, vuelve a clasificar acciones y las rutas legacy de tarea, objetivo y memoria escriben directamente sin `action_command_id`.
+Los exports recuperados pierden `request_id` entre Gateway y Worker, vuelven a clasificar acciones y ejecutan rutas legacy directas de tarea, objetivo y memoria. Por eso no debe afirmarse todavía que el n8n live esté gobernado E2E.
 
-Por eso el backend puede estar preparado y probado sin afirmar todavía que el n8n live esté gobernado de extremo a extremo.
+## Endpoints internos disponibles
 
-## Backend RC disponible
+Todos requieren `Authorization: Bearer <EOS_WORKER_GATE_SECRET>` y mantienen la service key de Supabase únicamente en Next.js.
 
-- `POST /api/internal/worker-authorize/v1`: orquestador recomendado para n8n. Ejecuta Gate inicial, crea/recupera el command canónico cuando corresponde y ejecuta Gate final con el mismo payload.
-- `POST /api/internal/action-effects/v1`: ejecuta únicamente efectos internos autorizados y command-bound (`CREAR_TAREA`, `GUARDAR_MEMORIA`, `CREAR_OBJETIVO`) mediante `eos_execute_internal_effect_v64(...)`.
-- `POST /api/internal/worker-gate/v1`: contrato de política de bajo nivel.
-- `POST /api/internal/action-commands/v1`: broker de bajo nivel sobre `eos_get_or_create_action_command_v61(...)`.
+- `POST /api/internal/worker-authorize/v1`: Gate inicial → command v61 → Gate final. Es la entrada recomendada para cada acción.
+- `POST /api/internal/action-effects/v1`: ejecuta de forma atómica `CREAR_TAREA`, `GUARDAR_MEMORIA` y `CREAR_OBJETIVO`.
+- `POST /api/internal/action-lease/v1`: `claim`/`renew` con lease y `attempt_count` para efectos externos.
+- `POST /api/internal/action-results/v1`: registra el resultado terminal ligado al `attempt_count` que poseía el lease.
+- `POST /api/internal/worker-gate/v1` y `/api/internal/action-commands/v1`: contratos de bajo nivel; no hacen falta en el camino n8n recomendado.
 
-Todos los endpoints internos usan `Authorization: Bearer <EOS_WORKER_GATE_SECRET>`. La service key de Supabase permanece exclusivamente del lado servidor; n8n no debe recibirla.
-
-## Requisitos previos al cambio live
+## Requisitos del cutover live
 
 1. Configurar el mismo `EOS_WORKER_GATE_SECRET` en Vercel y n8n/Railway.
-2. No registrar el secreto en logs, historial, Supabase ni payloads persistidos.
-3. Conservar `request_id` desde `/api/eos` → Gateway → Worker sin regenerarlo.
-4. Construir el `payload` canónico de cada acción una sola vez y reutilizar exactamente ese JSON en todos los retries.
-5. Mantener fail-closed: timeout, 4xx/5xx, JSON inválido, secreto faltante, payload distinto o command incompatible => cero efecto.
-6. Desactivar el camino legacy antes de activar el camino gobernado. Nunca ejecutar ambos en paralelo.
+2. No guardar ni imprimir el secreto.
+3. Conservar el mismo `request_id` desde `/api/eos` → Gateway → Worker y en todos los retries.
+4. Construir el `payload` canónico una sola vez; un retry debe reutilizar exactamente el mismo JSON.
+5. Cualquier timeout, 4xx/5xx, secreto inválido, JSON inválido, payload/contexto distinto o estado inesperado significa **cero efecto**.
+6. Desactivar la ruta legacy antes de activar la gobernada. Nunca conectar dos caminos que puedan ejecutar el mismo efecto.
 
-## Secuencia recomendada para efectos internos
+## Efectos internos: tarea, memoria y objetivo
 
-Para `CREAR_TAREA`, `GUARDAR_MEMORIA` y `CREAR_OBJETIVO`:
+Secuencia única:
 
-1. Worker recibe `usuario_id`, `request_id`, `accion`, `datos`, `conversacion_id`/`mensaje_id` si existen.
-2. Worker construye una sola vez el `payload` canónico.
-3. Worker llama `POST /api/internal/worker-authorize/v1` con el mismo secreto y payload.
-4. Si HTTP no es 2xx o `execute !== true`, detener. No ejecutar ningún nodo legacy de efecto.
-5. Si `execute === true`, exigir un `command_id` UUID en la respuesta.
-6. Worker llama `POST /api/internal/action-effects/v1` con únicamente ese `command_id`.
-7. `HTTP 2xx + ok=true` significa efecto confirmado. Un retry puede devolver `idempotent:true`; eso es éxito, no motivo para repetir por otra ruta.
-8. Nunca insertar además directamente en `eos_tasks`, `eos_memory`, `eos_goals` o `eos_goal_commands` desde el camino legacy.
+`worker-authorize → execute=true + command_id → action-effects`
 
-Esta secuencia centraliza `Gate inicial → command v61 → Gate final → efecto v64` y evita que n8n tenga que coordinar manualmente las carreras entre autorización y command binding.
+Si `worker-authorize` no devuelve `HTTP 2xx + execute=true + command_id UUID`, detener. Si `action-effects` devuelve un replay `idempotent:true`, tratarlo como éxito ya materializado y no ejecutar ninguna ruta adicional.
 
-## Request de autorización recomendado
+El backend ya fue probado transaccionalmente con `ROLLBACK`: tarea, memoria y objetivo conservan un único efecto por `action_command_id`; un segundo envío devuelve el mismo efecto.
+
+## Efectos externos: Excel, PDF y Word
+
+Estos generadores no deben usar `action-effects/v1`. Su secuencia segura es:
+
+1. `worker-authorize` con `usuario_id`, `request_id`, `accion` y el payload canónico.
+2. Exigir `execute=true` y `command_id`.
+3. `action-lease/v1` con `operation:"claim"`, `command_id` y un lease apropiado.
+4. Solo `claimed=true + execute_effect=true` habilita el generador real.
+5. Guardar el `attempt_count` devuelto por el claim.
+6. Generar el artefacto usando `command_id` como clave de idempotencia/nombre lógico cuando el generador lo permita.
+7. Si la operación dura, renovar el lease usando el mismo `attempt_count`.
+8. Al terminar, llamar `action-results/v1` con el mismo `command_id`, `attempt_count`, estado y resultado.
+9. Un Worker stale o un resultado distinto para el mismo intento debe recibir `409`; no debe intentar forzar el cierre.
+
+### Claim
 
 ```json
 {
-  "usuario_id": "uuid",
-  "request_id": "uuid-estable",
-  "accion": "CREAR_TAREA",
-  "payload": {
-    "mensaje": "opcional",
-    "datos": {}
-  },
-  "conversacion_id": "uuid-opcional",
-  "mensaje_id": "uuid-opcional",
-  "origen": "eos-worker"
+  "operation": "claim",
+  "command_id": "uuid",
+  "lease_seconds": 300
 }
 ```
 
-No modificar `payload` entre el primer intento y un retry. Para la misma clave `(usuario_id, request_id, accion)`, un payload/contexto incompatible debe quedar bloqueado.
-
-## Respuesta autorizada esperada
-
-La única señal que habilita un efecto es:
+Solo esta forma habilita el efecto:
 
 ```json
 {
   "ok": true,
-  "decision": "allow",
-  "execute": true,
+  "claimed": true,
+  "execute_effect": true,
   "command_id": "uuid",
-  "command_idempotent": false,
-  "payload_fingerprint": "sha256"
+  "attempt_count": 1
 }
 ```
 
-`approval`, `approval_ready` sin consumo final, `recommend`, `prepare`, `block`, error HTTP o respuesta inválida significan **cero efecto**.
+`EOS_COMMAND_IN_PROGRESS` significa que otro Worker posee el intento. `EOS_COMMAND_ALREADY_COMPLETED` significa que el efecto ya fue confirmado. En ambos casos, **no generar otro artefacto**.
 
-## Ejecutor de efectos internos
-
-Request:
+### Renovación
 
 ```json
 {
-  "command_id": "uuid"
+  "operation": "renew",
+  "command_id": "uuid",
+  "attempt_count": 1,
+  "lease_seconds": 300
 }
 ```
 
-Respuesta típica:
+Un `attempt_count` stale se rechaza.
+
+### Resultado terminal
 
 ```json
 {
-  "ok": true,
   "command_id": "uuid",
-  "accion": "CREAR_TAREA",
-  "effect_type": "task",
-  "effect_id": "uuid",
-  "idempotent": false,
-  "estado": "completada"
+  "attempt_count": 1,
+  "estado": "completada",
+  "resultado": {
+    "artifact_key": "command-id.pdf",
+    "url": "url-o-identificador"
+  }
 }
 ```
 
-En producción se verificó transaccionalmente que tarea, memoria y objetivo crean un solo efecto por `action_command_id`; el segundo intento devuelve el mismo efecto con `idempotent:true`. Una orden sin evento de autorización válido falla cerrada.
+`action-results/v1` usa el contrato v68/v69: exige autorización previa, un claim durable `claim:<attempt>`, el mismo `attempt_count` y un resultado terminal compatible. Un replay idéntico es idempotente; un replay con otro resultado o un Worker viejo se bloquea.
 
-## Binding durable
+## Por qué existe el fencing v67–v69
 
-- `eos_tasks.action_command_id`: único para efectos command-bound.
-- `eos_memory.action_command_id`: índice único parcial.
-- `eos_goal_commands.action_command_id`: índice único parcial; el trigger canónico materializa el objetivo.
-- `eos_action_commands`: unicidad por `(usuario_id, request_id, accion)`.
+Fase 4 crea automáticamente el evento `start:1` al insertar un command y lo mueve a `ejecutando` con un lease inicial. Ese lease histórico no representa propiedad real de un Worker. v67 distingue ese estado de un claim real usando eventos `claim:<attempt_count>`. v68/v69 ligan el resultado terminal al intento reclamado y rechazan cierres stale o incompatibles.
 
-Estos vínculos son la barrera durable contra doble ejecución por retry.
+Smokes en producción con `ROLLBACK`:
 
-## Cambios exactos en Conversational Gateway
+- primer claim real: PASS;
+- segundo claim concurrente: bloqueado como `IN_PROGRESS`;
+- claim después de completar: no ejecuta;
+- finalize idéntico: idempotente;
+- resultado terminal alterado: bloqueado;
+- `attempt_count` stale: bloqueado.
+
+## Cambios obligatorios en Conversational Gateway
 
 ### `01 GW Preparar Entrada`
 
-- exigir `body.request_id` UUID válido;
-- devolverlo sin modificar;
-- no generar un request nuevo si ya llegó desde `/api/eos`.
+- validar y conservar `body.request_id`;
+- no reemplazarlo con execution ID, timestamp ni un UUID nuevo.
 
 ### `05 GW Preparar Respuesta`
 
-- conservar `request_id` junto con el objeto base;
-- conservar `acciones` estructuradas.
+- conservar `request_id` y `acciones` estructuradas.
 
 ### `08 GW Lanzar Worker`
 
-Enviar `request_id` al Worker y reutilizarlo en cualquier retry. No reemplazarlo por execution ID, job ID ni timestamp.
+- enviar el mismo `request_id` al Worker;
+- un retry HTTP reutiliza el mismo valor.
 
-## Cambios exactos en Background Worker
-
-### Entrada
+## Cambios obligatorios en Background Worker
 
 - exigir `request_id` UUID;
-- conservar la acción estructurada recibida del Gateway;
-- no volver a clasificar una acción válida;
-- si hay múltiples acciones, comparten el request principal pero mantienen `accion` distinta, por lo que la clave canónica sigue siendo `(usuario_id, request_id, accion)`.
+- conservar una acción estructurada válida; no volver a inferirla desde texto;
+- tarea/memoria/objetivo: sustituir nodos directos por `worker-authorize → action-effects`;
+- Excel/PDF/Word: `worker-authorize → action-lease claim → generador → action-results`;
+- eliminar/desconectar los inserts legacy equivalentes antes de activar el nuevo camino.
 
-### Rutas internas con efecto
+La clave canónica sigue siendo `(usuario_id, request_id, accion)`. Varias acciones de un mismo mensaje pueden compartir `request_id` porque `accion` las diferencia.
 
-Reemplazar los nodos directos de tarea/memoria/objetivo por:
+## Pruebas live obligatorias
 
-`HTTP worker-authorize → comprobar execute=true → HTTP action-effects`.
-
-No dejar conectados los nodos Supabase legacy como segunda salida.
-
-### Generación de archivos
-
-`GENERAR_EXCEL`, `GENERAR_PDF` y `GENERAR_WORD` también deben pasar por autorización y command binding antes del efecto real. Sin embargo, `action-effects/v1` v64 **no ejecuta archivos**. Para estas acciones el cutover live debe conservar el generador existente detrás de una barrera de idempotencia externa/durable ligada al mismo `command_id`; no deben considerarse PASS hasta demostrar que dos requests idénticos producen un solo archivo/efecto.
-
-## Pruebas de corte obligatorias
-
-- secreto incorrecto => `401`, cero efecto;
-- secreto faltante/no configurado => cero efecto;
-- `request_id` ausente/inválido => cero efecto;
-- payload A autorizado y payload B reintentado => bloqueado;
-- command de otro usuario/request/acción => bloqueado;
-- acción válida auto-autorizada => un solo efecto;
-- misma acción enviada dos veces => mismo command y un solo efecto;
-- aprobación pendiente => cero efecto;
-- aprobación aceptada => consumo atómico y un solo efecto;
-- segundo consumo => no duplica;
-- contexto stale cuando la regla exige frescura => bloqueado;
-- timeout de Gate/orquestador => cero efecto;
-- Worker/n8n caído => retry con mismo request/payload, sin duplicado;
-- `action_command_id` queda ligado al efecto durable;
-- archivos: dos requests iguales => un solo artefacto real.
+- secreto ausente/incorrecto → cero efecto;
+- request_id inválido → cero efecto;
+- payload cambiado en replay → bloqueado;
+- command de otro request/acción/usuario → bloqueado;
+- acción rechazada/sin aprobación → cero efecto;
+- aprobación válida → un consumo y un efecto;
+- contexto stale cuando se exige frescura → bloqueado;
+- dos Workers simultáneos → uno solo obtiene `claimed=true`;
+- mismo request dos veces → un solo efecto/artefacto;
+- timeout/retry → mismo command, sin duplicado;
+- Worker caído → lease recuperable sin aceptar resultados stale;
+- n8n caído → replay seguro;
+- éxito y error terminal quedan auditados.
 
 ## Rollback
 
-Antes del cutover guardar export de Gateway y Worker activos. Si falla cualquier smoke:
+Antes del corte guardar export de Gateway y Worker activos. Ante cualquier smoke fallido:
 
 1. desactivar el workflow nuevo o restaurar el export anterior;
-2. no reactivar simultáneamente el nuevo y el legacy;
-3. conservar las migraciones de hardening: agregan guards y no obligan a n8n a ejecutar el nuevo camino;
-4. revisar `eos_action_commands`, approvals y eventos antes de reintentar una acción pendiente;
-5. no borrar efectos ni commands para “limpiar” un retry sin auditar primero el estado real.
+2. no reactivar nuevo + legacy simultáneamente;
+3. conservar las migraciones de hardening, que son compatibles con rollback del workflow;
+4. revisar `eos_action_commands`, `eos_action_events` y approvals antes de reintentar;
+5. no borrar commands/efectos para “limpiar” un retry sin auditar el estado real.
 
-## Activación
+## Condición de PASS
 
-El corte live se hace sustituyendo el camino legacy completo. Primero Gateway conserva `request_id`; luego Worker usa exclusivamente el orquestador y el ejecutor command-bound. Solo después de los smokes de autorización, retry, timeout, caída de Worker y doble envío puede marcarse Worker Gate como PASS.
+Worker Gate no se marca PASS por tener backend verde. Solo se marca PASS después de modificar el workflow live, configurar el secreto, conservar `request_id`, desconectar las rutas legacy y demostrar en n8n real que dos envíos idénticos producen **exactamente un efecto**.
