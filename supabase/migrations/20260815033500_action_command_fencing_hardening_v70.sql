@@ -400,8 +400,8 @@ begin
 end;
 $$;
 
--- Canonical runtime exposure. Old claim/finalizer contracts remain in schema for
--- migration compatibility but are unreachable to runtime roles.
+-- Canonical runtime exposure. Old contracts remain in schema for migration
+-- compatibility but must not be reachable by runtime roles.
 revoke all on function public.eos_claim_action_command_v64(uuid, integer)
   from public, anon, authenticated, service_role;
 revoke all on function public.eos_renew_action_command_lease_v64(uuid, integer, integer)
@@ -409,8 +409,6 @@ revoke all on function public.eos_renew_action_command_lease_v64(uuid, integer, 
 revoke all on function public.eos_finish_action_command_v64(uuid, integer, boolean, jsonb, text, text)
   from public, anon, authenticated, service_role;
 revoke all on function public.eos_finish_action_command_v65(uuid, uuid, integer, boolean, jsonb, text, text)
-  from public, anon, authenticated, service_role;
-revoke all on function public.eos_finalize_action_command_v66(uuid, text, jsonb, text, text)
   from public, anon, authenticated, service_role;
 
 revoke all on function public.eos_claim_action_command_v65(uuid, integer)
@@ -427,8 +425,15 @@ grant execute on function public.eos_renew_action_command_lease_v65(uuid, uuid, 
 grant execute on function public.eos_finalize_action_command_v70(uuid, uuid, integer, text, jsonb, text, text)
   to service_role;
 
+-- Some production environments briefly received intermediate v66/v68
+-- finalizers during RC hardening. A clean rebuild may never have them. Revoke
+-- them only when present so this migration works in both cases.
 do $$
 begin
+  if to_regprocedure('public.eos_finalize_action_command_v66(uuid,text,jsonb,text,text)') is not null then
+    execute 'revoke all on function public.eos_finalize_action_command_v66(uuid, text, jsonb, text, text) from public, anon, authenticated, service_role';
+  end if;
+
   if to_regprocedure('public.eos_finalize_action_command_v68(uuid,integer,text,jsonb,text,text)') is not null then
     execute 'revoke all on function public.eos_finalize_action_command_v68(uuid, integer, text, jsonb, text, text) from public, anon, authenticated, service_role';
   end if;
