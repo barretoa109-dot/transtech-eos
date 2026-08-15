@@ -25,6 +25,14 @@ Todos requieren `Authorization: Bearer <EOS_WORKER_GATE_SECRET>`. La `SUPABASE_S
 5. Timeout, 4xx/5xx, secreto inválido, JSON inválido, payload/contexto distinto o estado inesperado significan **cero efecto**.
 6. Desconectar el camino legacy antes de activar el gobernado. Nunca permitir dos rutas capaces de ejecutar el mismo efecto.
 
+### Contexto Maestro requerido
+
+Cuando una regla tenga `require_fresh_context=true`, `worker-authorize` comprueba el Contexto Maestro más reciente antes de permitir que la ejecución avance. Si está ausente, marcado para actualización o vencido, responde con `execute=false`, `decision="block"` y `code="EOS_ACTION_CONTEXT_STALE"`.
+
+Ese resultado no debe tratarse como un error transitorio de red: n8n debe detener la acción, refrescar/reconstruir Contexto Maestro y volver a evaluar la intención conservando el mismo `request_id` y payload. No debe crear una ruta paralela ni saltarse el Gate.
+
+La base de datos mantiene además un guard de frescura en el límite de ejecución. Por eso, aunque un Worker viejo o una ruta mal configurada intenten continuar, `action-claims` y `action-effects` siguen fallando de forma cerrada con códigos explícitos para contexto stale, autonomía desactivada o regla desactivada.
+
 ## Efectos internos: tarea, memoria y objetivo
 
 Secuencia única:
@@ -54,6 +62,8 @@ Para cualquier efecto que ocurra fuera de la transacción Postgres:
 Solo `HTTP 2xx + ok=true + claimed=true + lease_token UUID + attempt_count` entrega propiedad de ejecución. Guardar `lease_token` y `attempt_count` únicamente durante ese intento.
 
 `EOS_COMMAND_IN_PROGRESS` significa que otro Worker posee el lease. `EOS_COMMAND_ALREADY_COMPLETED` significa que el command ya terminó. En ambos casos **no ejecutar otro efecto**.
+
+`EOS_ACTION_CONTEXT_STALE`, `EOS_ACTION_AUTONOMY_DISABLED` y `EOS_ACTION_RULE_DISABLED` son bloqueos de política/estado, no motivos para disparar inmediatamente otro Worker. La acción debe volver a `worker-authorize` únicamente después de resolver la condición correspondiente.
 
 ### 2. Renew
 
@@ -133,6 +143,7 @@ Para archivos de EOS, el generador debe usar `command_id` como clave/nombre lóg
 - conservar una acción estructurada válida y no volver a inferirla desde texto;
 - tarea/memoria/objetivo: sustituir nodos directos por `worker-authorize → action-effects`;
 - efectos externos: `worker-authorize → action-claims claim/renew → generador → action-results`;
+- ante `EOS_ACTION_CONTEXT_STALE`, detener y refrescar contexto antes de reevaluar; no hacer retry ciego del efecto;
 - eliminar/desconectar inserts y generadores legacy equivalentes antes de activar el nuevo camino.
 
 La clave canónica sigue siendo `(usuario_id, request_id, accion)`. Varias acciones distintas de un mensaje pueden compartir `request_id` porque `accion` las diferencia.
@@ -145,7 +156,7 @@ La clave canónica sigue siendo `(usuario_id, request_id, accion)`. Varias accio
 - command de otro request/acción/usuario → bloqueado;
 - acción rechazada o sin aprobación → cero efecto;
 - aprobación válida → un consumo y un efecto;
-- contexto stale cuando se exige frescura → bloqueado;
+- contexto stale cuando se exige frescura → bloqueado antes del efecto y sin command nuevo innecesario;
 - dos Workers simultáneos → solo uno obtiene `claimed=true`;
 - mismo request dos veces → un solo efecto durable;
 - token o `attempt_count` stale → bloqueado;
