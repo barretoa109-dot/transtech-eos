@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 function buscarTexto(valor: unknown): string {
   if (!valor) return "";
@@ -266,6 +267,7 @@ export async function POST(req: Request) {
       );
     }
 
+    const quotaAdmin = createAdminClient();
     const body = (await req.json()) as Record<string, unknown>;
 
     const [profileResult, contextResult, learningsResult, twinResult] =
@@ -459,9 +461,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: quotaRaw, error: quotaError } = await supabase.rpc(
-      "eos_reserve_message_quota_v40",
-      { p_request_id: payload.request_id },
+    const { data: quotaRaw, error: quotaError } = await quotaAdmin.rpc(
+      "eos_reserve_message_quota_server_v75",
+      {
+        p_usuario_id: user.id,
+        p_request_id: payload.request_id,
+      },
     );
 
     if (quotaError || !quotaRaw || typeof quotaRaw !== "object" || Array.isArray(quotaRaw)) {
@@ -509,9 +514,13 @@ export async function POST(req: Request) {
     const releaseQuota = async (reason: string) => {
       if (quotaReleased) return;
       quotaReleased = true;
-      const { error: releaseError } = await supabase.rpc(
-        "eos_release_message_quota_v40",
-        { p_request_id: payload.request_id, p_reason: reason.slice(0, 160) },
+      const { error: releaseError } = await quotaAdmin.rpc(
+        "eos_release_message_quota_server_v75",
+        {
+          p_usuario_id: user.id,
+          p_request_id: payload.request_id,
+          p_reason: reason.slice(0, 160),
+        },
       );
       if (releaseError) {
         console.error("No se pudo liberar la reserva de mensaje EOS:", releaseError);
@@ -587,9 +596,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: finalizeRaw, error: finalizeError } = await supabase.rpc(
-      "eos_finalize_message_quota_v40",
-      { p_request_id: payload.request_id },
+    const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
+      "eos_finalize_message_quota_server_v75",
+      {
+        p_usuario_id: user.id,
+        p_request_id: payload.request_id,
+      },
     );
     const finalizeOk =
       !finalizeError
