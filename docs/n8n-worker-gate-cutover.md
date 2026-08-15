@@ -33,9 +33,9 @@ Secuencia única:
 
 Si `worker-authorize` no devuelve `HTTP 2xx + execute=true + command_id UUID`, detener. Si `action-effects` devuelve `idempotent:true`, tratarlo como éxito ya materializado y no ejecutar otra ruta.
 
-El backend se verificó transaccionalmente con `ROLLBACK`: tarea, memoria y objetivo conservan un solo efecto por `action_command_id`; un segundo envío devuelve el mismo efecto.
+El backend se verificó transaccionalmente con `ROLLBACK`: tarea, memoria y objetivo conservan un solo efecto por `action_command_id`; un segundo envío devuelve el mismo efecto. Un command sin autorización persistida es rechazado sin crear el efecto.
 
-## Efectos externos: lifecycle v70
+## Efectos externos: lifecycle fenced
 
 Para cualquier efecto que ocurra fuera de la transacción Postgres:
 
@@ -86,6 +86,24 @@ Un token distinto, un intento stale o un lease vencido se rechaza. Un Worker que
 ```
 
 `action-results/v1` usa `eos_finalize_action_command_v70(...)`. Verifica autorización, fencing token, intento, claim durable y lease vigente. Un replay terminal idéntico es idempotente; un resultado distinto o un Worker stale obtiene conflicto.
+
+### Smokes de base de datos verificados
+
+Ejecutados contra producción dentro de transacciones con `ROLLBACK`, sin dejar efectos de prueba:
+
+- command no autorizado → claim rechazado;
+- primer claim autorizado → token + intento válidos;
+- segundo claim concurrente → `IN_PROGRESS`, sin segunda propiedad;
+- renew con token incorrecto → rechazado;
+- renew con token correcto y lease vivo → PASS;
+- finalize correcto → PASS;
+- finalize idéntico → idempotente;
+- mismo intento con resultado alterado → conflicto;
+- renew/finalize después de lease vencido → rechazados;
+- takeover tras expiración → token nuevo + attempt nuevo;
+- dueño viejo después del takeover → stale/rechazado.
+
+Los contratos canónicos son ejecutables por `service_role` y no por `authenticated`/`anon`. Los contratos legacy v64/v65/v66/v68 que podían crear rutas paralelas ya no tienen `EXECUTE` para `service_role`.
 
 ### Límite importante de exactamente-una-vez
 
