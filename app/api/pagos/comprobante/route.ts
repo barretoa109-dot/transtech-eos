@@ -6,7 +6,9 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAXIMO_BYTES = 8 * 1024 * 1024;
+// Vercel Functions reject request bodies above 4.5 MB before this handler runs.
+// Keep the file itself at 4 MB to leave room for multipart boundaries/fields.
+const MAXIMO_BYTES = 4 * 1024 * 1024;
 const TIPOS_PERMITIDOS = new Set([
   "image/jpeg",
   "image/png",
@@ -140,6 +142,19 @@ export async function POST(request: Request) {
   let admin: any = null;
 
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Debés iniciar sesión para subir el comprobante." },
+        { status: 401 },
+      );
+    }
+
     const formData = await request.formData();
     const solicitudId = String(formData.get("solicitud_id") || "").trim();
     const archivo = formData.get("comprobante");
@@ -160,7 +175,7 @@ export async function POST(request: Request) {
 
     if (archivo.size <= 0 || archivo.size > MAXIMO_BYTES) {
       return NextResponse.json(
-        { error: "El archivo debe pesar menos de 8 MB." },
+        { error: "El archivo debe pesar como máximo 4 MB." },
         { status: 400 },
       );
     }
@@ -174,19 +189,6 @@ export async function POST(request: Request) {
             "El contenido del archivo no coincide con un JPG, PNG, WEBP o PDF válido.",
         },
         { status: 400 },
-      );
-    }
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Debés iniciar sesión para subir el comprobante." },
-        { status: 401 },
       );
     }
 
@@ -239,7 +241,10 @@ export async function POST(request: Request) {
 
       const resultadoExpiracion = (expiracion || {}) as AdjuntarComprobanteRpc;
 
-      if (resultadoExpiracion.expired === true || resultadoExpiracion.status === "vencido") {
+      if (
+        resultadoExpiracion.expired === true ||
+        resultadoExpiracion.status === "vencido"
+      ) {
         return NextResponse.json(
           { error: "Esta solicitud venció. Generá un nuevo pedido para continuar." },
           { status: 409 },
