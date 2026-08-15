@@ -49,8 +49,8 @@ export default function RegisterForm({ onLogin }: Props) {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("La contraseña debe tener al menos 6 caracteres.");
+    if (password.length < 8) {
+      setErrorMessage("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
@@ -65,7 +65,6 @@ export default function RegisterForm({ onLogin }: Props) {
           data: {
             nombre: cleanName,
             whatsapp: cleanWhatsapp,
-            plan: "free",
           },
         },
       });
@@ -78,28 +77,10 @@ export default function RegisterForm({ onLogin }: Props) {
         throw new Error("Supabase no devolvió el usuario creado.");
       }
 
-      // Si la confirmación de correo está desactivada,
-      // ya existe sesión y podemos guardar el perfil inmediatamente.
+      // El trigger server-side `handle_new_user()` es el único responsable de
+      // crear public.usuarios y fuerza el plan inicial a `free`. El navegador
+      // nunca escribe plan ni duplica el alta del perfil.
       if (data.session) {
-        const { error: profileError } = await supabase
-          .from("usuarios")
-          .upsert(
-            {
-              id: data.user.id,
-              nombre: cleanName,
-              email: cleanEmail,
-              whatsapp: cleanWhatsapp || null,
-              plan: "free",
-            },
-            {
-              onConflict: "id",
-            }
-          );
-
-        if (profileError) {
-          throw profileError;
-        }
-
         window.location.assign("/eos/chat");
         return;
       }
@@ -162,7 +143,7 @@ export default function RegisterForm({ onLogin }: Props) {
           type="password"
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={8}
           className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-800 p-4 text-white outline-none focus:border-blue-500"
           placeholder="Contraseña"
           value={password}
