@@ -1,8 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-let adminClient:
-  | ReturnType<typeof createClient>
-  | undefined;
+function buildAdminClient(url: string, serviceRole: string) {
+  return createClient(url, serviceRole, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+type AdminClient = ReturnType<typeof buildAdminClient>;
+
+let adminClient: AdminClient | undefined;
 
 export function createAdminClient() {
   if (adminClient) {
@@ -20,12 +29,6 @@ export function createAdminClient() {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY no está configurado.");
   }
 
-  adminClient = createClient(url, serviceRole, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-
+  adminClient = buildAdminClient(url, serviceRole);
   return adminClient;
 }
