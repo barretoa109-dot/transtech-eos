@@ -9,6 +9,34 @@ interface Props {
   onForgot: () => void;
 }
 
+const DESTINOS_LOGIN_PERMITIDOS = ["/eos/chat", "/mobile", "/planes", "/pago"];
+
+function destinoLoginSeguro(raw: string | null) {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
+    return "/eos/chat";
+  }
+
+  try {
+    const destino = new URL(raw, window.location.origin);
+
+    if (destino.origin !== window.location.origin) {
+      return "/eos/chat";
+    }
+
+    const permitido = DESTINOS_LOGIN_PERMITIDOS.some(
+      (base) => destino.pathname === base || destino.pathname.startsWith(`${base}/`),
+    );
+
+    if (!permitido) {
+      return "/eos/chat";
+    }
+
+    return `${destino.pathname}${destino.search}`;
+  } catch {
+    return "/eos/chat";
+  }
+}
+
 export default function LoginForm({
   onRegister,
   onForgot,
@@ -59,7 +87,12 @@ export default function LoginForm({
       return;
     }
 
-    router.replace("/eos/chat");
+    const params = new URLSearchParams(window.location.search);
+    const destino = destinoLoginSeguro(
+      params.get("next") || params.get("redirect"),
+    );
+
+    router.replace(destino);
     router.refresh();
   }
 
@@ -155,20 +188,20 @@ export default function LoginForm({
       </div>
 
       <button
-  type="button"
-  disabled
-  className="w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
->
-  Continuar con Google — próximamente
-</button>
+        type="button"
+        disabled
+        className="w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
+      >
+        Continuar con Google — próximamente
+      </button>
 
-<button
-  type="button"
-  disabled
-  className="mt-3 w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
->
-  Continuar con Apple — próximamente
-</button>
+      <button
+        type="button"
+        disabled
+        className="mt-3 w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
+      >
+        Continuar con Apple — próximamente
+      </button>
 
       <div className="mt-8 text-center">
         <span className="text-slate-400">¿No tienes cuenta?</span>
