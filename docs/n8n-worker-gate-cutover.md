@@ -1,164 +1,183 @@
 # n8n → EOS Worker Gate: cutover seguro
 
-Estado: backend listo para implementación controlada; el workflow live todavía no fue modificado desde esta sesión.
+Estado: el backend RC ya dispone de autorización, command binding y ejecución idempotente para efectos internos. El workflow live de n8n/Railway todavía no fue modificado desde esta sesión.
 
 ## Hallazgos del workflow recuperado
 
-El Conversational Gateway exportado llama a `/webhook/eos-worker`, pero `01 GW Preparar Entrada` no conserva `request_id`. `08 GW Lanzar Worker` tampoco lo envía. El Background Worker exportado recibe acciones, pero `01 WK Preparar Entrada` tampoco exige `request_id`; además vuelve a clasificar una acción y las rutas de tarea, objetivo y memoria escriben directamente en `eos_tasks`, `eos_goals` y `eos_memory`.
+El Conversational Gateway exportado llama a `/webhook/eos-worker`, pero `01 GW Preparar Entrada` no conserva `request_id` y `08 GW Lanzar Worker` tampoco lo envía. El Background Worker exportado tampoco exige `request_id`, vuelve a clasificar acciones y las rutas legacy de tarea, objetivo y memoria escriben directamente sin `action_command_id`.
 
-Por eso, aunque el contrato del Worker Gate está listo del lado plataforma, todavía no debe afirmarse que el n8n live esté gobernado de extremo a extremo.
+Por eso el backend puede estar preparado y probado sin afirmar todavía que el n8n live esté gobernado de extremo a extremo.
 
-## Backend disponible
+## Backend RC disponible
 
-- `POST /api/internal/worker-gate/v1`: evalúa política, payload, contexto fresco, aprobación y `command_id`.
-- `POST /api/internal/action-commands/v1`: broker interno v62 que usa el RPC atómico `eos_get_or_create_action_command_v61(...)`.
-- Ambos endpoints usan el mismo `EOS_WORKER_GATE_SECRET` mediante `Authorization: Bearer <secret>`.
-- El broker devuelve el mismo `command_id` ante un replay idéntico y responde `409` ante payload/contexto incompatible.
+- `POST /api/internal/worker-authorize/v1`: orquestador recomendado para n8n. Ejecuta Gate inicial, crea/recupera el command canónico cuando corresponde y ejecuta Gate final con el mismo payload.
+- `POST /api/internal/action-effects/v1`: ejecuta únicamente efectos internos autorizados y command-bound (`CREAR_TAREA`, `GUARDAR_MEMORIA`, `CREAR_OBJETIVO`) mediante `eos_execute_internal_effect_v64(...)`.
+- `POST /api/internal/worker-gate/v1`: contrato de política de bajo nivel.
+- `POST /api/internal/action-commands/v1`: broker de bajo nivel sobre `eos_get_or_create_action_command_v61(...)`.
 
-El endpoint del broker no expone `service_role` a n8n. La service key permanece solo en el servidor Next.js.
+Todos los endpoints internos usan `Authorization: Bearer <EOS_WORKER_GATE_SECRET>`. La service key de Supabase permanece exclusivamente del lado servidor; n8n no debe recibirla.
 
 ## Requisitos previos al cambio live
 
-1. Configurar el mismo `EOS_WORKER_GATE_SECRET` en Vercel y en n8n/Railway.
-2. No registrar el secreto en logs, historial, Supabase ni respuestas del workflow.
+1. Configurar el mismo `EOS_WORKER_GATE_SECRET` en Vercel y n8n/Railway.
+2. No registrar el secreto en logs, historial, Supabase ni payloads persistidos.
 3. Conservar `request_id` desde `/api/eos` → Gateway → Worker sin regenerarlo.
-4. Construir el payload de cada acción una sola vez. El JSON exacto debe ser el mismo para Gate, command y efecto real.
-5. Mantener fail-closed: timeout, 4xx/5xx, JSON inválido, secreto faltante o discrepancia => cero efecto.
-6. No mantener el camino legacy y el camino gobernado activos en paralelo.
+4. Construir el `payload` canónico de cada acción una sola vez y reutilizar exactamente ese JSON en todos los retries.
+5. Mantener fail-closed: timeout, 4xx/5xx, JSON inválido, secreto faltante, payload distinto o command incompatible => cero efecto.
+6. Desactivar el camino legacy antes de activar el camino gobernado. Nunca ejecutar ambos en paralelo.
 
-## Secuencia obligatoria por acción con efecto
+## Secuencia recomendada para efectos internos
 
-1. Worker recibe `usuario_id`, `request_id`, `accion`, `datos` y contexto.
-2. Worker construye `payload` canónico una sola vez.
-3. `POST /api/internal/worker-gate/v1` sin `command_id`.
-4. `recommend`, `prepare`, `approval` o `block` => detener; ningún efecto.
-5. `allow + requires_command:true` => `POST /api/internal/action-commands/v1` con el mismo payload.
-6. El broker devuelve `command_id`.
-7. Volver a llamar al Gate con ese `command_id` y el mismo payload.
-8. `approval_ready` => asegurar el command y llamar al Gate con `approval_id + command_id + consume_approval:true`.
-9. Solo `HTTP 2xx + decision=allow + execute=true` habilita el nodo de efecto secundario.
-10. El efecto durable debe guardar `action_command_id`.
-11. Registrar evento terminal `completada`, `error`, `no_disponible` o `cancelada`.
+Para `CREAR_TAREA`, `GUARDAR_MEMORIA` y `CREAR_OBJETIVO`:
 
-## Contrato del broker v62
+1. Worker recibe `usuario_id`, `request_id`, `accion`, `datos`, `conversacion_id`/`mensaje_id` si existen.
+2. Worker construye una sola vez el `payload` canónico.
+3. Worker llama `POST /api/internal/worker-authorize/v1` con el mismo secreto y payload.
+4. Si HTTP no es 2xx o `execute !== true`, detener. No ejecutar ningún nodo legacy de efecto.
+5. Si `execute === true`, exigir un `command_id` UUID en la respuesta.
+6. Worker llama `POST /api/internal/action-effects/v1` con únicamente ese `command_id`.
+7. `HTTP 2xx + ok=true` significa efecto confirmado. Un retry puede devolver `idempotent:true`; eso es éxito, no motivo para repetir por otra ruta.
+8. Nunca insertar además directamente en `eos_tasks`, `eos_memory`, `eos_goals` o `eos_goal_commands` desde el camino legacy.
 
-Request:
+Esta secuencia centraliza `Gate inicial → command v61 → Gate final → efecto v64` y evita que n8n tenga que coordinar manualmente las carreras entre autorización y command binding.
+
+## Request de autorización recomendado
 
 ```json
 {
   "usuario_id": "uuid",
-  "request_id": "uuid",
+  "request_id": "uuid-estable",
   "accion": "CREAR_TAREA",
-  "payload": {},
+  "payload": {
+    "mensaje": "opcional",
+    "datos": {}
+  },
   "conversacion_id": "uuid-opcional",
   "mensaje_id": "uuid-opcional",
   "origen": "eos-worker"
 }
 ```
 
-Respuesta nueva:
+No modificar `payload` entre el primer intento y un retry. Para la misma clave `(usuario_id, request_id, accion)`, un payload/contexto incompatible debe quedar bloqueado.
+
+## Respuesta autorizada esperada
+
+La única señal que habilita un efecto es:
+
+```json
+{
+  "ok": true,
+  "decision": "allow",
+  "execute": true,
+  "command_id": "uuid",
+  "command_idempotent": false,
+  "payload_fingerprint": "sha256"
+}
+```
+
+`approval`, `approval_ready` sin consumo final, `recommend`, `prepare`, `block`, error HTTP o respuesta inválida significan **cero efecto**.
+
+## Ejecutor de efectos internos
+
+Request:
+
+```json
+{
+  "command_id": "uuid"
+}
+```
+
+Respuesta típica:
 
 ```json
 {
   "ok": true,
   "command_id": "uuid",
-  "estado": "recibida",
+  "accion": "CREAR_TAREA",
+  "effect_type": "task",
+  "effect_id": "uuid",
   "idempotent": false,
-  "resultado": {},
-  "payload_fingerprint": "sha256"
+  "estado": "completada"
 }
 ```
 
-Replay idéntico devuelve el mismo `command_id` con `idempotent:true`. Payload o contexto distinto para la misma clave canónica devuelve `409`.
+En producción se verificó transaccionalmente que tarea, memoria y objetivo crean un solo efecto por `action_command_id`; el segundo intento devuelve el mismo efecto con `idempotent:true`. Una orden sin evento de autorización válido falla cerrada.
 
-## Binding durable v60
+## Binding durable
 
-- `eos_memory.action_command_id` con índice único parcial.
-- `eos_goal_commands.action_command_id` con índice único parcial.
-- `eos_tasks.action_command_id` ya existe desde Fase 4.
-- usuarios autenticados no pueden forjar `action_command_id` en memoria.
+- `eos_tasks.action_command_id`: único para efectos command-bound.
+- `eos_memory.action_command_id`: índice único parcial.
+- `eos_goal_commands.action_command_id`: índice único parcial; el trigger canónico materializa el objetivo.
+- `eos_action_commands`: unicidad por `(usuario_id, request_id, accion)`.
 
-Estos vínculos son los que impiden duplicar el efecto durable ante retry cuando el Worker usa el command canónico.
+Estos vínculos son la barrera durable contra doble ejecución por retry.
 
 ## Cambios exactos en Conversational Gateway
 
 ### `01 GW Preparar Entrada`
 
-- exigir `body.request_id` como UUID válido;
-- devolver `request_id` sin modificarlo;
-- no generar IDs nuevos.
+- exigir `body.request_id` UUID válido;
+- devolverlo sin modificar;
+- no generar un request nuevo si ya llegó desde `/api/eos`.
 
 ### `05 GW Preparar Respuesta`
 
-- conservar `request_id` por el spread del objeto base;
-- conservar el arreglo `acciones` producido por Gateway.
+- conservar `request_id` junto con el objeto base;
+- conservar `acciones` estructuradas.
 
 ### `08 GW Lanzar Worker`
 
-Añadir al body:
-
-```js
-request_id: $('05 GW Preparar Respuesta').first().json.request_id,
-```
-
-No cambiarlo al reintentar el HTTP Request.
+Enviar `request_id` al Worker y reutilizarlo en cualquier retry. No reemplazarlo por execution ID, job ID ni timestamp.
 
 ## Cambios exactos en Background Worker
 
-### `01 WK Preparar Entrada`
+### Entrada
 
 - exigir `request_id` UUID;
-- conservar las acciones recibidas del Gateway;
-- no inventar un `job_id` que sustituya `request_id`;
-- para múltiples acciones, cada una conserva el mismo request principal y su `accion` distinta; la restricción canónica es `(usuario_id, request_id, accion)`.
+- conservar la acción estructurada recibida del Gateway;
+- no volver a clasificar una acción válida;
+- si hay múltiples acciones, comparten el request principal pero mantienen `accion` distinta, por lo que la clave canónica sigue siendo `(usuario_id, request_id, accion)`.
 
-### Clasificación
+### Rutas internas con efecto
 
-El Gateway ya entregó la intención estructurada. El Worker no debe degradarla volviendo a inferir una acción incompatible a partir del texto. La clasificación legacy puede quedar disponible solo como fallback controlado para mensajes antiguos sin `acciones`, nunca para sobreescribir una acción válida del Gateway.
+Reemplazar los nodos directos de tarea/memoria/objetivo por:
 
-### Rutas con efecto
+`HTTP worker-authorize → comprobar execute=true → HTTP action-effects`.
 
-Antes de `GENERAR_EXCEL`, `GENERAR_PDF`, `GENERAR_WORD`, `CREAR_TAREA`, `CREAR_OBJETIVO` o `GUARDAR_MEMORIA`:
+No dejar conectados los nodos Supabase legacy como segunda salida.
 
-- Gate inicial;
-- broker de command;
-- Gate final;
-- solo después efecto real.
+### Generación de archivos
 
-Lecturas `RESPONDER`, `VER_DASHBOARD` y `VER_BRIEFING` no crean efecto durable.
-
-### Persistencia
-
-- tarea: insertar `action_command_id` en `eos_tasks`;
-- memoria: insertar `action_command_id` en `eos_memory`;
-- objetivo: usar `eos_goal_commands` con `action_command_id` y dejar que el contrato canónico materialice/actualice el objetivo; no insertar directamente un duplicado en `eos_goals` por retry.
+`GENERAR_EXCEL`, `GENERAR_PDF` y `GENERAR_WORD` también deben pasar por autorización y command binding antes del efecto real. Sin embargo, `action-effects/v1` v64 **no ejecuta archivos**. Para estas acciones el cutover live debe conservar el generador existente detrás de una barrera de idempotencia externa/durable ligada al mismo `command_id`; no deben considerarse PASS hasta demostrar que dos requests idénticos producen un solo archivo/efecto.
 
 ## Pruebas de corte obligatorias
 
 - secreto incorrecto => `401`, cero efecto;
-- secreto ausente => `503`, cero efecto;
+- secreto faltante/no configurado => cero efecto;
 - `request_id` ausente/inválido => cero efecto;
-- payload A evaluado y payload B ejecutado => bloqueado;
-- command de otro request/acción/usuario => bloqueado;
-- autoejecución válida => un solo efecto;
-- misma acción enviada dos veces => mismo `command_id`, un solo efecto externo;
+- payload A autorizado y payload B reintentado => bloqueado;
+- command de otro usuario/request/acción => bloqueado;
+- acción válida auto-autorizada => un solo efecto;
+- misma acción enviada dos veces => mismo command y un solo efecto;
 - aprobación pendiente => cero efecto;
-- aprobación aceptada => un solo consumo y un solo efecto;
-- segundo consumo => bloqueado;
+- aprobación aceptada => consumo atómico y un solo efecto;
+- segundo consumo => no duplica;
 - contexto stale cuando la regla exige frescura => bloqueado;
-- timeout Gate/broker => cero efecto;
-- Worker/n8n caído => retry seguro, sin duplicado;
-- `action_command_id` queda ligado al efecto durable creado.
+- timeout de Gate/orquestador => cero efecto;
+- Worker/n8n caído => retry con mismo request/payload, sin duplicado;
+- `action_command_id` queda ligado al efecto durable;
+- archivos: dos requests iguales => un solo artefacto real.
 
 ## Rollback
 
 Antes del cutover guardar export de Gateway y Worker activos. Si falla cualquier smoke:
 
 1. desactivar el workflow nuevo o restaurar el export anterior;
-2. no reactivar en paralelo el camino nuevo y el legacy;
-3. mantener las migraciones v50–v61: son compatibles con el rollback y añaden guards, no obligan a n8n a usarlos;
-4. revisar `eos_action_commands`/eventos para decidir manualmente si una acción quedó pendiente antes de reintentar.
+2. no reactivar simultáneamente el nuevo y el legacy;
+3. conservar las migraciones de hardening: agregan guards y no obligan a n8n a ejecutar el nuevo camino;
+4. revisar `eos_action_commands`, approvals y eventos antes de reintentar una acción pendiente;
+5. no borrar efectos ni commands para “limpiar” un retry sin auditar primero el estado real.
 
 ## Activación
 
-No conectar nodos de efecto real al nuevo camino hasta que las pruebas anteriores estén verdes en una copia controlada del workflow. El cutover se hace reemplazando el camino legacy completo, no agregando otra ruta que pueda ejecutar el mismo efecto dos veces.
+El corte live se hace sustituyendo el camino legacy completo. Primero Gateway conserva `request_id`; luego Worker usa exclusivamente el orquestador y el ejecutor command-bound. Solo después de los smokes de autorización, retry, timeout, caída de Worker y doble envío puede marcarse Worker Gate como PASS.
