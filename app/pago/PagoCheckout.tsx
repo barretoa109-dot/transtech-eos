@@ -40,6 +40,7 @@ type PedidoCreado = {
 };
 
 const PLANES_PAGOS = new Set(["personal", "pro", "business"]);
+const MAXIMO_COMPROBANTE_BYTES = 4 * 1024 * 1024;
 
 const CUENTA = {
   banco: "Banco Continental S.A.E.C.A.",
@@ -193,6 +194,11 @@ export default function PagoCheckout() {
   async function subirComprobante() {
     if (!pedido || !comprobante) {
       setError("Seleccioná el comprobante antes de continuar.");
+      return;
+    }
+
+    if (comprobante.size <= 0 || comprobante.size > MAXIMO_COMPROBANTE_BYTES) {
+      setError("El comprobante debe pesar como máximo 4 MB.");
       return;
     }
 
@@ -490,7 +496,7 @@ export default function PagoCheckout() {
                 <Upload size={24} />
                 <div>
                   <strong>Subí tu comprobante</strong>
-                  <span>JPG, PNG, WEBP o PDF. Máximo 8 MB.</span>
+                  <span>JPG, PNG, WEBP o PDF. Máximo 4 MB.</span>
                 </div>
 
                 <input

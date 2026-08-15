@@ -5,6 +5,11 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Vary: "Cookie",
+};
+
 function correosAdministradores() {
   return (process.env.ADMIN_EMAILS || "")
     .split(",")
@@ -41,7 +46,7 @@ export async function GET() {
     if (!administrador) {
       return NextResponse.json(
         { error: "No tenés permiso para acceder a esta sección." },
-        { status: 403 },
+        { status: 403, headers: NO_STORE_HEADERS },
       );
     }
 
@@ -62,7 +67,7 @@ export async function GET() {
 
       return NextResponse.json(
         { error: "No se pudieron consultar los pagos pendientes." },
-        { status: 500 },
+        { status: 500, headers: NO_STORE_HEADERS },
       );
     }
 
@@ -75,7 +80,7 @@ export async function GET() {
           const { data: signedData, error: signedError } =
             await admin.storage
               .from("comprobantes-pago")
-              .createSignedUrl(ruta, 10 * 60);
+              .createSignedUrl(ruta, 10 * 60, { download: true });
 
           if (signedError) {
             console.error(
@@ -94,16 +99,19 @@ export async function GET() {
       }),
     );
 
-    return NextResponse.json({
-      ok: true,
-      pagos,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        pagos,
+      },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error) {
     console.error("Error listando pagos:", error);
 
     return NextResponse.json(
       { error: "No se pudieron cargar los pagos." },
-      { status: 500 },
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

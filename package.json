@@ -6,23 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke:worker-gate": "node scripts/worker-gate-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
-    "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.107.0",
     "@swc/helpers": "^0.5.23",
-    "exceljs": "^3.4.0",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.25.0",
     "next": "^16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "resend": "^6.18.1",
-    "xlsx": "^0.18.5"
+    "resend": "^6.18.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -32,6 +31,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@capacitor/cli": "^8.5.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }

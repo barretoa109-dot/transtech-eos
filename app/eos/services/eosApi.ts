@@ -1,14 +1,13 @@
 import type { ImagenAdjunta, Mensaje } from "../types/chat";
 
 type EnviarEOSParams = {
-  usuarioId: string;
+  requestId: string;
   conversacionId: string;
-  nombre: string;
-  plan: string;
   mensaje: string;
   historial: Mensaje[];
   nuevoChat: boolean;
   imagen?: ImagenAdjunta | null;
+  documentoId?: string | null;
 };
 
 export type RespuestaEOS = {
@@ -20,6 +19,32 @@ export type RespuestaEOS = {
   accion?: string;
   metadata?: Record<string, unknown>;
 };
+
+const MAX_EOS_REQUEST_BYTES = 4 * 1024 * 1024;
+
+export class EOSApiError extends Error {
+  code: string;
+  status: number;
+  upgradeUrl: string | null;
+  commercial: Record<string, unknown> | null;
+
+  constructor(
+    message: string,
+    options: {
+      code?: string;
+      status: number;
+      upgradeUrl?: string | null;
+      commercial?: Record<string, unknown> | null;
+    },
+  ) {
+    super(message);
+    this.name = "EOSApiError";
+    this.code = options.code || "EOS_API_ERROR";
+    this.status = options.status;
+    this.upgradeUrl = options.upgradeUrl || null;
+    this.commercial = options.commercial || null;
+  }
+}
 
 function limpiarTexto(valor: unknown): string {
   if (typeof valor !== "string") return "";
@@ -49,6 +74,7 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
         accion: "RESPONDER",
         archivo_url: "",
         archivo_tipo: "",
+        archivo_nombre: "",
         metadata: {},
       };
     }
@@ -70,33 +96,37 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
   }
 
   const textoRespuestaOriginal = String(
-  data?.respuesta ||
-    data?.output ||
-    data?.text ||
-    data?.message ||
-    ""
-);
+    data?.respuesta || data?.output || data?.text || data?.message || "",
+  );
 
-const urlEncontrada =
-  textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
+  const urlEncontrada =
+    textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
 
-const archivoUrl = String(
-  data?.archivo_url ||
-    data?.archivoUrl ||
-    data?.download_url ||
-    data?.url ||
-    urlEncontrada ||
-    ""
-).trim();
+  const archivoUrl = String(
+    data?.archivo_url ||
+      data?.archivoUrl ||
+      data?.download_url ||
+      data?.url ||
+      urlEncontrada ||
+      "",
+  ).trim();
+
+  const archivoNombre = archivoUrl
+    ? String(
+        data?.archivo_nombre ||
+          data?.archivoNombre ||
+          data?.filename ||
+          data?.file_name ||
+          "",
+      ).trim()
+    : "";
 
   const respuesta = limpiarTexto(
-  textoRespuestaOriginal
-    .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
-    .trim() ||
-    (archivoUrl
-      ? "Tu archivo ya está listo para descargar."
-      : "Listo.")
-);
+    textoRespuestaOriginal
+      .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
+      .trim() ||
+      (archivoUrl ? "Tu archivo ya está listo para descargar." : "Listo."),
+  );
 
   return {
     respuesta,
@@ -108,6 +138,7 @@ const archivoUrl = String(
     archivo_tipo: archivoUrl
       ? String(data?.archivo_tipo || data?.archivoTipo || "excel")
       : "",
+    archivo_nombre: archivoNombre,
     metadata:
       data?.metadata && typeof data.metadata === "object"
         ? data.metadata
@@ -115,33 +146,55 @@ const archivoUrl = String(
   };
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export async function enviarMensajeAEOS(
-  params: EnviarEOSParams
+  params: EnviarEOSParams,
 ): Promise<RespuestaEOS> {
+  const payload = {
+    request_id: params.requestId,
+    conversacion_id: params.conversacionId,
+    mensaje: params.mensaje,
+    historial: params.historial
+      .filter((m) => !m.texto.includes("Este es un nuevo chat"))
+      .slice(-10),
+    nuevo_chat: params.nuevoChat,
+    imagen: params.imagen || null,
+    documento_id: params.documentoId || null,
+    origen: "eos-web",
+  };
+  const body = JSON.stringify(payload);
+  const bodyBytes = new TextEncoder().encode(body).byteLength;
+
+  if (bodyBytes > MAX_EOS_REQUEST_BYTES) {
+    throw new EOSApiError(
+      "El mensaje y sus adjuntos son demasiado grandes para enviarlos de forma segura. Probá con una imagen o conversación más liviana.",
+      {
+        status: 413,
+        code: "EOS_REQUEST_TOO_LARGE",
+      },
+    );
+  }
+
   const response = await fetch("/api/eos", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      usuario_id: params.usuarioId,
-      conversacion_id: params.conversacionId,
-      nombre: params.nombre,
-      plan: params.plan,
-      mensaje: params.mensaje,
-      historial: params.historial
-        .filter((m) => !m.texto.includes("Este es un nuevo chat"))
-        .slice(-10),
-      nuevo_chat: params.nuevoChat,
-      imagen: params.imagen || null,
-      origen: "eos-web",
-    }),
+    body,
   });
 
   const raw = await response.text();
 
   if (!raw.trim()) {
-    throw new Error("EOS respondió vacío");
+    throw new EOSApiError("EOS respondió vacío", {
+      status: response.status || 502,
+      code: "EOS_EMPTY_HTTP_RESPONSE",
+    });
   }
 
   let contenido: unknown = raw;
@@ -155,7 +208,19 @@ export async function enviarMensajeAEOS(
   const resultado = normalizarRespuesta(contenido);
 
   if (!response.ok) {
-    throw new Error(resultado.respuesta || "Error en EOS");
+    const responsePayload = objectValue(contenido);
+    throw new EOSApiError(resultado.respuesta || "Error en EOS", {
+      status: response.status,
+      code:
+        typeof responsePayload?.code === "string"
+          ? responsePayload.code
+          : "EOS_API_ERROR",
+      upgradeUrl:
+        typeof responsePayload?.upgrade_url === "string"
+          ? responsePayload.upgrade_url
+          : null,
+      commercial: objectValue(responsePayload?.commercial),
+    });
   }
 
   return resultado;

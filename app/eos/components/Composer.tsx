@@ -2,7 +2,7 @@
 
 import {
   ArrowUp,
-  ImagePlus,
+  FileText,
   LoaderCircle,
   Paperclip,
   Sparkles,
@@ -13,6 +13,7 @@ type ComposerProps = {
   cargando: boolean;
   onMensajeChange: (value: string) => void;
   onEnviar: () => void;
+  onArchivoSeleccionado?: (file: File) => void;
   onImagenSeleccionada?: (file: File) => void;
   mobile?: boolean;
 };
@@ -22,10 +23,12 @@ export default function Composer({
   cargando,
   onMensajeChange,
   onEnviar,
+  onArchivoSeleccionado,
   onImagenSeleccionada,
   mobile = false,
 }: ComposerProps) {
   const puedeEnviar = mensaje.trim().length > 0 && !cargando;
+  const documentosHabilitados = Boolean(onArchivoSeleccionado);
 
   function enviar() {
     if (!puedeEnviar) return;
@@ -40,17 +43,30 @@ export default function Composer({
     >
       <div className="tt-composer-shell">
         <div className="tt-composer-box">
-          <label className="tt-attach-button" title="Adjuntar una imagen">
+          <label
+            className="tt-attach-button"
+            title={
+              documentosHabilitados
+                ? "Adjuntar imagen o documento"
+                : "Adjuntar una imagen"
+            }
+          >
             <Paperclip size={19} strokeWidth={2.2} />
 
             <input
               type="file"
-              accept="image/*"
+              accept={
+                documentosHabilitados
+                  ? "image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv,application/json,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  : "image/*"
+              }
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
 
-                if (file && onImagenSeleccionada) {
+                if (file && onArchivoSeleccionado) {
+                  onArchivoSeleccionado(file);
+                } else if (file && file.type.startsWith("image/") && onImagenSeleccionada) {
                   onImagenSeleccionada(file);
                 }
 
@@ -116,8 +132,8 @@ export default function Composer({
           </p>
 
           <span>
-            <ImagePlus size={12} />
-            Imágenes habilitadas
+            <FileText size={12} />
+            {documentosHabilitados ? "Imágenes y documentos" : "Imágenes habilitadas"}
           </span>
         </div>
       </div>

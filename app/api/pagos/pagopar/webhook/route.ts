@@ -63,6 +63,19 @@ function fechaPagoIso(fecha: string | null | undefined) {
 }
 
 export async function POST(request: Request) {
+  // PagoPar no forma parte del checkout comercial activo de RC1. El endpoint
+  // permanece en el código para una futura reactivación controlada, pero falla
+  // cerrado salvo que Vercel habilite explícitamente la integración.
+  if (process.env.PAGOPAR_WEBHOOK_ENABLED !== "true") {
+    return NextResponse.json(
+      { error: "Integración de pago no habilitada." },
+      {
+        status: 410,
+        headers: { "Cache-Control": "private, no-store, max-age=0" },
+      },
+    );
+  }
+
   let body: PagoParWebhookBody | null = null;
 
   try {

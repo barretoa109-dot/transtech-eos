@@ -436,12 +436,12 @@ export default function PlanesPage() {
           </span>
 
           <div>
-            <span className="plans-section-label">ACTUALIZACIÓN AUTOMÁTICA</span>
-            <h2>Tu acceso cambia en cuanto el pago es confirmado.</h2>
+            <span className="plans-section-label">ACTIVACIÓN SEGURA</span>
+            <h2>Tu acceso cambia cuando TransTech confirma el pago.</h2>
             <p>
-              No necesitás esperar una aprobación manual. La confirmación
-              segura del proveedor de pago actualizará el plan, los límites
-              y las funciones disponibles en EOS.
+              En pagos por transferencia, el comprobante pasa por revisión
+              antes de activar el plan. Una vez confirmado, EOS actualiza tus
+              límites y funciones disponibles.
             </p>
           </div>
         </section>

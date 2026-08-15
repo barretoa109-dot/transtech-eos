@@ -14,9 +14,15 @@ import {
   RefreshCw,
   Sparkles,
   Target,
+  X,
 } from "lucide-react";
 
-import type { Briefing, BriefingItem } from "../types/briefing";
+import type {
+  Briefing,
+  BriefingApiResponse,
+  BriefingItem,
+  ExecutiveAttentionItem,
+} from "../types/briefing";
 
 type BriefingViewProps = {
   briefing: Briefing;
@@ -25,6 +31,7 @@ type BriefingViewProps = {
   error?: string | null;
   isStale?: boolean;
   historyCount?: number;
+  attention?: BriefingApiResponse["attention"];
   onRefresh?: () => void;
   onOpenChat?: (prompt: string) => void;
 };
@@ -36,6 +43,7 @@ export default function BriefingView({
   error,
   isStale = false,
   historyCount = 0,
+  attention,
   onRefresh,
   onOpenChat,
 }: BriefingViewProps) {
@@ -163,6 +171,20 @@ export default function BriefingView({
             )}
           </div>
         </section>
+
+        {attention?.available === false && (
+          <p className="briefing-error">
+            EOS no pudo verificar tus alertas y preferencias en este momento. No recomendará interrupciones hasta recuperar esa información.
+          </p>
+        )}
+
+        {attention && attention.available !== false && attention.items.length > 0 && (
+          <AttentionBoard
+            attention={attention}
+            onOpenChat={onOpenChat}
+            onUpdated={onRefresh}
+          />
+        )}
 
         <section className="briefing-section">
           <div className="section-header">
@@ -851,6 +873,109 @@ export default function BriefingView({
         }
       `}</style>
     </main>
+  );
+}
+
+function AttentionBoard({
+  attention,
+  onOpenChat,
+  onUpdated,
+}: {
+  attention: NonNullable<BriefingApiResponse["attention"]>;
+  onOpenChat?: (prompt: string) => void;
+  onUpdated?: () => void;
+}) {
+  async function update(item: ExecutiveAttentionItem, estado: "visto" | "descartado") {
+    const response = await fetch("/api/eos-seguimientos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, estado }),
+    });
+
+    if (!response.ok) return;
+    onUpdated?.();
+  }
+
+  return (
+    <section className="attention-board" aria-label="Atención ejecutiva">
+      <div className="attention-heading">
+        <div>
+          <span className="attention-label">ATENCIÓN EJECUTIVA</span>
+          <h2>Lo que merece tu atención hoy</h2>
+          <p>EOS priorizó impacto, urgencia y novedad. Solo muestra hasta {attention.daily_limit} señales para evitar ruido.</p>
+        </div>
+        <span className={`attention-state ${attention.interruption_recommended ? "urgent" : "calm"}`}>
+          {attention.interruption_recommended ? "Conviene actuar" : "Sin urgencia crítica"}
+        </span>
+      </div>
+
+      <div className="attention-list">
+        {attention.items.map((item, index) => (
+          <article className={`attention-item severity-${item.severidad}`} key={item.id}>
+            <span className="attention-rank">0{index + 1}</span>
+            <div className="attention-copy">
+              <div className="attention-item-meta">
+                <span>{item.severidad}</span>
+                <span>prioridad {item.score}/100</span>
+              </div>
+              <h3>{item.titulo}</h3>
+              <p>{item.mensaje}</p>
+              <small>{item.razon}</small>
+            </div>
+            <div className="attention-actions">
+              {onOpenChat && (
+                <button type="button" onClick={() => {
+                  void update(item, "visto");
+                  onOpenChat(`EOS detectó esta señal: ${item.mensaje} Ayudame a decidir y preparar la ejecución de hoy.`);
+                }}>
+                  Preparar acción
+                </button>
+              )}
+              <button className="dismiss-action" type="button" onClick={() => void update(item, "descartado")}>
+                <X size={14} /> Omitir
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {attention.suppressed_count > 0 && (
+        <p className="attention-suppressed">
+          EOS reservó {attention.suppressed_count} señal{attention.suppressed_count === 1 ? "" : "es"} de menor prioridad para no interrumpirte de más.
+        </p>
+      )}
+
+      <style jsx>{`
+        .attention-board { margin-top: 24px; padding: 28px; border: 1px solid #bfdbfe; border-radius: 28px; background: linear-gradient(145deg, #fff, #eff6ff); box-shadow: 0 20px 60px rgba(37,99,235,.08); }
+        .attention-heading { display: flex; justify-content: space-between; gap: 22px; align-items: flex-start; }
+        .attention-label { color: #2563eb; font-size: 9px; font-weight: 900; letter-spacing: .16em; }
+        h2 { margin: 8px 0 0; color: #071226; font-size: 27px; letter-spacing: -.035em; }
+        .attention-heading p { max-width: 700px; margin: 9px 0 0; color: #64748b; font-size: 11px; line-height: 1.6; }
+        .attention-state { flex: 0 0 auto; padding: 8px 11px; border-radius: 999px; font-size: 9px; font-weight: 850; }
+        .attention-state.urgent { background: #fff7ed; color: #c2410c; }
+        .attention-state.calm { background: #ecfdf5; color: #047857; }
+        .attention-list { display: grid; gap: 12px; margin-top: 22px; }
+        .attention-item { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 15px; align-items: center; padding: 17px; border: 1px solid #dbeafe; border-radius: 18px; background: rgba(255,255,255,.9); }
+        .attention-item.severity-critica { border-left: 4px solid #dc2626; }
+        .attention-item.severity-alta { border-left: 4px solid #f97316; }
+        .attention-item.severity-media { border-left: 4px solid #2563eb; }
+        .attention-rank { color: #93c5fd; font-size: 18px; font-weight: 950; }
+        .attention-item-meta { display: flex; gap: 8px; color: #2563eb; font-size: 8px; font-weight: 900; text-transform: uppercase; }
+        h3 { margin: 6px 0 0; color: #0f172a; font-size: 14px; }
+        .attention-copy p { margin: 5px 0 0; color: #475569; font-size: 10px; line-height: 1.55; }
+        .attention-copy small { display: block; margin-top: 5px; color: #94a3b8; font-size: 8px; }
+        .attention-actions { display: flex; flex-direction: column; gap: 7px; }
+        button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: #2563eb; color: white; font: 800 9px inherit; cursor: pointer; }
+        .dismiss-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #f1f5f9; color: #64748b; }
+        .attention-suppressed { margin: 14px 0 0; color: #64748b; font-size: 9px; text-align: center; }
+        @media (max-width: 760px) {
+          .attention-heading { flex-direction: column; }
+          .attention-item { grid-template-columns: 36px minmax(0,1fr); }
+          .attention-actions { grid-column: 1 / -1; flex-direction: row; }
+          .attention-actions button { flex: 1; }
+        }
+      `}</style>
+    </section>
   );
 }
 

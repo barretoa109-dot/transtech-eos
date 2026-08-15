@@ -22,6 +22,7 @@ export type Mensaje = {
   texto: string;
 
   id?: string;
+  request_id?: string | null;
   estado?: EstadoMensaje;
 
   archivo_url?: string;
@@ -32,6 +33,7 @@ export type Mensaje = {
   accion?: string;
 
   creado_en?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type Conversacion = {
@@ -43,8 +45,10 @@ export type Conversacion = {
 export type VistaEOS =
   | "chat"
   | "briefing"
+  | "context"
   | "decisions"
   | "learnings"
+  | "twin"
   | "dashboard"
   | "perfil";
 
@@ -52,6 +56,17 @@ export type ImagenAdjunta = {
   nombre: string;
   tipo: string;
   base64: string;
+};
+
+export type DocumentoAdjunto = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamanio: number;
+  document_type: string;
+  extraction_status: string;
+  intelligence_status: string;
+  duplicate?: boolean;
 };
 
 export type ArchivoAdjunto = {

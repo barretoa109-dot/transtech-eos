@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const DESTINOS_AUTH_PERMITIDOS = [
-  "/dashboard",
-  "/dashboard-eos",
-  "/eos/chat",
-  "/mobile",
-  "/planes",
-  "/pago",
-];
+const DESTINOS_AUTH_PERMITIDOS = ["/eos/chat", "/mobile", "/planes", "/pago"];
 
 function destinoSeguro(raw: string | null, origin: string) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
@@ -23,8 +16,7 @@ function destinoSeguro(raw: string | null, origin: string) {
     }
 
     const permitido = DESTINOS_AUTH_PERMITIDOS.some(
-      (base) =>
-        destino.pathname === base || destino.pathname.startsWith(`${base}/`),
+      (base) => destino.pathname === base || destino.pathname.startsWith(`${base}/`),
     );
 
     if (!permitido) {
@@ -40,10 +32,7 @@ function destinoSeguro(raw: string | null, origin: string) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = destinoSeguro(
-    requestUrl.searchParams.get("next") || requestUrl.searchParams.get("redirect"),
-    requestUrl.origin,
-  );
+  const next = destinoSeguro(requestUrl.searchParams.get("next"), requestUrl.origin);
 
   if (!code) {
     return NextResponse.redirect(
@@ -73,8 +62,8 @@ export async function GET(request: Request) {
     );
   }
 
-  // El trigger auth.users -> public.handle_new_user() es el único dueño de la
-  // creación inicial del perfil y fuerza el plan comercial desde el servidor.
-  // El callback nunca debe escribir plan/rol/estado desde user_metadata.
+  // `on_auth_user_created_eos -> handle_new_user_eos()` is the only owner of
+  // public.usuarios creation and forces the initial commercial state server-side.
+  // The callback must never upsert role/plan/profile fields from user metadata.
   return NextResponse.redirect(new URL(next, requestUrl.origin));
 }

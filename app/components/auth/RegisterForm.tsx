@@ -27,6 +27,8 @@ export default function RegisterForm({ onLogin }: Props) {
     setErrorMessage("");
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanNombre = nombre.trim();
+    const cleanWhatsapp = whatsapp.trim();
 
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -35,6 +37,10 @@ export default function RegisterForm({ onLogin }: Props) {
         emailRedirectTo:
           window.location.origin +
           "/auth/callback?next=/dashboard",
+        data: {
+          nombre: cleanNombre,
+          whatsapp: cleanWhatsapp || null,
+        },
       },
     });
 
@@ -50,25 +56,12 @@ export default function RegisterForm({ onLogin }: Props) {
       return;
     }
 
-    const { error: insertError } = await supabase
-      .from("usuarios")
-      .upsert({
-        id: data.user.id,
-        nombre,
-        email: cleanEmail,
-        whatsapp,
-        plan: "free",
-      });
-
+    // El perfil comercial se crea exclusivamente mediante el trigger
+    // server-owned `handle_new_user_eos`: rol=usuario, plan=free y estado=activo.
+    // El navegador solo entrega los datos de perfil permitidos como metadata.
     setLoading(false);
-
-    if (insertError) {
-      setErrorMessage(insertError.message);
-      return;
-    }
-
     setMensaje(
-      "Cuenta creada correctamente. Revisa tu correo electrónico para confirmar tu cuenta antes de iniciar sesión."
+      "Cuenta creada correctamente. Revisa tu correo electrónico para confirmar tu cuenta antes de iniciar sesión.",
     );
 
     setNombre("");
@@ -79,17 +72,13 @@ export default function RegisterForm({ onLogin }: Props) {
 
   return (
     <div className="rounded-3xl border border-slate-700 bg-slate-900 p-10 shadow-2xl">
-
-      <h2 className="text-4xl font-black">
-        Crear cuenta
-      </h2>
+      <h2 className="text-4xl font-black">Crear cuenta</h2>
 
       <p className="mt-3 text-slate-400">
         Crea tu cuenta para comenzar a utilizar EOS.
       </p>
 
       <form onSubmit={register}>
-
         <input
           className="mt-8 w-full rounded-xl bg-slate-800 p-4"
           placeholder="Nombre completo"
@@ -141,14 +130,10 @@ export default function RegisterForm({ onLogin }: Props) {
         >
           {loading ? "Creando cuenta..." : "Crear cuenta"}
         </button>
-
       </form>
 
       <div className="mt-8 text-center">
-
-        <span className="text-slate-400">
-          ¿Ya tienes una cuenta?
-        </span>
+        <span className="text-slate-400">¿Ya tienes una cuenta?</span>
 
         <button
           onClick={onLogin}
@@ -156,9 +141,7 @@ export default function RegisterForm({ onLogin }: Props) {
         >
           Iniciar sesión
         </button>
-
       </div>
-
     </div>
   );
 }
