@@ -296,7 +296,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!['recibida', 'ejecutando'].includes(commandData.estado)) {
+      if (!["recibida", "ejecutando"].includes(commandData.estado)) {
         return blockResponse(
           `La orden está en estado no ejecutable: ${commandData.estado}.`,
         );
@@ -305,43 +305,13 @@ export async function POST(request: Request) {
       command = commandData;
     }
 
-    if (consumeApproval && approvalId && commandId) {
-      const { data, error } = await admin.rpc(
-        "eos_consume_action_approval_v12",
-        {
-          p_approval_id: approvalId,
-          p_command_id: commandId,
-        },
-      );
-
-      if (error) {
-        console.error("Worker gate: consumo de aprobación rechazado:", error);
-        return blockResponse(
-          "La aprobación no pudo consumirse de forma segura.",
-        );
-      }
-
-      return NextResponse.json(
-        {
-          ok: true,
-          execute: true,
-          decision: "allow",
-          reason: "Aprobación explícita consumida de forma atómica.",
-          consumed: true,
-          command_id: command?.id || commandId,
-          approval: Array.isArray(data) ? data[0] || null : data,
-          policy_version: POLICY_VERSION,
-        },
-        { headers: noStoreHeaders() },
-      );
-    }
-
     const [
       profileResult,
       ruleResult,
       approvalResult,
       priorEventResult,
       dailyEventsResult,
+      masterContextResult,
     ] = await Promise.all([
       admin
         .from("eos_autonomy_profiles_v12")
@@ -380,6 +350,15 @@ export async function POST(request: Request) {
         .eq("usuario_id", usuarioId)
         .eq("event_type", "auto_allowed")
         .gte("created_at", recentAutonomyWindowStart()),
+      admin
+        .from("eos_master_context_v8")
+        .select("id,version,necesita_actualizacion,vigente_hasta,updated_at")
+        .eq("usuario_id", usuarioId)
+        .order("version", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     const readError =
@@ -387,7 +366,8 @@ export async function POST(request: Request) {
       ruleResult.error ||
       approvalResult.error ||
       priorEventResult.error ||
-      dailyEventsResult.error;
+      dailyEventsResult.error ||
+      masterContextResult.error;
 
     if (readError) {
       console.error("Worker gate: error leyendo autonomía:", readError);
@@ -399,6 +379,91 @@ export async function POST(request: Request) {
 
     const profile = { ...DEFAULT_PROFILE, ...(profileResult.data || {}) };
     const rule = ruleResult.data;
+    const masterContext = masterContextResult.data;
+    const requiresFreshContext = rule?.require_fresh_context === true;
+    const contextExpiry = masterContext?.vigente_hasta
+      ? new Date(masterContext.vigente_hasta).getTime()
+      : Number.NaN;
+    const contextFresh = Boolean(
+      masterContext &&
+        masterContext.necesita_actualizacion === false &&
+        Number.isFinite(contextExpiry) &&
+        contextExpiry > Date.now(),
+    );
+
+    if (requiresFreshContext && !contextFresh) {
+      const reason =
+        "El Contexto Maestro debe actualizarse antes de ejecutar esta acción.";
+
+      await logEvent(admin, {
+        usuarioId,
+        commandId,
+        eventType: "auto_blocked",
+        detail: {
+          request_id: requestId,
+          accion: action,
+          decision: "block",
+          reason,
+          code: "EOS_ACTION_CONTEXT_STALE",
+          require_fresh_context: true,
+          context_id: masterContext?.id ?? null,
+          context_version: masterContext?.version ?? null,
+          context_vigente_hasta: masterContext?.vigente_hasta ?? null,
+          context_necesita_actualizacion:
+            masterContext?.necesita_actualizacion ?? null,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          ok: true,
+          execute: false,
+          decision: "block",
+          code: "EOS_ACTION_CONTEXT_STALE",
+          reason,
+          context: {
+            required: true,
+            fresh: false,
+            version: masterContext?.version ?? null,
+            vigente_hasta: masterContext?.vigente_hasta ?? null,
+          },
+          policy_version: POLICY_VERSION,
+        },
+        { headers: noStoreHeaders() },
+      );
+    }
+
+    if (consumeApproval && approvalId && commandId) {
+      const { data, error } = await admin.rpc(
+        "eos_consume_action_approval_v12",
+        {
+          p_approval_id: approvalId,
+          p_command_id: commandId,
+        },
+      );
+
+      if (error) {
+        console.error("Worker gate: consumo de aprobación rechazado:", error);
+        return blockResponse(
+          "La aprobación no pudo consumirse de forma segura.",
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          execute: true,
+          decision: "allow",
+          reason: "Aprobación explícita consumida de forma atómica.",
+          consumed: true,
+          command_id: command?.id || commandId,
+          approval: Array.isArray(data) ? data[0] || null : data,
+          policy_version: POLICY_VERSION,
+        },
+        { headers: noStoreHeaders() },
+      );
+    }
+
     const configuredLevel =
       rule?.enabled === false
         ? 0
