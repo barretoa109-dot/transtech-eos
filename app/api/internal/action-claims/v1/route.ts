@@ -65,13 +65,53 @@ function mapRpcError(error: any) {
   const message = String(error?.message || "");
 
   if (message.includes("EOS_COMMAND_NOT_FOUND")) {
-    return respond({ ok: false, error: "La orden no existe." }, 404);
+    return respond(
+      { ok: false, code: "EOS_COMMAND_NOT_FOUND", error: "La orden no existe." },
+      404,
+    );
   }
 
   if (message.includes("EOS_COMMAND_NOT_AUTHORIZED")) {
     return respond(
-      { ok: false, error: "La orden no fue autorizada por Worker Gate." },
+      {
+        ok: false,
+        code: "EOS_COMMAND_NOT_AUTHORIZED",
+        error: "La orden no fue autorizada por Worker Gate.",
+      },
       403,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_AUTONOMY_DISABLED")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_AUTONOMY_DISABLED",
+        error: "La autonomía está desactivada para este usuario.",
+      },
+      409,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_RULE_DISABLED")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_RULE_DISABLED",
+        error: "La regla de autonomía está desactivada para esta acción.",
+      },
+      409,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_CONTEXT_STALE")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_CONTEXT_STALE",
+        error: "El Contexto Maestro debe actualizarse antes de ejecutar esta acción.",
+      },
+      409,
     );
   }
 
@@ -82,9 +122,20 @@ function mapRpcError(error: any) {
     message.includes("EOS_COMMAND_NOT_EXECUTING") ||
     message.includes("EOS_COMMAND_STATE_INVALID")
   ) {
+    const code = message.includes("EOS_COMMAND_STALE_ATTEMPT")
+      ? "EOS_COMMAND_STALE_ATTEMPT"
+      : message.includes("EOS_COMMAND_LEASE_EXPIRED")
+        ? "EOS_COMMAND_LEASE_EXPIRED"
+        : message.includes("EOS_COMMAND_ATTEMPT_NOT_CLAIMED")
+          ? "EOS_COMMAND_ATTEMPT_NOT_CLAIMED"
+          : message.includes("EOS_COMMAND_NOT_EXECUTING")
+            ? "EOS_COMMAND_NOT_EXECUTING"
+            : "EOS_COMMAND_STATE_INVALID";
+
     return respond(
       {
         ok: false,
+        code,
         error: "El intento ya no posee un lease ejecutable válido.",
       },
       409,
