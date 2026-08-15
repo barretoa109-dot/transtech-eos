@@ -35,6 +35,47 @@ function extensionPara(tipo: string) {
   return "pdf";
 }
 
+function comienzaCon(bytes: Uint8Array, firma: number[]) {
+  return (
+    bytes.length >= firma.length &&
+    firma.every((valor, indice) => bytes[indice] === valor)
+  );
+}
+
+function firmaArchivoValida(tipo: string, bytes: Uint8Array) {
+  if (tipo === "image/jpeg") {
+    return comienzaCon(bytes, [0xff, 0xd8, 0xff]);
+  }
+
+  if (tipo === "image/png") {
+    return comienzaCon(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  }
+
+  if (tipo === "image/webp") {
+    return (
+      bytes.length >= 12 &&
+      comienzaCon(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    );
+  }
+
+  if (tipo === "application/pdf") {
+    return comienzaCon(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
+  }
+
+  return false;
+}
+
+function nombreArchivoSeguro(nombre: string) {
+  return nombre
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, 255);
+}
+
 function textoErrorRpc(error: unknown) {
   if (!error || typeof error !== "object") return "";
 
@@ -124,6 +165,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const bytes = new Uint8Array(await archivo.arrayBuffer());
+
+    if (!firmaArchivoValida(archivo.type, bytes)) {
+      return NextResponse.json(
+        {
+          error:
+            "El contenido del archivo no coincide con un JPG, PNG, WEBP o PDF válido.",
+        },
+        { status: 400 },
+      );
+    }
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -196,7 +249,6 @@ export async function POST(request: Request) {
 
     const extension = extensionPara(archivo.type);
     rutaSubida = `${user.id}/${solicitudId}/${randomUUID()}.${extension}`;
-    const bytes = new Uint8Array(await archivo.arrayBuffer());
 
     const { error: uploadError } = await admin.storage
       .from("comprobantes-pago")
@@ -217,7 +269,7 @@ export async function POST(request: Request) {
 
     const comprobante = {
       ruta: rutaSubida,
-      nombre_original: archivo.name.slice(0, 255),
+      nombre_original: nombreArchivoSeguro(archivo.name),
       tipo: archivo.type,
       bytes: archivo.size,
       subido_at: new Date().toISOString(),
