@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -27,6 +28,42 @@ function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function stable(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stable);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.keys(value as Record<string, unknown>)
+    .sort()
+    .reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = stable((value as Record<string, unknown>)[key]);
+      return acc;
+    }, {});
+}
+
+function samePayload(left: unknown, right: unknown) {
+  return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+}
+
+function authorized(request: Request) {
+  const expected = process.env.EOS_WORKER_GATE_SECRET;
+  if (!expected) return { ok: false, unavailable: true };
+
+  const header = request.headers.get("authorization") || "";
+  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!supplied) return { ok: false, unavailable: false };
+
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(supplied);
+  if (expectedBuffer.length !== suppliedBuffer.length) {
+    return { ok: false, unavailable: false };
+  }
+
+  return {
+    ok: timingSafeEqual(expectedBuffer, suppliedBuffer),
+    unavailable: false,
+  };
 }
 
 function respond(body: Record<string, unknown>, status = 200) {
@@ -66,7 +103,33 @@ async function evaluateGate(
 
 export async function POST(request: Request) {
   try {
-    const authorization = request.headers.get("authorization") || "";
+    const authorizationHeader = request.headers.get("authorization") || "";
+    const authorization = authorized(request);
+
+    if (authorization.unavailable) {
+      return respond(
+        {
+          ok: false,
+          execute: false,
+          decision: "block",
+          error: "Worker Gate no configurado.",
+        },
+        503,
+      );
+    }
+
+    if (!authorization.ok) {
+      return respond(
+        {
+          ok: false,
+          execute: false,
+          decision: "block",
+          error: "No autorizado.",
+        },
+        401,
+      );
+    }
+
     const body = await request.json().catch(() => null);
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -82,8 +145,46 @@ export async function POST(request: Request) {
     }
 
     const source = body as Record<string, unknown>;
+    const usuarioId = source.usuario_id;
+    const requestId = source.request_id;
+    const action =
+      typeof source.accion === "string"
+        ? source.accion.trim().toUpperCase()
+        : "";
     const conversacionId = source.conversacion_id ?? null;
     const mensajeId = source.mensaje_id ?? null;
+    const payload =
+      source.payload === null || source.payload === undefined
+        ? {}
+        : safeObject(source.payload);
+
+    if (!isUuid(usuarioId) || !isUuid(requestId) || !action) {
+      return respond(
+        {
+          ok: false,
+          execute: false,
+          decision: "block",
+          error: "Identidad de orden inválida.",
+        },
+        400,
+      );
+    }
+
+    if (
+      source.payload !== null &&
+      source.payload !== undefined &&
+      (typeof source.payload !== "object" || Array.isArray(source.payload))
+    ) {
+      return respond(
+        {
+          ok: false,
+          execute: false,
+          decision: "block",
+          error: "payload debe ser un objeto JSON.",
+        },
+        400,
+      );
+    }
 
     if (conversacionId !== null && !isUuid(conversacionId)) {
       return respond(
@@ -109,14 +210,144 @@ export async function POST(request: Request) {
       );
     }
 
+    const admin: any = createAdminClient();
+
+    // Retry/resume path. A command that already exists was previously brokered
+    // for this exact request/action. We never create a new command here.
+    const { data: existingCommand, error: existingCommandError } = await admin
+      .from("eos_action_commands")
+      .select(
+        "id,usuario_id,request_id,accion,estado,payload,resultado,conversacion_id,mensaje_id",
+      )
+      .eq("usuario_id", usuarioId)
+      .eq("request_id", requestId)
+      .eq("accion", action)
+      .maybeSingle();
+
+    if (existingCommandError) {
+      console.error("Worker authorize existing command error:", existingCommandError);
+      return respond(
+        {
+          ok: false,
+          execute: false,
+          decision: "block",
+          error: "No fue posible verificar un replay existente.",
+        },
+        500,
+      );
+    }
+
+    if (existingCommand) {
+      if (!samePayload(existingCommand.payload, payload)) {
+        return respond(
+          {
+            ok: false,
+            execute: false,
+            decision: "block",
+            error: "El replay cambió el payload de la orden original.",
+            code: "EOS_COMMAND_PAYLOAD_MISMATCH",
+          },
+          409,
+        );
+      }
+
+      if (
+        (conversacionId &&
+          existingCommand.conversacion_id &&
+          conversacionId !== existingCommand.conversacion_id) ||
+        (mensajeId &&
+          existingCommand.mensaje_id &&
+          mensajeId !== existingCommand.mensaje_id)
+      ) {
+        return respond(
+          {
+            ok: false,
+            execute: false,
+            decision: "block",
+            error: "El replay cambió el contexto de la orden original.",
+            code: "EOS_COMMAND_CONTEXT_MISMATCH",
+          },
+          409,
+        );
+      }
+
+      if (existingCommand.estado === "completada") {
+        return respond({
+          ok: true,
+          execute: false,
+          decision: "completed",
+          reason: "La misma orden ya fue completada; no se repetirá el efecto.",
+          command_id: existingCommand.id,
+          command_idempotent: true,
+          resultado: existingCommand.resultado ?? {},
+          policy_version: "eos-worker-gate-v2",
+        });
+      }
+
+      if (!["recibida", "ejecutando"].includes(existingCommand.estado)) {
+        return respond(
+          {
+            ok: false,
+            execute: false,
+            decision: "block",
+            reason: `La orden existente está en estado no ejecutable: ${existingCommand.estado}.`,
+            command_id: existingCommand.id,
+          },
+          409,
+        );
+      }
+
+      const { data: priorAuthorization, error: priorAuthorizationError } =
+        await admin
+          .from("eos_autonomy_events_v12")
+          .select("id,event_type,created_at")
+          .eq("usuario_id", usuarioId)
+          .eq("command_id", existingCommand.id)
+          .in("event_type", ["auto_allowed", "consumed"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+      if (priorAuthorizationError) {
+        console.error(
+          "Worker authorize prior authorization error:",
+          priorAuthorizationError,
+        );
+        return respond(
+          {
+            ok: false,
+            execute: false,
+            decision: "block",
+            error: "No fue posible verificar la autorización previa del replay.",
+          },
+          500,
+        );
+      }
+
+      if (priorAuthorization) {
+        return respond({
+          ok: true,
+          execute: true,
+          decision: "allow",
+          reason:
+            "Replay exacto de una orden ya autorizada; se reanuda el mismo command_id.",
+          command_id: existingCommand.id,
+          command_idempotent: true,
+          resumed: true,
+          authorization_event: priorAuthorization.event_type,
+          policy_version: "eos-worker-gate-v2",
+        });
+      }
+    }
+
     const initialBody: Record<string, unknown> = {
-      usuario_id: source.usuario_id,
-      request_id: source.request_id,
-      accion: source.accion,
-      payload: safeObject(source.payload),
+      usuario_id: usuarioId,
+      request_id: requestId,
+      accion: action,
+      payload,
     };
 
-    const initial = await evaluateGate(initialBody, authorization);
+    const initial = await evaluateGate(initialBody, authorizationHeader);
 
     if (!initial.response.ok) {
       return respond(initial.data, initial.response.status);
@@ -148,33 +379,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const usuarioId = source.usuario_id;
-    const requestId = source.request_id;
-    const action =
-      typeof source.accion === "string"
-        ? source.accion.trim().toUpperCase()
-        : "";
-
-    if (!isUuid(usuarioId) || !isUuid(requestId) || !action) {
-      return respond(
-        {
-          ok: false,
-          execute: false,
-          decision: "block",
-          error: "Identidad de orden inválida.",
-        },
-        400,
-      );
-    }
-
-    const admin: any = createAdminClient();
     const { data: commandData, error: commandError } = await admin.rpc(
       "eos_get_or_create_action_command_v61",
       {
         p_usuario_id: usuarioId,
         p_request_id: requestId,
         p_accion: action,
-        p_payload: safeObject(source.payload),
+        p_payload: payload,
         p_conversacion_id: conversacionId,
         p_mensaje_id: mensajeId,
         p_origen:
@@ -232,6 +443,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (command.estado === "completada" && command.idempotent === true) {
+      return respond({
+        ok: true,
+        execute: false,
+        decision: "completed",
+        reason: "La misma orden ya fue completada; no se repetirá el efecto.",
+        command_id: command.command_id,
+        command_idempotent: true,
+        resultado: command.resultado ?? {},
+        payload_fingerprint: command.payload_fingerprint ?? null,
+        policy_version: "eos-worker-gate-v2",
+      });
+    }
+
     const finalBody: Record<string, unknown> = {
       ...initialBody,
       command_id: command.command_id,
@@ -257,7 +482,7 @@ export async function POST(request: Request) {
       finalBody.consume_approval = true;
     }
 
-    const final = await evaluateGate(finalBody, authorization);
+    const final = await evaluateGate(finalBody, authorizationHeader);
 
     return respond(
       {
