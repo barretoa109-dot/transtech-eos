@@ -29,6 +29,11 @@ function isUuid(value: unknown): value is string {
   );
 }
 
+function positiveInteger(value: unknown) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
 function objectOrEmpty(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -80,31 +85,30 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const commandId = body?.command_id;
+    const attemptCount = positiveInteger(body?.attempt_count);
     const estado = cleanText(body?.estado, 40).toLowerCase();
     const resultado = objectOrEmpty(body?.resultado);
-    const errorCode = cleanText(body?.error_code, 120) || null;
+    const errorCode = cleanText(body?.error_code, 160) || null;
     const errorMessage = cleanText(body?.error_message, 500) || null;
 
     if (!isUuid(commandId)) {
       return respond({ ok: false, error: "command_id inválido." }, 400);
     }
 
+    if (!attemptCount) {
+      return respond({ ok: false, error: "attempt_count inválido." }, 400);
+    }
+
     if (!TERMINAL_STATES.has(estado)) {
       return respond({ ok: false, error: "Estado terminal inválido." }, 400);
     }
 
-    if (estado === "error" && !errorMessage) {
-      return respond(
-        { ok: false, error: "error_message es obligatorio para estado error." },
-        400,
-      );
-    }
-
     const admin: any = createAdminClient();
     const { data, error } = await admin.rpc(
-      "eos_finalize_action_command_v66",
+      "eos_finalize_action_command_v68",
       {
         p_command_id: commandId,
+        p_attempt_count: attemptCount,
         p_estado: estado,
         p_resultado: resultado,
         p_error_code: errorCode,
@@ -126,13 +130,27 @@ export async function POST(request: Request) {
         );
       }
 
+      if (message.includes("EOS_ACTION_COMMAND_NOT_CLAIMED")) {
+        return respond(
+          { ok: false, error: "La orden no fue reclamada por un Worker antes del efecto." },
+          409,
+        );
+      }
+
+      if (message.includes("EOS_ACTION_STALE_ATTEMPT")) {
+        return respond(
+          { ok: false, error: "El resultado pertenece a un intento stale y fue rechazado." },
+          409,
+        );
+      }
+
       if (
         message.includes("EOS_ACTION_TERMINAL_CONFLICT") ||
         message.includes("EOS_ACTION_COMMAND_NOT_EXECUTABLE") ||
         message.includes("EOS_ACTION_TERMINAL_EVENT_NOT_APPLIED")
       ) {
         return respond(
-          { ok: false, error: "La orden tiene un estado incompatible." },
+          { ok: false, error: "La orden tiene un resultado o estado incompatible." },
           409,
         );
       }
@@ -156,6 +174,7 @@ export async function POST(request: Request) {
     return respond({
       ok: true,
       command_id: result.command_id,
+      attempt_count: attemptCount,
       estado: result.estado,
       idempotent: result.idempotent === true,
       resultado: result.resultado ?? {},
