@@ -26,9 +26,11 @@ Antes de OpenAI consulta `public.eos_message_usage_v40` y exige una fila que coi
 - `request_id` del payload;
 - `status = reserved`;
 - `expires_at > now()`;
-- `metadata.source = api-eos-v40`.
+- `metadata.source = api-eos-v40`;
+- `metadata.server_owned = true`;
+- `metadata.reservation_version = v75`.
 
-Esto vincula el webhook a la reserva server-owned creada por `/api/eos` antes del fetch a n8n. Una llamada directa sin reserva vigente se detiene antes de OpenAI y antes del Worker.
+Esto vincula el webhook específicamente a una reserva v75 creada por `/api/eos` mediante el boundary service-role-only. Una llamada directa sin esa reserva vigente se detiene antes de OpenAI y antes del Worker. Una reserva legacy v40 creada directamente por un usuario autenticado tampoco habilita el Gateway RC1.
 
 ## Background Worker RC1
 
@@ -116,6 +118,7 @@ No marcar Worker Gate live como PASS hasta demostrar en n8n real:
 - dos Workers sobre archivo -> uno solo obtiene el claim;
 - Excel replay -> un único command/artefacto lógico;
 - resultado stale -> rechazado;
-- llamada directa al Gateway sin reserva server-owned -> bloqueada;
+- llamada directa al Gateway sin reserva server-owned v75 -> bloqueada;
+- reserva legacy v40 sin `server_owned=true` -> bloqueada;
 - rutas Worker sin Bearer válido -> bloqueadas;
 - Gateway legacy y camino gobernado nunca ejecutan en paralelo.
