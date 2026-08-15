@@ -30,6 +30,8 @@ async function requestJson(url, options = {}) {
     ...options,
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
+      Accept: 'application/json',
+      'Cache-Control': 'no-store',
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
