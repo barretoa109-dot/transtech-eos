@@ -48,6 +48,102 @@ function respond(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status, headers: noStoreHeaders() });
 }
 
+function mapRpcError(error: unknown) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message || "")
+      : "";
+
+  if (message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_FOUND")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_INTERNAL_EFFECT_COMMAND_NOT_FOUND",
+        error: "La orden no existe.",
+      },
+      404,
+    );
+  }
+
+  if (message.includes("EOS_INTERNAL_EFFECT_NOT_AUTHORIZED")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_INTERNAL_EFFECT_NOT_AUTHORIZED",
+        error: "La orden no fue autorizada por Worker Gate.",
+      },
+      403,
+    );
+  }
+
+  if (message.includes("EOS_INTERNAL_EFFECT_UNSUPPORTED_ACTION")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_INTERNAL_EFFECT_UNSUPPORTED_ACTION",
+        error: "La acción no pertenece al ejecutor interno.",
+      },
+      400,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_AUTONOMY_DISABLED")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_AUTONOMY_DISABLED",
+        error: "La autonomía está desactivada para este usuario.",
+      },
+      409,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_RULE_DISABLED")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_RULE_DISABLED",
+        error: "La regla de autonomía está desactivada para esta acción.",
+      },
+      409,
+    );
+  }
+
+  if (message.includes("EOS_ACTION_CONTEXT_STALE")) {
+    return respond(
+      {
+        ok: false,
+        code: "EOS_ACTION_CONTEXT_STALE",
+        error: "El Contexto Maestro debe actualizarse antes de ejecutar esta acción.",
+      },
+      409,
+    );
+  }
+
+  if (
+    message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_EXECUTABLE") ||
+    message.includes("EOS_INTERNAL_EFFECT_GOAL_FAILED") ||
+    message.includes("EOS_INTERNAL_EFFECT_GOAL_ID_MISSING")
+  ) {
+    const code = message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_EXECUTABLE")
+      ? "EOS_INTERNAL_EFFECT_COMMAND_NOT_EXECUTABLE"
+      : message.includes("EOS_INTERNAL_EFFECT_GOAL_FAILED")
+        ? "EOS_INTERNAL_EFFECT_GOAL_FAILED"
+        : "EOS_INTERNAL_EFFECT_GOAL_ID_MISSING";
+
+    return respond(
+      {
+        ok: false,
+        code,
+        error: "La orden no pudo ejecutarse de forma segura.",
+      },
+      409,
+    );
+  }
+
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const authorization = authorized(request);
@@ -77,36 +173,8 @@ export async function POST(request: Request) {
     );
 
     if (error) {
-      const message = String(error.message || "");
-
-      if (message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_FOUND")) {
-        return respond({ ok: false, error: "La orden no existe." }, 404);
-      }
-
-      if (message.includes("EOS_INTERNAL_EFFECT_NOT_AUTHORIZED")) {
-        return respond(
-          { ok: false, error: "La orden no fue autorizada por Worker Gate." },
-          403,
-        );
-      }
-
-      if (message.includes("EOS_INTERNAL_EFFECT_UNSUPPORTED_ACTION")) {
-        return respond(
-          { ok: false, error: "La acción no pertenece al ejecutor interno." },
-          400,
-        );
-      }
-
-      if (
-        message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_EXECUTABLE") ||
-        message.includes("EOS_INTERNAL_EFFECT_GOAL_FAILED") ||
-        message.includes("EOS_INTERNAL_EFFECT_GOAL_ID_MISSING")
-      ) {
-        return respond(
-          { ok: false, error: "La orden no pudo ejecutarse de forma segura." },
-          409,
-        );
-      }
+      const mapped = mapRpcError(error);
+      if (mapped) return mapped;
 
       console.error("Worker effect executor RPC error:", error);
       return respond(
