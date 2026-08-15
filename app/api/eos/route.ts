@@ -1,3 +1,5 @@
+import { createClient } from "@/lib/supabase/server";
+
 function buscarTexto(valor: unknown): string {
   if (!valor) return "";
 
@@ -47,29 +49,116 @@ function limpiarRespuesta(texto: string): string {
     .trim();
 }
 
+function esUuid(valor: unknown): valor is string {
+  return (
+    typeof valor === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(valor)
+  );
+}
+
+function textoSeguro(valor: unknown, max = 500) {
+  return typeof valor === "string"
+    ? valor.replace(/\s+/g, " ").trim().slice(0, max)
+    : "";
+}
+
+function noStoreHeaders() {
+  return {
+    "Cache-Control": "private, no-store, max-age=0",
+    Vary: "Cookie",
+  };
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return Response.json(
+        {
+          respuesta: "Tu sesión dejó de ser válida. Iniciá sesión nuevamente.",
+        },
+        { status: 401, headers: noStoreHeaders() },
+      );
+    }
+
+    const body = (await req.json()) as Record<string, unknown>;
+    const conversacionId = textoSeguro(body.conversacion_id, 120);
+
+    if (conversacionId) {
+      if (!esUuid(conversacionId)) {
+        return Response.json(
+          { respuesta: "La conversación indicada no es válida." },
+          { status: 400, headers: noStoreHeaders() },
+        );
+      }
+
+      const { data: conversacion, error: conversationError } = await supabase
+        .from("conversaciones")
+        .select("id")
+        .eq("id", conversacionId)
+        .eq("usuario_id", user.id)
+        .maybeSingle();
+
+      if (conversationError) {
+        console.error("No se pudo verificar la conversación EOS:", conversationError);
+        return Response.json(
+          {
+            respuesta:
+              "No pudimos verificar esta conversación de forma segura. Probá nuevamente.",
+          },
+          { status: 503, headers: noStoreHeaders() },
+        );
+      }
+
+      if (!conversacion) {
+        return Response.json(
+          { respuesta: "La conversación no pertenece a tu sesión actual." },
+          { status: 403, headers: noStoreHeaders() },
+        );
+      }
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("usuarios")
+      .select("nombre,plan")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("No se pudo cargar el perfil EOS:", profileError);
+    }
+
+    const nombreServidor =
+      textoSeguro(profile?.nombre, 120) ||
+      textoSeguro(user.user_metadata?.nombre, 120) ||
+      textoSeguro(user.user_metadata?.name, 120) ||
+      textoSeguro(user.email?.split("@")[0], 120) ||
+      "Usuario";
+    const planServidor = textoSeguro(profile?.plan, 40).toLowerCase() || "free";
 
     const payload = {
-      request_id: body.request_id || crypto.randomUUID(),
-      usuario_id: body.usuario_id || body.user_id || "",
-      conversacion_id: body.conversacion_id || "",
-      nombre: body.nombre || "Usuario",
-      plan: body.plan || "free",
-      mensaje: body.mensaje || "",
-      historial: body.historial || [],
-      origen: body.origen || "eos-web",
+      request_id: esUuid(body.request_id) ? body.request_id : crypto.randomUUID(),
+      usuario_id: user.id,
+      conversacion_id: conversacionId,
+      nombre: nombreServidor,
+      plan: planServidor,
+      mensaje: textoSeguro(body.mensaje, 12_000),
+      historial: Array.isArray(body.historial) ? body.historial.slice(-10) : [],
+      origen: "eos-web",
       fecha: new Date().toISOString(),
     };
 
-    if (!payload.usuario_id || !payload.mensaje) {
+    if (!payload.mensaje) {
       return Response.json(
         {
-          respuesta:
-            "Necesito identificar tu usuario y recibir un mensaje para poder ayudarte bien.",
+          respuesta: "Necesito recibir un mensaje para poder ayudarte bien.",
         },
-        { status: 400 }
+        { status: 400, headers: noStoreHeaders() },
       );
     }
 
@@ -81,7 +170,8 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      }
+        signal: AbortSignal.timeout(30_000),
+      },
     );
 
     const rawText = await response.text();
@@ -110,7 +200,7 @@ export async function POST(req: Request) {
           respuesta:
             "EOS recibió tu mensaje, pero tuvo un problema procesándolo. Probá nuevamente en unos segundos.",
         },
-        { status: response.status }
+        { status: response.status, headers: noStoreHeaders() },
       );
     }
 
@@ -135,25 +225,33 @@ export async function POST(req: Request) {
       console.log("Registro de decisión no disponible:", captureError);
     }
 
-    return Response.json({
-      respuesta,
-      metadata: {
-        usuario_id: payload.usuario_id,
-        request_id: payload.request_id,
-        conversacion_id: payload.conversacion_id,
-        origen: payload.origen,
-        fecha: payload.fecha,
+    return Response.json(
+      {
+        respuesta,
+        metadata: {
+          usuario_id: payload.usuario_id,
+          request_id: payload.request_id,
+          conversacion_id: payload.conversacion_id,
+          origen: payload.origen,
+          fecha: payload.fecha,
+        },
       },
-    });
+      { headers: noStoreHeaders() },
+    );
   } catch (error) {
+    const timeout =
+      error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError");
+
     console.log("Error proxy EOS:", error);
 
     return Response.json(
       {
-        respuesta:
-          "No pude conectarme con EOS en este momento. Probá nuevamente.",
+        respuesta: timeout
+          ? "EOS tardó más de lo esperado en responder. Probá nuevamente en unos segundos."
+          : "No pude conectarme con EOS en este momento. Probá nuevamente.",
       },
-      { status: 500 }
+      { status: timeout ? 504 : 500, headers: noStoreHeaders() },
     );
   }
 }
