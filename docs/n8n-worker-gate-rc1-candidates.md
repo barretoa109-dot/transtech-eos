@@ -68,18 +68,42 @@ Si el claim no entrega `claimed=true + lease_token + attempt_count`, el generado
 
 No incrustar estos valores secretos en el export JSON.
 
+## Smoke harness reproducible
+
+El repo incluye `scripts/worker-gate-smoke.mjs` y el comando `npm run smoke:worker-gate`.
+
+El harness nunca imprime el secreto y comprueba primero el límite Vercel:
+
+1. `worker-ping` sin Authorization -> HTTP 401;
+2. `worker-ping` con secreto incorrecto -> HTTP 401;
+3. `worker-ping` con el secreto correcto -> HTTP 200 y contrato `eos-worker-gate`.
+
+Si además se define `EOS_N8N_BASE_URL`, también llama `eos-worker-rc1-respond` con UUIDs sintéticos y verifica la cadena `n8n -> worker-ping -> respuesta`, sin crear tarea, objetivo, memoria ni archivo.
+
+Ejemplo local/controlado:
+
+```bash
+EOS_APP_BASE_URL="https://<preview-exacto>.vercel.app" \
+EOS_N8N_BASE_URL="https://n8n-production-6cdb.up.railway.app" \
+EOS_WORKER_GATE_SECRET="<secreto-compartido>" \
+npm run smoke:worker-gate
+```
+
+Para validar solo el backend Vercel antes de importar/activar n8n, omitir `EOS_N8N_BASE_URL`.
+
 ## Orden seguro de import/cutover
 
 1. Importar ambos candidatos con `active=false`.
 2. Confirmar que las credenciales Supabase/OpenAI referenciadas resuelven en la misma instancia.
 3. Configurar las tres variables anteriores.
 4. Activar primero el Worker RC1, cuyos paths son distintos a `eos-worker` legacy.
-5. Probar directamente los endpoints RC1 con requests controlados y sin activar el Gateway RC1.
-6. Probar replay idéntico, doble envío, payload alterado, contexto stale, approval, claim concurrente y Excel command-bound.
-7. Desactivar el Gateway legacy.
-8. Activar el Gateway RC1 en `eos-chat`.
-9. Verificar E2E desde `/api/eos` con usuario real.
-10. Desactivar el Worker legacy cuando no queden ejecuciones pendientes.
+5. Ejecutar `npm run smoke:worker-gate` contra el Preview exacto y el Worker RC1.
+6. Probar directamente los endpoints internos/file con requests controlados antes de activar el Gateway RC1.
+7. Probar replay idéntico, doble envío, payload alterado, contexto stale, approval, claim concurrente y Excel command-bound.
+8. Desactivar el Gateway legacy.
+9. Activar el Gateway RC1 en `eos-chat`.
+10. Verificar E2E desde `/api/eos` con usuario real.
+11. Desactivar el Worker legacy cuando no queden ejecuciones pendientes.
 
 Nunca mantener dos Gateways activos con el mismo webhook ni dos caminos capaces de ejecutar el mismo efecto.
 
