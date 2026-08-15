@@ -20,6 +20,8 @@ export type RespuestaEOS = {
   metadata?: Record<string, unknown>;
 };
 
+const MAX_EOS_REQUEST_BYTES = 4 * 1024 * 1024;
+
 export class EOSApiError extends Error {
   code: string;
   status: number;
@@ -153,23 +155,37 @@ function objectValue(value: unknown): Record<string, unknown> | null {
 export async function enviarMensajeAEOS(
   params: EnviarEOSParams,
 ): Promise<RespuestaEOS> {
+  const payload = {
+    request_id: params.requestId,
+    conversacion_id: params.conversacionId,
+    mensaje: params.mensaje,
+    historial: params.historial
+      .filter((m) => !m.texto.includes("Este es un nuevo chat"))
+      .slice(-10),
+    nuevo_chat: params.nuevoChat,
+    imagen: params.imagen || null,
+    documento_id: params.documentoId || null,
+    origen: "eos-web",
+  };
+  const body = JSON.stringify(payload);
+  const bodyBytes = new TextEncoder().encode(body).byteLength;
+
+  if (bodyBytes > MAX_EOS_REQUEST_BYTES) {
+    throw new EOSApiError(
+      "El mensaje y sus adjuntos son demasiado grandes para enviarlos de forma segura. Probá con una imagen o conversación más liviana.",
+      {
+        status: 413,
+        code: "EOS_REQUEST_TOO_LARGE",
+      },
+    );
+  }
+
   const response = await fetch("/api/eos", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      request_id: params.requestId,
-      conversacion_id: params.conversacionId,
-      mensaje: params.mensaje,
-      historial: params.historial
-        .filter((m) => !m.texto.includes("Este es un nuevo chat"))
-        .slice(-10),
-      nuevo_chat: params.nuevoChat,
-      imagen: params.imagen || null,
-      documento_id: params.documentoId || null,
-      origen: "eos-web",
-    }),
+    body,
   });
 
   const raw = await response.text();
@@ -192,13 +208,18 @@ export async function enviarMensajeAEOS(
   const resultado = normalizarRespuesta(contenido);
 
   if (!response.ok) {
-    const payload = objectValue(contenido);
+    const responsePayload = objectValue(contenido);
     throw new EOSApiError(resultado.respuesta || "Error en EOS", {
       status: response.status,
-      code: typeof payload?.code === "string" ? payload.code : "EOS_API_ERROR",
+      code:
+        typeof responsePayload?.code === "string"
+          ? responsePayload.code
+          : "EOS_API_ERROR",
       upgradeUrl:
-        typeof payload?.upgrade_url === "string" ? payload.upgrade_url : null,
-      commercial: objectValue(payload?.commercial),
+        typeof responsePayload?.upgrade_url === "string"
+          ? responsePayload.upgrade_url
+          : null,
+      commercial: objectValue(responsePayload?.commercial),
     });
   }
 
