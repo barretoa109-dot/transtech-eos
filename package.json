@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke:worker-gate": "node scripts/worker-gate-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
