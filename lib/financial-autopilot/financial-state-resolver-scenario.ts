@@ -112,6 +112,35 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const inconsistentSafe = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"1".repeat(64)}`,
+        status: "SAFE",
+        minimumProjectedCashMinor: 2500000,
+      }),
+    ),
+    nowIso: NOW,
+  });
+
+  const longRangeAttentionRisk = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"2".repeat(64)}`,
+        firstForecastRisk: {
+          status: "ATTENTION",
+          horizonDays: 60,
+          until: "2026-10-15T04:00:00.000Z",
+          reserveGapMinor: 500000,
+          negativeCashGapMinor: 0,
+        },
+      }),
+    ),
+    nowIso: NOW,
+  });
+
   const noData = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(null),
@@ -180,7 +209,7 @@ export async function runFinancialStateResolverScenario() {
         firstForecastRisk: {
           status: "ACTION_REQUIRED",
           horizonDays: 30,
-          until: "2026-09-01T00:00:00.000Z",
+          until: "2026-09-15T04:00:00.000Z",
           reserveGapMinor: 4700000,
           negativeCashGapMinor: 1700000,
         },
@@ -253,7 +282,7 @@ export async function runFinancialStateResolverScenario() {
     "financial_state_invalid_first_risk",
   );
 
-  const forecastRiskBeyondHorizonBlocked = await catchesCode(
+  const malformedAttentionRiskBlocked = await catchesCode(
     () =>
       resolveFinancialState({
         trustedUserId: USER_ID,
@@ -261,10 +290,30 @@ export async function runFinancialStateResolverScenario() {
           contextRecord({
             firstForecastRisk: {
               status: "ATTENTION",
-              horizonDays: 90,
-              until: "2026-09-02T12:00:00.000Z",
-              reserveGapMinor: 1,
+              horizonDays: 30,
+              until: "2026-09-15T04:00:00.000Z",
+              reserveGapMinor: 0,
               negativeCashGapMinor: 0,
+            },
+          }),
+        ),
+        nowIso: NOW,
+      }),
+    "financial_state_invalid_first_risk",
+  );
+
+  const malformedActionRiskBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(
+          contextRecord({
+            firstForecastRisk: {
+              status: "ACTION_REQUIRED",
+              horizonDays: 30,
+              until: "2026-09-15T04:00:00.000Z",
+              reserveGapMinor: 100000,
+              negativeCashGapMinor: 200000,
             },
           }),
         ),
@@ -310,6 +359,10 @@ export async function runFinancialStateResolverScenario() {
     changedProtectedAmount.kind === "STATE" ? changedProtectedAmount.state : null;
   const changedIdentityState =
     changedProtectedIdentity.kind === "STATE" ? changedProtectedIdentity.state : null;
+  const inconsistentSafeState =
+    inconsistentSafe.kind === "STATE" ? inconsistentSafe.state : null;
+  const longRangeAttentionState =
+    longRangeAttentionRisk.kind === "STATE" ? longRangeAttentionRisk.state : null;
   const expiredState = expired.kind === "STATE" ? expired.state : null;
   const exactExpiryState =
     expiresExactlyNow.kind === "STATE" ? expiresExactlyNow.state : null;
@@ -340,6 +393,15 @@ export async function runFinancialStateResolverScenario() {
       changedIdentityState?.status === "DEGRADED" &&
       changedIdentityState.canAssertSafety === false &&
       changedIdentityState.money.availableRealMinor === null,
+    safeCannotContradictPrimaryProjection:
+      inconsistentSafeState?.status === "DEGRADED" &&
+      inconsistentSafeState.canAssertSafety === false &&
+      inconsistentSafeState.money.availableRealMinor === null,
+    longRangeForecastRiskCanExtendBeyondPrimaryHorizon:
+      longRangeAttentionState?.status === "SAFE" &&
+      longRangeAttentionState.canAssertSafety === true &&
+      longRangeAttentionState.firstForecastRisk?.status === "ATTENTION" &&
+      longRangeAttentionState.firstForecastRisk.horizonDays === 60,
     noDataIsExplicitNotFakeSafe:
       noData.kind === "NO_DATA" &&
       noData.state === null &&
@@ -375,7 +437,8 @@ export async function runFinancialStateResolverScenario() {
     impossibleFutureContextFailsClosed: futureContextBlocked,
     minimumProjectedCashCannotPredateContext: minimumCashBeforeGenerationBlocked,
     firstRiskCannotPredateContext: forecastRiskBeforeGenerationBlocked,
-    firstRiskCannotOutliveHorizon: forecastRiskBeyondHorizonBlocked,
+    malformedAttentionRiskFailsClosed: malformedAttentionRiskBlocked,
+    malformedActionRiskFailsClosed: malformedActionRiskBlocked,
     malformedRevisionFailsClosed: malformedRevisionBlocked,
     decimalMoneyFailsClosed: decimalMoneyBlocked,
     validityCannotOutliveHorizon: validityBeyondHorizonBlocked,
@@ -392,6 +455,8 @@ export async function runFinancialStateResolverScenario() {
     healthy: healthyState,
     changedProtectedAmount: changedAmountState,
     changedProtectedIdentity: changedIdentityState,
+    inconsistentSafe: inconsistentSafeState,
+    longRangeAttentionRisk: longRangeAttentionState,
     noData,
     expired: expiredState,
     expiresExactlyNow: exactExpiryState,
