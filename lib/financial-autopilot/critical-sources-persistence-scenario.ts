@@ -1,8 +1,10 @@
 import {
   CRITICAL_SOURCES_COMPLETENESS_PREFIX,
+  SOURCE_COVERAGE_EVIDENCE_PREFIX,
   parsePersistedCriticalSourcesComplete,
   upgradeFinancialPersistencePlanWithCriticalSources,
   type FinancialPersistencePlanV1_3,
+  type PersistableSourceCoverageEvidence,
 } from "./critical-sources-persistence";
 import { upgradeFinancialPersistencePlanWithCriticalObligations } from "./critical-obligations-persistence";
 import { upgradeFinancialPersistencePlanWithFirstForecastRisk } from "./first-forecast-risk-persistence";
@@ -16,6 +18,8 @@ import type { FinancialStatus } from "./types";
 const USER_ID = "00000000-0000-4000-8000-000000000100";
 const OTHER_USER_ID = "00000000-0000-4000-8000-000000000101";
 const BASE_FINGERPRINT = "3".repeat(64);
+const COVERAGE_FINGERPRINT = "4".repeat(64);
+const COVERAGE_VALID_UNTIL = "2026-08-17T06:00:00.000Z";
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 function basePlan(
@@ -81,6 +85,18 @@ function v1_2Plan(
   });
 }
 
+function coverage(
+  criticalSourcesComplete: boolean,
+  patch: Partial<PersistableSourceCoverageEvidence> = {},
+): PersistableSourceCoverageEvidence {
+  return {
+    criticalSourcesComplete,
+    inventoryFingerprint: COVERAGE_FINGERPRINT,
+    coverageValidUntil: COVERAGE_VALID_UNTIL,
+    ...patch,
+  };
+}
+
 class FakeRpcClient implements FinancialPersistenceRpcClientV1_3 {
   calls: Array<{
     functionName: string;
@@ -132,32 +148,57 @@ async function catchesCode(work: () => unknown | Promise<unknown>, code: string)
 export async function runCriticalSourcesPersistenceScenario() {
   const complete = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(),
-    criticalSourcesComplete: true,
+    sourceCoverage: coverage(true),
   });
   const replay = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(),
-    criticalSourcesComplete: true,
+    sourceCoverage: coverage(true),
   });
   const degradedComplete = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(USER_ID, "DEGRADED"),
-    criticalSourcesComplete: true,
+    sourceCoverage: coverage(true),
   });
   const incomplete = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(USER_ID, "DEGRADED"),
-    criticalSourcesComplete: false,
+    sourceCoverage: coverage(false),
+  });
+  const differentEvidence = upgradeFinancialPersistencePlanWithCriticalSources({
+    plan: v1_2Plan(),
+    sourceCoverage: coverage(true, { inventoryFingerprint: "5".repeat(64) }),
   });
 
   const inconsistentSafeIncompleteBlocked = await catchesCode(
     () =>
       upgradeFinancialPersistencePlanWithCriticalSources({
         plan: v1_2Plan(),
-        criticalSourcesComplete: false,
+        sourceCoverage: coverage(false),
       }),
     "financial_persistence_critical_sources_conflict_with_status",
   );
   const malformedBooleanBlocked = await catchesCode(
     () => parsePersistedCriticalSourcesComplete("true"),
     "financial_state_invalid_critical_sources_complete",
+  );
+  const missingEvidenceForSafeBlocked = await catchesCode(
+    () =>
+      upgradeFinancialPersistencePlanWithCriticalSources({
+        plan: v1_2Plan(),
+        sourceCoverage: coverage(true, {
+          inventoryFingerprint: null,
+          coverageValidUntil: null,
+        }),
+      }),
+    "financial_persistence_invalid_source_coverage_evidence",
+  );
+  const expiredEvidenceForSafeBlocked = await catchesCode(
+    () =>
+      upgradeFinancialPersistencePlanWithCriticalSources({
+        plan: v1_2Plan(),
+        sourceCoverage: coverage(true, {
+          coverageValidUntil: "2026-08-16T12:00:00.000Z",
+        }),
+      }),
+    "financial_persistence_invalid_source_coverage_evidence",
   );
 
   const noObligationCommitment = v1_2Plan();
@@ -169,7 +210,7 @@ export async function runCriticalSourcesPersistenceScenario() {
     () =>
       upgradeFinancialPersistencePlanWithCriticalSources({
         plan: noObligationCommitment,
-        criticalSourcesComplete: true,
+        sourceCoverage: coverage(true),
       }),
     "financial_persistence_critical_obligations_ref_missing",
   );
@@ -181,7 +222,7 @@ export async function runCriticalSourcesPersistenceScenario() {
 
   const crossUser = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(OTHER_USER_ID),
-    criticalSourcesComplete: true,
+    sourceCoverage: coverage(true),
   });
   const crossUserBlocked = await catchesCode(
     () => store.persist(crossUser),
@@ -204,21 +245,31 @@ export async function runCriticalSourcesPersistenceScenario() {
   const coverageRefs = complete.contextInsert.explanationRefs.filter((ref) =>
     ref.startsWith(CRITICAL_SOURCES_COMPLETENESS_PREFIX),
   );
+  const evidenceRefs = complete.contextInsert.explanationRefs.filter((ref) =>
+    ref.startsWith(SOURCE_COVERAGE_EVIDENCE_PREFIX),
+  );
   const checks = {
     explicitBooleanPersisted:
       complete.contextInsert.criticalSourcesComplete === true &&
       incomplete.contextInsert.criticalSourcesComplete === false,
-    sourceCoverageCommitsToContextIdentity:
+    sourceCoverageEvidenceCommitsToContextIdentity:
       coverageRefs.length === 1 &&
+      evidenceRefs.length === 1 &&
       SHA256_HEX.test(complete.contextInsert.sourceFingerprint) &&
       complete.contextInsert.revision ===
         `ctx:${complete.contextInsert.sourceFingerprint}`,
+    contextCannotOutliveCoverageEvidence:
+      complete.contextInsert.validUntil === COVERAGE_VALID_UNTIL,
     exactInputProducesExactIdentity:
       complete.contextInsert.sourceFingerprint === replay.contextInsert.sourceFingerprint,
+    evidenceChangeChangesV1_3Revision:
+      complete.contextInsert.revision !== differentEvidence.contextInsert.revision,
     booleanAloneChangesV1_3Revision:
       degradedComplete.contextInsert.revision !== incomplete.contextInsert.revision,
     falseCannotBePersistedAsSafe: inconsistentSafeIncompleteBlocked,
     malformedBooleanFailsClosed: malformedBooleanBlocked,
+    safeRequiresCoverageEvidence: missingEvidenceForSafeBlocked,
+    safeRequiresUnexpiredCoverageEvidence: expiredEvidenceForSafeBlocked,
     obligationCompletenessCommitmentIsRequired:
       missingObligationCommitmentBlocked,
     wrapperRpcIsFixed:
@@ -243,6 +294,7 @@ export async function runCriticalSourcesPersistenceScenario() {
     degradedCompleteRevision: degradedComplete.contextInsert.revision,
     incompleteRevision: incomplete.contextInsert.revision,
     coverageRef: coverageRefs[0] ?? null,
+    evidenceRef: evidenceRefs[0] ?? null,
     rpcCalls: client.calls.length,
   };
 }
