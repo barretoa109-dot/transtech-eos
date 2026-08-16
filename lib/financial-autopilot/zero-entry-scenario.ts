@@ -1,3 +1,9 @@
+import {
+  TRUSTED_SOURCE_INVENTORY_VERSION,
+  financialAccountSourceCoverageRef,
+  financialSourceCoverageRef,
+  type TrustedFinancialSourceInventory,
+} from "./source-coverage";
 import { buildZeroEntryFinancialAutopilot } from "./zero-entry";
 import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "./types";
 
@@ -99,17 +105,63 @@ function snapshot(fresh = true, includeSalary = true): FinancialConnectorSnapsho
   };
 }
 
+function coverageInventory(
+  snapshotValue: FinancialConnectorSnapshot,
+  includeMissingMaterialSource = false,
+): TrustedFinancialSourceInventory {
+  const connected = snapshotValue.accounts[0];
+  if (!connected) throw new Error("zero entry fixture missing account");
+  const expectedSources = [
+    {
+      sourceRef: financialAccountSourceCoverageRef({
+        userId: USER_ID,
+        providerKey: snapshotValue.providerKey,
+        account: connected,
+      }),
+      materiality: "critical" as const,
+      confidence: 0.99,
+    },
+  ];
+  if (includeMissingMaterialSource) {
+    expectedSources.push({
+      sourceRef: financialSourceCoverageRef({
+        userId: USER_ID,
+        providerKey: snapshotValue.providerKey,
+        connectionId: CONNECTION_ID,
+        externalAccountId: "card-not-connected",
+      }),
+      materiality: "material" as const,
+      confidence: 0.98,
+    });
+  }
+  return {
+    version: TRUSTED_SOURCE_INVENTORY_VERSION,
+    userId: USER_ID,
+    asOf: AS_OF,
+    validUntil: "2026-08-17T12:00:00.000Z",
+    authority: "provider_discovery",
+    discoveryComplete: true,
+    confidence: 0.98,
+    unresolvedMaterialSourceCount: 0,
+    expectedSources,
+  };
+}
+
 function run(
   snapshotValue: FinancialConnectorSnapshot,
   criticalObligationsComplete = true,
-  criticalSourcesComplete = true,
+  includeMissingMaterialSource = false,
 ) {
   return buildZeroEntryFinancialAutopilot({
+    trustedUserId: USER_ID,
     snapshot: snapshotValue,
+    sourceCoverageInventory: coverageInventory(
+      snapshotValue,
+      includeMissingMaterialSource,
+    ),
     currency: "PYG",
     asOf: AS_OF,
     protectedReserveMinor: 3000000,
-    criticalSourcesComplete,
     criticalObligationsComplete,
     criticalProvisionsMinor: 100000,
     baseUncertaintyBufferMinor: 120000,
@@ -119,8 +171,8 @@ function run(
 export function runZeroEntryScenario() {
   const healthy = run(snapshot());
   const stale = run(snapshot(false));
-  const incompleteObligations = run(snapshot(true), false, true);
-  const incompleteSources = run(snapshot(true), true, false);
+  const incompleteObligations = run(snapshot(true), false, false);
+  const incompleteSources = run(snapshot(true), true, true);
   const variableIncome = run(snapshot(true, false));
 
   const checks = {
@@ -140,6 +192,12 @@ export function runZeroEntryScenario() {
     variableEssentialsInferredWithoutManualBudget:
       healthy.essentialSpend.expectedMinor === 800000 &&
       healthy.essentialSpend.sampleCount === 8,
+    healthyCoverageIsEvidenceDerived:
+      healthy.sourceCoverage.criticalSourcesComplete === true &&
+      healthy.sourceCoverage.inventoryFingerprint !== null &&
+      healthy.resolvedInputs.criticalSourcesComplete === true &&
+      healthy.resolvedInputs.sourceCoverageFingerprint ===
+        healthy.sourceCoverage.inventoryFingerprint,
     healthyIsSafeAndSilent:
       healthy.context.available.status === "SAFE" && healthy.nextAction.outcome === "NO_ACTION",
     staleConnectionNeverClaimsSafe:
@@ -150,9 +208,11 @@ export function runZeroEntryScenario() {
       incompleteObligations.context.available.status === "DEGRADED" &&
       incompleteObligations.context.available.degradedReasons.includes("critical_obligations_incomplete") &&
       incompleteObligations.nextAction.outcome === "CONNECTION_REQUIRED",
-    freshButIncompleteSourceCoverageNeverClaimsSafe:
+    freshButMissingMaterialSourceNeverClaimsSafe:
       incompleteSources.context.sourcesFresh === true &&
       incompleteSources.confidence.sourceFreshness === healthy.confidence.sourceFreshness &&
+      incompleteSources.sourceCoverage.criticalSourcesComplete === false &&
+      incompleteSources.sourceCoverage.reasonCodes.includes("material_source_missing") &&
       incompleteSources.context.available.status === "DEGRADED" &&
       incompleteSources.context.available.degradedReasons.includes("critical_sources_incomplete") &&
       incompleteSources.nextAction.outcome === "CONNECTION_REQUIRED",
@@ -169,6 +229,7 @@ export function runZeroEntryScenario() {
     staleStatus: stale.context.available,
     incompleteObligationsStatus: incompleteObligations.context.available,
     incompleteSourcesStatus: incompleteSources.context.available,
+    missingSourceCoverage: incompleteSources.sourceCoverage,
     variableIncomeHorizon: variableIncome.primaryHorizon,
   };
 }
