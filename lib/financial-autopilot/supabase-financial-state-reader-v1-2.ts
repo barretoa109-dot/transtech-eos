@@ -71,10 +71,18 @@ export class SupabaseFinancialStateReaderV1_2 implements FinancialStateReader {
       throw new Error("financial_state_critical_obligations_integrity_mismatch");
     }
 
-    return {
-      ...base,
-      criticalObligationsComplete,
-    };
+    // In v1.2 an explicit false is a hard safety gate. Do not reinterpret a
+    // confidence score as completeness and do not let an inconsistent stored
+    // SAFE/ATTENTION/ACTION_REQUIRED status survive this read boundary.
+    if (!criticalObligationsComplete) {
+      return {
+        ...base,
+        status: "DEGRADED",
+        sourcesFresh: false,
+      };
+    }
+
+    return base;
   }
 
   async getOpenObligations(input: {
