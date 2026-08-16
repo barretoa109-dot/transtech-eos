@@ -17,6 +17,11 @@ import {
 import { calculateUsableLiquidity } from "./liquidity";
 import { findDeterministicReconciliations } from "./reconciliation";
 import { detectRecurringPatterns, type DetectedRecurrence } from "./recurrence";
+import {
+  resolveTrustedSourceCoverage,
+  type TrustedFinancialSourceInventory,
+  type TrustedSourceCoverageResolution,
+} from "./source-coverage";
 import type {
   FinancialConnectorSnapshot,
   FinancialContextConfidence,
@@ -26,12 +31,13 @@ import type {
 } from "./types";
 
 export interface ZeroEntryAutopilotInput {
+  /** Server-derived owner. Snapshot/inventory ownership must match this value. */
+  trustedUserId: string;
   snapshot: FinancialConnectorSnapshot;
+  sourceCoverageInventory: TrustedFinancialSourceInventory;
   currency: string;
   asOf: string;
   protectedReserveMinor: number;
-  /** Hard coverage assertion supplied by the trusted source/connection layer. */
-  criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
   criticalProvisionsMinor?: number;
   baseUncertaintyBufferMinor?: number;
@@ -44,6 +50,8 @@ export interface ZeroEntryResolvedInputs {
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
   criticalSourcesComplete: boolean;
+  sourceCoverageFingerprint: string | null;
+  sourceCoverageValidUntil: string | null;
   criticalObligationsComplete: boolean;
 }
 
@@ -56,6 +64,7 @@ export interface ZeroEntryAutopilotResult {
   essentialSpend: EssentialSpendEstimate;
   forecastEvents: ForecastEvent[];
   confidence: FinancialContextConfidence;
+  sourceCoverage: TrustedSourceCoverageResolution;
   resolvedInputs: ZeroEntryResolvedInputs;
   context: BuiltFinancialContext;
   nextAction: NextBestFinancialAction;
@@ -71,6 +80,19 @@ function addDays(iso: string, days: number) {
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function assertTrustedSnapshotOwner(
+  snapshot: FinancialConnectorSnapshot,
+  trustedUserId: string,
+) {
+  if (!trustedUserId) throw new Error("financial_autopilot_missing_trusted_user");
+  if (
+    snapshot.accounts.some((account) => account.userId !== trustedUserId) ||
+    snapshot.ledgerEntries.some((entry) => entry.userId !== trustedUserId)
+  ) {
+    throw new Error("financial_autopilot_snapshot_user_mismatch");
+  }
 }
 
 function deriveReconciliationQuality(
@@ -127,13 +149,17 @@ function deriveConfidence(input: {
 export function buildZeroEntryFinancialAutopilot(
   input: ZeroEntryAutopilotInput,
 ): ZeroEntryAutopilotResult {
-  if (typeof input.criticalSourcesComplete !== "boolean") {
-    throw new Error("criticalSourcesComplete must be boolean");
-  }
+  assertTrustedSnapshotOwner(input.snapshot, input.trustedUserId);
   if (typeof input.criticalObligationsComplete !== "boolean") {
     throw new Error("criticalObligationsComplete must be boolean");
   }
 
+  const sourceCoverage = resolveTrustedSourceCoverage({
+    trustedUserId: input.trustedUserId,
+    snapshot: input.snapshot,
+    inventory: input.sourceCoverageInventory,
+    nowIso: input.asOf,
+  });
   const fallbackHorizonDays = input.fallbackHorizonDays ?? 30;
   const reconciliation = findDeterministicReconciliations(input.snapshot.ledgerEntries);
   const recurrences = detectRecurringPatterns(input.snapshot.ledgerEntries);
@@ -145,7 +171,7 @@ export function buildZeroEntryFinancialAutopilot(
   );
 
   const obligations = inferObligationsFromPatterns({
-    userId: input.snapshot.accounts[0]?.userId ?? "unknown",
+    userId: input.trustedUserId,
     patterns,
     horizonUntil: primaryHorizon.until,
   });
@@ -201,7 +227,9 @@ export function buildZeroEntryFinancialAutopilot(
     criticalProvisionsMinor,
     confirmedIncomeMinor: confirmedIncome.amountMinor,
     uncertaintyBufferMinor,
-    criticalSourcesComplete: input.criticalSourcesComplete,
+    criticalSourcesComplete: sourceCoverage.criticalSourcesComplete,
+    sourceCoverageFingerprint: sourceCoverage.inventoryFingerprint,
+    sourceCoverageValidUntil: sourceCoverage.coverageValidUntil,
     criticalObligationsComplete: input.criticalObligationsComplete,
   };
 
@@ -249,6 +277,7 @@ export function buildZeroEntryFinancialAutopilot(
     essentialSpend,
     forecastEvents,
     confidence,
+    sourceCoverage,
     resolvedInputs,
     context,
     nextAction,
