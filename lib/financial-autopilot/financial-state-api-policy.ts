@@ -19,7 +19,10 @@ export function isFinancialStateDemoAllowed(
     return false;
   }
 
-  return env.NODE_ENV !== "production";
+  // Fail closed whenever the runtime is ambiguous. Local Next.js development
+  // sets NODE_ENV=development explicitly, so there is no need to treat a
+  // missing/unknown environment as demo-safe.
+  return env.NODE_ENV === "development";
 }
 
 export function isFinancialStateSurfaceVisible(
