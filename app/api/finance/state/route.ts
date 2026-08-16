@@ -5,7 +5,7 @@ import {
 } from "@/lib/financial-autopilot/financial-state-api-policy";
 import {
   resolveFinancialState,
-  SupabaseFinancialStateReader,
+  SupabaseFinancialStateReaderV1_1,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,7 +15,8 @@ export async function GET() {
   const headers = financialStateApiHeaders();
 
   // Server-only kill switch. The route exists in code but stays dark until the
-  // finance-v1 schema has been validated outside production and explicitly enabled.
+  // finance-v1 + first-forecast-risk v1.1 schema has been validated outside
+  // production and explicitly enabled.
   if (!isFinancialStateApiEnabled()) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers });
   }
@@ -34,7 +35,7 @@ export async function GET() {
   }
 
   try {
-    const reader = new SupabaseFinancialStateReader(supabase, user.id);
+    const reader = new SupabaseFinancialStateReaderV1_1(supabase, user.id);
     const resolution = await resolveFinancialState({
       trustedUserId: user.id,
       reader,

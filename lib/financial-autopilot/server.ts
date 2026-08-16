@@ -10,3 +10,8 @@ export * from "./supabase-financial-state-reader";
 export * from "./supabase-financial-state-reader-scenario";
 export * from "./financial-state-api-policy";
 export * from "./financial-state-api-scenario";
+export * from "./first-forecast-risk-persistence";
+export * from "./supabase-persistence-store-v1-1";
+export * from "./first-forecast-risk-persistence-scenario";
+export * from "./supabase-financial-state-reader-v1-1";
+export * from "./supabase-financial-state-reader-v1-1-scenario";
