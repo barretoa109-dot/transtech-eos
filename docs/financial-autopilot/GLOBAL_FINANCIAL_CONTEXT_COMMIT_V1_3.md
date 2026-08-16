@@ -63,11 +63,11 @@ When structural global coverage is incomplete, there is no authoritative global 
 
 `InMemoryMultiProviderPersistenceStore` now stages provider rows and the global context, then inserts the derived marker last before committing staged state. Its result returns `globalContextCommitFingerprint`.
 
-The future server-only `eos_financial_persist_multi_provider_v1_3` response contract must return that exact fingerprint (or null when no global context exists). The TypeScript adapter rejects substitution or omission.
+The design-only server RPC `eos_financial_persist_multi_provider_v1_3` returns that exact fingerprint (or null when no global context exists). The TypeScript adapter rejects substitution, omission, context/commit nullability disagreement and impossible replay counters.
 
 ## Database draft
 
-`GLOBAL_CONTEXT_COMMIT_V1_3_DRAFT.sql` defines the design-only table `eos_financial_global_context_commits_v1_3`.
+`GLOBAL_CONTEXT_COMMIT_V1_3_DRAFT.sql` defines the design-only table `eos_financial_global_context_commits_v1_3`. `PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql` validates and inserts the exact marker as the final write in the atomic multi-provider function.
 
 It binds the marker to `(usuario_id, context_revision)`, keeps provider topology/provenance server-only, enables RLS, and grants no browser access.
 
@@ -79,22 +79,16 @@ SHA-256 fingerprints prevent accidental or untrusted application-layer substitut
 
 An attacker with authority to rewrite every database row and recompute every fingerprint remains inside the trust root. Production safety still requires service-role isolation, RLS/grant review, auditability, non-production PostgreSQL tests and rollback rehearsal.
 
-## Required non-production validation before executable RPC
+## Required validation before any Supabase deployment
 
-Before the multi-provider RPC is implemented/deployed, validate at minimum:
+The isolated PostgreSQL 17 harness now covers fresh insert, exact replay, late-provider rollback, owner isolation, service-role-only execution, DEGRADED commit semantics and incomplete-coverage omission. Before any Supabase deployment, still validate at minimum:
 
-- fresh atomic insert across two or more providers;
-- exact replay no-op;
-- immutable replay conflict;
-- late-provider rollback;
-- context failure rollback;
-- commit-marker failure rollback;
-- cross-user/provider/account substitution rejection;
-- marker/context foreign-key integrity;
-- no marker for incomplete structural coverage;
-- DEGRADED marker does not become SAFE;
-- RLS/grants and service-only execution;
-- rollback rehearsal.
+- two-session concurrency on a non-production Supabase branch/project;
+- Supabase Security and Performance Advisors;
+- PostgREST service-role invocation with anon/authenticated negative tests;
+- forced commit-marker/foreign-key failure with complete transaction rollback;
+- migration-up and migration-down rehearsal against a production-like clone;
+- explicit operational rollback approval.
 
 ## Release boundary
 

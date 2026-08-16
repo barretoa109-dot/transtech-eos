@@ -157,6 +157,19 @@ export async function runMultiProviderPersistenceRpcScenario() {
     "financial_multi_provider_persistence_rpc_failed:P0001",
   );
 
+  const unsafeRpcFailureClient = new FakeRpcClient(() => ({
+    data: null,
+    error: { code: "P0001:raw-provider-detail" },
+  }));
+  const unsafeRpcFailureDetailIsNotExposed = await catchesCode(
+    () =>
+      new SupabaseMultiProviderPersistenceStore(
+        unsafeRpcFailureClient,
+        USER_ID,
+      ).persist(plan),
+    "financial_multi_provider_persistence_rpc_failed",
+  );
+
   const crossUserPlan = { ...plan, userId: OTHER_USER_ID };
   const beforeCrossUserCalls = successClient.calls;
   const crossUserBlockedBeforeRpc = await catchesCode(
@@ -201,6 +214,71 @@ export async function runMultiProviderPersistenceRpcScenario() {
     }
   })();
 
+  const replayWithTouchedRowsBlocked = (() => {
+    try {
+      parseMultiProviderPersistenceRpcResponse({
+        replayed: true,
+        planFingerprint: plan.planFingerprint,
+        globalContextRevision: plan.globalContextPlan?.revision ?? null,
+        globalContextCommitFingerprint: expectedCommit?.commitFingerprint ?? null,
+        providerScopesTouched: 1,
+        ledgerRowsTouched: 0,
+        ingestionRowsTouched: 0,
+      });
+      return false;
+    } catch (error) {
+      return (
+        error instanceof Error &&
+        error.message ===
+          "financial_multi_provider_persistence_invalid_rpc_response"
+      );
+    }
+  })();
+
+  const contextWithoutCommitBlocked = (() => {
+    try {
+      parseMultiProviderPersistenceRpcResponse({
+        replayed: false,
+        planFingerprint: plan.planFingerprint,
+        globalContextRevision: plan.globalContextPlan?.revision ?? null,
+        globalContextCommitFingerprint: null,
+        providerScopesTouched: 0,
+        ledgerRowsTouched: 0,
+        ingestionRowsTouched: 0,
+      });
+      return false;
+    } catch (error) {
+      return (
+        error instanceof Error &&
+        error.message ===
+          "financial_multi_provider_persistence_invalid_rpc_response"
+      );
+    }
+  })();
+
+  const oversizedCounterClient = new FakeRpcClient(
+    (planFingerprint, revision, commitFingerprint) => ({
+      data: {
+        replayed: false,
+        planFingerprint,
+        globalContextRevision: revision,
+        globalContextCommitFingerprint: commitFingerprint,
+        providerScopesTouched: plan.providerPlans.length + 1,
+        ledgerRowsTouched: 0,
+        ingestionRowsTouched: 0,
+      },
+      error: null,
+    }),
+  );
+  const oversizedCounterBlocked = await catchesCode(
+    () =>
+      new SupabaseMultiProviderPersistenceStore(
+        oversizedCounterClient,
+        USER_ID,
+      ).persist(plan),
+    "financial_multi_provider_persistence_rpc_counter_mismatch",
+  );
+
   const checks = {
     exactServerRpcContractIsUsed:
       successClient.calls === 1 &&
@@ -214,10 +292,14 @@ export async function runMultiProviderPersistenceRpcScenario() {
     responseContextSubstitutionFailsClosed: wrongRevisionBlocked,
     responseGlobalCommitSubstitutionFailsClosed: wrongCommitBlocked,
     rpcFailureIsReducedToStableCode: rpcFailureSanitized,
+    unsafeRpcFailureDetailIsNotExposed,
     crossUserPlanNeverReachesRpc:
       crossUserBlockedBeforeRpc && successClient.calls === beforeCrossUserCalls,
     malformedCountersFailClosed: malformedResponseBlocked,
     missingGlobalCommitFieldFailsClosed: missingCommitBlocked,
+    replayCannotClaimTouchedRows: replayWithTouchedRowsBlocked,
+    contextRequiresMatchingCommitIdentity: contextWithoutCommitBlocked,
+    countersCannotExceedSubmittedRows: oversizedCounterBlocked,
   };
 
   return {

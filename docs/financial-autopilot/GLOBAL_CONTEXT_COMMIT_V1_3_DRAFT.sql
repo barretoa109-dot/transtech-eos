@@ -57,7 +57,9 @@ revoke all on table public.eos_financial_global_context_commits_v1_3
 -- Service/server execution must be granted only by the future validated RPC
 -- migration after non-production security review.
 
--- Future RPC invariants before this draft can become executable:
+-- Implemented by the separate design-only
+-- PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql. These invariants must still be
+-- repeated on a non-production Supabase branch before deployment:
 --   1. validate p_usuario_id from the trusted server boundary;
 --   2. validate the exact sorted provider binding set;
 --   3. verify every provider-plan/scope/snapshot fingerprint;

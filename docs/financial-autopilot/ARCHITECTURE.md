@@ -428,6 +428,7 @@ No Financial Autopilot expansion enters the frozen release candidate.
 ### Track 1 — Read-only foundation
 - canonical schema;
 - RLS/server-owned ingestion boundaries;
+- atomic multi-provider PostgreSQL RPC v1.3 validated off-production;
 - connector interfaces;
 - mock provider;
 - statement/CSV adapter;

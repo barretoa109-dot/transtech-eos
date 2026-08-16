@@ -89,13 +89,15 @@ The response must contain:
 - exact `globalContextCommitFingerprint` or null;
 - non-negative provider scope / Ledger / ingestion touched counters.
 
-The adapter rejects owner mismatch before RPC, reduces database failure to a stable error code, and rejects response plan/context/commit substitution.
+The adapter rejects owner mismatch before RPC, reduces database failure to a validated five-character PostgreSQL SQLSTATE, and rejects response plan/context/commit substitution. A replay response may not claim touched rows, a global context may not exist without its commit identity, and returned counters may not exceed the submitted provider/ingestion/Ledger row counts.
 
-## Important SQL boundary
+## Executable non-production SQL draft
 
-The TypeScript RPC adapter remains a contract only. The PostgreSQL multi-provider function is deliberately **not** deployed or wired in this phase.
+`PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql` now defines the executable, design-only PostgreSQL contract for `eos_financial_persist_multi_provider_v1_3`.
 
-The separately owned global commit-marker schema is now defined as a design-only draft, which removes the earlier provider-ownership ambiguity. The next database step is to implement the atomic RPC only in a non-production environment and prove rollback, replay, RLS/grants and service-role-only execution before any production migration is considered.
+It adds server-only full-plan/provider-scope receipts, deterministic canonical JSON + SHA-256 helpers, a per-user transactional advisory lock, independent manifest/provider-plan/global-context/global-commit identity verification, provider-scoped connection/account/ingestion/Ledger writes, immutable replay conflict detection and the optional Global Financial Context Commit as the final insert.
+
+The function is executable for validation but remains **undeployed and unwired**. It is not a production migration and does not authorize a real Supabase application.
 
 ## Scenario coverage
 
@@ -103,10 +105,23 @@ Preview-only scenarios cover first write, exact replay, immutable event conflict
 
 These scenarios are included in the internal Financial Autopilot pilot smoke route.
 
+`npm run test:financial-rpc:v1.3` additionally loads the complete draft stack into an isolated PostgreSQL 17-compatible PGlite database and proves:
+
+- TypeScript/PostgreSQL canonical SHA-256 parity;
+- two-provider fresh atomic write;
+- exact replay with zero touched rows;
+- service-role-only RPC execution and server-only receipt tables;
+- cross-user rejection without mutation;
+- complete rollback when the second provider conflicts;
+- complete-but-stale context committed as DEGRADED;
+- structurally incomplete coverage persisted without global context/commit.
+
+This is real PostgreSQL execution, but it is not a substitute for the remaining Supabase-specific branch validation, Security/Performance Advisors, two-session concurrency test and rollback rehearsal.
+
 ## Production boundary
 
 No database call is made by the preview store.
 
-The Supabase adapter is not wired to a production call site. No new RPC has been deployed. No financial schema has been applied. No real provider credential or financial data is introduced.
+The Supabase adapter is not wired to a production call site. The new SQL exists only as a draft file and reproducible isolated validation. No RPC has been deployed, no financial schema has been applied to Supabase, and no real provider credential or financial data is introduced.
 
 PR #58 remains draft / post-RC1 / **DO NOT MERGE** until the EOS 4.0 RC1 gates close.

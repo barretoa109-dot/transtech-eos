@@ -33,6 +33,10 @@ function nullableSha256(value: unknown): value is string | null {
   return value === null || (typeof value === "string" && /^[a-f0-9]{64}$/.test(value));
 }
 
+function postgresSqlState(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9A-Z]{5}$/.test(value);
+}
+
 export function parseMultiProviderPersistenceRpcResponse(
   value: unknown,
 ): MultiProviderPersistenceResult {
@@ -56,15 +60,32 @@ export function parseMultiProviderPersistenceRpcResponse(
     throw new Error("financial_multi_provider_persistence_invalid_rpc_response");
   }
 
+  const globalContextRevision = row.globalContextRevision as string | null;
+  const globalContextCommitFingerprint =
+    row.globalContextCommitFingerprint as string | null;
+  const providerScopesTouched = row.providerScopesTouched as number;
+  const ledgerRowsTouched = row.ledgerRowsTouched as number;
+  const ingestionRowsTouched = row.ingestionRowsTouched as number;
+
+  if (
+    (globalContextRevision === null) !==
+      (globalContextCommitFingerprint === null) ||
+    (row.replayed &&
+      (providerScopesTouched !== 0 ||
+        ledgerRowsTouched !== 0 ||
+        ingestionRowsTouched !== 0))
+  ) {
+    throw new Error("financial_multi_provider_persistence_invalid_rpc_response");
+  }
+
   return {
     replayed: row.replayed,
     planFingerprint: row.planFingerprint,
-    globalContextRevision: row.globalContextRevision as string | null,
-    globalContextCommitFingerprint:
-      row.globalContextCommitFingerprint as string | null,
-    providerScopesTouched: row.providerScopesTouched,
-    ledgerRowsTouched: row.ledgerRowsTouched,
-    ingestionRowsTouched: row.ingestionRowsTouched,
+    globalContextRevision,
+    globalContextCommitFingerprint,
+    providerScopesTouched,
+    ledgerRowsTouched,
+    ingestionRowsTouched,
   };
 }
 
@@ -112,7 +133,7 @@ export class SupabaseMultiProviderPersistenceStore
     );
 
     if (error) {
-      const code = error.code ? `:${error.code}` : "";
+      const code = postgresSqlState(error.code) ? `:${error.code}` : "";
       throw new Error(`financial_multi_provider_persistence_rpc_failed${code}`);
     }
 
@@ -131,6 +152,22 @@ export class SupabaseMultiProviderPersistenceStore
       (expectedCommit?.commitFingerprint ?? null)
     ) {
       throw new Error("financial_multi_provider_persistence_global_commit_mismatch");
+  }
+
+    const maximumLedgerRows = plan.providerPlans.reduce(
+      (total, providerPlan) => total + providerPlan.ledgerUpserts.length,
+      0,
+    );
+    const maximumIngestionRows = plan.providerPlans.reduce(
+      (total, providerPlan) => total + providerPlan.ingestionEventUpserts.length,
+      0,
+    );
+    if (
+      parsed.providerScopesTouched > plan.providerPlans.length ||
+      parsed.ledgerRowsTouched > maximumLedgerRows ||
+      parsed.ingestionRowsTouched > maximumIngestionRows
+    ) {
+      throw new Error("financial_multi_provider_persistence_rpc_counter_mismatch");
     }
 
     return parsed;
