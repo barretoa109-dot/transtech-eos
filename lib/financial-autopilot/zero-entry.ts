@@ -33,6 +33,14 @@ export interface ZeroEntryAutopilotInput {
   fallbackHorizonDays?: number;
 }
 
+export interface ZeroEntryResolvedInputs {
+  protectedReserveMinor: number;
+  criticalProvisionsMinor: number;
+  confirmedIncomeMinor: number;
+  uncertaintyBufferMinor: number;
+  criticalObligationsComplete: boolean;
+}
+
 export interface ZeroEntryAutopilotResult {
   primaryHorizon: PrimaryFinancialHorizon;
   reconciliation: ReconciliationMatch[];
@@ -42,6 +50,7 @@ export interface ZeroEntryAutopilotResult {
   essentialSpend: EssentialSpendEstimate;
   forecastEvents: ForecastEvent[];
   confidence: FinancialContextConfidence;
+  resolvedInputs: ZeroEntryResolvedInputs;
   context: BuiltFinancialContext;
   nextAction: NextBestFinancialAction;
   horizons: ForecastHorizonsResult;
@@ -165,10 +174,22 @@ export function buildZeroEntryFinancialAutopilot(
     primaryHorizon.reason === "rolling_fallback"
       ? Math.round(liquidity.usableMinor * 0.05)
       : 0;
+  const criticalProvisionsMinor = Math.max(
+    0,
+    Math.trunc(input.criticalProvisionsMinor ?? 0),
+  );
   const uncertaintyBufferMinor =
     Math.max(0, Math.trunc(input.baseUncertaintyBufferMinor ?? 0)) +
     variableSpendUncertainty +
     fallbackIncomeUncertainty;
+
+  const resolvedInputs: ZeroEntryResolvedInputs = {
+    protectedReserveMinor: Math.max(0, Math.trunc(input.protectedReserveMinor)),
+    criticalProvisionsMinor,
+    confirmedIncomeMinor: confirmedIncome.amountMinor,
+    uncertaintyBufferMinor,
+    criticalObligationsComplete: input.criticalObligationsComplete,
+  };
 
   const context = buildFinancialContext({
     currency: input.currency,
@@ -178,17 +199,17 @@ export function buildZeroEntryFinancialAutopilot(
     obligations,
     forecastEvents,
     essentialSpendExpectedMinor: essentialSpend.expectedMinor,
-    protectedReserveMinor: input.protectedReserveMinor,
-    criticalProvisionsMinor: input.criticalProvisionsMinor ?? 0,
-    confirmedIncomeMinor: confirmedIncome.amountMinor,
-    uncertaintyBufferMinor,
-    criticalObligationsComplete: input.criticalObligationsComplete,
+    protectedReserveMinor: resolvedInputs.protectedReserveMinor,
+    criticalProvisionsMinor: resolvedInputs.criticalProvisionsMinor,
+    confirmedIncomeMinor: resolvedInputs.confirmedIncomeMinor,
+    uncertaintyBufferMinor: resolvedInputs.uncertaintyBufferMinor,
+    criticalObligationsComplete: resolvedInputs.criticalObligationsComplete,
     confidence,
   });
 
   const candidates = generateFinancialDecisionCandidates({
     financialContext: context,
-    protectedReserveMinor: input.protectedReserveMinor,
+    protectedReserveMinor: resolvedInputs.protectedReserveMinor,
   });
   const nextAction = selectNextBestFinancialAction(context.available.status, candidates);
 
@@ -200,7 +221,7 @@ export function buildZeroEntryFinancialAutopilot(
     currency: input.currency,
     asOf: input.asOf,
     openingCashMinor: liquidity.usableMinor,
-    protectedReserveMinor: input.protectedReserveMinor,
+    protectedReserveMinor: resolvedInputs.protectedReserveMinor,
     events: longForecastEvents,
   });
 
@@ -213,6 +234,7 @@ export function buildZeroEntryFinancialAutopilot(
     essentialSpend,
     forecastEvents,
     confidence,
+    resolvedInputs,
     context,
     nextAction,
     horizons,
