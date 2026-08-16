@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { runPyPilotScenario } from "@/lib/financial-autopilot";
+import {
+  runEconomicSemanticsScenario,
+  runPyPilotScenario,
+} from "@/lib/financial-autopilot";
 
 export const dynamic = "force-dynamic";
 
@@ -9,15 +12,20 @@ export async function GET() {
   }
 
   const scenario = runPyPilotScenario();
+  const economicSemantics = runEconomicSemanticsScenario();
+  const ok = scenario.ok && economicSemantics.ok;
+
   return NextResponse.json(
     {
-      ok: true,
+      ok,
       scenario,
+      economicSemantics,
     },
     {
-      status: 200,
+      status: ok ? 200 : 500,
       headers: {
         "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex",
       },
     },
   );
