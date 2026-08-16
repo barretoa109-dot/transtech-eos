@@ -58,6 +58,7 @@ The inventory includes:
 - owner;
 - `asOf` and `validUntil`;
 - trusted authority (`user_confirmed`, `provider_discovery` or `verified_document`);
+- explicit coverage scope;
 - whether discovery itself completed;
 - inventory confidence;
 - unresolved material-source hint count;
@@ -69,6 +70,24 @@ A source identity is opaque:
 
 Its SHA-256 material is scoped by trusted user + provider + connection + external account identity. Display names, account numbers and provider payloads are not used as matching keys and are not exposed to Financial State/Surface.
 
+## Coverage scope
+
+The inventory declares one of:
+
+- `global_user_finances`;
+- `institution`;
+- `provider_connection`.
+
+The current single-inventory safety resolver requires `global_user_finances` before it may return `criticalSourcesComplete = true`.
+
+A provider can truthfully discover every account available through one connector and still know nothing about another bank, card issuer, wallet or lender. Therefore a complete `provider_connection` or `institution` inventory is useful evidence, but it is not proof of the user's entire financial source set.
+
+Scoped inventories fail closed with `inventory_scope_insufficient`. Their connected-source freshness signal remains usable independently, but they cannot authorize SAFE.
+
+A future aggregation layer may combine several provider/institution inventories plus user/document evidence into a trusted global inventory. That aggregation is not implemented in v1.3 and must not be silently inferred.
+
+The scope itself is committed into the inventory SHA-256 fingerprint, so changing a global claim into a scoped claim changes the evidence identity.
+
 ## Coverage resolution rules
 
 Coverage can resolve `true` only when all of the following hold:
@@ -76,19 +95,20 @@ Coverage can resolve `true` only when all of the following hold:
 1. snapshot and inventory ownership match the trusted server-side user;
 2. inventory structure and time window are valid;
 3. inventory authority is trusted;
-4. discovery completed;
-5. inventory confidence meets the hard threshold;
-6. no unresolved material-source hint remains;
-7. expected and connected source identities are unambiguous;
-8. every authoritative connected source is represented in the inventory;
-9. material expected-source evidence meets its confidence threshold;
-10. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
+4. inventory scope is `global_user_finances`;
+5. discovery completed;
+6. inventory confidence meets the hard threshold;
+7. no unresolved material-source hint remains;
+8. expected and connected source identities are unambiguous;
+9. every authoritative connected source is represented in the inventory;
+10. material expected-source evidence meets its confidence threshold;
+11. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
 
 Missing `optional` sources do not block coverage.
 
-A source with `external` or `unknown` ownership cannot satisfy material coverage. A source under a different provider/connection/account scope cannot satisfy the expected identity either.
+A source with `external` or `unknown` ownership cannot satisfy material coverage. A source under a different provider/connection/account identity cannot satisfy the expected identity either.
 
-If the provider suddenly exposes an additional own/joint source that the trusted inventory does not contain yet, coverage fails closed until inventory discovery catches up. This prevents a newly appeared card/account from being silently ignored.
+If a provider suddenly exposes an additional own/joint source that the trusted inventory does not contain yet, coverage fails closed until inventory discovery catches up. This prevents a newly appeared card/account from being silently ignored.
 
 Absence of another source is never interpreted as proof that another source does not exist.
 
@@ -108,7 +128,7 @@ The exact `freshUntil == now` boundary remains fresh. Missing/invalid `freshUnti
 
 ## Fresh but incomplete example
 
-A user may have one checking account that is fully synchronized and fresh. If the trusted inventory also expects a material card that is not connected, then:
+A user may have one checking account that is fully synchronized and fresh. If the trusted global inventory also expects a material card that is not connected, then:
 
 - `sourcesFresh = true` for the known connected source set;
 - `criticalSourcesComplete = false` because the material card is missing;
@@ -119,7 +139,7 @@ This proves freshness and coverage are not aliases.
 
 ## Complete but stale example
 
-EOS may know exactly that the user has a checking account and one material credit card, with both identities present in the trusted inventory. If the checking account is current but the card has expired freshness:
+EOS may know exactly that the user has a checking account and one material credit card, with both identities present in the trusted global inventory. If the checking account is current but the card has expired freshness:
 
 - `criticalSourcesComplete = true`;
 - known-source freshness is false;
@@ -139,12 +159,12 @@ Zero Entry carries both into resolved safety inputs. For v1.3 persistence:
 
 - the compact coverage fingerprint/lifetime become `source-coverage-evidence:<sha256>`;
 - the critical-source completeness commitment binds to that evidence ref;
-- changing evidence changes the v1.3 context revision;
+- changing evidence, including scope, changes the v1.3 context revision;
 - a SAFE v1.3 context cannot be persisted without a valid coverage fingerprint and future validity window;
 - context `validUntil` is capped **before** the v1.1 aggregate context-integrity hash is created, so persisted validity and its integrity commitment remain identical;
 - the context cannot outlive the trusted coverage evidence that justified SAFE.
 
-Known-source freshness is also already committed through the base persistence safety inputs and the persisted aggregate `sourcesFresh` field. The v1.3 evidence ref does not need to expose raw account freshness metadata.
+Known-source freshness is also committed through the base persistence safety inputs and the persisted aggregate `sourcesFresh` field. The v1.3 evidence ref does not need to expose raw account freshness metadata.
 
 The raw expected-source inventory is not persisted into the user-facing Financial State contract.
 
@@ -197,4 +217,4 @@ Both `/api/finance/state` and `/dashboard/finanzas` select the same strictest en
 
 The Trusted Source Coverage Resolver currently uses fixtures/contracts only. It does not connect to a real bank, aggregator or provider and does not move money.
 
-Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime, stale non-liquidity material sources and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
+Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime, stale non-liquidity material sources, provider-scoped inventory rejection and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
