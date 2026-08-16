@@ -167,9 +167,10 @@ function freshnessState(input: {
     };
   }
 
+  const fresh = freshUntilMs > asOfMs;
   return {
-    status: freshUntilMs >= asOfMs ? "FRESH" : "STALE",
-    sourcesFresh: freshUntilMs >= asOfMs,
+    status: fresh ? "FRESH" : "STALE",
+    sourcesFresh: fresh,
     freshUntil: input.sourceFreshUntil ?? null,
   };
 }
@@ -190,7 +191,11 @@ export function buildFinancialStateView(input: {
     sourceFreshUntil: input.sourceFreshUntil,
   });
 
-  const degraded = context.available.status === "DEGRADED" || freshness.status === "STALE";
+  // Financial safety requires a positive, explicit freshness window. UNKNOWN is
+  // deliberately fail-closed: absence of a trustworthy validity boundary must
+  // never be interpreted as permission to reuse an old Disponible Real.
+  const degraded =
+    context.available.status === "DEGRADED" || freshness.status !== "FRESH";
   const validUntil = degraded
     ? null
     : minIso([context.horizonUntil, input.sourceFreshUntil ?? context.horizonUntil]);
@@ -222,7 +227,7 @@ export function buildFinancialStateView(input: {
       currency: context.currency,
       asOf: context.asOf,
     }),
-    firstForecastRisk: firstForecastRisk(input.horizons),
+    firstForecastRisk: degraded ? null : firstForecastRisk(input.horizons),
     attention: {
       required: degraded ? true : required,
       interrupt: degraded ? true : nextAction.interrupt,
