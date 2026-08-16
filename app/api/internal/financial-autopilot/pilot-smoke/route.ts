@@ -11,6 +11,7 @@ import {
 } from "@/lib/financial-autopilot";
 import {
   isFinancialStateDemoAllowed,
+  runCriticalObligationsPersistenceScenario,
   runFinancialStateApiScenario,
   runFinancialStateResolverScenario,
   runFirstForecastRiskPersistenceScenario,
@@ -50,6 +51,8 @@ export async function GET() {
   const supabaseFinancialStateReader = await runSupabaseFinancialStateReaderScenario();
   const financialStateApi = runFinancialStateApiScenario();
   const firstForecastRiskPersistence = await runFirstForecastRiskPersistenceScenario();
+  const criticalObligationsPersistence =
+    await runCriticalObligationsPersistenceScenario();
   const supabaseFinancialStateReaderV1_1 =
     await runSupabaseFinancialStateReaderV1_1Scenario();
   const supabaseFinancialStateReaderV1_2 =
@@ -70,6 +73,7 @@ export async function GET() {
     compact("supabase-financial-state-reader", supabaseFinancialStateReader),
     compact("financial-state-api", financialStateApi),
     compact("first-forecast-risk-persistence", firstForecastRiskPersistence),
+    compact("critical-obligations-persistence", criticalObligationsPersistence),
     compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
     compact("supabase-financial-state-reader-v1-2", supabaseFinancialStateReaderV1_2),
   ];
