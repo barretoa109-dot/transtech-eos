@@ -1,5 +1,8 @@
 import { criticalObligationsCompletenessRef } from "./critical-obligations-persistence";
-import { criticalSourcesCompletenessRef } from "./critical-sources-persistence";
+import {
+  criticalSourcesCompletenessRef,
+  sourceCoverageEvidenceRef,
+} from "./critical-sources-persistence";
 import { financialContextIntegrityRef } from "./financial-context-integrity";
 import { resolveFinancialState } from "./financial-state-resolver";
 import type {
@@ -17,6 +20,8 @@ const USER_ID = "00000000-0000-4000-8000-000000000102";
 const OTHER_USER_ID = "00000000-0000-4000-8000-000000000103";
 const REVISION = `ctx:${"c".repeat(64)}`;
 const NOW = "2026-08-16T21:15:00.000Z";
+const COVERAGE_FINGERPRINT = "6".repeat(64);
+const COVERAGE_VALID_UNTIL = "2026-08-17T18:00:00.000Z";
 
 const RAW_OBLIGATION: FinancialObligation = {
   id: "resolver-rent-v1-3",
@@ -64,7 +69,7 @@ function record(criticalSourcesComplete: boolean) {
     explanationRefs: [],
     sourcesFresh: true,
     generatedAt: "2026-08-16T21:00:00.000Z",
-    validUntil: "2026-08-17T21:00:00.000Z",
+    validUntil: "2026-08-17T18:00:00.000Z",
   };
 
   const contextIntegrityRef = financialContextIntegrityRef(base);
@@ -72,10 +77,16 @@ function record(criticalSourcesComplete: boolean) {
     criticalObligationsComplete: true,
     contextIntegrityRef,
   });
+  const evidenceRef = sourceCoverageEvidenceRef({
+    criticalSourcesComplete,
+    inventoryFingerprint: COVERAGE_FINGERPRINT,
+    coverageValidUntil: COVERAGE_VALID_UNTIL,
+  });
   const sourceCompletenessRef = criticalSourcesCompletenessRef({
     criticalSourcesComplete,
     contextIntegrityRef,
     criticalObligationsCompletenessRef: obligationCompletenessRef,
+    sourceCoverageEvidenceRef: evidenceRef,
   });
 
   return {
@@ -84,6 +95,7 @@ function record(criticalSourcesComplete: boolean) {
       protectedObligationExplanationRef(RAW_OBLIGATION),
       contextIntegrityRef,
       obligationCompletenessRef,
+      evidenceRef,
       sourceCompletenessRef,
     ],
   };
@@ -226,6 +238,21 @@ export async function runSupabaseFinancialStateReaderV1_3Scenario() {
     "financial_state_critical_sources_integrity_mismatch",
   );
 
+  const missingEvidenceRecord = record(true);
+  missingEvidenceRecord.explanationRefs =
+    missingEvidenceRecord.explanationRefs.filter(
+      (ref) => !ref.startsWith("source-coverage-evidence:"),
+    );
+  const missingEvidenceBlocked = await catchesCode(
+    () =>
+      new SupabaseFinancialStateReaderV1_3(
+        coverageClient(true) as never,
+        USER_ID,
+        new FixtureV1_2Reader(missingEvidenceRecord),
+      ).getLatestContext(USER_ID),
+    "financial_state_source_coverage_evidence_ref_missing",
+  );
+
   const readErrorClient = new FakeCoverageClient({
     data: null,
     error: { code: "42501" },
@@ -282,6 +309,7 @@ export async function runSupabaseFinancialStateReaderV1_3Scenario() {
     tamperedBooleanFailsClosed: tamperedBlocked,
     malformedBooleanFailsClosed: malformedBlocked,
     missingCoverageCommitmentFailsClosed: missingCommitmentBlocked,
+    missingCoverageEvidenceCommitmentFailsClosed: missingEvidenceBlocked,
     databaseReadErrorFailsClosed: readErrorBlocked,
     crossUserFailsBeforeAnyRead:
       crossUserBlocked &&
