@@ -19,6 +19,7 @@ export * from "./csv-import";
 export * from "./csv-ledger";
 export * from "./zero-entry";
 export * from "./persistence";
+export * from "./memory-persistence-store";
 export * from "./fixtures";
 export * from "./pilot-scenario";
 export * from "./economic-scenario";
