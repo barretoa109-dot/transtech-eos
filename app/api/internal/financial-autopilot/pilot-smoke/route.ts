@@ -4,11 +4,13 @@ import {
   runCsvImportScenario,
   runEconomicSemanticsScenario,
   runForecastHorizonScenario,
-  runPersistenceRpcScenario,
-  runPersistenceScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
+import {
+  runPersistenceRpcScenario,
+  runPersistenceScenario,
+} from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
 
