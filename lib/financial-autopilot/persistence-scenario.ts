@@ -1,5 +1,8 @@
 import { InMemoryFinancialPersistenceStore } from "./memory-persistence-store";
-import { buildFinancialPersistencePlan } from "./persistence";
+import {
+  buildFinancialPersistencePlan,
+  financialLedgerCanonicalKey,
+} from "./persistence";
 import { buildZeroEntryFinancialAutopilot } from "./zero-entry";
 import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "./types";
 
@@ -9,6 +12,7 @@ const SAVINGS_ACCOUNT_ID = "20000000-0000-4000-8000-000000000051";
 const CONNECTION_ID = "10000000-0000-4000-8000-000000000050";
 const AS_OF = "2026-08-16T12:00:00.000Z";
 const SHA256_HEX = /^[a-f0-9]{64}$/;
+const COMPACT_LEDGER_KEY = /^(ext|src|fp):[a-f0-9]{64}$/;
 
 function account(balanceMinor = 8000000): FinancialAccount {
   return {
@@ -180,10 +184,34 @@ export async function runPersistenceScenario() {
     tamperedReplayBlocked =
       error instanceof Error && error.message === "financial_ingestion_replay_mismatch";
   }
+
   const storedCounts = store.snapshotCounts();
   const internalTransfer = first.plan.reconciliationInserts.find(
     (match) => match.reconciliationType === "internal_transfer_match",
   );
+  const transferOutKey = first.plan.ledgerUpserts.find(
+    (entry) => entry.sourceEventKey === "event:own-transfer-out",
+  )?.canonicalKey;
+  const transferInKey = first.plan.ledgerUpserts.find(
+    (entry) => entry.sourceEventKey === "event:own-transfer-in",
+  )?.canonicalKey;
+
+  const identityProbe = ledgerHistory()[0];
+  const scopedKeyA = financialLedgerCanonicalKey(identityProbe, {
+    providerKey: "provider-a",
+    connectionKey: "connection-a",
+    externalAccountId: "account-same",
+  });
+  const scopedKeyDifferentConnection = financialLedgerCanonicalKey(identityProbe, {
+    providerKey: "provider-a",
+    connectionKey: "connection-b",
+    externalAccountId: "account-same",
+  });
+  const scopedKeyDifferentProvider = financialLedgerCanonicalKey(identityProbe, {
+    providerKey: "provider-b",
+    connectionKey: "connection-a",
+    externalAccountId: "account-same",
+  });
 
   const checks = {
     exactReplayProducesSamePlan: JSON.stringify(first.plan) === JSON.stringify(replay.plan),
@@ -198,19 +226,27 @@ export async function runPersistenceScenario() {
       first.plan.reconciliationInserts.every((reconciliation) =>
         SHA256_HEX.test(reconciliation.signature),
       ),
+    compactScopedLedgerKeys:
+      ledgerCanonicalKeys.every((key) => COMPACT_LEDGER_KEY.test(key)),
+    ledgerIdentityIncludesProviderAndConnection:
+      scopedKeyA !== scopedKeyDifferentConnection &&
+      scopedKeyA !== scopedKeyDifferentProvider,
     sha256FingerprintStableAcrossInputOrder:
       first.plan.contextInsert.sourceFingerprint === reordered.plan.contextInsert.sourceFingerprint,
     balanceChangeChangesContextFingerprint:
       first.plan.contextInsert.sourceFingerprint !== changedBalance.plan.contextInsert.sourceFingerprint,
     everyLedgerRowHasIngestionSource:
       first.plan.ledgerUpserts.every((entry) => ingestionKeys.has(entry.sourceEventKey)),
+    everyLedgerRowCarriesResolutionScope:
+      first.plan.ledgerUpserts.every(
+        (entry) =>
+          entry.providerKey === first.plan.providerKey &&
+          entry.connectionKey === CONNECTION_ID &&
+          Boolean(entry.accountExternalId),
+      ),
     externalEventIdentityUsesSourceEvent:
       first.plan.ingestionEventUpserts.every(
         (event) => event.externalEventId === event.sourceEventKey,
-      ),
-    ledgerCanonicalKeysUseStableExternalAccount:
-      first.plan.ledgerUpserts.every((entry) =>
-        entry.canonicalKey.includes("persistence-demo"),
       ),
     ledgerCanonicalKeysUnique:
       new Set(ledgerCanonicalKeys).size === ledgerCanonicalKeys.length,
@@ -224,10 +260,10 @@ export async function runPersistenceScenario() {
       first.plan.reconciliationInserts.length === first.result.reconciliation.length,
     ownTransferReconciliationPersisted:
       first.result.reconciliation.filter((match) => match.type === "internal_transfer_match").length === 1 &&
-      Boolean(internalTransfer) &&
+      Boolean(internalTransfer && transferOutKey && transferInKey) &&
       internalTransfer?.ledgerCanonicalKeys.length === 2 &&
-      internalTransfer.ledgerCanonicalKeys.some((key) => key.includes("checking-persistence-demo")) &&
-      internalTransfer.ledgerCanonicalKeys.some((key) => key.includes("savings-persistence-demo")),
+      internalTransfer.ledgerCanonicalKeys.includes(transferOutKey ?? "") &&
+      internalTransfer.ledgerCanonicalKeys.includes(transferInKey ?? ""),
     contextCarriesResolvedSafetyInputs:
       first.plan.contextInsert.protectedReserveMinor === first.result.resolvedInputs.protectedReserveMinor &&
       first.plan.contextInsert.criticalProvisionsMinor === first.result.resolvedInputs.criticalProvisionsMinor &&
@@ -282,6 +318,8 @@ export async function runPersistenceScenario() {
       reconciliationSignature: internalTransfer?.signature ?? null,
       ingestionSourceFingerprint: first.plan.ingestionEventUpserts[0]?.sourceFingerprint ?? null,
       ingestionPayloadHash: first.plan.ingestionEventUpserts[0]?.payloadHash ?? null,
+      transferOutCanonicalKey: transferOutKey ?? null,
+      transferInCanonicalKey: transferInKey ?? null,
     },
     reconciliation: internalTransfer ?? null,
     persistence: {
