@@ -3,6 +3,7 @@ export * from "./available-real";
 export * from "./liquidity";
 export * from "./reconciliation";
 export * from "./economic-impact";
+export * from "./liabilities";
 export * from "./recurrence";
 export * from "./behavior";
 export * from "./forecast";
