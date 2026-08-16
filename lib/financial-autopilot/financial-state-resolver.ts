@@ -15,6 +15,8 @@ import type {
 
 const CONTEXT_REVISION = /^ctx:[a-f0-9]{64}$/;
 const CURRENCY = /^[A-Z]{3}$/;
+const SAFE_CONFIDENCE_THRESHOLD = 0.8;
+const CONFIDENCE_TOLERANCE = 0.000001;
 const FINANCIAL_STATUSES = new Set<FinancialStatus>([
   "SAFE",
   "ATTENTION",
@@ -112,10 +114,6 @@ function assertFirstRisk(
     "financial_state_invalid_first_risk",
   );
 
-  // These are deterministic outputs of forecast-horizons.ts. ATTENTION means
-  // cash remains non-negative but falls below reserve; ACTION_REQUIRED means
-  // projected cash turns negative, so its reserve gap cannot be smaller than
-  // the negative-cash gap.
   if (
     risk.status === "ATTENTION" &&
     (reserveGapMinor <= 0 || negativeCashGapMinor !== 0)
@@ -150,18 +148,52 @@ function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHor
 }
 
 function persistedAvailableRealMatchesInputs(record: PersistedFinancialContextRecord) {
-  const computed =
-    BigInt(record.liquidityUsableMinor) -
-    BigInt(record.protectedCommitmentsMinor) -
-    BigInt(record.essentialSpendExpectedMinor) -
-    BigInt(record.protectedReserveMinor) -
-    BigInt(record.criticalProvisionsMinor) +
-    BigInt(record.confirmedIncomeMinor) -
-    BigInt(record.uncertaintyBufferMinor);
-  const expectedSafe = computed > 0n ? computed : 0n;
+  let computed = record.liquidityUsableMinor;
+  const deltas = [
+    -record.protectedCommitmentsMinor,
+    -record.essentialSpendExpectedMinor,
+    -record.protectedReserveMinor,
+    -record.criticalProvisionsMinor,
+    record.confirmedIncomeMinor,
+    -record.uncertaintyBufferMinor,
+  ];
 
-  if (expectedSafe > BigInt(Number.MAX_SAFE_INTEGER)) return false;
-  return Number(expectedSafe) === record.availableRealSafeMinor;
+  for (const delta of deltas) {
+    const next = computed + delta;
+    if (!Number.isSafeInteger(next)) return false;
+    computed = next;
+  }
+
+  return Math.max(0, computed) === record.availableRealSafeMinor;
+}
+
+function expectedConfidenceOverall(confidence: FinancialContextConfidence) {
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      0.3 * confidence.sourceFreshness +
+        0.2 * confidence.incomePredictability +
+        0.2 * confidence.expensePredictability +
+        0.2 * confidence.obligationCompleteness +
+        0.1 * confidence.reconciliationQuality,
+    ),
+  );
+}
+
+function persistedConfidenceSupportsContext(record: PersistedFinancialContextRecord) {
+  const expectedOverall = expectedConfidenceOverall(record.confidence);
+  if (Math.abs(expectedOverall - record.confidence.overall) > CONFIDENCE_TOLERANCE) {
+    return false;
+  }
+
+  if (record.status !== "SAFE") return true;
+
+  return (
+    record.confidence.overall >= SAFE_CONFIDENCE_THRESHOLD &&
+    record.confidence.sourceFreshness >= SAFE_CONFIDENCE_THRESHOLD &&
+    record.confidence.obligationCompleteness >= SAFE_CONFIDENCE_THRESHOLD
+  );
 }
 
 function persistedSafetySignalsMatchStatus(input: {
@@ -185,8 +217,6 @@ function persistedSafetySignalsMatchStatus(input: {
     );
   }
 
-  // ATTENTION is intentionally left extensible for higher-level risk signals;
-  // DEGRADED already fails closed elsewhere.
   return true;
 }
 
@@ -234,9 +264,6 @@ function builtContextFromRecord(
     throw new Error("financial_state_minimum_cash_before_generation");
   }
 
-  // firstForecastRisk belongs to the independent 30/60/90 safety forecast and
-  // can legitimately extend beyond the primary context horizon. Only require
-  // it to be forward-looking and internally coherent.
   assertFirstRisk(record.firstForecastRisk, generatedAt);
 
   const liquidityUsableMinor = assertSafeInteger(
@@ -356,10 +383,12 @@ function obligationsMatchPersistedContext(
   obligations: FinancialObligation[],
 ) {
   const protectedRows = protectedObligations(obligations);
-  const currentTotal = protectedRows.reduce(
-    (sum, obligation) => sum + obligation.amountMinor,
-    0,
-  );
+  let currentTotal = 0;
+  for (const obligation of protectedRows) {
+    const next = currentTotal + obligation.amountMinor;
+    if (!Number.isSafeInteger(next)) return false;
+    currentTotal = next;
+  }
   if (currentTotal !== record.protectedCommitmentsMinor) return false;
 
   const persistedRefs = record.explanationRefs
@@ -394,13 +423,6 @@ function degradeContextForConsistency(
   };
 }
 
-/**
- * Server-side resolver contract for Web/App.
- *
- * The caller supplies a trusted user id derived from the authenticated server
- * session. Reader results are treated as untrusted until ownership, validity,
- * freshness and numeric invariants are checked. No raw Ledger data is returned.
- */
 export async function resolveFinancialState(input: {
   trustedUserId: string;
   reader: FinancialStateReader;
@@ -423,12 +445,18 @@ export async function resolveFinancialState(input: {
   }
 
   const persistedContext = builtContextFromRecord(record, input.nowIso);
-  const availableConsistent = persistedAvailableRealMatchesInputs(record);
-  const arithmeticCheckedContext = availableConsistent
+  const arithmeticCheckedContext = persistedAvailableRealMatchesInputs(record)
     ? persistedContext
     : degradeContextForConsistency(
         persistedContext,
         "persisted_available_real_conflicts_with_inputs",
+      );
+
+  const confidenceCheckedContext = persistedConfidenceSupportsContext(record)
+    ? arithmeticCheckedContext
+    : degradeContextForConsistency(
+        arithmeticCheckedContext,
+        "persisted_confidence_conflicts_with_context",
       );
 
   const statusConsistent = persistedSafetySignalsMatchStatus({
@@ -439,9 +467,9 @@ export async function resolveFinancialState(input: {
     minimumProjectedCashMinor: record.minimumProjectedCashMinor,
   });
   const statusCheckedContext = statusConsistent
-    ? arithmeticCheckedContext
+    ? confidenceCheckedContext
     : degradeContextForConsistency(
-        arithmeticCheckedContext,
+        confidenceCheckedContext,
         "persisted_status_conflicts_with_safety_signals",
       );
 
@@ -457,10 +485,6 @@ export async function resolveFinancialState(input: {
     record.horizonUntil,
   );
 
-  // Context + obligations are written together, but the read path can observe a
-  // later obligation mutation or a partially rolled-out persistence boundary.
-  // Never reuse a SAFE amount when the protected obligation set no longer
-  // matches the exact totals and identities committed by the context.
   const context = obligationsMatchPersistedContext(record, obligations)
     ? statusCheckedContext
     : degradeContextForConsistency(
