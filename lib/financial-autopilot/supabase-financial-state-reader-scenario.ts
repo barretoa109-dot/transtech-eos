@@ -17,7 +17,11 @@ function contextRow(overrides: Record<string, unknown> = {}) {
     horizon_until: "2026-09-01T12:00:00.000Z",
     liquidity_usable_minor: 8000000,
     protected_commitments_minor: 2100000,
+    essential_spend_expected_minor: 1000000,
     protected_reserve_minor: 3000000,
+    critical_provisions_minor: 0,
+    confirmed_income_minor: 1000000,
+    uncertainty_buffer_minor: 1260000,
     available_real_safe_minor: 1640000,
     minimum_projected_cash_minor: 6005000,
     minimum_projected_cash_at: "2026-08-25T00:00:00.000Z",
@@ -180,6 +184,14 @@ export async function runSupabaseFinancialStateReaderScenario() {
       ),
     "financial_state_invalid_confidence",
   );
+  const malformedArithmeticInputBlocked = await catchesCode(
+    () =>
+      parsePersistedFinancialContextRow(
+        contextRow({ uncertainty_buffer_minor: -1 }),
+        USER_ID,
+      ),
+    "financial_state_invalid_uncertainty_buffer",
+  );
   const obligationOwnerMismatchBlocked = await catchesCode(
     () =>
       parsePersistedFinancialObligationRow(
@@ -217,7 +229,9 @@ export async function runSupabaseFinancialStateReaderScenario() {
     contextParserMapsStrictly:
       parsedContext.userId === USER_ID &&
       parsedContext.revision === CONTEXT_REVISION &&
-      parsedContext.availableRealSafeMinor === 1640000,
+      parsedContext.availableRealSafeMinor === 1640000 &&
+      parsedContext.essentialSpendExpectedMinor === 1000000 &&
+      parsedContext.uncertaintyBufferMinor === 1260000,
     obligationParserPreservesDeterministicIdentity:
       parsedObligation.userId === USER_ID &&
       parsedObligation.id === "resolver-rent" &&
@@ -228,7 +242,7 @@ export async function runSupabaseFinancialStateReaderScenario() {
       obligations.length === 1 &&
       obligations[0]?.id === "resolver-rent" &&
       obligations[0]?.type === "housing",
-    contextReadIsOwnerScopedAndMinimal:
+    contextReadIsOwnerScopedAndSafetyComplete:
       contextQuery?.predicates.some(
         ([column, value]) => column === "usuario_id" && value === USER_ID,
       ) === true &&
@@ -236,8 +250,11 @@ export async function runSupabaseFinancialStateReaderScenario() {
       contextQuery.orders.some(
         ([column, ascending]) => column === "generated_at" && ascending === false,
       ) &&
-      !contextQuery.selected?.includes("source_fingerprint") &&
-      !contextQuery.selected?.includes("essential_spend_expected_minor"),
+      contextQuery.selected?.includes("essential_spend_expected_minor") === true &&
+      contextQuery.selected?.includes("critical_provisions_minor") === true &&
+      contextQuery.selected?.includes("confirmed_income_minor") === true &&
+      contextQuery.selected?.includes("uncertainty_buffer_minor") === true &&
+      !contextQuery.selected?.includes("source_fingerprint"),
     obligationsReadIsOwnerCurrencyStatusAndHorizonScoped:
       obligationQuery?.predicates.some(
         ([column, value]) => column === "usuario_id" && value === USER_ID,
@@ -261,6 +278,7 @@ export async function runSupabaseFinancialStateReaderScenario() {
     malformedRevisionFailsClosed: malformedRevisionBlocked,
     unsafeIntegerFailsClosed: unsafeIntegerBlocked,
     malformedConfidenceFailsClosed: malformedConfidenceBlocked,
+    malformedArithmeticInputFailsClosed: malformedArithmeticInputBlocked,
     obligationOwnerMismatchFailsClosed: obligationOwnerMismatchBlocked,
     obligationCurrencyMismatchFailsClosed: obligationCurrencyMismatchBlocked,
     malformedObligationIdentityFailsClosed: malformedObligationIdentityBlocked,
