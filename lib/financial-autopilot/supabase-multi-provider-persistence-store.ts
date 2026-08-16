@@ -1,3 +1,4 @@
+import { buildMultiProviderGlobalContextCommitFromPlan } from "./global-context-commit";
 import type {
   MultiProviderPersistenceResult,
   MultiProviderPersistenceStore,
@@ -28,6 +29,10 @@ function nonNegativeInteger(value: unknown): value is number {
   );
 }
 
+function nullableSha256(value: unknown): value is string | null {
+  return value === null || (typeof value === "string" && /^[a-f0-9]{64}$/.test(value));
+}
+
 export function parseMultiProviderPersistenceRpcResponse(
   value: unknown,
 ): MultiProviderPersistenceResult {
@@ -43,6 +48,7 @@ export function parseMultiProviderPersistenceRpcResponse(
     (row.globalContextRevision !== null &&
       (typeof row.globalContextRevision !== "string" ||
         !/^ctx:[a-f0-9]{64}$/.test(row.globalContextRevision))) ||
+    !nullableSha256(row.globalContextCommitFingerprint) ||
     !nonNegativeInteger(row.providerScopesTouched) ||
     !nonNegativeInteger(row.ledgerRowsTouched) ||
     !nonNegativeInteger(row.ingestionRowsTouched)
@@ -54,6 +60,8 @@ export function parseMultiProviderPersistenceRpcResponse(
     replayed: row.replayed,
     planFingerprint: row.planFingerprint,
     globalContextRevision: row.globalContextRevision as string | null,
+    globalContextCommitFingerprint:
+      row.globalContextCommitFingerprint as string | null,
     providerScopesTouched: row.providerScopesTouched,
     ledgerRowsTouched: row.ledgerRowsTouched,
     ingestionRowsTouched: row.ingestionRowsTouched,
@@ -91,6 +99,10 @@ export class SupabaseMultiProviderPersistenceStore
       throw new Error("financial_multi_provider_persistence_user_mismatch");
     }
 
+    const expectedCommit = buildMultiProviderGlobalContextCommitFromPlan({
+      trustedUserId: this.trustedUserId,
+      plan,
+    });
     const { data, error } = await this.rpcClient.rpc(
       MULTI_PROVIDER_PERSISTENCE_RPC_V1_3,
       {
@@ -113,6 +125,12 @@ export class SupabaseMultiProviderPersistenceStore
       (plan.globalContextPlan?.revision ?? null)
     ) {
       throw new Error("financial_multi_provider_persistence_context_revision_mismatch");
+    }
+    if (
+      parsed.globalContextCommitFingerprint !==
+      (expectedCommit?.commitFingerprint ?? null)
+    ) {
+      throw new Error("financial_multi_provider_persistence_global_commit_mismatch");
     }
 
     return parsed;
