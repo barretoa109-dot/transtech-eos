@@ -273,6 +273,14 @@ export function buildFinancialPersistencePlan(input: {
   result: ZeroEntryAutopilotResult;
 }): FinancialPersistencePlan {
   const { snapshot, result } = input;
+
+  // v1 persistence is deliberately provider-scoped. A multi-provider analysis
+  // must never be flattened under snapshot.providerKey because that would lose
+  // provider provenance and corrupt canonical replay/deduplication identities.
+  if (result.analysisScope === "multi_provider") {
+    throw new Error("financial_multi_provider_requires_scoped_persistence");
+  }
+
   const userIds = new Set([
     ...snapshot.accounts.map((account) => account.userId),
     ...snapshot.ledgerEntries.map((entry) => entry.userId),
