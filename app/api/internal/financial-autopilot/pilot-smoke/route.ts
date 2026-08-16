@@ -12,6 +12,7 @@ import {
   runFinancialStateResolverScenario,
   runPersistenceRpcScenario,
   runPersistenceScenario,
+  runSupabaseFinancialStateReaderScenario,
 } from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function GET() {
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
   const financialStateResolver = await runFinancialStateResolverScenario();
+  const supabaseFinancialStateReader = await runSupabaseFinancialStateReaderScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
@@ -41,7 +43,8 @@ export async function GET() {
     financialState.ok &&
     persistence.ok &&
     persistenceRpc.ok &&
-    financialStateResolver.ok;
+    financialStateResolver.ok &&
+    supabaseFinancialStateReader.ok;
 
   return NextResponse.json(
     {
@@ -56,6 +59,7 @@ export async function GET() {
       persistence,
       persistenceRpc,
       financialStateResolver,
+      supabaseFinancialStateReader,
     },
     {
       status: ok ? 200 : 500,
