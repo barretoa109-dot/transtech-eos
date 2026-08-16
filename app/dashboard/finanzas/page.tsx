@@ -7,7 +7,13 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import type { FinancialStateView } from "@/lib/financial-autopilot/financial-state";
+import {
+  buildFinancialSurfaceModel,
+  type FinancialStateView,
+  type FinancialSurfaceInput,
+  type FinancialSurfaceModel,
+  type FinancialSurfaceStatus,
+} from "@/lib/financial-autopilot";
 import {
   isFinancialStateApiEnabled,
   resolveFinancialState,
@@ -18,13 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const DEMO_REVISION = `ctx:${"d".repeat(64)}`;
-
 type SurfaceSource = "live" | "demo";
-type LiveSurfaceIssue = "NO_DATA" | "ERROR";
-
-type LiveStateResult =
-  | { kind: "STATE"; state: FinancialStateView }
-  | { kind: "NO_DATA" };
 
 function demoState(kind: string | undefined): FinancialStateView {
   const common: Omit<
@@ -210,18 +210,16 @@ function formatDate(value: string | null, withTime = false) {
   ).format(date);
 }
 
-function statusMeta(status: FinancialStateView["status"]) {
-  if (status === "DEGRADED") {
+function statusMeta(status: FinancialSurfaceStatus) {
+  if (status === "NO_DATA" || status === "ERROR" || status === "DEGRADED") {
     return {
-      label: "Datos desactualizados",
       pill: "border-slate-600 bg-slate-800 text-slate-200",
       panel: "border-slate-700 bg-slate-900/70",
-      icon: RefreshCw,
+      icon: status === "NO_DATA" ? ShieldCheck : RefreshCw,
     };
   }
   if (status === "ACTION_REQUIRED") {
     return {
-      label: "Decisión necesaria",
       pill: "border-rose-500/30 bg-rose-500/10 text-rose-200",
       panel: "border-rose-500/20 bg-rose-500/[0.06]",
       icon: CircleAlert,
@@ -229,14 +227,12 @@ function statusMeta(status: FinancialStateView["status"]) {
   }
   if (status === "ATTENTION") {
     return {
-      label: "En vigilancia",
       pill: "border-amber-500/30 bg-amber-500/10 text-amber-100",
       panel: "border-amber-500/20 bg-amber-500/[0.05]",
       icon: Clock3,
     };
   }
   return {
-    label: "Seguro",
     pill: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
     panel: "border-emerald-500/20 bg-emerald-500/[0.05]",
     icon: ShieldCheck,
@@ -276,78 +272,7 @@ function PreviewHint() {
   );
 }
 
-function EmptyFinancialSurface({
-  issue,
-  source,
-  demoAllowed,
-}: {
-  issue: LiveSurfaceIssue;
-  source: SurfaceSource;
-  demoAllowed: boolean;
-}) {
-  const noData = issue === "NO_DATA";
-  const Icon = noData ? ShieldCheck : RefreshCw;
-
-  return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-      <div className="mx-auto max-w-3xl space-y-5">
-        <PageHeader source={source} />
-
-        <section className="overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900/70">
-          <div className="p-5 sm:p-7">
-            <span className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-extrabold text-slate-200">
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {noData ? "Pendiente de contexto" : "Lectura no disponible"}
-            </span>
-
-            <div className="mt-7">
-              <h2 className="max-w-2xl text-2xl font-black leading-tight text-white sm:text-4xl">
-                {noData
-                  ? "Aún no tengo suficiente contexto financiero."
-                  : "No puedo validar tu estado financiero ahora."}
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                {noData
-                  ? "Por seguridad, EOS no calcula ni muestra un Disponible Real hasta tener una primera lectura financiera validada."
-                  : "Voy a ocultar cualquier monto hasta recuperar una lectura confiable. Así evitamos mostrar un falso estado Seguro."}
-              </p>
-            </div>
-
-            <div className="mt-8 rounded-3xl border border-white/10 bg-slate-950/60 p-5 sm:p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
-                Disponible Real
-              </p>
-              <p className="mt-2 text-3xl font-black tracking-tight text-white">
-                Oculto hasta validar
-              </p>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
-                {noData
-                  ? "En cuanto exista un contexto financiero confiable, esta pantalla se completará automáticamente."
-                  : "Tus últimos montos no se reutilizan como si siguieran siendo seguros cuando la lectura actual falla."}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-300" aria-hidden="true" />
-            <div>
-              <p className="font-bold text-white">Regla de seguridad activa</p>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
-                Sin datos suficientes o ante una falla de lectura, EOS prefiere decir “no sé todavía” antes que inventar disponibilidad financiera.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {demoAllowed ? <PreviewHint /> : null}
-      </div>
-    </div>
-  );
-}
-
-async function resolveLiveState(): Promise<LiveStateResult> {
+async function resolveLiveInput(): Promise<FinancialSurfaceInput> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -365,211 +290,104 @@ async function resolveLiveState(): Promise<LiveStateResult> {
   return { kind: "STATE", state: resolution.state };
 }
 
-export default async function FinancialStatePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ demo?: string }>;
-}) {
-  const params = await searchParams;
-  const isProduction = process.env.VERCEL_ENV === "production";
-  const apiEnabled = isFinancialStateApiEnabled();
-  const demoAllowed = !isProduction;
-  const requestedDemo = demoAllowed ? params.demo : undefined;
-
-  if (isProduction && !apiEnabled) notFound();
-
-  let state: FinancialStateView | null = null;
-  let source: SurfaceSource = "demo";
-  let liveIssue: LiveSurfaceIssue | null = null;
-
-  if (requestedDemo === "empty" || requestedDemo === "error") {
-    liveIssue = requestedDemo === "empty" ? "NO_DATA" : "ERROR";
-    source = "demo";
-  } else if (requestedDemo) {
-    state = demoState(requestedDemo);
-    source = "demo";
-  } else if (apiEnabled) {
-    source = "live";
-    try {
-      const result = await resolveLiveState();
-      if (result.kind === "STATE") state = result.state;
-      else liveIssue = "NO_DATA";
-    } catch {
-      liveIssue = "ERROR";
-    }
-  } else if (demoAllowed) {
-    state = demoState("safe");
-    source = "demo";
-  }
-
-  if (liveIssue) {
+function renderStateDetails(surface: FinancialSurfaceModel) {
+  if (surface.kind !== "STATE") {
     return (
-      <EmptyFinancialSurface
-        issue={liveIssue}
-        source={source}
-        demoAllowed={demoAllowed}
-      />
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-300" aria-hidden="true" />
+          <div>
+            <p className="font-bold text-white">Regla de seguridad activa</p>
+            <p className="mt-1 text-sm leading-6 text-slate-400">
+              Sin datos suficientes o ante una falla de lectura, EOS prefiere decir “no sé todavía” antes que inventar disponibilidad financiera.
+            </p>
+          </div>
+        </div>
+      </section>
     );
   }
 
-  if (!state) notFound();
-
-  const meta = statusMeta(state.status);
-  const StatusIcon = meta.icon;
-  const available = state.money.availableRealMinor;
-  const commitment = state.nextProtectedCommitment;
-  const risk = state.firstForecastRisk;
-  const freshUntil = formatDate(state.freshness.freshUntil, true);
-  const asOf = formatDate(state.asOf, true);
+  const commitment = surface.nextProtectedCommitment;
+  const risk = surface.firstForecastRisk;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-      <div className="mx-auto max-w-3xl space-y-5">
-        <PageHeader source={source} />
-
-        <section className={`overflow-hidden rounded-[2rem] border ${meta.panel}`}>
-          <div className="p-5 sm:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-extrabold ${meta.pill}`}
-              >
-                <StatusIcon className="h-4 w-4" aria-hidden="true" />
-                {meta.label}
-              </span>
-              {asOf ? (
-                <span className="text-xs font-medium text-slate-500">Actualizado {asOf}</span>
-              ) : null}
-            </div>
-
-            <div className="mt-7">
-              <h2 className="max-w-2xl text-2xl font-black leading-tight text-white sm:text-4xl">
-                {state.headline}
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                {state.detail}
-              </p>
-            </div>
-
-            <div className="mt-8 rounded-3xl border border-white/10 bg-slate-950/60 p-5 sm:p-6">
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
-                Disponible Real
-              </p>
-              {state.canAssertSafety && available !== null ? (
-                <>
-                  <p className="mt-2 text-sm font-semibold text-slate-300">Puedes usar hasta</p>
-                  <p className="mt-1 text-4xl font-black tracking-tight text-white sm:text-5xl">
-                    {formatMoney(available, state.currency)}
-                  </p>
-                  <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-emerald-200">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                    {state.attention.required ? state.attention.message : "No necesitas hacer nada."}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 text-3xl font-black tracking-tight text-white">
-                    Pendiente de actualización
-                  </p>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
-                    EOS no mostrará un monto seguro mientras los datos no sean suficientemente confiables.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-200">
-                <CalendarClock className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
-                  Próximo compromiso
-                </p>
-                <p className="mt-1 font-bold text-white">
-                  {commitment?.type ?? "Nada crítico próximo"}
-                </p>
-              </div>
-            </div>
-
-            {commitment ? (
-              <div className="mt-5 flex items-end justify-between gap-4">
-                <p className="text-2xl font-black text-white">
-                  {formatMoney(commitment.amountMinor, commitment.currency)}
-                </p>
-                <p className="text-sm font-semibold text-slate-400">
-                  {formatDate(commitment.dueAt) ?? "Fecha pendiente"}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-5 text-sm leading-6 text-slate-400">
-                EOS no detecta un compromiso protegido dentro del horizonte actual.
-              </p>
-            )}
-          </section>
-
-          <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-slate-200">
-                {risk ? (
-                  <CircleAlert className="h-5 w-5" aria-hidden="true" />
-                ) : (
-                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-                )}
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
-                  Mirando hacia adelante
-                </p>
-                <p className="mt-1 font-bold text-white">
-                  {risk ? `EOS vigila un riesgo a ${risk.horizonDays} días` : "Sin riesgo material detectado"}
-                </p>
-              </div>
-            </div>
-
-            {risk ? (
-              <div className="mt-5 space-y-2 text-sm leading-6 text-slate-400">
-                {risk.reserveGapMinor > 0 ? (
-                  <p>
-                    Faltarían {formatMoney(risk.reserveGapMinor, state.currency)} para conservar íntegra tu reserva protegida.
-                  </p>
-                ) : null}
-                {risk.negativeCashGapMinor > 0 ? (
-                  <p>
-                    El escenario proyecta un faltante de {formatMoney(risk.negativeCashGapMinor, state.currency)}.
-                  </p>
-                ) : null}
-                <p className="font-semibold text-slate-300">
-                  Horizonte: {formatDate(risk.until) ?? `${risk.horizonDays} días`}.
-                </p>
-              </div>
-            ) : (
-              <p className="mt-5 text-sm leading-6 text-slate-400">
-                Con la información actual, EOS no detecta una decisión financiera que deba interrumpirte.
-              </p>
-            )}
-          </section>
-        </div>
-
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
+    <>
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5">
           <div className="flex items-center gap-3">
-            <Clock3 className="h-5 w-5 text-slate-400" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="font-bold text-white">
-                {state.freshness.status === "FRESH" ? "Datos al día" : "Datos que necesitan actualización"}
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-200">
+              <CalendarClock className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
+                Próximo compromiso
               </p>
-              <p className="mt-1 text-sm text-slate-400">
-                {freshUntil
-                  ? `Confiables hasta ${freshUntil}.`
-                  : "EOS no tiene una ventana de frescura suficiente para afirmar seguridad."}
+              <p className="mt-1 font-bold text-white">
+                {commitment?.type ?? "Nada crítico próximo"}
               </p>
             </div>
           </div>
+
+          {commitment ? (
+            <div className="mt-5 flex items-end justify-between gap-4">
+              <p className="text-2xl font-black text-white">
+                {formatMoney(commitment.amountMinor, commitment.currency)}
+              </p>
+              <p className="text-sm font-semibold text-slate-400">
+                {formatDate(commitment.dueAt) ?? "Fecha pendiente"}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-6 text-slate-400">
+              EOS no detecta un compromiso protegido dentro del horizonte actual.
+            </p>
+          )}
         </section>
 
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-slate-200">
+              {risk ? (
+                <CircleAlert className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+              )}
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.13em] text-slate-500">
+                Mirando hacia adelante
+              </p>
+              <p className="mt-1 font-bold text-white">
+                {risk ? `EOS vigila un riesgo a ${risk.horizonDays} días` : "Sin riesgo material detectado"}
+              </p>
+            </div>
+          </div>
+
+          {risk && surface.currency ? (
+            <div className="mt-5 space-y-2 text-sm leading-6 text-slate-400">
+              {risk.reserveGapMinor > 0 ? (
+                <p>
+                  Faltarían {formatMoney(risk.reserveGapMinor, surface.currency)} para conservar íntegra tu reserva protegida.
+                </p>
+              ) : null}
+              {risk.negativeCashGapMinor > 0 ? (
+                <p>
+                  El escenario proyecta un faltante de {formatMoney(risk.negativeCashGapMinor, surface.currency)}.
+                </p>
+              ) : null}
+              <p className="font-semibold text-slate-300">
+                Horizonte: {formatDate(risk.until) ?? `${risk.horizonDays} días`}.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-6 text-slate-400">
+              Con la información actual, EOS no detecta una decisión financiera que deba interrumpirte.
+            </p>
+          )}
+        </section>
+      </div>
+
+      {surface.why && surface.currency ? (
         <details className="group rounded-3xl border border-slate-800 bg-slate-900/35">
           <summary className="cursor-pointer list-none px-5 py-5 font-bold text-white sm:px-6">
             <span className="flex items-center justify-between gap-4">
@@ -585,7 +403,7 @@ export default async function FinancialStatePage({
                   Compromisos protegidos
                 </p>
                 <p className="mt-2 text-xl font-black text-white">
-                  {formatMoney(state.money.protectedCommitmentsMinor, state.currency)}
+                  {formatMoney(surface.why.protectedCommitmentsMinor, surface.currency)}
                 </p>
               </div>
               <div className="rounded-2xl bg-slate-950/60 p-4">
@@ -593,23 +411,148 @@ export default async function FinancialStatePage({
                   Reserva protegida
                 </p>
                 <p className="mt-2 text-xl font-black text-white">
-                  {formatMoney(state.money.protectedReserveMinor, state.currency)}
+                  {formatMoney(surface.why.protectedReserveMinor, surface.currency)}
                 </p>
               </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm leading-6 text-slate-400">
               <p>
-                EOS usa únicamente señales financieras normalizadas para construir este estado. No expone movimientos del Ledger ni evidencia interna en esta pantalla.
+                Esta vista recibe un contrato financiero ya reducido para el usuario. No transporta movimientos del Ledger, eventos fuente ni referencias internas de evidencia.
               </p>
-              {state.trace.explanationAvailable ? (
+              {surface.why.explanationAvailable ? (
                 <p className="mt-2">
-                  Hay {state.trace.explanationRefCount} señales de explicación disponibles para auditoría interna.
+                  Hay {surface.why.explanationRefCount} señales de explicación disponibles para auditoría interna.
                 </p>
               ) : null}
             </div>
           </div>
         </details>
+      ) : null}
+    </>
+  );
+}
+
+export default async function FinancialStatePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ demo?: string }>;
+}) {
+  const params = await searchParams;
+  const isProduction = process.env.VERCEL_ENV === "production";
+  const apiEnabled = isFinancialStateApiEnabled();
+  const demoAllowed = !isProduction;
+  const requestedDemo = demoAllowed ? params.demo : undefined;
+
+  if (isProduction && !apiEnabled) notFound();
+
+  let source: SurfaceSource = "demo";
+  let surfaceInput: FinancialSurfaceInput;
+
+  if (requestedDemo === "empty") {
+    surfaceInput = { kind: "NO_DATA" };
+  } else if (requestedDemo === "error") {
+    surfaceInput = { kind: "ERROR" };
+  } else if (requestedDemo) {
+    surfaceInput = { kind: "STATE", state: demoState(requestedDemo) };
+  } else if (apiEnabled) {
+    source = "live";
+    try {
+      surfaceInput = await resolveLiveInput();
+    } catch {
+      surfaceInput = { kind: "ERROR" };
+    }
+  } else if (demoAllowed) {
+    surfaceInput = { kind: "STATE", state: demoState("safe") };
+  } else {
+    notFound();
+  }
+
+  const surface = buildFinancialSurfaceModel(surfaceInput);
+  const meta = statusMeta(surface.status);
+  const StatusIcon = meta.icon;
+  const asOf = formatDate(surface.asOf, true);
+  const freshUntil = formatDate(surface.freshness.freshUntil, true);
+  const AvailableIcon = surface.attention.required ? CircleAlert : CheckCircle2;
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader source={source} />
+
+        <section className={`overflow-hidden rounded-[2rem] border ${meta.panel}`}>
+          <div className="p-5 sm:p-7">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-extrabold ${meta.pill}`}
+              >
+                <StatusIcon className="h-4 w-4" aria-hidden="true" />
+                {surface.statusLabel}
+              </span>
+              {asOf ? (
+                <span className="text-xs font-medium text-slate-500">Actualizado {asOf}</span>
+              ) : null}
+            </div>
+
+            <div className="mt-7">
+              <h2 className="max-w-2xl text-2xl font-black leading-tight text-white sm:text-4xl">
+                {surface.headline}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                {surface.detail}
+              </p>
+            </div>
+
+            <div className="mt-8 rounded-3xl border border-white/10 bg-slate-950/60 p-5 sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                Disponible Real
+              </p>
+              {surface.availableReal.visible && surface.currency ? (
+                <>
+                  <p className="mt-2 text-sm font-semibold text-slate-300">
+                    {surface.availableReal.label}
+                  </p>
+                  <p className="mt-1 text-4xl font-black tracking-tight text-white sm:text-5xl">
+                    {formatMoney(surface.availableReal.amountMinor, surface.currency)}
+                  </p>
+                  <p
+                    className={`mt-3 inline-flex items-center gap-2 text-sm font-semibold ${
+                      surface.attention.required ? "text-rose-200" : "text-emerald-200"
+                    }`}
+                  >
+                    <AvailableIcon className="h-4 w-4" aria-hidden="true" />
+                    {surface.availableReal.supportingText}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-3xl font-black tracking-tight text-white">
+                    {surface.availableReal.label}
+                  </p>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
+                    {surface.availableReal.supportingText}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {renderStateDetails(surface)}
+
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
+          <div className="flex items-center gap-3">
+            <Clock3 className="h-5 w-5 text-slate-400" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-white">{surface.freshness.label}</p>
+              <p className="mt-1 text-sm text-slate-400">
+                {freshUntil
+                  ? `${surface.freshness.detail} Confiables hasta ${freshUntil}.`
+                  : surface.freshness.detail}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {demoAllowed ? <PreviewHint /> : null}
       </div>
