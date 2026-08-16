@@ -1,10 +1,12 @@
 import {
   FINANCIAL_STATE_API_FLAG,
+  FINANCIAL_STATE_V1_2_FLAG,
   classifyFinancialStateReadFailure,
   financialStateApiHeaders,
   isFinancialStateApiEnabled,
   isFinancialStateDemoAllowed,
   isFinancialStateSurfaceVisible,
+  isFinancialStateV1_2Enabled,
 } from "./financial-state-api-policy";
 
 export function runFinancialStateApiScenario() {
@@ -18,6 +20,20 @@ export function runFinancialStateApiScenario() {
       !isFinancialStateApiEnabled({ [FINANCIAL_STATE_API_FLAG]: "TRUE" }) &&
       !isFinancialStateApiEnabled({ [FINANCIAL_STATE_API_FLAG]: "1" }) &&
       !isFinancialStateApiEnabled({ [FINANCIAL_STATE_API_FLAG]: "yes" }),
+    v1_2DisabledByDefault: !isFinancialStateV1_2Enabled({}),
+    v1_2ExactTrueEnablesReaderSelection: isFinancialStateV1_2Enabled({
+      [FINANCIAL_STATE_V1_2_FLAG]: "true",
+    }),
+    v1_2NearValuesStayDisabled:
+      !isFinancialStateV1_2Enabled({ [FINANCIAL_STATE_V1_2_FLAG]: "TRUE" }) &&
+      !isFinancialStateV1_2Enabled({ [FINANCIAL_STATE_V1_2_FLAG]: "1" }) &&
+      !isFinancialStateV1_2Enabled({ [FINANCIAL_STATE_V1_2_FLAG]: "yes" }),
+    v1_2FlagDoesNotExposeProductionSurfaceByItself:
+      !isFinancialStateSurfaceVisible({
+        VERCEL_ENV: "production",
+        NODE_ENV: "production",
+        [FINANCIAL_STATE_V1_2_FLAG]: "true",
+      }),
     productionDemoDisabled: !isFinancialStateDemoAllowed({
       VERCEL_ENV: "production",
       NODE_ENV: "production",
