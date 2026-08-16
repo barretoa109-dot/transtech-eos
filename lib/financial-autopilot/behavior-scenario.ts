@@ -73,6 +73,9 @@ export function runBehaviorInferenceScenario() {
   const rent = patterns.find((pattern) => pattern.role === "rent_or_mortgage");
   const utility = patterns.find((pattern) => pattern.role === "utility");
   const subscription = patterns.find((pattern) => pattern.role === "subscription");
+  const salaryEvents = salary
+    ? forecast.filter((event) => event.sourceRef === `recurrence:${salary.recurrenceKey}`)
+    : [];
 
   const checks = {
     fourMonthlyPatternsDetected: recurrences.length === 4,
@@ -81,13 +84,13 @@ export function runBehaviorInferenceScenario() {
     utilityDetectedAsEssential: Boolean(utility && utility.essentiality === "essential"),
     subscriptionDetectedAsOptional: Boolean(subscription && subscription.essentiality === "optional"),
     futureEventsMaterialized: forecast.length >= 8,
+    monthlyCalendarDatePreserved:
+      salaryEvents[0]?.date === "2026-09-01T12:00:00.000Z" &&
+      salaryEvents[1]?.date === "2026-10-01T12:00:00.000Z",
     futureIncomeUsesProbabilityWithoutShrinkingPrincipal: Boolean(
       salary &&
-        forecast.some(
-          (event) =>
-            event.sourceRef === `recurrence:${salary.recurrenceKey}` &&
-            event.amountMinor === 9000000 &&
-            event.probability === salary.confidence,
+        salaryEvents.some(
+          (event) => event.amountMinor === 9000000 && event.probability === salary.confidence,
         ),
     ),
   };
