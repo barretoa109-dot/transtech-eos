@@ -1,3 +1,4 @@
+import { financialContextIntegrityRef } from "./financial-context-integrity";
 import { resolveFinancialState } from "./financial-state-resolver";
 import type {
   FinancialStateReader,
@@ -25,8 +26,11 @@ const OBLIGATION: FinancialObligation = {
   source: "reader_v1_1_fixture",
 };
 
-function record(): PersistedFinancialContextRecord {
-  return {
+function record(
+  patch: Partial<PersistedFinancialContextRecord> = {},
+  preserveOriginalIntegrity = false,
+): PersistedFinancialContextRecord {
+  const base: PersistedFinancialContextRecord = {
     userId: USER_ID,
     revision: REVISION,
     currency: "PYG",
@@ -50,10 +54,22 @@ function record(): PersistedFinancialContextRecord {
       reconciliationQuality: 1,
       overall: 0.94,
     },
-    explanationRefs: [protectedObligationExplanationRef(OBLIGATION)],
+    explanationRefs: [],
     sourcesFresh: true,
     generatedAt: "2026-08-16T12:00:00.000Z",
     validUntil: "2026-08-17T12:00:00.000Z",
+  };
+
+  const originalIntegrity = financialContextIntegrityRef(base);
+  const next = { ...base, ...patch };
+  return {
+    ...next,
+    explanationRefs: [
+      protectedObligationExplanationRef(OBLIGATION),
+      preserveOriginalIntegrity
+        ? originalIntegrity
+        : financialContextIntegrityRef(next),
+    ],
   };
 }
 
@@ -61,11 +77,14 @@ class FixtureBaseReader implements FinancialStateReader {
   contextCalls = 0;
   obligationCalls = 0;
 
-  constructor(private readonly obligations: FinancialObligation[] = [OBLIGATION]) {}
+  constructor(
+    private readonly obligations: FinancialObligation[] = [OBLIGATION],
+    private readonly contextRecord: PersistedFinancialContextRecord = record(),
+  ) {}
 
   async getLatestContext(_userId: string) {
     this.contextCalls += 1;
-    return record();
+    return this.contextRecord;
   }
 
   async getOpenObligations(_input: {
@@ -195,18 +214,47 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
   const dueDateDriftState = await resolveWithObligationDrift({
     dueAt: "2026-08-26T00:00:00.000Z",
   });
-  const priorityDriftState = await resolveWithObligationDrift({
-    priority: 90,
-  });
-  const confidenceDriftState = await resolveWithObligationDrift({
-    confidence: 0.9,
-  });
-  const typeDriftState = await resolveWithObligationDrift({
-    type: "housing_lease",
-  });
+  const priorityDriftState = await resolveWithObligationDrift({ priority: 90 });
+  const confidenceDriftState = await resolveWithObligationDrift({ confidence: 0.9 });
+  const typeDriftState = await resolveWithObligationDrift({ type: "housing_lease" });
   const sourceDriftState = await resolveWithObligationDrift({
     source: "reader_v1_1_fixture_changed",
   });
+
+  // Aggregate mutation with the original integrity ref simulates stored context
+  // drift after persistence. It must be rejected before the first-risk query.
+  const aggregateDriftClient = riskClient();
+  const aggregateDriftReader = new SupabaseFinancialStateReaderV1_1(
+    aggregateDriftClient as never,
+    USER_ID,
+    new FixtureBaseReader(
+      [OBLIGATION],
+      record({ confirmedIncomeMinor: 1500000 }, true),
+    ),
+  );
+  const aggregateDriftBlocked = await catchesCode(
+    () => aggregateDriftReader.getLatestContext(USER_ID),
+    "financial_state_context_integrity_mismatch",
+  );
+  const aggregateDriftBlockedBeforeExtensionRead =
+    aggregateDriftClient.queries.length === 0;
+
+  const missingIntegrityClient = riskClient();
+  const missingIntegrityRecord = record();
+  missingIntegrityRecord.explanationRefs = missingIntegrityRecord.explanationRefs.filter(
+    (ref) => !ref.startsWith("context-integrity:"),
+  );
+  const missingIntegrityBlocked = await catchesCode(
+    () =>
+      new SupabaseFinancialStateReaderV1_1(
+        missingIntegrityClient as never,
+        USER_ID,
+        new FixtureBaseReader([OBLIGATION], missingIntegrityRecord),
+      ).getLatestContext(USER_ID),
+    "financial_state_context_integrity_mismatch",
+  );
+  const missingIntegrityBlockedBeforeExtensionRead =
+    missingIntegrityClient.queries.length === 0;
 
   const query = client.queries[0];
   const crossUserCallsBefore = base.contextCalls;
@@ -263,6 +311,12 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
       state?.firstForecastRisk?.status === "ATTENTION" &&
       state.firstForecastRisk.horizonDays === 60 &&
       state.firstForecastRisk.reserveGapMinor === 750000,
+    aggregateContextIntegrityRequired:
+      latest?.explanationRefs.some((ref) => ref.startsWith("context-integrity:")) === true,
+    aggregateContextDriftFailsBeforeExtensionRead:
+      aggregateDriftBlocked && aggregateDriftBlockedBeforeExtensionRead,
+    missingAggregateIntegrityFailsBeforeExtensionRead:
+      missingIntegrityBlocked && missingIntegrityBlockedBeforeExtensionRead,
     obligationReadUsesMaterialContextIdentity:
       hydratedObligations[0]?.id !== OBLIGATION.id &&
       latest?.explanationRefs.includes(`obligation:${hydratedObligations[0]?.id}`) === true,
