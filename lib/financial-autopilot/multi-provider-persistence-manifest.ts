@@ -82,34 +82,38 @@ export function buildMultiProviderPersistenceManifest(input: {
     const accountsById = new Map(
       bundle.snapshot.accounts.map((account) => [account.id, account]),
     );
-    const accountSourceRefs = bundle.snapshot.accounts
-      .map((account) =>
-        financialAccountSourceCoverageRef({
+    const accountMaterial = bundle.snapshot.accounts
+      .map((account) => ({
+        sourceRef: financialAccountSourceCoverageRef({
           userId: input.trustedUserId,
           providerKey,
           account,
         }),
-      )
-      .sort();
-    const ledgerCanonicalKeys = bundle.snapshot.ledgerEntries
+        account,
+      }))
+      .sort((a, b) => a.sourceRef.localeCompare(b.sourceRef));
+    const ledgerMaterial = bundle.snapshot.ledgerEntries
       .map((entry) => {
         const account = accountsById.get(entry.accountId);
         if (!account) {
           throw new Error("financial_multi_provider_manifest_ledger_scope_mismatch");
         }
-        return financialLedgerCanonicalKey(entry, {
+        const canonicalKey = financialLedgerCanonicalKey(entry, {
           providerKey,
           connectionKey: account.connectionId,
           externalAccountId: account.externalAccountId,
         });
+        return { canonicalKey, entry };
       })
-      .sort();
+      .sort((a, b) => a.canonicalKey.localeCompare(b.canonicalKey));
+    const accountSourceRefs = accountMaterial.map((row) => row.sourceRef);
+    const ledgerCanonicalKeys = ledgerMaterial.map((row) => row.canonicalKey);
     const snapshotFingerprint = sha256FinancialFingerprint({
       contract: "multi-provider-snapshot-persistence-material-v1",
       providerKey,
       fetchedAt: bundle.snapshot.fetchedAt,
-      accounts: bundle.snapshot.accounts,
-      ledgerEntries: bundle.snapshot.ledgerEntries,
+      accounts: accountMaterial,
+      ledgerEntries: ledgerMaterial,
     });
     const scopeFingerprint = sha256FinancialFingerprint({
       contract: "multi-provider-persistence-scope-v1",
