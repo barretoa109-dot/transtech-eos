@@ -1,4 +1,8 @@
 import {
+  buildMultiProviderGlobalContextCommitFromPlan,
+  type MultiProviderGlobalContextCommit,
+} from "./global-context-commit";
+import {
   sha256FinancialFingerprint,
   stableFinancialFingerprintMaterial,
 } from "./persistence-fingerprint";
@@ -16,6 +20,7 @@ export interface MultiProviderPersistenceResult {
   replayed: boolean;
   planFingerprint: string;
   globalContextRevision: string | null;
+  globalContextCommitFingerprint: string | null;
   providerScopesTouched: number;
   ledgerRowsTouched: number;
   ingestionRowsTouched: number;
@@ -35,6 +40,7 @@ type StoreState = {
   ingestion: Map<string, string>;
   ledger: Map<string, string>;
   globalContexts: Map<string, string>;
+  globalContextCommits: Map<string, string>;
 };
 
 function emptyState(): StoreState {
@@ -46,6 +52,7 @@ function emptyState(): StoreState {
     ingestion: new Map(),
     ledger: new Map(),
     globalContexts: new Map(),
+    globalContextCommits: new Map(),
   };
 }
 
@@ -58,6 +65,7 @@ function cloneState(state: StoreState): StoreState {
     ingestion: new Map(state.ingestion),
     ledger: new Map(state.ledger),
     globalContexts: new Map(state.globalContexts),
+    globalContextCommits: new Map(state.globalContextCommits),
   };
 }
 
@@ -302,6 +310,36 @@ function assertManifest(
   }
 }
 
+function assertGlobalCommit(
+  commit: MultiProviderGlobalContextCommit | null,
+  plan: MultiProviderScopedPersistencePlan,
+) {
+  if (!plan.globalContextPlan) {
+    if (commit !== null) {
+      throw new Error("financial_multi_provider_store_unexpected_global_commit");
+    }
+    return;
+  }
+
+  if (
+    !commit ||
+    !SHA256_HEX.test(commit.commitFingerprint) ||
+    commit.userId !== plan.userId ||
+    commit.manifestFingerprint !== plan.manifest.manifestFingerprint ||
+    commit.globalContextRevision !== plan.globalContextPlan.revision ||
+    commit.globalContextFingerprint !== plan.globalContextPlan.sourceFingerprint ||
+    commit.globalCoverageFingerprint !==
+      plan.globalContextPlan.globalCoverageFingerprint ||
+    commit.sourceOrchestrationFingerprint !==
+      plan.globalContextPlan.sourceOrchestrationFingerprint ||
+    commit.analysisFingerprint !== plan.globalContextPlan.analysisFingerprint ||
+    commit.globalResultFingerprint !==
+      plan.globalContextPlan.globalResultFingerprint
+  ) {
+    throw new Error("financial_multi_provider_store_invalid_global_commit");
+  }
+}
+
 function assertPlan(
   plan: MultiProviderScopedPersistencePlan,
   trustedUserId: string,
@@ -349,17 +387,26 @@ function assertPlan(
     throw new Error("financial_multi_provider_store_missing_global_context");
   }
 
+  const commit = buildMultiProviderGlobalContextCommitFromPlan({
+    trustedUserId,
+    plan,
+  });
+  assertGlobalCommit(commit, plan);
+
   if (scopedPlanFingerprint(plan) !== plan.planFingerprint) {
     throw new Error("financial_multi_provider_store_invalid_plan_fingerprint");
   }
+
+  return commit;
 }
 
 /**
  * Preview-only transactional emulator for the future multi-provider RPC.
  *
- * Every mutation is staged in cloned maps. A replay conflict in the last
- * provider therefore leaves earlier provider rows untouched, mirroring the
- * all-or-nothing transaction semantics required from PostgreSQL/Supabase.
+ * Provider rows and the optional global context are staged first. The derived
+ * global-context commit marker is inserted last and is the domain commit marker
+ * for the exact provider set + exact global context. Any failure discards all
+ * staged state.
  */
 export class InMemoryMultiProviderPersistenceStore
   implements MultiProviderPersistenceStore
@@ -375,7 +422,7 @@ export class InMemoryMultiProviderPersistenceStore
   async persist(
     plan: MultiProviderScopedPersistencePlan,
   ): Promise<MultiProviderPersistenceResult> {
-    assertPlan(plan, this.trustedUserId);
+    const globalCommit = assertPlan(plan, this.trustedUserId);
 
     const planKey = `${this.trustedUserId}|${plan.planFingerprint}`;
     const serializedPlan = stableFinancialFingerprintMaterial(plan);
@@ -388,6 +435,7 @@ export class InMemoryMultiProviderPersistenceStore
         replayed: true,
         planFingerprint: plan.planFingerprint,
         globalContextRevision: plan.globalContextPlan?.revision ?? null,
+        globalContextCommitFingerprint: globalCommit?.commitFingerprint ?? null,
         providerScopesTouched: 0,
         ledgerRowsTouched: 0,
         ingestionRowsTouched: 0,
@@ -459,6 +507,15 @@ export class InMemoryMultiProviderPersistenceStore
       );
     }
 
+    if (globalCommit) {
+      immutableInsert(
+        staged.globalContextCommits,
+        `${this.trustedUserId}|${globalCommit.commitFingerprint}`,
+        globalCommit,
+        "financial_multi_provider_global_commit_replay_mismatch",
+      );
+    }
+
     staged.plans.set(planKey, serializedPlan);
     this.state = staged;
 
@@ -466,6 +523,7 @@ export class InMemoryMultiProviderPersistenceStore
       replayed: false,
       planFingerprint: plan.planFingerprint,
       globalContextRevision: plan.globalContextPlan?.revision ?? null,
+      globalContextCommitFingerprint: globalCommit?.commitFingerprint ?? null,
       providerScopesTouched,
       ledgerRowsTouched,
       ingestionRowsTouched,
@@ -481,6 +539,7 @@ export class InMemoryMultiProviderPersistenceStore
       ingestionEvents: this.state.ingestion.size,
       ledgerRows: this.state.ledger.size,
       globalContexts: this.state.globalContexts.size,
+      globalContextCommits: this.state.globalContextCommits.size,
     };
   }
 }
