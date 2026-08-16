@@ -4,6 +4,7 @@ import type {
   FinancialConnectorSnapshot,
   FinancialObligation,
   LedgerEntry,
+  ReconciliationMatch,
 } from "./types";
 
 export interface FinancialConnectionUpsert {
@@ -41,7 +42,7 @@ export interface FinancialIngestionEventUpsert {
   connectionKey: string;
   accountExternalId: string;
   sourceEventKey: string;
-  externalEventId: string | null;
+  externalEventId: string;
   eventType: "transaction_snapshot";
   providerStatus: LedgerEntry["status"];
   occurredAt: string;
@@ -72,6 +73,18 @@ export interface FinancialLedgerUpsert {
   reversalCanonicalKey: string | null;
   confidence: number;
   provenance: string;
+}
+
+export interface FinancialReconciliationInsert {
+  userId: string;
+  signature: string;
+  reconciliationType: ReconciliationMatch["type"];
+  ledgerCanonicalKeys: string[];
+  decision: "accepted";
+  confidence: number;
+  matchedAmountMinor: number | null;
+  reasonCode: string;
+  ruleVersion: "financial-reconciliation-v1";
 }
 
 export interface FinancialRecurrenceUpsert {
@@ -139,6 +152,7 @@ export interface FinancialPersistencePlan {
   accountUpserts: FinancialAccountUpsert[];
   ingestionEventUpserts: FinancialIngestionEventUpsert[];
   ledgerUpserts: FinancialLedgerUpsert[];
+  reconciliationInserts: FinancialReconciliationInsert[];
   recurrenceUpserts: FinancialRecurrenceUpsert[];
   obligationUpserts: FinancialObligationUpsert[];
   contextInsert: FinancialContextInsert;
@@ -168,15 +182,19 @@ function accountMap(snapshot: FinancialConnectorSnapshot) {
   return new Map(snapshot.accounts.map((account) => [account.id, account]));
 }
 
-export function financialLedgerCanonicalKey(entry: LedgerEntry) {
+export function financialLedgerCanonicalKey(
+  entry: LedgerEntry,
+  externalAccountId = entry.accountId,
+) {
+  const accountKey = normalizeString(externalAccountId);
   if (entry.externalTransactionId) {
-    return `external:${entry.accountId}:${normalizeString(entry.externalTransactionId)}`;
+    return `external:${accountKey}:${normalizeString(entry.externalTransactionId)}`;
   }
   if (entry.sourceEventId) {
-    return `source:${entry.accountId}:${normalizeString(entry.sourceEventId)}`;
+    return `source:${accountKey}:${normalizeString(entry.sourceEventId)}`;
   }
   return `fallback:${stableFinancialFingerprintMaterial({
-    accountId: entry.accountId,
+    accountKey,
     occurredAt: entry.occurredAt,
     direction: entry.direction,
     amountMinor: entry.amountMinor,
@@ -214,15 +232,23 @@ function connectionHealth(
 }
 
 function sourceKeyForObligation(obligation: FinancialObligation) {
-  return normalizeString(obligation.id || `${obligation.source}:${obligation.dueAt}:${obligation.amountMinor}`);
+  return normalizeString(
+    obligation.id || `${obligation.source}:${obligation.dueAt}:${obligation.amountMinor}`,
+  );
+}
+
+function earliestIso(values: Array<string | null | undefined>, fallback: string) {
+  const valid = values
+    .filter((value): value is string => Boolean(value))
+    .map((value) => ({ value, time: new Date(value).getTime() }))
+    .filter(({ time }) => Number.isFinite(time))
+    .sort((a, b) => a.time - b.time)[0];
+  return valid?.value ?? fallback;
 }
 
 export function buildFinancialPersistencePlan(input: {
   snapshot: FinancialConnectorSnapshot;
   result: ZeroEntryAutopilotResult;
-  protectedReserveMinor: number;
-  criticalProvisionsMinor?: number;
-  baseUncertaintyBufferMinor?: number;
 }): FinancialPersistencePlan {
   const { snapshot, result } = input;
   const userIds = new Set([
@@ -235,7 +261,11 @@ export function buildFinancialPersistencePlan(input: {
 
   const accountsById = accountMap(snapshot);
   const canonicalByLedgerId = new Map(
-    snapshot.ledgerEntries.map((entry) => [entry.id, financialLedgerCanonicalKey(entry)]),
+    snapshot.ledgerEntries.map((entry) => {
+      const account = accountsById.get(entry.accountId);
+      if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
+      return [entry.id, financialLedgerCanonicalKey(entry, account.externalAccountId)];
+    }),
   );
 
   const connectionGroups = new Map<string, FinancialAccount[]>();
@@ -264,7 +294,7 @@ export function buildFinancialPersistencePlan(input: {
     });
 
   const accountUpserts = [...snapshot.accounts]
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => a.externalAccountId.localeCompare(b.externalAccountId))
     .map((account) => {
       const freshUntilMs = account.freshUntil ? new Date(account.freshUntil).getTime() : Number.NaN;
       const asOfMs = new Date(snapshot.fetchedAt).getTime();
@@ -287,7 +317,7 @@ export function buildFinancialPersistencePlan(input: {
     });
 
   const ingestionEventUpserts = [...snapshot.ledgerEntries]
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => a.sourceEventId.localeCompare(b.sourceEventId))
     .map((entry) => {
       const account = accountsById.get(entry.accountId);
       if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
@@ -296,8 +326,10 @@ export function buildFinancialPersistencePlan(input: {
         connectionKey: account.connectionId,
         accountExternalId: account.externalAccountId,
         sourceEventId: entry.sourceEventId,
+        status: entry.status,
         externalTransactionId: entry.externalTransactionId,
         occurredAt: entry.occurredAt,
+        postedAt: entry.postedAt,
         amountMinor: entry.amountMinor,
         currency: entry.currency,
         direction: entry.direction,
@@ -308,7 +340,7 @@ export function buildFinancialPersistencePlan(input: {
         connectionKey: account.connectionId,
         accountExternalId: account.externalAccountId,
         sourceEventKey: entry.sourceEventId,
-        externalEventId: entry.externalTransactionId,
+        externalEventId: entry.sourceEventId,
         eventType: "transaction_snapshot",
         providerStatus: entry.status,
         occurredAt: entry.occurredAt,
@@ -319,7 +351,6 @@ export function buildFinancialPersistencePlan(input: {
     });
 
   const ledgerUpserts = [...snapshot.ledgerEntries]
-    .sort((a, b) => financialLedgerCanonicalKey(a).localeCompare(financialLedgerCanonicalKey(b)))
     .map((entry) => {
       const account = accountsById.get(entry.accountId);
       if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
@@ -327,7 +358,7 @@ export function buildFinancialPersistencePlan(input: {
         userId,
         accountExternalId: account.externalAccountId,
         sourceEventKey: entry.sourceEventId,
-        canonicalKey: financialLedgerCanonicalKey(entry),
+        canonicalKey: financialLedgerCanonicalKey(entry, account.externalAccountId),
         externalTransactionId: entry.externalTransactionId,
         transactionType: entry.type,
         direction: entry.direction,
@@ -346,7 +377,37 @@ export function buildFinancialPersistencePlan(input: {
         confidence: entry.confidence,
         provenance: entry.provenance,
       } satisfies FinancialLedgerUpsert;
-    });
+    })
+    .sort((a, b) => a.canonicalKey.localeCompare(b.canonicalKey));
+
+  const reconciliationInserts = [...result.reconciliation]
+    .map((match) => {
+      const ledgerCanonicalKeys = match.entryIds
+        .map((id) => canonicalByLedgerId.get(id))
+        .filter((value): value is string => Boolean(value))
+        .sort();
+      if (ledgerCanonicalKeys.length !== match.entryIds.length) {
+        throw new Error(`reconciliation ${match.reasonCode} references missing ledger evidence`);
+      }
+      const signature = stableFinancialFingerprintMaterial({
+        type: match.type,
+        ledgerCanonicalKeys,
+        reasonCode: match.reasonCode,
+        matchedAmountMinor: match.matchedAmountMinor ?? null,
+      });
+      return {
+        userId,
+        signature,
+        reconciliationType: match.type,
+        ledgerCanonicalKeys,
+        decision: "accepted",
+        confidence: match.confidence,
+        matchedAmountMinor: match.matchedAmountMinor ?? null,
+        reasonCode: match.reasonCode,
+        ruleVersion: "financial-reconciliation-v1",
+      } satisfies FinancialReconciliationInsert;
+    })
+    .sort((a, b) => a.signature.localeCompare(b.signature));
 
   const recurrenceUpserts = [...result.patterns]
     .sort((a, b) => a.recurrenceKey.localeCompare(b.recurrenceKey))
@@ -396,23 +457,30 @@ export function buildFinancialPersistencePlan(input: {
       } satisfies FinancialObligationUpsert;
     });
 
+  const safetyInputs = result.resolvedInputs;
   const sourceFingerprint = stableFinancialFingerprintMaterial({
     providerKey: snapshot.providerKey,
-    fetchedAt: snapshot.fetchedAt,
     accounts: accountUpserts,
     ledger: ledgerUpserts.map((entry) => ({
       canonicalKey: entry.canonicalKey,
+      sourceEventKey: entry.sourceEventKey,
       status: entry.status,
       amountMinor: entry.amountMinor,
       occurredAt: entry.occurredAt,
+      postedAt: entry.postedAt,
     })),
+    reconciliations: reconciliationInserts.map((entry) => entry.signature),
     recurrences: recurrenceUpserts,
     obligations: obligationUpserts,
-    protectedReserveMinor: input.protectedReserveMinor,
-    criticalProvisionsMinor: input.criticalProvisionsMinor ?? 0,
+    safetyInputs,
     availableStatus: result.context.available.status,
     availableRealSafeMinor: result.context.available.availableRealSafeMinor,
   });
+
+  const validUntil = earliestIso(
+    [result.primaryHorizon.until, ...connectionUpserts.map((connection) => connection.freshUntil)],
+    result.primaryHorizon.until,
+  );
 
   const contextInsert: FinancialContextInsert = {
     userId,
@@ -425,13 +493,10 @@ export function buildFinancialPersistencePlan(input: {
     liquidityUsableMinor: result.context.liquidityUsableMinor,
     protectedCommitmentsMinor: result.context.protectedCommitmentsMinor,
     essentialSpendExpectedMinor: result.essentialSpend.expectedMinor,
-    protectedReserveMinor: input.protectedReserveMinor,
-    criticalProvisionsMinor: input.criticalProvisionsMinor ?? 0,
-    confirmedIncomeMinor: 0,
-    uncertaintyBufferMinor: Math.max(
-      0,
-      result.context.available.availableRealRawMinor - result.context.available.availableRealSafeMinor,
-    ),
+    protectedReserveMinor: safetyInputs.protectedReserveMinor,
+    criticalProvisionsMinor: safetyInputs.criticalProvisionsMinor,
+    confirmedIncomeMinor: safetyInputs.confirmedIncomeMinor,
+    uncertaintyBufferMinor: safetyInputs.uncertaintyBufferMinor,
     availableRealSafeMinor: result.context.available.availableRealSafeMinor,
     minimumProjectedCashMinor: result.context.minimumProjectedCashMinor,
     minimumProjectedCashAt: result.context.minimumProjectedCashAt,
@@ -439,7 +504,7 @@ export function buildFinancialPersistencePlan(input: {
     explanationRefs: [...result.context.explanationRefs].sort(),
     sourcesFresh: result.context.sourcesFresh,
     generatedAt: snapshot.fetchedAt,
-    validUntil: result.primaryHorizon.until,
+    validUntil,
   };
 
   return {
@@ -450,6 +515,7 @@ export function buildFinancialPersistencePlan(input: {
     accountUpserts,
     ingestionEventUpserts,
     ledgerUpserts,
+    reconciliationInserts,
     recurrenceUpserts,
     obligationUpserts,
     contextInsert,
@@ -462,5 +528,6 @@ export interface FinancialPersistenceStore {
     contextRevision: string;
     ledgerRowsTouched: number;
     ingestionRowsTouched: number;
+    reconciliationRowsTouched: number;
   }>;
 }
