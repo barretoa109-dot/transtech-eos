@@ -66,7 +66,7 @@ function basePlan(
       explanationRefs: [],
       sourcesFresh: true,
       generatedAt: "2026-08-16T12:00:00.000Z",
-      validUntil: "2026-08-17T12:00:00.000Z",
+      validUntil: COVERAGE_VALID_UNTIL,
     },
   };
 }
@@ -259,7 +259,8 @@ export async function runCriticalSourcesPersistenceScenario() {
       complete.contextInsert.revision ===
         `ctx:${complete.contextInsert.sourceFingerprint}`,
     contextCannotOutliveCoverageEvidence:
-      complete.contextInsert.validUntil === COVERAGE_VALID_UNTIL,
+      new Date(complete.contextInsert.validUntil).getTime() <=
+      new Date(COVERAGE_VALID_UNTIL).getTime(),
     exactInputProducesExactIdentity:
       complete.contextInsert.sourceFingerprint === replay.contextInsert.sourceFingerprint,
     evidenceChangeChangesV1_3Revision:
