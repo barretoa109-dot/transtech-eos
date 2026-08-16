@@ -99,9 +99,6 @@ function run(snapshotValue: FinancialConnectorSnapshot) {
   const plan = buildFinancialPersistencePlan({
     snapshot: snapshotValue,
     result,
-    protectedReserveMinor: 3000000,
-    criticalProvisionsMinor: 100000,
-    baseUncertaintyBufferMinor: 120000,
   });
   return { result, plan };
 }
@@ -127,6 +124,14 @@ export function runPersistenceScenario() {
       first.plan.contextInsert.sourceFingerprint !== changedBalance.plan.contextInsert.sourceFingerprint,
     everyLedgerRowHasIngestionSource:
       first.plan.ledgerUpserts.every((entry) => ingestionKeys.has(entry.sourceEventKey)),
+    externalEventIdentityUsesSourceEvent:
+      first.plan.ingestionEventUpserts.every(
+        (event) => event.externalEventId === event.sourceEventKey,
+      ),
+    ledgerCanonicalKeysUseStableExternalAccount:
+      first.plan.ledgerUpserts.every((entry) =>
+        entry.canonicalKey.includes("checking-persistence-demo"),
+      ),
     ledgerCanonicalKeysUnique:
       new Set(ledgerCanonicalKeys).size === ledgerCanonicalKeys.length,
     obligationSourceKeysUnique:
@@ -135,11 +140,16 @@ export function runPersistenceScenario() {
       first.plan.recurrenceUpserts.every((recurrence) =>
         recurrence.sourceLedgerCanonicalKeys.every((key) => ledgerCanonicalKeys.includes(key)),
       ),
+    reconciliationPlanMatchesEngine:
+      first.plan.reconciliationInserts.length === first.result.reconciliation.length,
     contextCarriesResolvedSafetyInputs:
       first.plan.contextInsert.protectedReserveMinor === first.result.resolvedInputs.protectedReserveMinor &&
       first.plan.contextInsert.criticalProvisionsMinor === first.result.resolvedInputs.criticalProvisionsMinor &&
       first.plan.contextInsert.confirmedIncomeMinor === first.result.resolvedInputs.confirmedIncomeMinor &&
       first.plan.contextInsert.uncertaintyBufferMinor === first.result.resolvedInputs.uncertaintyBufferMinor,
+    contextValidityCannotOutliveFreshness:
+      new Date(first.plan.contextInsert.validUntil).getTime() <=
+      new Date(first.plan.connectionUpserts[0]?.freshUntil ?? first.plan.contextInsert.horizonUntil).getTime(),
     connectionPlanContainsNoCredentialMaterial:
       !/password|secret|token|credential/i.test(connectionPayload),
     healthyContextIsPersistable:
@@ -156,6 +166,7 @@ export function runPersistenceScenario() {
       accounts: first.plan.accountUpserts.length,
       ingestionEvents: first.plan.ingestionEventUpserts.length,
       ledgerRows: first.plan.ledgerUpserts.length,
+      reconciliations: first.plan.reconciliationInserts.length,
       recurrences: first.plan.recurrenceUpserts.length,
       obligations: first.plan.obligationUpserts.length,
     },
