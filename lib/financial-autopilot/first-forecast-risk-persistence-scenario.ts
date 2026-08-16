@@ -161,6 +161,50 @@ export async function runFirstForecastRiskPersistenceScenario() {
       }),
     "financial_state_invalid_first_forecast_risk",
   );
+  const attentionNegativeCashBlocked = await catchesCode(
+    () =>
+      parsePersistedFirstForecastRisk({
+        status: "ATTENTION",
+        horizonDays: 30,
+        until: ATTENTION_RISK.until,
+        reserveGapMinor: 500000,
+        negativeCashGapMinor: 1,
+      }),
+    "financial_state_invalid_first_forecast_risk",
+  );
+  const attentionZeroReserveGapBlocked = await catchesCode(
+    () =>
+      parsePersistedFirstForecastRisk({
+        status: "ATTENTION",
+        horizonDays: 30,
+        until: ATTENTION_RISK.until,
+        reserveGapMinor: 0,
+        negativeCashGapMinor: 0,
+      }),
+    "financial_state_invalid_first_forecast_risk",
+  );
+  const actionWithoutNegativeCashBlocked = await catchesCode(
+    () =>
+      parsePersistedFirstForecastRisk({
+        status: "ACTION_REQUIRED",
+        horizonDays: 30,
+        until: ATTENTION_RISK.until,
+        reserveGapMinor: 500000,
+        negativeCashGapMinor: 0,
+      }),
+    "financial_state_invalid_first_forecast_risk",
+  );
+  const actionGapOrderingBlocked = await catchesCode(
+    () =>
+      parsePersistedFirstForecastRisk({
+        status: "ACTION_REQUIRED",
+        horizonDays: 30,
+        until: ATTENTION_RISK.until,
+        reserveGapMinor: 100000,
+        negativeCashGapMinor: 200000,
+      }),
+    "financial_state_invalid_first_forecast_risk",
+  );
 
   const client = new FakeRpcClient();
   const store = new SupabaseFinancialPersistenceStoreV1_1(client, USER_ID);
@@ -207,6 +251,10 @@ export async function runFirstForecastRiskPersistenceScenario() {
     nullRiskIsExplicitlyPersisted: noRisk.contextInsert.firstForecastRisk === null,
     malformedRiskFailsClosed: malformedRiskBlocked,
     unsafeRiskMoneyFailsClosed: unsafeGapBlocked,
+    attentionCannotCarryNegativeCashGap: attentionNegativeCashBlocked,
+    attentionRequiresReserveGap: attentionZeroReserveGapBlocked,
+    actionRequiredNeedsNegativeCashGap: actionWithoutNegativeCashBlocked,
+    actionRequiredReserveGapCoversNegativeCash: actionGapOrderingBlocked,
     wrapperRpcIsFixed:
       client.calls[0]?.functionName === "eos_financial_persist_snapshot_v1_1",
     trustedUserPassedSeparately:
