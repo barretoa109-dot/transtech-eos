@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   runBehaviorInferenceScenario,
   runEconomicSemanticsScenario,
+  runForecastHorizonScenario,
   runPyPilotScenario,
 } from "@/lib/financial-autopilot";
 
@@ -15,7 +16,12 @@ export async function GET() {
   const scenario = runPyPilotScenario();
   const economicSemantics = runEconomicSemanticsScenario();
   const behaviorInference = runBehaviorInferenceScenario();
-  const ok = scenario.ok && economicSemantics.ok && behaviorInference.ok;
+  const forecastHorizons = runForecastHorizonScenario();
+  const ok =
+    scenario.ok &&
+    economicSemantics.ok &&
+    behaviorInference.ok &&
+    forecastHorizons.ok;
 
   return NextResponse.json(
     {
@@ -23,6 +29,7 @@ export async function GET() {
       scenario,
       economicSemantics,
       behaviorInference,
+      forecastHorizons,
     },
     {
       status: ok ? 200 : 500,
