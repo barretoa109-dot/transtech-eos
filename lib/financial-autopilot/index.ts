@@ -9,6 +9,7 @@ export * from "./behavior";
 export * from "./forecast";
 export * from "./context";
 export * from "./decision";
+export * from "./decision-candidates";
 export * from "./what-if";
 export * from "./connector";
 export * from "./csv-import";
