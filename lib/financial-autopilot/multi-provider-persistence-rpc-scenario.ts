@@ -1,3 +1,4 @@
+import { buildMultiProviderGlobalContextCommitFromPlan } from "./global-context-commit";
 import { runMultiProviderScopedPersistenceScenario } from "./multi-provider-scoped-persistence-scenario";
 import {
   MULTI_PROVIDER_PERSISTENCE_RPC_V1_3,
@@ -15,7 +16,11 @@ class FakeRpcClient implements MultiProviderPersistenceRpcClient {
   lastUserId: string | null = null;
 
   constructor(
-    private readonly response: (planFingerprint: string, revision: string | null) => {
+    private readonly response: (
+      planFingerprint: string,
+      revision: string | null,
+      commitFingerprint: string | null,
+    ) => {
       data: unknown;
       error: { code?: string | null } | null;
     },
@@ -28,9 +33,14 @@ class FakeRpcClient implements MultiProviderPersistenceRpcClient {
     this.calls += 1;
     this.lastFunction = functionName;
     this.lastUserId = args.p_usuario_id;
+    const commit = buildMultiProviderGlobalContextCommitFromPlan({
+      trustedUserId: args.p_usuario_id,
+      plan: args.p_batch,
+    });
     return this.response(
       args.p_batch.planFingerprint,
       args.p_batch.globalContextPlan?.revision ?? null,
+      commit?.commitFingerprint ?? null,
     );
   }
 }
@@ -44,31 +54,41 @@ function catchesCode(work: () => Promise<unknown>, code: string) {
 
 export async function runMultiProviderPersistenceRpcScenario() {
   const plan = runMultiProviderScopedPersistenceScenario().healthy;
-  const successClient = new FakeRpcClient((planFingerprint, revision) => ({
-    data: {
-      replayed: false,
-      planFingerprint,
-      globalContextRevision: revision,
-      providerScopesTouched: 2,
-      ledgerRowsTouched: 2,
-      ingestionRowsTouched: 2,
-    },
-    error: null,
-  }));
+  const expectedCommit = buildMultiProviderGlobalContextCommitFromPlan({
+    trustedUserId: USER_ID,
+    plan,
+  });
+  const successClient = new FakeRpcClient(
+    (planFingerprint, revision, commitFingerprint) => ({
+      data: {
+        replayed: false,
+        planFingerprint,
+        globalContextRevision: revision,
+        globalContextCommitFingerprint: commitFingerprint,
+        providerScopesTouched: 2,
+        ledgerRowsTouched: 2,
+        ingestionRowsTouched: 2,
+      },
+      error: null,
+    }),
+  );
   const store = new SupabaseMultiProviderPersistenceStore(successClient, USER_ID);
   const success = await store.persist(plan);
 
-  const wrongFingerprintClient = new FakeRpcClient((_planFingerprint, revision) => ({
-    data: {
-      replayed: false,
-      planFingerprint: "f".repeat(64),
-      globalContextRevision: revision,
-      providerScopesTouched: 2,
-      ledgerRowsTouched: 2,
-      ingestionRowsTouched: 2,
-    },
-    error: null,
-  }));
+  const wrongFingerprintClient = new FakeRpcClient(
+    (_planFingerprint, revision, commitFingerprint) => ({
+      data: {
+        replayed: false,
+        planFingerprint: "f".repeat(64),
+        globalContextRevision: revision,
+        globalContextCommitFingerprint: commitFingerprint,
+        providerScopesTouched: 2,
+        ledgerRowsTouched: 2,
+        ingestionRowsTouched: 2,
+      },
+      error: null,
+    }),
+  );
   const wrongFingerprintBlocked = await catchesCode(
     () =>
       new SupabaseMultiProviderPersistenceStore(
@@ -78,17 +98,20 @@ export async function runMultiProviderPersistenceRpcScenario() {
     "financial_multi_provider_persistence_plan_fingerprint_mismatch",
   );
 
-  const wrongRevisionClient = new FakeRpcClient((planFingerprint) => ({
-    data: {
-      replayed: false,
-      planFingerprint,
-      globalContextRevision: `ctx:${"e".repeat(64)}`,
-      providerScopesTouched: 2,
-      ledgerRowsTouched: 2,
-      ingestionRowsTouched: 2,
-    },
-    error: null,
-  }));
+  const wrongRevisionClient = new FakeRpcClient(
+    (planFingerprint, _revision, commitFingerprint) => ({
+      data: {
+        replayed: false,
+        planFingerprint,
+        globalContextRevision: `ctx:${"e".repeat(64)}`,
+        globalContextCommitFingerprint: commitFingerprint,
+        providerScopesTouched: 2,
+        ledgerRowsTouched: 2,
+        ingestionRowsTouched: 2,
+      },
+      error: null,
+    }),
+  );
   const wrongRevisionBlocked = await catchesCode(
     () =>
       new SupabaseMultiProviderPersistenceStore(
@@ -96,6 +119,29 @@ export async function runMultiProviderPersistenceRpcScenario() {
         USER_ID,
       ).persist(plan),
     "financial_multi_provider_persistence_context_revision_mismatch",
+  );
+
+  const wrongCommitClient = new FakeRpcClient(
+    (planFingerprint, revision) => ({
+      data: {
+        replayed: false,
+        planFingerprint,
+        globalContextRevision: revision,
+        globalContextCommitFingerprint: "d".repeat(64),
+        providerScopesTouched: 2,
+        ledgerRowsTouched: 2,
+        ingestionRowsTouched: 2,
+      },
+      error: null,
+    }),
+  );
+  const wrongCommitBlocked = await catchesCode(
+    () =>
+      new SupabaseMultiProviderPersistenceStore(
+        wrongCommitClient,
+        USER_ID,
+      ).persist(plan),
+    "financial_multi_provider_persistence_global_commit_mismatch",
   );
 
   const rpcFailureClient = new FakeRpcClient(() => ({
@@ -124,6 +170,7 @@ export async function runMultiProviderPersistenceRpcScenario() {
       replayed: false,
       planFingerprint: plan.planFingerprint,
       globalContextRevision: plan.globalContextPlan?.revision ?? null,
+      globalContextCommitFingerprint: expectedCommit?.commitFingerprint ?? null,
       providerScopesTouched: -1,
       ledgerRowsTouched: 0,
       ingestionRowsTouched: 0,
@@ -134,20 +181,43 @@ export async function runMultiProviderPersistenceRpcScenario() {
       error.message === "financial_multi_provider_persistence_invalid_rpc_response";
   }
 
+  const missingCommitBlocked = (() => {
+    try {
+      parseMultiProviderPersistenceRpcResponse({
+        replayed: false,
+        planFingerprint: plan.planFingerprint,
+        globalContextRevision: plan.globalContextPlan?.revision ?? null,
+        providerScopesTouched: 0,
+        ledgerRowsTouched: 0,
+        ingestionRowsTouched: 0,
+      });
+      return false;
+    } catch (error) {
+      return (
+        error instanceof Error &&
+        error.message ===
+          "financial_multi_provider_persistence_invalid_rpc_response"
+      );
+    }
+  })();
+
   const checks = {
     exactServerRpcContractIsUsed:
       successClient.calls === 1 &&
       successClient.lastFunction === MULTI_PROVIDER_PERSISTENCE_RPC_V1_3 &&
       successClient.lastUserId === USER_ID,
-    successfulResponseBindsPlanAndContext:
+    successfulResponseBindsPlanContextAndCommit:
       success.planFingerprint === plan.planFingerprint &&
-      success.globalContextRevision === plan.globalContextPlan?.revision,
+      success.globalContextRevision === plan.globalContextPlan?.revision &&
+      success.globalContextCommitFingerprint === expectedCommit?.commitFingerprint,
     responsePlanSubstitutionFailsClosed: wrongFingerprintBlocked,
     responseContextSubstitutionFailsClosed: wrongRevisionBlocked,
+    responseGlobalCommitSubstitutionFailsClosed: wrongCommitBlocked,
     rpcFailureIsReducedToStableCode: rpcFailureSanitized,
     crossUserPlanNeverReachesRpc:
       crossUserBlockedBeforeRpc && successClient.calls === beforeCrossUserCalls,
     malformedCountersFailClosed: malformedResponseBlocked,
+    missingGlobalCommitFieldFailsClosed: missingCommitBlocked,
   };
 
   return {
