@@ -7,6 +7,12 @@ function assertFiniteNonNegative(name: string, value: number) {
   }
 }
 
+function assertBoolean(name: string, value: boolean) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${name} must be boolean`);
+  }
+}
+
 export function calculateAvailableReal(input: AvailableRealInput): AvailableRealResult {
   const threshold =
     input.safeConfidenceThreshold ?? DEFAULT_SAFE_FINANCIAL_CONFIDENCE_THRESHOLD;
@@ -26,9 +32,13 @@ export function calculateAvailableReal(input: AvailableRealInput): AvailableReal
   if (!Number.isFinite(input.minimumProjectedCashMinor)) {
     throw new Error("minimumProjectedCashMinor must be finite");
   }
+  assertBoolean("sourcesFresh", input.sourcesFresh);
+  assertBoolean("criticalSourcesComplete", input.criticalSourcesComplete);
+  assertBoolean("criticalObligationsComplete", input.criticalObligationsComplete);
 
   const degradedReasons: string[] = [];
   if (!input.sourcesFresh) degradedReasons.push("critical_source_stale");
+  if (!input.criticalSourcesComplete) degradedReasons.push("critical_sources_incomplete");
   if (!input.criticalObligationsComplete) degradedReasons.push("critical_obligations_incomplete");
   if (input.confidence.overall < threshold) degradedReasons.push("overall_confidence_below_safe_threshold");
 
