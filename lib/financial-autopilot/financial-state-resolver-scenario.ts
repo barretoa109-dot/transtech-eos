@@ -127,6 +127,60 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const lowConfidenceSafe = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"3".repeat(64)}`,
+        confidence: {
+          sourceFreshness: 0.5,
+          incomePredictability: 1,
+          expensePredictability: 0.73,
+          obligationCompleteness: 0.5,
+          reconciliationQuality: 1,
+          overall: 0.696,
+        },
+      }),
+    ),
+    nowIso: NOW,
+  });
+
+  const forgedOverallConfidence = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"4".repeat(64)}`,
+        confidence: {
+          sourceFreshness: 0.98,
+          incomePredictability: 1,
+          expensePredictability: 0.73,
+          obligationCompleteness: 0.96,
+          reconciliationQuality: 1,
+          overall: 0.99,
+        },
+      }),
+    ),
+    nowIso: NOW,
+  });
+
+  const incompleteObligationsSafe = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"5".repeat(64)}`,
+        confidence: {
+          sourceFreshness: 0.98,
+          incomePredictability: 1,
+          expensePredictability: 1,
+          obligationCompleteness: 0.5,
+          reconciliationQuality: 1,
+          overall: 0.894,
+        },
+      }),
+    ),
+    nowIso: NOW,
+  });
+
   const inconsistentSafe = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(
@@ -381,6 +435,12 @@ export async function runFinancialStateResolverScenario() {
     changedProtectedIdentity.kind === "STATE" ? changedProtectedIdentity.state : null;
   const inconsistentAvailableState =
     inconsistentAvailableReal.kind === "STATE" ? inconsistentAvailableReal.state : null;
+  const lowConfidenceState =
+    lowConfidenceSafe.kind === "STATE" ? lowConfidenceSafe.state : null;
+  const forgedOverallState =
+    forgedOverallConfidence.kind === "STATE" ? forgedOverallConfidence.state : null;
+  const incompleteObligationsState =
+    incompleteObligationsSafe.kind === "STATE" ? incompleteObligationsSafe.state : null;
   const inconsistentSafeState =
     inconsistentSafe.kind === "STATE" ? inconsistentSafe.state : null;
   const longRangeAttentionState =
@@ -406,6 +466,19 @@ export async function runFinancialStateResolverScenario() {
       inconsistentAvailableState?.status === "DEGRADED" &&
       inconsistentAvailableState.canAssertSafety === false &&
       inconsistentAvailableState.money.availableRealMinor === null,
+    lowConfidenceCannotRemainSafe:
+      lowConfidenceState?.status === "DEGRADED" &&
+      lowConfidenceState.canAssertSafety === false &&
+      lowConfidenceState.money.availableRealMinor === null &&
+      lowConfidenceState.attention.outcome === "CONNECTION_REQUIRED",
+    forgedOverallConfidenceFailsClosed:
+      forgedOverallState?.status === "DEGRADED" &&
+      forgedOverallState.canAssertSafety === false &&
+      forgedOverallState.money.availableRealMinor === null,
+    incompleteCriticalObligationsCannotRemainSafe:
+      incompleteObligationsState?.status === "DEGRADED" &&
+      incompleteObligationsState.canAssertSafety === false &&
+      incompleteObligationsState.money.availableRealMinor === null,
     nextProtectedCommitmentResolved:
       healthyState?.nextProtectedCommitment?.type === "housing" &&
       healthyState.nextProtectedCommitment.amountMinor === 2100000,
@@ -480,6 +553,9 @@ export async function runFinancialStateResolverScenario() {
     checks,
     healthy: healthyState,
     inconsistentAvailableReal: inconsistentAvailableState,
+    lowConfidenceSafe: lowConfidenceState,
+    forgedOverallConfidence: forgedOverallState,
+    incompleteObligationsSafe: incompleteObligationsState,
     changedProtectedAmount: changedAmountState,
     changedProtectedIdentity: changedIdentityState,
     inconsistentSafe: inconsistentSafeState,
