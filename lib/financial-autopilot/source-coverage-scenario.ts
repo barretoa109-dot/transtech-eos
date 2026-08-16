@@ -63,6 +63,7 @@ function inventory(
     asOf: NOW,
     validUntil: "2026-08-17T18:00:00.000Z",
     authority: "provider_discovery",
+    scope: "global_user_finances",
     discoveryComplete: true,
     confidence: 0.98,
     unresolvedMaterialSourceCount: 0,
@@ -111,6 +112,12 @@ export function runTrustedSourceCoverageScenario() {
     trustedUserId: USER_ID,
     snapshot: connected,
     inventory: inventory(expected),
+    nowIso: NOW,
+  });
+  const providerScopedOnly = resolveTrustedSourceCoverage({
+    trustedUserId: USER_ID,
+    snapshot: connected,
+    inventory: inventory(expected, { scope: "provider_connection" }),
     nowIso: NOW,
   });
   const reordered = resolveTrustedSourceCoverage({
@@ -268,7 +275,7 @@ export function runTrustedSourceCoverageScenario() {
   );
 
   const checks = {
-    trustedCompleteInventoryCanResolveCompleteAndFresh:
+    trustedGlobalInventoryCanResolveCompleteAndFresh:
       healthy.criticalSourcesComplete &&
       healthy.criticalSourcesFresh &&
       healthy.expectedMaterialCount === 2 &&
@@ -277,6 +284,10 @@ export function runTrustedSourceCoverageScenario() {
       healthy.staleConnectedSourceCount === 0 &&
       healthy.reasonCodes.length === 0 &&
       healthy.freshnessReasonCodes.length === 0,
+    providerScopedDiscoveryCannotClaimGlobalSafety:
+      !providerScopedOnly.criticalSourcesComplete &&
+      providerScopedOnly.criticalSourcesFresh &&
+      providerScopedOnly.reasonCodes.includes("inventory_scope_insufficient"),
     optionalMissingSourceDoesNotBlockSafety:
       healthy.criticalSourcesComplete && healthy.criticalSourcesFresh,
     identityAndFingerprintAreOrderIndependent:
@@ -339,7 +350,7 @@ export function runTrustedSourceCoverageScenario() {
     sourceIdentityIsProviderScoped:
       !wrongProviderIdentity.criticalSourcesComplete &&
       wrongProviderIdentity.reasonCodes.includes("material_source_missing"),
-    explicitEmptyInventoryCanBeCompleteAtCoverageLayer:
+    explicitEmptyGlobalInventoryCanBeCompleteAtCoverageLayer:
       explicitlyEmptyInventory.criticalSourcesComplete &&
       explicitlyEmptyInventory.criticalSourcesFresh &&
       explicitlyEmptyInventory.expectedMaterialCount === 0 &&
@@ -352,6 +363,7 @@ export function runTrustedSourceCoverageScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy,
+    providerScopedOnly,
     staleKnownSource,
     missingMaterial,
     unresolvedHint,
