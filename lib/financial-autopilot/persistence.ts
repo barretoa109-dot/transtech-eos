@@ -1,3 +1,4 @@
+import { sha256FinancialFingerprint } from "./persistence-fingerprint";
 import type { ZeroEntryAutopilotResult } from "./zero-entry";
 import type {
   FinancialAccount,
@@ -6,6 +7,11 @@ import type {
   LedgerEntry,
   ReconciliationMatch,
 } from "./types";
+
+export {
+  sha256FinancialFingerprint,
+  stableFinancialFingerprintMaterial,
+} from "./persistence-fingerprint";
 
 export interface FinancialConnectionUpsert {
   userId: string;
@@ -48,7 +54,7 @@ export interface FinancialIngestionEventUpsert {
   occurredAt: string;
   receivedAt: string;
   sourceFingerprint: string;
-  payloadFingerprintMaterial: string;
+  payloadHash: string;
 }
 
 export interface FinancialLedgerUpsert {
@@ -162,22 +168,6 @@ function normalizeString(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, nested]) => [key, stableValue(nested)]),
-    );
-  }
-  return value;
-}
-
-export function stableFinancialFingerprintMaterial(value: unknown) {
-  return JSON.stringify(stableValue(value));
-}
-
 function accountMap(snapshot: FinancialConnectorSnapshot) {
   return new Map(snapshot.accounts.map((account) => [account.id, account]));
 }
@@ -193,7 +183,7 @@ export function financialLedgerCanonicalKey(
   if (entry.sourceEventId) {
     return `source:${accountKey}:${normalizeString(entry.sourceEventId)}`;
   }
-  return `fallback:${stableFinancialFingerprintMaterial({
+  return `fallback:${sha256FinancialFingerprint({
     accountKey,
     occurredAt: entry.occurredAt,
     direction: entry.direction,
@@ -321,7 +311,7 @@ export function buildFinancialPersistencePlan(input: {
     .map((entry) => {
       const account = accountsById.get(entry.accountId);
       if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
-      const sourceFingerprint = stableFinancialFingerprintMaterial({
+      const sourceFingerprint = sha256FinancialFingerprint({
         providerKey: snapshot.providerKey,
         connectionKey: account.connectionId,
         accountExternalId: account.externalAccountId,
@@ -346,7 +336,7 @@ export function buildFinancialPersistencePlan(input: {
         occurredAt: entry.occurredAt,
         receivedAt: snapshot.fetchedAt,
         sourceFingerprint,
-        payloadFingerprintMaterial: stableFinancialFingerprintMaterial(entry),
+        payloadHash: sha256FinancialFingerprint(entry),
       } satisfies FinancialIngestionEventUpsert;
     });
 
@@ -389,7 +379,7 @@ export function buildFinancialPersistencePlan(input: {
       if (ledgerCanonicalKeys.length !== match.entryIds.length) {
         throw new Error(`reconciliation ${match.reasonCode} references missing ledger evidence`);
       }
-      const signature = stableFinancialFingerprintMaterial({
+      const signature = sha256FinancialFingerprint({
         type: match.type,
         ledgerCanonicalKeys,
         reasonCode: match.reasonCode,
@@ -458,7 +448,7 @@ export function buildFinancialPersistencePlan(input: {
     });
 
   const safetyInputs = result.resolvedInputs;
-  const sourceFingerprint = stableFinancialFingerprintMaterial({
+  const sourceFingerprint = sha256FinancialFingerprint({
     providerKey: snapshot.providerKey,
     accounts: accountUpserts,
     ledger: ledgerUpserts.map((entry) => ({
