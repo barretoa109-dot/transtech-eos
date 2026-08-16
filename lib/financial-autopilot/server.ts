@@ -26,3 +26,5 @@ export * from "./source-coverage-persistence-builder-scenario";
 export * from "./supabase-persistence-store-v1-3";
 export * from "./supabase-financial-state-reader-v1-3";
 export * from "./supabase-financial-state-reader-v1-3-scenario";
+export * from "./supabase-multi-provider-persistence-store";
+export * from "./multi-provider-persistence-rpc-scenario";
