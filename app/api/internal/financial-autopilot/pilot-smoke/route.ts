@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  runBehaviorInferenceScenario,
   runEconomicSemanticsScenario,
   runPyPilotScenario,
 } from "@/lib/financial-autopilot";
@@ -13,13 +14,15 @@ export async function GET() {
 
   const scenario = runPyPilotScenario();
   const economicSemantics = runEconomicSemanticsScenario();
-  const ok = scenario.ok && economicSemantics.ok;
+  const behaviorInference = runBehaviorInferenceScenario();
+  const ok = scenario.ok && economicSemantics.ok && behaviorInference.ok;
 
   return NextResponse.json(
     {
       ok,
       scenario,
       economicSemantics,
+      behaviorInference,
     },
     {
       status: ok ? 200 : 500,
