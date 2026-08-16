@@ -1,4 +1,8 @@
 import type { BuiltFinancialContext } from "./context";
+import {
+  financialConfidenceOverallMatches,
+  financialConfidenceSupportsSafe,
+} from "./confidence-contract";
 import { generateFinancialDecisionCandidates } from "./decision-candidates";
 import { selectNextBestFinancialAction } from "./decision";
 import type { ForecastHorizonsResult } from "./forecast-horizons";
@@ -15,8 +19,6 @@ import type {
 
 const CONTEXT_REVISION = /^ctx:[a-f0-9]{64}$/;
 const CURRENCY = /^[A-Z]{3}$/;
-const SAFE_CONFIDENCE_THRESHOLD = 0.8;
-const CONFIDENCE_TOLERANCE = 0.000001;
 const FINANCIAL_STATUSES = new Set<FinancialStatus>([
   "SAFE",
   "ATTENTION",
@@ -180,33 +182,10 @@ function persistedAvailableRealMatchesInputs(record: PersistedFinancialContextRe
   return Math.max(0, computed) === record.availableRealSafeMinor;
 }
 
-function expectedConfidenceOverall(confidence: FinancialContextConfidence) {
-  return Math.max(
-    0,
-    Math.min(
-      1,
-      0.3 * confidence.sourceFreshness +
-        0.2 * confidence.incomePredictability +
-        0.2 * confidence.expensePredictability +
-        0.2 * confidence.obligationCompleteness +
-        0.1 * confidence.reconciliationQuality,
-    ),
-  );
-}
-
 function persistedConfidenceSupportsContext(record: PersistedFinancialContextRecord) {
-  const expectedOverall = expectedConfidenceOverall(record.confidence);
-  if (Math.abs(expectedOverall - record.confidence.overall) > CONFIDENCE_TOLERANCE) {
-    return false;
-  }
-
-  if (record.status !== "SAFE") return true;
-
-  return (
-    record.confidence.overall >= SAFE_CONFIDENCE_THRESHOLD &&
-    record.confidence.sourceFreshness >= SAFE_CONFIDENCE_THRESHOLD &&
-    record.confidence.obligationCompleteness >= SAFE_CONFIDENCE_THRESHOLD
-  );
+  return record.status === "SAFE"
+    ? financialConfidenceSupportsSafe(record.confidence)
+    : financialConfidenceOverallMatches(record.confidence);
 }
 
 function persistedSafetySignalsMatchStatus(input: {
