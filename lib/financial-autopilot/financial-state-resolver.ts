@@ -30,7 +30,11 @@ export interface PersistedFinancialContextRecord {
   horizonUntil: string;
   liquidityUsableMinor: number;
   protectedCommitmentsMinor: number;
+  essentialSpendExpectedMinor: number;
   protectedReserveMinor: number;
+  criticalProvisionsMinor: number;
+  confirmedIncomeMinor: number;
+  uncertaintyBufferMinor: number;
   availableRealSafeMinor: number;
   minimumProjectedCashMinor: number;
   minimumProjectedCashAt: string | null;
@@ -145,6 +149,21 @@ function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHor
   };
 }
 
+function persistedAvailableRealMatchesInputs(record: PersistedFinancialContextRecord) {
+  const computed =
+    BigInt(record.liquidityUsableMinor) -
+    BigInt(record.protectedCommitmentsMinor) -
+    BigInt(record.essentialSpendExpectedMinor) -
+    BigInt(record.protectedReserveMinor) -
+    BigInt(record.criticalProvisionsMinor) +
+    BigInt(record.confirmedIncomeMinor) -
+    BigInt(record.uncertaintyBufferMinor);
+  const expectedSafe = computed > 0n ? computed : 0n;
+
+  if (expectedSafe > BigInt(Number.MAX_SAFE_INTEGER)) return false;
+  return Number(expectedSafe) === record.availableRealSafeMinor;
+}
+
 function persistedSafetySignalsMatchStatus(input: {
   status: FinancialStatus;
   sourcesFresh: boolean;
@@ -228,9 +247,25 @@ function builtContextFromRecord(
     record.protectedCommitmentsMinor,
     "financial_state_invalid_commitments",
   );
+  assertSafeInteger(
+    record.essentialSpendExpectedMinor,
+    "financial_state_invalid_essential_spend",
+  );
   const protectedReserveMinor = assertSafeInteger(
     record.protectedReserveMinor,
     "financial_state_invalid_reserve",
+  );
+  assertSafeInteger(
+    record.criticalProvisionsMinor,
+    "financial_state_invalid_critical_provisions",
+  );
+  assertSafeInteger(
+    record.confirmedIncomeMinor,
+    "financial_state_invalid_confirmed_income",
+  );
+  assertSafeInteger(
+    record.uncertaintyBufferMinor,
+    "financial_state_invalid_uncertainty_buffer",
   );
   const availableRealSafeMinor = assertSafeInteger(
     record.availableRealSafeMinor,
@@ -388,6 +423,14 @@ export async function resolveFinancialState(input: {
   }
 
   const persistedContext = builtContextFromRecord(record, input.nowIso);
+  const availableConsistent = persistedAvailableRealMatchesInputs(record);
+  const arithmeticCheckedContext = availableConsistent
+    ? persistedContext
+    : degradeContextForConsistency(
+        persistedContext,
+        "persisted_available_real_conflicts_with_inputs",
+      );
+
   const statusConsistent = persistedSafetySignalsMatchStatus({
     status: record.status,
     sourcesFresh: record.sourcesFresh,
@@ -396,9 +439,9 @@ export async function resolveFinancialState(input: {
     minimumProjectedCashMinor: record.minimumProjectedCashMinor,
   });
   const statusCheckedContext = statusConsistent
-    ? persistedContext
+    ? arithmeticCheckedContext
     : degradeContextForConsistency(
-        persistedContext,
+        arithmeticCheckedContext,
         "persisted_status_conflicts_with_safety_signals",
       );
 
