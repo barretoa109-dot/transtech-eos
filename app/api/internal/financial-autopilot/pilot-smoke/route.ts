@@ -13,6 +13,7 @@ import {
   runLiquidityAuthorityScenario,
   runMultiProviderAnalysisScenario,
   runMultiProviderPersistenceManifestScenario,
+  runMultiProviderPersistenceStoreScenario,
   runMultiProviderScopedPersistenceScenario,
   runPyPilotScenario,
   runTrustedSourceCoverageScenario,
@@ -25,6 +26,7 @@ import {
   runFinancialStateApiScenario,
   runFinancialStateResolverScenario,
   runFirstForecastRiskPersistenceScenario,
+  runMultiProviderPersistenceRpcScenario,
   runPersistenceRpcScenario,
   runPersistenceScenario,
   runSourceCoveragePersistenceBuilderScenario,
@@ -66,11 +68,15 @@ export async function GET() {
     runMultiProviderPersistenceManifestScenario();
   const multiProviderScopedPersistence =
     runMultiProviderScopedPersistenceScenario();
+  const multiProviderPersistenceStore =
+    await runMultiProviderPersistenceStoreScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
   const financialSurface = runFinancialSurfaceScenario();
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
+  const multiProviderPersistenceRpc =
+    await runMultiProviderPersistenceRpcScenario();
   const financialStateResolver = await runFinancialStateResolverScenario();
   const supabaseFinancialStateReader = await runSupabaseFinancialStateReaderScenario();
   const financialStateApi = runFinancialStateApiScenario();
@@ -103,11 +109,13 @@ export async function GET() {
     compact("global-zero-entry", globalZeroEntry),
     compact("multi-provider-persistence-manifest", multiProviderPersistenceManifest),
     compact("multi-provider-scoped-persistence", multiProviderScopedPersistence),
+    compact("multi-provider-persistence-store", multiProviderPersistenceStore),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
     compact("financial-surface", financialSurface),
     compact("persistence", persistence),
     compact("persistence-rpc", persistenceRpc),
+    compact("multi-provider-persistence-rpc", multiProviderPersistenceRpc),
     compact("financial-state-resolver", financialStateResolver),
     compact("supabase-financial-state-reader", supabaseFinancialStateReader),
     compact("financial-state-api", financialStateApi),
