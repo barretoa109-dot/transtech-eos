@@ -201,11 +201,42 @@ function ignoredLifecycleEntryIds(
       }
     }
     if (match.type === "reversal_match") {
-      // Both source rows remain auditable, but their economic effect nets to zero.
       match.entryIds.forEach((id) => ignored.add(id));
     }
   }
   return ignored;
+}
+
+function isTransferEligibleAccount(account: FinancialAccount | undefined) {
+  return Boolean(
+    account &&
+      (account.ownership === "own" || account.ownership === "joint") &&
+      ["checking", "savings", "wallet", "cash"].includes(account.type),
+  );
+}
+
+function reconciledInternalTransferIds(
+  entriesById: ReadonlyMap<string, LedgerEntry>,
+  accountsById: ReadonlyMap<string, FinancialAccount>,
+  reconciliations: ReconciliationMatch[],
+) {
+  const ids = new Set<string>();
+  for (const match of reconciliations) {
+    if (match.type !== "internal_transfer_match" || match.entryIds.length !== 2) continue;
+    const [a, b] = match.entryIds.map((id) => entriesById.get(id));
+    if (!a || !b) continue;
+    const aAccount = accountsById.get(a.accountId);
+    const bAccount = accountsById.get(b.accountId);
+    if (
+      a.accountId !== b.accountId &&
+      isTransferEligibleAccount(aAccount) &&
+      isTransferEligibleAccount(bAccount)
+    ) {
+      ids.add(a.id);
+      ids.add(b.id);
+    }
+  }
+  return ids;
 }
 
 export function summarizeEconomicActivity(
@@ -217,12 +248,32 @@ export function summarizeEconomicActivity(
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
   const ignored = ignoredLifecycleEntryIds(entriesById, reconciliations);
+  const transferIds = reconciledInternalTransferIds(
+    entriesById,
+    accountsById,
+    reconciliations,
+  );
   const effects: EconomicEffect[] = [];
 
   for (const entry of entries) {
     if (entry.currency !== currency) continue;
     if (entry.status !== "posted") continue;
     if (ignored.has(entry.id)) continue;
+
+    if (transferIds.has(entry.id)) {
+      effects.push({
+        entryId: entry.id,
+        kind: "internal_transfer",
+        cashflowMinor: signedCash(entry, accountsById.get(entry.accountId)),
+        incomeMinor: 0,
+        expenseMinor: 0,
+        refundMinor: 0,
+        affectsConsumption: false,
+        reasonCode: "reconciliation_proved_own_account_transfer",
+      });
+      continue;
+    }
+
     effects.push(classifyEconomicEffect(entry, accountsById));
   }
 
