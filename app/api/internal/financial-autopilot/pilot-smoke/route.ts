@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   runBehaviorInferenceScenario,
+  runCsvImportScenario,
   runEconomicSemanticsScenario,
   runForecastHorizonScenario,
   runPyPilotScenario,
@@ -19,12 +20,14 @@ export async function GET() {
   const behaviorInference = runBehaviorInferenceScenario();
   const forecastHorizons = runForecastHorizonScenario();
   const zeroEntry = runZeroEntryScenario();
+  const csvImport = runCsvImportScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
     behaviorInference.ok &&
     forecastHorizons.ok &&
-    zeroEntry.ok;
+    zeroEntry.ok &&
+    csvImport.ok;
 
   return NextResponse.json(
     {
@@ -34,6 +37,7 @@ export async function GET() {
       behaviorInference,
       forecastHorizons,
       zeroEntry,
+      csvImport,
     },
     {
       status: ok ? 200 : 500,
