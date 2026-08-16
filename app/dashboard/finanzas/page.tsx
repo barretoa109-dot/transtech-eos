@@ -19,6 +19,13 @@ export const dynamic = "force-dynamic";
 
 const DEMO_REVISION = `ctx:${"d".repeat(64)}`;
 
+type SurfaceSource = "live" | "demo";
+type LiveSurfaceIssue = "NO_DATA" | "ERROR";
+
+type LiveStateResult =
+  | { kind: "STATE"; state: FinancialStateView }
+  | { kind: "NO_DATA" };
+
 function demoState(kind: string | undefined): FinancialStateView {
   const common: Omit<
     FinancialStateView,
@@ -236,12 +243,116 @@ function statusMeta(status: FinancialStateView["status"]) {
   };
 }
 
-async function resolveLiveState(): Promise<FinancialStateView | null> {
+function PageHeader({ source }: { source: SurfaceSource }) {
+  return (
+    <header className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">
+          EOS Finanzas
+        </p>
+        <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
+          Tu estado financiero
+        </h1>
+      </div>
+      {source === "demo" ? (
+        <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1 text-xs font-bold text-blue-200">
+          Preview
+        </span>
+      ) : null}
+    </header>
+  );
+}
+
+function PreviewHint() {
+  return (
+    <p className="px-2 pb-4 text-center text-xs leading-5 text-slate-600">
+      Preview post-RC1. Prueba <span className="text-slate-500">?demo=safe</span>,{" "}
+      <span className="text-slate-500">attention</span>,{" "}
+      <span className="text-slate-500">action</span>,{" "}
+      <span className="text-slate-500">degraded</span>,{" "}
+      <span className="text-slate-500">empty</span> o{" "}
+      <span className="text-slate-500">error</span>. En producción la ruta permanece oculta mientras el feature flag esté apagado.
+    </p>
+  );
+}
+
+function EmptyFinancialSurface({
+  issue,
+  source,
+  demoAllowed,
+}: {
+  issue: LiveSurfaceIssue;
+  source: SurfaceSource;
+  demoAllowed: boolean;
+}) {
+  const noData = issue === "NO_DATA";
+  const Icon = noData ? ShieldCheck : RefreshCw;
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader source={source} />
+
+        <section className="overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900/70">
+          <div className="p-5 sm:p-7">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-extrabold text-slate-200">
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              {noData ? "Pendiente de contexto" : "Lectura no disponible"}
+            </span>
+
+            <div className="mt-7">
+              <h2 className="max-w-2xl text-2xl font-black leading-tight text-white sm:text-4xl">
+                {noData
+                  ? "Aún no tengo suficiente contexto financiero."
+                  : "No puedo validar tu estado financiero ahora."}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                {noData
+                  ? "Por seguridad, EOS no calcula ni muestra un Disponible Real hasta tener una primera lectura financiera validada."
+                  : "Voy a ocultar cualquier monto hasta recuperar una lectura confiable. Así evitamos mostrar un falso estado Seguro."}
+              </p>
+            </div>
+
+            <div className="mt-8 rounded-3xl border border-white/10 bg-slate-950/60 p-5 sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
+                Disponible Real
+              </p>
+              <p className="mt-2 text-3xl font-black tracking-tight text-white">
+                Oculto hasta validar
+              </p>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
+                {noData
+                  ? "En cuanto exista un contexto financiero confiable, esta pantalla se completará automáticamente."
+                  : "Tus últimos montos no se reutilizan como si siguieran siendo seguros cuando la lectura actual falla."}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-300" aria-hidden="true" />
+            <div>
+              <p className="font-bold text-white">Regla de seguridad activa</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Sin datos suficientes o ante una falla de lectura, EOS prefiere decir “no sé todavía” antes que inventar disponibilidad financiera.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {demoAllowed ? <PreviewHint /> : null}
+      </div>
+    </div>
+  );
+}
+
+async function resolveLiveState(): Promise<LiveStateResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) throw new Error("financial_state_missing_session");
 
   const reader = new SupabaseFinancialStateReaderV1_1(supabase, user.id);
   const resolution = await resolveFinancialState({
@@ -250,7 +361,8 @@ async function resolveLiveState(): Promise<FinancialStateView | null> {
     nowIso: new Date().toISOString(),
   });
 
-  return resolution.kind === "STATE" ? resolution.state : null;
+  if (resolution.kind === "NO_DATA") return { kind: "NO_DATA" };
+  return { kind: "STATE", state: resolution.state };
 }
 
 export default async function FinancialStatePage({
@@ -267,20 +379,37 @@ export default async function FinancialStatePage({
   if (isProduction && !apiEnabled) notFound();
 
   let state: FinancialStateView | null = null;
-  let source: "live" | "demo" = "demo";
+  let source: SurfaceSource = "demo";
+  let liveIssue: LiveSurfaceIssue | null = null;
 
-  if (apiEnabled && !requestedDemo) {
-    try {
-      state = await resolveLiveState();
-      source = "live";
-    } catch {
-      state = null;
-    }
-  }
-
-  if (!state && demoAllowed) {
+  if (requestedDemo === "empty" || requestedDemo === "error") {
+    liveIssue = requestedDemo === "empty" ? "NO_DATA" : "ERROR";
+    source = "demo";
+  } else if (requestedDemo) {
     state = demoState(requestedDemo);
     source = "demo";
+  } else if (apiEnabled) {
+    source = "live";
+    try {
+      const result = await resolveLiveState();
+      if (result.kind === "STATE") state = result.state;
+      else liveIssue = "NO_DATA";
+    } catch {
+      liveIssue = "ERROR";
+    }
+  } else if (demoAllowed) {
+    state = demoState("safe");
+    source = "demo";
+  }
+
+  if (liveIssue) {
+    return (
+      <EmptyFinancialSurface
+        issue={liveIssue}
+        source={source}
+        demoAllowed={demoAllowed}
+      />
+    );
   }
 
   if (!state) notFound();
@@ -296,21 +425,7 @@ export default async function FinancialStatePage({
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-3xl space-y-5">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-300">
-              EOS Finanzas
-            </p>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
-              Tu estado financiero
-            </h1>
-          </div>
-          {source === "demo" ? (
-            <span className="rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1 text-xs font-bold text-blue-200">
-              Preview
-            </span>
-          ) : null}
-        </header>
+        <PageHeader source={source} />
 
         <section className={`overflow-hidden rounded-[2rem] border ${meta.panel}`}>
           <div className="p-5 sm:p-7">
@@ -496,14 +611,7 @@ export default async function FinancialStatePage({
           </div>
         </details>
 
-        {demoAllowed ? (
-          <p className="px-2 pb-4 text-center text-xs leading-5 text-slate-600">
-            Preview post-RC1. Prueba <span className="text-slate-500">?demo=safe</span>,{" "}
-            <span className="text-slate-500">attention</span>,{" "}
-            <span className="text-slate-500">action</span> o{" "}
-            <span className="text-slate-500">degraded</span>. En producción la ruta permanece oculta mientras el feature flag esté apagado.
-          </p>
-        ) : null}
+        {demoAllowed ? <PreviewHint /> : null}
       </div>
     </div>
   );
