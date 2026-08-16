@@ -4,17 +4,17 @@
 
 ## Purpose
 
-The multi-provider planner already separates raw provider ingestion from the single global Financial Context. This phase defines the transactional persistence semantics required before that plan can ever be backed by PostgreSQL/Supabase.
+The multi-provider planner separates raw provider ingestion from the single global Financial Context. This layer defines the transactional persistence semantics required before that plan can ever be backed by PostgreSQL/Supabase.
 
 The invariant is:
 
-`all provider scopes + optional global context commit together, or none commit`
+`all provider scopes + optional global context + optional global commit marker together, or none commit`
 
-A failure in provider B must never leave provider A partially committed while the global context is missing or stale.
+A failure in provider B must never leave provider A partially committed while the global context or its authoritative commit marker is missing.
 
 ## Preview transactional store
 
-`InMemoryMultiProviderPersistenceStore` is process-local and fake-data only. It validates the complete plan before mutation and then applies writes to cloned maps. The staged state replaces committed state only after every provider scope and the optional global context succeed.
+`InMemoryMultiProviderPersistenceStore` is process-local and fake-data only. It validates the complete plan before mutation and then applies writes to cloned maps. The staged state replaces committed state only after every provider scope, the optional global context and the derived Global Financial Context Commit succeed.
 
 This gives the preview contract transaction-like rollback semantics:
 
@@ -23,9 +23,10 @@ This gives the preview contract transaction-like rollback semantics:
 - provider-scope identity cannot be replayed with conflicting material;
 - mutable connection/account/Ledger state remains provider-scoped;
 - global contexts are immutable by global source fingerprint;
+- the Global Context Commit is inserted after provider rows and context;
 - a late conflict discards all staged changes from earlier providers.
 
-The store independently recomputes provider-plan, global-context and full-plan SHA-256 identities before accepting a write. A caller cannot alter a safety aggregate and retain the old global context identity.
+The store independently recomputes provider-plan, manifest, global-context and full-plan SHA-256 identities before accepting a write. A caller cannot alter a safety aggregate and retain the old global context identity.
 
 ## Security boundary
 
@@ -33,13 +34,7 @@ The store is constructed with a trusted server-derived user id.
 
 Every provider plan must belong to that user. Connection, account, ingestion and Ledger rows are checked against that owner boundary. Provider-bearing rows must also match the provider plan they are nested under.
 
-The global context must bind the same:
-
-- manifest fingerprint;
-- provider-preserving analysis fingerprint;
-- global coverage fingerprint;
-- source orchestration fingerprint;
-- global Zero Entry result fingerprint.
+The global context and its derived commit marker bind the same exact manifest, provider-preserving analysis, global coverage, source orchestration and global Zero Entry result, plus the exact sorted provider scope/snapshot/provider-plan fingerprint set.
 
 Cross-user or cross-provider substitution fails before committed state changes.
 
@@ -57,17 +52,23 @@ Immutable ingestion events are keyed by:
 
 Reusing that key with different event material fails with `financial_multi_provider_ingestion_replay_mismatch`.
 
-This is intentionally stricter than mutable canonical Ledger state, because a canonical Ledger row may legitimately advance lifecycle state while raw source evidence must not be rewritten invisibly.
+The Global Context Commit has its own deterministic replay identity:
+
+`user + globalContextCommitFingerprint`
+
+This is intentionally stricter than mutable canonical Ledger state, because canonical Ledger rows may legitimately advance lifecycle state while raw source evidence and authoritative context commits must not be rewritten invisibly.
 
 ## Global context semantics
 
 Provider ingestion may exist without a global context when trusted source coverage is structurally incomplete.
 
-When `globalContextPlan` exists, it is separately committed using its global source fingerprint and `ctx:<sha256>` revision. Plan existence does not imply SAFE:
+When `globalContextPlan` exists, it is separately committed using its global source fingerprint and `ctx:<sha256>` revision, followed by a Global Financial Context Commit. Plan/marker existence does not imply SAFE:
 
 - complete + fresh + economically safe may be SAFE;
-- complete but stale remains DEGRADED;
-- structurally incomplete coverage produces no global context plan.
+- complete but stale remains DEGRADED and may still be transactionally committed;
+- structurally incomplete coverage produces no global context and no global commit marker.
+
+The dedicated contract is `GLOBAL_FINANCIAL_CONTEXT_COMMIT_V1_3.md`; its design-only schema is `GLOBAL_CONTEXT_COMMIT_V1_3_DRAFT.sql`.
 
 ## Server RPC adapter contract
 
@@ -85,32 +86,20 @@ The response must contain:
 - `replayed`;
 - exact `planFingerprint`;
 - exact `globalContextRevision` or null;
+- exact `globalContextCommitFingerprint` or null;
 - non-negative provider scope / Ledger / ingestion touched counters.
 
-The adapter rejects owner mismatch before RPC, reduces database failure to a stable error code, and rejects response fingerprint/revision substitution.
+The adapter rejects owner mismatch before RPC, reduces database failure to a stable error code, and rejects response plan/context/commit substitution.
 
 ## Important SQL boundary
 
-The TypeScript RPC adapter is a contract only. The PostgreSQL implementation is deliberately **not** introduced in this phase because the existing `eos_financial_persist_snapshot_v1_3` RPC is shaped around one provider-scoped snapshot plus one context. Reusing it for a global multi-provider plan would either fabricate a provider identity or persist the global context more than once.
+The TypeScript RPC adapter remains a contract only. The PostgreSQL multi-provider function is deliberately **not** deployed or wired in this phase.
 
-Before an executable multi-provider RPC draft is added, the non-production schema contract must define a separately owned global context commit marker and its replay key. That is the next persistence layer.
-
-This avoids creating SQL that appears executable while violating the provider-preservation guarantees established by the planner.
+The separately owned global commit-marker schema is now defined as a design-only draft, which removes the earlier provider-ownership ambiguity. The next database step is to implement the atomic RPC only in a non-production environment and prove rollback, replay, RLS/grants and service-role-only execution before any production migration is considered.
 
 ## Scenario coverage
 
-Preview-only scenarios prove:
-
-- first write touches both provider scopes;
-- exact replay is a no-op;
-- immutable event conflict fails closed;
-- a late provider conflict rolls back all staged changes;
-- cross-user plans fail before mutation;
-- global context material tampering fails identity verification;
-- incomplete global coverage persists provider scopes without a global context;
-- RPC request uses the exact server-only function contract;
-- RPC response plan/context substitution fails closed;
-- malformed counters fail closed.
+Preview-only scenarios cover first write, exact replay, immutable event conflict, staged rollback, cross-user rejection, global context material tamper, incomplete global coverage, deterministic global commit construction, order-independent provider binding, DEGRADED commit semantics, and RPC plan/context/commit response substitution.
 
 These scenarios are included in the internal Financial Autopilot pilot smoke route.
 
