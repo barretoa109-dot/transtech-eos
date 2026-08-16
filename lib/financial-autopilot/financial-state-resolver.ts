@@ -147,6 +147,19 @@ function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHor
   };
 }
 
+function persistedFirstRiskStillFuture(
+  record: PersistedFinancialContextRecord,
+  nowIso: string,
+) {
+  if (!record.firstForecastRisk) return true;
+  const now = parseTime(nowIso, "financial_state_invalid_now");
+  const until = parseTime(
+    record.firstForecastRisk.until,
+    "financial_state_invalid_first_risk",
+  );
+  return now !== null && until !== null && until > now;
+}
+
 function persistedAvailableRealMatchesInputs(record: PersistedFinancialContextRecord) {
   let computed = record.liquidityUsableMinor;
   const deltas = [
@@ -459,6 +472,13 @@ export async function resolveFinancialState(input: {
         "persisted_confidence_conflicts_with_context",
       );
 
+  const forecastCheckedContext = persistedFirstRiskStillFuture(record, input.nowIso)
+    ? confidenceCheckedContext
+    : degradeContextForConsistency(
+        confidenceCheckedContext,
+        "persisted_first_forecast_risk_elapsed",
+      );
+
   const statusConsistent = persistedSafetySignalsMatchStatus({
     status: record.status,
     sourcesFresh: record.sourcesFresh,
@@ -467,9 +487,9 @@ export async function resolveFinancialState(input: {
     minimumProjectedCashMinor: record.minimumProjectedCashMinor,
   });
   const statusCheckedContext = statusConsistent
-    ? confidenceCheckedContext
+    ? forecastCheckedContext
     : degradeContextForConsistency(
-        confidenceCheckedContext,
+        forecastCheckedContext,
         "persisted_status_conflicts_with_safety_signals",
       );
 
