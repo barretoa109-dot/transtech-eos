@@ -62,6 +62,8 @@ export interface TrustedSourceCoverageResolution {
   reasonCodes: SourceCoverageReasonCode[];
   /** Internal integrity aid only. Financial State/Surface must not expose it. */
   inventoryFingerprint: string | null;
+  /** The context must never outlive the trusted coverage evidence that justified it. */
+  coverageValidUntil: string | null;
 }
 
 function normalizeIdentityPart(value: string, code: string) {
@@ -127,6 +129,7 @@ function failClosed(input: {
   missingMaterialCount?: number;
   connectedSourceCount?: number;
   inventoryFingerprint?: string | null;
+  coverageValidUntil?: string | null;
 }): TrustedSourceCoverageResolution {
   return {
     criticalSourcesComplete: false,
@@ -136,6 +139,7 @@ function failClosed(input: {
     connectedSourceCount: input.connectedSourceCount ?? 0,
     reasonCodes: [...new Set(input.reasonCodes)].sort(),
     inventoryFingerprint: input.inventoryFingerprint ?? null,
+    coverageValidUntil: input.coverageValidUntil ?? null,
   };
 }
 
@@ -182,6 +186,7 @@ export function resolveTrustedSourceCoverage(input: {
     return failClosed({ reasonCodes: ["inventory_invalid"] });
   }
 
+  const coverageValidUntil = new Date(validUntil).toISOString();
   const structurallyValidExpected = input.inventory.expectedSources.every(
     (source) =>
       source !== null &&
@@ -193,7 +198,10 @@ export function resolveTrustedSourceCoverage(input: {
       finiteConfidence(source.confidence),
   );
   if (!structurallyValidExpected) {
-    return failClosed({ reasonCodes: ["inventory_invalid"] });
+    return failClosed({
+      reasonCodes: ["inventory_invalid"],
+      coverageValidUntil,
+    });
   }
 
   const expectedSources = [...input.inventory.expectedSources].sort((a, b) =>
@@ -203,7 +211,7 @@ export function resolveTrustedSourceCoverage(input: {
     contract: "trusted-financial-source-inventory-v1",
     userId: input.trustedUserId,
     asOf: new Date(asOf).toISOString(),
-    validUntil: new Date(validUntil).toISOString(),
+    validUntil: coverageValidUntil,
     authority: input.inventory.authority,
     discoveryComplete: input.inventory.discoveryComplete,
     confidence: input.inventory.confidence,
@@ -227,6 +235,7 @@ export function resolveTrustedSourceCoverage(input: {
     return failClosed({
       reasonCodes: ["inventory_invalid"],
       inventoryFingerprint,
+      coverageValidUntil,
     });
   }
 
@@ -286,6 +295,7 @@ export function resolveTrustedSourceCoverage(input: {
       missingMaterialCount,
       connectedSourceCount: connectedSet.size,
       inventoryFingerprint,
+      coverageValidUntil,
     });
   }
 
@@ -297,5 +307,6 @@ export function resolveTrustedSourceCoverage(input: {
     connectedSourceCount: connectedSet.size,
     reasonCodes: [],
     inventoryFingerprint,
+    coverageValidUntil,
   };
 }
