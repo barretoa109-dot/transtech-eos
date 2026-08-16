@@ -23,7 +23,11 @@ function contextRecord(
     horizonUntil: "2026-09-01T12:00:00.000Z",
     liquidityUsableMinor: 8000000,
     protectedCommitmentsMinor: 2100000,
+    essentialSpendExpectedMinor: 1000000,
     protectedReserveMinor: 3000000,
+    criticalProvisionsMinor: 0,
+    confirmedIncomeMinor: 1000000,
+    uncertaintyBufferMinor: 1260000,
     availableRealSafeMinor: 1640000,
     minimumProjectedCashMinor: 6005000,
     minimumProjectedCashAt: "2026-08-25T00:00:00.000Z",
@@ -112,6 +116,17 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const inconsistentAvailableReal = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"0".repeat(64)}`,
+        availableRealSafeMinor: 7000000,
+      }),
+    ),
+    nowIso: NOW,
+  });
+
   const inconsistentSafe = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(
@@ -190,6 +205,11 @@ export async function runFinancialStateResolverScenario() {
         validUntil: "2026-08-16T03:30:00.000Z",
         minimumProjectedCashAt: "2026-08-16T03:00:00.000Z",
         protectedCommitmentsMinor: 0,
+        essentialSpendExpectedMinor: 0,
+        protectedReserveMinor: 0,
+        confirmedIncomeMinor: 0,
+        uncertaintyBufferMinor: 6360000,
+        availableRealSafeMinor: 1640000,
         explanationRefs: ["account:checking"],
       }),
       [],
@@ -359,6 +379,8 @@ export async function runFinancialStateResolverScenario() {
     changedProtectedAmount.kind === "STATE" ? changedProtectedAmount.state : null;
   const changedIdentityState =
     changedProtectedIdentity.kind === "STATE" ? changedProtectedIdentity.state : null;
+  const inconsistentAvailableState =
+    inconsistentAvailableReal.kind === "STATE" ? inconsistentAvailableReal.state : null;
   const inconsistentSafeState =
     inconsistentSafe.kind === "STATE" ? inconsistentSafe.state : null;
   const longRangeAttentionState =
@@ -380,6 +402,10 @@ export async function runFinancialStateResolverScenario() {
     healthyAvailableRealExposed:
       healthyState?.canAssertSafety === true &&
       healthyState.money.availableRealMinor === 1640000,
+    inconsistentAvailableRealFailsClosed:
+      inconsistentAvailableState?.status === "DEGRADED" &&
+      inconsistentAvailableState.canAssertSafety === false &&
+      inconsistentAvailableState.money.availableRealMinor === null,
     nextProtectedCommitmentResolved:
       healthyState?.nextProtectedCommitment?.type === "housing" &&
       healthyState.nextProtectedCommitment.amountMinor === 2100000,
@@ -453,6 +479,7 @@ export async function runFinancialStateResolverScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy: healthyState,
+    inconsistentAvailableReal: inconsistentAvailableState,
     changedProtectedAmount: changedAmountState,
     changedProtectedIdentity: changedIdentityState,
     inconsistentSafe: inconsistentSafeState,
