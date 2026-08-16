@@ -141,6 +141,7 @@ function run(snapshotValue: FinancialConnectorSnapshot) {
     currency: "PYG",
     asOf: AS_OF,
     protectedReserveMinor: 3000000,
+    criticalSourcesComplete: true,
     criticalObligationsComplete: true,
     criticalProvisionsMinor: 100000,
     baseUncertaintyBufferMinor: 120000,
