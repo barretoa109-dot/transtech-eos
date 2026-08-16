@@ -20,6 +20,7 @@ import {
   runFirstForecastRiskPersistenceScenario,
   runPersistenceRpcScenario,
   runPersistenceScenario,
+  runSourceCoveragePersistenceBuilderScenario,
   runSupabaseFinancialStateReaderScenario,
   runSupabaseFinancialStateReaderV1_1Scenario,
   runSupabaseFinancialStateReaderV1_2Scenario,
@@ -61,6 +62,8 @@ export async function GET() {
     await runCriticalObligationsPersistenceScenario();
   const criticalSourcesPersistence =
     await runCriticalSourcesPersistenceScenario();
+  const sourceCoveragePersistenceBuilder =
+    runSourceCoveragePersistenceBuilderScenario();
   const supabaseFinancialStateReaderV1_1 =
     await runSupabaseFinancialStateReaderV1_1Scenario();
   const supabaseFinancialStateReaderV1_2 =
@@ -87,6 +90,7 @@ export async function GET() {
     compact("first-forecast-risk-persistence", firstForecastRiskPersistence),
     compact("critical-obligations-persistence", criticalObligationsPersistence),
     compact("critical-sources-persistence", criticalSourcesPersistence),
+    compact("source-coverage-persistence-builder", sourceCoveragePersistenceBuilder),
     compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
     compact("supabase-financial-state-reader-v1-2", supabaseFinancialStateReaderV1_2),
     compact("supabase-financial-state-reader-v1-3", supabaseFinancialStateReaderV1_3),
