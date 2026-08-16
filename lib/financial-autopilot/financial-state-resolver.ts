@@ -84,7 +84,11 @@ function assertConfidence(confidence: FinancialContextConfidence) {
   }
 }
 
-function assertFirstRisk(risk: FinancialStateRiskView | null | undefined) {
+function assertFirstRisk(
+  risk: FinancialStateRiskView | null | undefined,
+  generatedAtMs: number,
+  horizonUntilMs: number,
+) {
   if (!risk) return;
   if (risk.status !== "ATTENTION" && risk.status !== "ACTION_REQUIRED") {
     throw new Error("financial_state_invalid_first_risk");
@@ -92,7 +96,10 @@ function assertFirstRisk(risk: FinancialStateRiskView | null | undefined) {
   if (!Number.isSafeInteger(risk.horizonDays) || risk.horizonDays <= 0) {
     throw new Error("financial_state_invalid_first_risk");
   }
-  parseTime(risk.until, "financial_state_invalid_first_risk");
+  const until = parseTime(risk.until, "financial_state_invalid_first_risk");
+  if (until === null || until <= generatedAtMs || until > horizonUntilMs) {
+    throw new Error("financial_state_invalid_first_risk");
+  }
   assertSafeInteger(risk.reserveGapMinor, "financial_state_invalid_first_risk");
   assertSafeInteger(risk.negativeCashGapMinor, "financial_state_invalid_first_risk");
 }
@@ -132,7 +139,6 @@ function builtContextFromRecord(
     throw new Error("financial_state_invalid_sources_fresh");
   }
   assertConfidence(record.confidence);
-  assertFirstRisk(record.firstForecastRisk);
 
   const now = parseTime(nowIso, "financial_state_invalid_now");
   const generatedAt = parseTime(record.generatedAt, "financial_state_invalid_generated_at");
@@ -157,6 +163,10 @@ function builtContextFromRecord(
   if (minimumProjectedCashAt !== null && minimumProjectedCashAt > horizonUntil) {
     throw new Error("financial_state_minimum_cash_outside_horizon");
   }
+  if (minimumProjectedCashAt !== null && minimumProjectedCashAt < generatedAt) {
+    throw new Error("financial_state_minimum_cash_before_generation");
+  }
+  assertFirstRisk(record.firstForecastRisk, generatedAt, horizonUntil);
 
   const liquidityUsableMinor = assertSafeInteger(
     record.liquidityUsableMinor,
@@ -180,8 +190,10 @@ function builtContextFromRecord(
     true,
   );
 
-  const expired = validUntil === null || validUntil < now || horizonUntil < now;
-  const degraded = record.status === "DEGRADED" || !record.sourcesFresh || expired;
+  const futureSkew = generatedAt > now;
+  const expired = validUntil === null || validUntil <= now || horizonUntil <= now;
+  const degraded =
+    record.status === "DEGRADED" || !record.sourcesFresh || expired || futureSkew;
   const status: FinancialStatus = degraded ? "DEGRADED" : record.status;
   const reserveGapMinor = Math.max(0, protectedReserveMinor - minimumProjectedCashMinor);
 
