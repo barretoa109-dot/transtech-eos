@@ -6,6 +6,8 @@ import type {
 } from "./financial-state";
 import type { FinancialStatus } from "./types";
 
+const PUBLIC_CURRENCY = /^[A-Z]{3}$/;
+
 export type FinancialSurfaceKind = "STATE" | "NO_DATA" | "ERROR";
 export type FinancialSurfaceStatus = FinancialStatus | "NO_DATA" | "ERROR";
 
@@ -57,8 +59,27 @@ function publicMinor(value: number | null | undefined) {
     : null;
 }
 
+function publicPositiveInteger(value: number | null | undefined) {
+  const parsed = publicMinor(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+}
+
 function publicCount(value: number) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function publicCurrency(value: string) {
+  return PUBLIC_CURRENCY.test(value) ? value : null;
+}
+
+function publicIso(value: string | null | undefined) {
+  if (!value || value.length > 64) return null;
+  return Number.isFinite(new Date(value).getTime()) ? value : null;
+}
+
+function publicText(value: string, maxLength = 160) {
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
 }
 
 function statusLabel(status: FinancialStatus) {
@@ -69,16 +90,18 @@ function statusLabel(status: FinancialStatus) {
 }
 
 function freshnessCopy(state: FinancialStateView) {
+  const freshUntil = publicIso(state.freshness.freshUntil);
+
   if (
     state.freshness.status === "FRESH" &&
     state.freshness.sourcesFresh &&
-    state.freshness.freshUntil
+    freshUntil
   ) {
     return {
       status: "FRESH" as const,
       label: "Datos al día",
       detail: "EOS cuenta con una ventana de datos vigente para este estado.",
-      freshUntil: state.freshness.freshUntil,
+      freshUntil,
     };
   }
 
@@ -87,7 +110,7 @@ function freshnessCopy(state: FinancialStateView) {
       status: "STALE" as const,
       label: "Datos que necesitan actualización",
       detail: "EOS no afirmará seguridad financiera hasta recuperar información vigente.",
-      freshUntil: state.freshness.freshUntil,
+      freshUntil,
     };
   }
 
@@ -95,7 +118,61 @@ function freshnessCopy(state: FinancialStateView) {
     status: "UNKNOWN" as const,
     label: "Vigencia por confirmar",
     detail: "EOS no tiene una ventana de frescura suficiente para afirmar seguridad.",
-    freshUntil: state.freshness.freshUntil,
+    freshUntil,
+  };
+}
+
+function publicCommitment(
+  value: FinancialStateCommitmentView | null,
+  expectedCurrency: string | null,
+  projectionTrusted: boolean,
+): FinancialStateCommitmentView | null {
+  if (!value || !expectedCurrency || !projectionTrusted) return null;
+  const type = publicText(value.type, 128);
+  const amountMinor = publicMinor(value.amountMinor);
+  const dueAt = publicIso(value.dueAt);
+  if (
+    !type ||
+    amountMinor === null ||
+    value.currency !== expectedCurrency ||
+    !dueAt
+  ) {
+    return null;
+  }
+  return {
+    type,
+    amountMinor,
+    currency: expectedCurrency,
+    dueAt,
+  };
+}
+
+function publicRisk(
+  value: FinancialStateRiskView | null,
+  projectionTrusted: boolean,
+): FinancialStateRiskView | null {
+  if (!value || !projectionTrusted) return null;
+  if (value.status !== "ATTENTION" && value.status !== "ACTION_REQUIRED") {
+    return null;
+  }
+  const horizonDays = publicPositiveInteger(value.horizonDays);
+  const until = publicIso(value.until);
+  const reserveGapMinor = publicMinor(value.reserveGapMinor);
+  const negativeCashGapMinor = publicMinor(value.negativeCashGapMinor);
+  if (
+    horizonDays === null ||
+    !until ||
+    reserveGapMinor === null ||
+    negativeCashGapMinor === null
+  ) {
+    return null;
+  }
+  return {
+    status: value.status,
+    horizonDays,
+    until,
+    reserveGapMinor,
+    negativeCashGapMinor,
   };
 }
 
@@ -147,8 +224,9 @@ function emptySurface(kind: "NO_DATA" | "ERROR"): FinancialSurfaceModel {
  *
  * It receives only the already-sanitized Financial State contract. It never
  * carries context revisions, Ledger rows, explanation refs, source event IDs or
- * provider metadata. Money visibility is recalculated fail-closed so an
- * inconsistent/stale upstream state cannot accidentally render a false SAFE.
+ * provider metadata. User-visible money/projection fields are recalculated
+ * fail-closed so an inconsistent/stale upstream object cannot accidentally
+ * render false safety or fabricated zeroes.
  */
 export function buildFinancialSurfaceModel(
   input: FinancialSurfaceInput,
@@ -159,15 +237,20 @@ export function buildFinancialSurfaceModel(
 
   const state = input.state;
   const freshness = freshnessCopy(state);
+  const currency = publicCurrency(state.currency);
+  const asOf = publicIso(state.asOf);
   const availableMinor = publicMinor(state.money.availableRealMinor);
-  const protectedCommitmentsMinor =
-    publicMinor(state.money.protectedCommitmentsMinor) ?? 0;
-  const protectedReserveMinor = publicMinor(state.money.protectedReserveMinor) ?? 0;
+  const protectedCommitmentsMinor = publicMinor(
+    state.money.protectedCommitmentsMinor,
+  );
+  const protectedReserveMinor = publicMinor(state.money.protectedReserveMinor);
+  const projectionTrusted =
+    state.status !== "DEGRADED" && freshness.status === "FRESH" && Boolean(currency);
   const visible =
-    state.status !== "DEGRADED" &&
+    projectionTrusted &&
     state.canAssertSafety &&
-    freshness.status === "FRESH" &&
-    availableMinor !== null;
+    availableMinor !== null &&
+    asOf !== null;
 
   const needsAttention = state.attention.required || state.status === "ACTION_REQUIRED";
   const supportingText = visible
@@ -175,6 +258,11 @@ export function buildFinancialSurfaceModel(
       ? state.attention.message
       : "No necesitas hacer nada."
     : "EOS no mostrará un monto seguro mientras los datos no sean suficientemente confiables.";
+  const explanationRefCount = publicCount(state.trace.explanationRefCount);
+  const whyTrusted =
+    projectionTrusted &&
+    protectedCommitmentsMinor !== null &&
+    protectedReserveMinor !== null;
 
   return {
     version: "financial-surface-v1",
@@ -183,28 +271,35 @@ export function buildFinancialSurfaceModel(
     statusLabel: statusLabel(state.status),
     headline: state.headline,
     detail: state.detail,
-    currency: state.currency,
-    asOf: state.asOf,
-    validUntil: visible ? state.validUntil : null,
+    currency,
+    asOf,
+    validUntil: visible ? publicIso(state.validUntil) : null,
     availableReal: {
       visible,
       amountMinor: visible ? availableMinor : null,
       label: visible ? "Puedes usar hasta" : "Pendiente de actualización",
       supportingText,
     },
-    nextProtectedCommitment: state.nextProtectedCommitment,
-    firstForecastRisk: state.firstForecastRisk,
+    nextProtectedCommitment: publicCommitment(
+      state.nextProtectedCommitment,
+      currency,
+      projectionTrusted,
+    ),
+    firstForecastRisk: publicRisk(state.firstForecastRisk, projectionTrusted),
     freshness,
     attention: {
       required: needsAttention,
       interrupt: state.attention.interrupt || state.status === "DEGRADED",
       message: state.attention.message,
     },
-    why: {
-      protectedCommitmentsMinor,
-      protectedReserveMinor,
-      explanationAvailable: Boolean(state.trace.explanationAvailable),
-      explanationRefCount: publicCount(state.trace.explanationRefCount),
-    },
+    why: whyTrusted
+      ? {
+          protectedCommitmentsMinor,
+          protectedReserveMinor,
+          explanationAvailable:
+            Boolean(state.trace.explanationAvailable) && explanationRefCount > 0,
+          explanationRefCount,
+        }
+      : null,
   };
 }
