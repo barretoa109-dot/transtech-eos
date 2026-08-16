@@ -12,6 +12,9 @@ const TRUSTED_AUTHORITIES = new Set<TrustedFinancialSourceInventory["authority"]
   "provider_discovery",
   "verified_document",
 ]);
+const GLOBAL_COVERAGE_AUTHORITIES = new Set<
+  TrustedFinancialSourceInventory["authority"]
+>(["user_confirmed", "verified_document"]);
 const GLOBAL_COVERAGE_SCOPE: TrustedFinancialSourceInventoryScope =
   "global_user_finances";
 
@@ -53,6 +56,7 @@ export type SourceCoverageReasonCode =
   | "inventory_invalid"
   | "inventory_not_trusted"
   | "inventory_scope_insufficient"
+  | "global_scope_authority_insufficient"
   | "inventory_discovery_incomplete"
   | "inventory_confidence_below_threshold"
   | "inventory_not_current"
@@ -189,6 +193,8 @@ function failCoverage(input: {
  *
  * Institution/provider-scoped discovery is useful evidence, but one scoped
  * connector must never be mistaken for proof of the user's entire finances.
+ * Provider discovery also cannot self-promote its own scope to global: global
+ * closure requires user-confirmed or verified-document authority in v1.3.
  */
 export function resolveTrustedSourceCoverage(input: {
   trustedUserId: string;
@@ -330,6 +336,12 @@ export function resolveTrustedSourceCoverage(input: {
   }
   if (input.inventory.scope !== GLOBAL_COVERAGE_SCOPE) {
     reasons.push("inventory_scope_insufficient");
+  }
+  if (
+    input.inventory.scope === GLOBAL_COVERAGE_SCOPE &&
+    !GLOBAL_COVERAGE_AUTHORITIES.has(input.inventory.authority)
+  ) {
+    reasons.push("global_scope_authority_insufficient");
   }
   if (!input.inventory.discoveryComplete) {
     reasons.push("inventory_discovery_incomplete");
