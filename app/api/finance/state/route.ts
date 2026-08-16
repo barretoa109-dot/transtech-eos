@@ -22,20 +22,20 @@ export async function GET() {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: "Sesión no válida." },
-      { status: 401, headers },
-    );
-  }
-
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Sesión no válida." },
+        { status: 401, headers },
+      );
+    }
+
     const reader = new SupabaseFinancialStateReaderV1_1(supabase, user.id);
     const resolution = await resolveFinancialState({
       trustedUserId: user.id,
@@ -45,7 +45,7 @@ export async function GET() {
 
     return NextResponse.json(resolution, { status: 200, headers });
   } catch (error) {
-    // Never log raw provider/database error messages from the user-facing
+    // Never log raw provider/database/auth error messages from the user-facing
     // finance route. Keep telemetry useful while avoiding SQL/provider detail
     // disclosure in server logs.
     console.error("Financial State v1 read failed", {
