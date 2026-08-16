@@ -4,6 +4,7 @@ import type {
   FinancialStateReader,
   PersistedFinancialContextRecord,
 } from "./financial-state-resolver";
+import { protectedObligationContextId } from "./protected-obligations-fingerprint";
 import { SupabaseFinancialStateReader } from "./supabase-financial-state-reader";
 import type { FinancialObligation } from "./types";
 
@@ -68,6 +69,15 @@ export class SupabaseFinancialStateReaderV1_1 implements FinancialStateReader {
     horizonUntil: string;
   }): Promise<FinancialObligation[]> {
     if (input.userId !== this.trustedUserId) throw new Error("financial_state_user_mismatch");
-    return this.baseReader.getOpenObligations(input);
+    const obligations = await this.baseReader.getOpenObligations(input);
+
+    // Context explanation refs commit to material obligation identities rather
+    // than only stable source keys. Re-derive the exact same identity at read
+    // time so due date/type/priority/confidence/source drift fails closed even
+    // when the source key and amount remain unchanged.
+    return obligations.map((obligation) => ({
+      ...obligation,
+      id: protectedObligationContextId(obligation),
+    }));
   }
 }
