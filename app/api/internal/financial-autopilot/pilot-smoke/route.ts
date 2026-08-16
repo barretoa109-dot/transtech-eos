@@ -6,6 +6,7 @@ import {
   runFinancialStateScenario,
   runFinancialSurfaceScenario,
   runForecastHorizonScenario,
+  runGlobalSourceCoverageScenario,
   runLiquidityAuthorityScenario,
   runPyPilotScenario,
   runTrustedSourceCoverageScenario,
@@ -48,6 +49,7 @@ export async function GET() {
   const forecastHorizons = runForecastHorizonScenario();
   const liquidityAuthority = runLiquidityAuthorityScenario();
   const sourceCoverage = runTrustedSourceCoverageScenario();
+  const globalSourceCoverage = runGlobalSourceCoverageScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
@@ -78,6 +80,7 @@ export async function GET() {
     compact("forecast-horizons", forecastHorizons),
     compact("liquidity-authority", liquidityAuthority),
     compact("source-coverage", sourceCoverage),
+    compact("global-source-coverage", globalSourceCoverage),
     compact("zero-entry", zeroEntry),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
