@@ -39,7 +39,7 @@ const CONTEXT_COLUMNS = [
 ].join(",");
 
 const OBLIGATION_COLUMNS = [
-  "id",
+  "source_key",
   "usuario_id",
   "obligation_type",
   "amount_minor",
@@ -241,7 +241,10 @@ export function parsePersistedFinancialObligationRow(
   }
 
   return {
-    id: uuid(row.id, "financial_state_invalid_obligation_id"),
+    // Preserve the deterministic obligation identity used by the context
+    // fingerprint/explanation contract. The database UUID is storage metadata,
+    // not the financial identity needed by the resolver.
+    id: stringValue(row.source_key, "financial_state_invalid_obligation_id", 512),
     userId,
     type: stringValue(row.obligation_type, "financial_state_invalid_obligation_type", 128),
     amountMinor: safeInteger(row.amount_minor, "financial_state_invalid_obligation_amount"),
