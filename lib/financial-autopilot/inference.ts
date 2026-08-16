@@ -117,8 +117,14 @@ export function confirmedIncomeWithinHorizon(input: {
   asOf: string;
   horizonUntil: string;
   minimumConfidence?: number;
+  /**
+   * When the horizon itself is defined by the next income, set false so EOS
+   * never counts money that has not arrived yet as spendable before that income.
+   */
+  includeAtHorizon?: boolean;
 }): { amountMinor: number; events: ForecastEvent[] } {
   const minimumConfidence = input.minimumConfidence ?? 0.9;
+  const includeAtHorizon = input.includeAtHorizon ?? true;
   const asOfMs = new Date(input.asOf).getTime();
   const horizonMs = new Date(input.horizonUntil).getTime();
   if (!Number.isFinite(asOfMs) || !Number.isFinite(horizonMs)) throw new Error("invalid horizon");
@@ -129,7 +135,12 @@ export function confirmedIncomeWithinHorizon(input: {
     .flatMap((pattern) => materializePatternForecast(pattern, input.horizonUntil))
     .filter((event) => {
       const time = new Date(event.date).getTime();
-      return time >= asOfMs && time <= horizonMs && (event.probability ?? 1) >= minimumConfidence;
+      const withinUpperBound = includeAtHorizon ? time <= horizonMs : time < horizonMs;
+      return (
+        time >= asOfMs &&
+        withinUpperBound &&
+        (event.probability ?? 1) >= minimumConfidence
+      );
     });
 
   return {
@@ -226,7 +237,10 @@ export function estimateVariableEssentialSpend(input: {
   }
 
   const completeWeeks = Math.max(1, Math.ceil(observationDays / 7));
-  const weeklyTotals = Array.from({ length: completeWeeks }, (_, index) => weekBuckets.get(index) ?? 0);
+  const weeklyTotals = Array.from(
+    { length: completeWeeks },
+    (_, index) => weekBuckets.get(index) ?? 0,
+  );
   const weeklyExpectedMinor = percentile75(weeklyTotals);
   const horizonDays = Math.max(1, Math.ceil((horizonMs - asOfMs) / 86400000));
   const expectedMinor = Math.round((weeklyExpectedMinor / 7) * horizonDays);
