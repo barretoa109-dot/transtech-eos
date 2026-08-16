@@ -95,13 +95,23 @@ Global coverage validity is the earliest of:
 
 Therefore global evidence can never outlive any trusted component that justified it.
 
+## Provider-preserving orchestration
+
+The provider-preserving multi-snapshot layer now exists.
+
+`buildProviderPreservingFinancialAnalysisView` combines accounts and Ledger rows for analysis while retaining explicit provider origin for every account and transaction. It rejects global ID collisions, provider-scoped account duplication, duplicate transaction-source identity and cross-provider account jumps instead of inventing a synthetic provider.
+
+`orchestrateTrustedGlobalFinancialSources` then binds the exact global coverage commitment to the exact provider-preserving analysis fingerprint. This prevents a future caller from proving coverage over provider set A+B and then analyzing a different set A+C.
+
+A structurally incomplete global coverage result cannot produce an orchestration fingerprint. Complete-but-stale coverage may retain structural identity, but freshness remains independently unsafe and changes the provider analysis/orchestration material.
+
 ## Current implementation boundary
 
-The aggregator currently produces a compact global coverage resolution only. It does **not** yet merge multiple provider snapshots into one persistence snapshot.
+The remaining boundary is Zero Entry/persistence integration.
 
-That boundary is intentional: `FinancialConnectorSnapshot` currently carries one `providerKey`, while canonical persistence identities use provider scope. Flattening Bank A + Bank B into a synthetic provider key would destroy provenance and could create replay/deduplication errors.
+The existing Zero Entry and v1 persistence contracts still accept a single `FinancialConnectorSnapshot`. Canonical persistence identities are provider-scoped, so Bank A + Bank B must **not** be flattened into a synthetic snapshot and sent to the existing persistence builder.
 
-Before wiring the aggregator into multi-provider Zero Entry persistence, EOS needs a provider-preserving multi-snapshot orchestration contract. The correct next layer should combine analysis while retaining each account/ledger row's original provider + connection identity.
+The next safe refactor is to let Zero Entry analysis consume the provider-preserving analysis view while persistence continues to write each original provider snapshot under its original provider + connection identity. See `MULTI_PROVIDER_ANALYSIS_V1_3.md`.
 
 ## Scenario coverage
 
@@ -117,13 +127,15 @@ The dedicated scenarios prove:
 - provider self-asserted global leaf evidence is rejected;
 - overlapping source identities fail closed;
 - owner mismatch fails at the security boundary;
-- a closure at the exact leaf evidence timestamp is valid, while a closure even 1 ms earlier fails closed with `global_closure_predates_evidence`.
+- a closure at the exact leaf evidence timestamp is valid, while a closure even 1 ms earlier fails closed with `global_closure_predates_evidence`;
+- multi-provider analysis preserves provider origin and rejects double-counting identities;
+- global coverage + provider analysis are committed into one orchestration identity.
 
 The scenarios are included in the preview-only Financial Autopilot smoke route.
 
 ## Production boundary
 
-No production schema/RPC change is introduced by this aggregator.
+No production schema/RPC change is introduced by this aggregator or orchestration layer.
 
 No real provider connection is added. No production Supabase financial table is written. No autonomous financial action or money movement is introduced.
 
