@@ -1,4 +1,5 @@
 import { buildFinancialContext } from "./context";
+import { generateFinancialDecisionCandidates } from "./decision-candidates";
 import { selectNextBestFinancialAction } from "./decision";
 import { buildPyPilotSnapshot } from "./fixtures";
 import { findDeterministicReconciliations } from "./reconciliation";
@@ -98,7 +99,11 @@ export function runPyPilotScenario() {
 
   const context = buildFinancialContext(contextInput);
   const reconciliation = findDeterministicReconciliations(snapshot.ledgerEntries);
-  const nextAction = selectNextBestFinancialAction(context.available.status, []);
+  const healthyCandidates = generateFinancialDecisionCandidates({
+    financialContext: context,
+    protectedReserveMinor: contextInput.protectedReserveMinor,
+  });
+  const nextAction = selectNextBestFinancialAction(context.available.status, healthyCandidates);
 
   const safePurchase = evaluateHypotheticalExpense({
     openingCashMinor: context.liquidityUsableMinor,
@@ -128,6 +133,31 @@ export function runPyPilotScenario() {
     ...contextInput,
     accounts: staleAccounts,
   });
+  const degradedAction = selectNextBestFinancialAction(
+    degradedContext.available.status,
+    generateFinancialDecisionCandidates({
+      financialContext: degradedContext,
+      protectedReserveMinor: contextInput.protectedReserveMinor,
+    }),
+  );
+
+  const stressedAccounts = snapshot.accounts.map((account, index) => ({
+    ...account,
+    availableBalanceMinor: index === 0 ? 3000000 : 1000000,
+    ledgerBalanceMinor: index === 0 ? 3000000 : 1000000,
+  }));
+  const actionRequiredContext = buildFinancialContext({
+    ...contextInput,
+    accounts: stressedAccounts,
+  });
+  const actionRequiredCandidates = generateFinancialDecisionCandidates({
+    financialContext: actionRequiredContext,
+    protectedReserveMinor: contextInput.protectedReserveMinor,
+  });
+  const actionRequiredDecision = selectNextBestFinancialAction(
+    actionRequiredContext.available.status,
+    actionRequiredCandidates,
+  );
 
   const checks = {
     ownTransferReconciled:
@@ -137,11 +167,18 @@ export function runPyPilotScenario() {
     minimumProjectedCashIs10800000: context.minimumProjectedCashMinor === 10800000,
     availableRealSafeIs6900000: context.available.availableRealSafeMinor === 6900000,
     healthyStateIsSafe: context.available.status === "SAFE",
-    healthyDecisionIsNoAction: nextAction.outcome === "NO_ACTION",
+    healthyDecisionIsNoAction:
+      healthyCandidates.length === 0 && nextAction.outcome === "NO_ACTION",
     safePurchaseAccepted: safePurchase.safe,
     unsafePurchaseBlocked:
       !unsafePurchase.safe && unsafePurchase.reasons.includes("crosses_protected_reserve"),
-    staleSourcesDegrade: degradedContext.available.status === "DEGRADED",
+    staleSourcesDegrade:
+      degradedContext.available.status === "DEGRADED" &&
+      degradedAction.outcome === "CONNECTION_REQUIRED",
+    realConflictRequestsOneDecision:
+      actionRequiredContext.available.status === "ACTION_REQUIRED" &&
+      actionRequiredCandidates.length === 1 &&
+      actionRequiredDecision.outcome === "USER_DECISION_REQUIRED",
   };
 
   return {
@@ -155,6 +192,9 @@ export function runPyPilotScenario() {
       unsafePurchase,
     },
     degradedContext,
+    actionRequiredContext,
     nextAction,
+    degradedAction,
+    actionRequiredDecision,
   };
 }
