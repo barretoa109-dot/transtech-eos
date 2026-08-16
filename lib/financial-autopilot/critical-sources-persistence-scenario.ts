@@ -138,6 +138,10 @@ export async function runCriticalSourcesPersistenceScenario() {
     plan: v1_2Plan(),
     criticalSourcesComplete: true,
   });
+  const degradedComplete = upgradeFinancialPersistencePlanWithCriticalSources({
+    plan: v1_2Plan(USER_ID, "DEGRADED"),
+    criticalSourcesComplete: true,
+  });
   const incomplete = upgradeFinancialPersistencePlanWithCriticalSources({
     plan: v1_2Plan(USER_ID, "DEGRADED"),
     criticalSourcesComplete: false,
@@ -211,8 +215,8 @@ export async function runCriticalSourcesPersistenceScenario() {
         `ctx:${complete.contextInsert.sourceFingerprint}`,
     exactInputProducesExactIdentity:
       complete.contextInsert.sourceFingerprint === replay.contextInsert.sourceFingerprint,
-    booleanChangeChangesContextRevision:
-      complete.contextInsert.revision !== incomplete.contextInsert.revision,
+    booleanAloneChangesV1_3Revision:
+      degradedComplete.contextInsert.revision !== incomplete.contextInsert.revision,
     falseCannotBePersistedAsSafe: inconsistentSafeIncompleteBlocked,
     malformedBooleanFailsClosed: malformedBooleanBlocked,
     obligationCompletenessCommitmentIsRequired:
@@ -236,6 +240,7 @@ export async function runCriticalSourcesPersistenceScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     completeRevision: complete.contextInsert.revision,
+    degradedCompleteRevision: degradedComplete.contextInsert.revision,
     incompleteRevision: incomplete.contextInsert.revision,
     coverageRef: coverageRefs[0] ?? null,
     rpcCalls: client.calls.length,
