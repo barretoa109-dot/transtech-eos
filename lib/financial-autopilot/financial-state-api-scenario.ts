@@ -1,5 +1,6 @@
 import {
   FINANCIAL_STATE_API_FLAG,
+  classifyFinancialStateReadFailure,
   financialStateApiHeaders,
   isFinancialStateApiEnabled,
   isFinancialStateDemoAllowed,
@@ -53,6 +54,19 @@ export function runFinancialStateApiScenario() {
       headers["Cache-Control"].includes("no-store") &&
       headers.Vary === "Cookie",
     responseIsNotIndexable: headers["X-Robots-Tag"] === "noindex",
+    readFailuresAreSanitized:
+      classifyFinancialStateReadFailure(
+        new Error("financial_state_context_read_failed:42P01"),
+      ) === "source_read_failed" &&
+      classifyFinancialStateReadFailure(
+        new Error("financial_state_owner_mismatch"),
+      ) === "security_boundary_violation" &&
+      classifyFinancialStateReadFailure(
+        new Error("financial_state_invalid_context_row"),
+      ) === "persisted_state_invalid" &&
+      classifyFinancialStateReadFailure(new Error("some_provider_secret")) ===
+        "unexpected" &&
+      classifyFinancialStateReadFailure("raw text") === "unexpected",
   };
 
   return {
