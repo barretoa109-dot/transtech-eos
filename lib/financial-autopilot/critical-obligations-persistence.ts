@@ -91,6 +91,12 @@ export function upgradeFinancialPersistencePlanWithCriticalObligations(input: {
   ) {
     throw new Error("financial_persistence_invalid_v1_1_context_identity");
   }
+  if (
+    !input.criticalObligationsComplete &&
+    input.plan.contextInsert.status !== "DEGRADED"
+  ) {
+    throw new Error("financial_persistence_critical_obligations_conflict_with_status");
+  }
 
   const aggregateIntegrityRef = contextIntegrityRef(
     input.plan.contextInsert.explanationRefs,
