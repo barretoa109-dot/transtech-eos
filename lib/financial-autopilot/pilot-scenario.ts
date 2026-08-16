@@ -1,7 +1,8 @@
 import { buildFinancialContext } from "./context";
+import { selectNextBestFinancialAction } from "./decision";
 import { buildPyPilotSnapshot } from "./fixtures";
 import { findDeterministicReconciliations } from "./reconciliation";
-import { selectNextBestFinancialAction } from "./decision";
+import { evaluateHypotheticalExpense } from "./what-if";
 import type { FinancialObligation, ForecastEvent } from "./types";
 
 export function runPyPilotScenario() {
@@ -72,7 +73,7 @@ export function runPyPilotScenario() {
     },
   ];
 
-  const context = buildFinancialContext({
+  const contextInput = {
     currency: "PYG",
     asOf: "2026-08-16T01:00:00.000Z",
     horizonUntil: "2026-08-31T23:59:59.000Z",
@@ -93,15 +94,67 @@ export function runPyPilotScenario() {
       reconciliationQuality: 0.95,
       overall: 0.93,
     },
-  });
+  } as const;
 
+  const context = buildFinancialContext(contextInput);
   const reconciliation = findDeterministicReconciliations(snapshot.ledgerEntries);
   const nextAction = selectNextBestFinancialAction(context.available.status, []);
 
+  const safePurchase = evaluateHypotheticalExpense({
+    openingCashMinor: context.liquidityUsableMinor,
+    currentAvailableRealSafeMinor: context.available.availableRealSafeMinor,
+    protectedReserveMinor: contextInput.protectedReserveMinor,
+    forecastEvents,
+    amountMinor: 300000,
+    at: "2026-08-18T12:00:00.000Z",
+    horizonUntil: contextInput.horizonUntil,
+  });
+
+  const unsafePurchase = evaluateHypotheticalExpense({
+    openingCashMinor: context.liquidityUsableMinor,
+    currentAvailableRealSafeMinor: context.available.availableRealSafeMinor,
+    protectedReserveMinor: contextInput.protectedReserveMinor,
+    forecastEvents,
+    amountMinor: 8000000,
+    at: "2026-08-18T12:00:00.000Z",
+    horizonUntil: contextInput.horizonUntil,
+  });
+
+  const staleAccounts = snapshot.accounts.map((account) => ({
+    ...account,
+    freshUntil: "2026-08-15T00:00:00.000Z",
+  }));
+  const degradedContext = buildFinancialContext({
+    ...contextInput,
+    accounts: staleAccounts,
+  });
+
+  const checks = {
+    ownTransferReconciled:
+      reconciliation.filter((match) => match.type === "internal_transfer_match").length === 1,
+    liquidityIs16500000: context.liquidityUsableMinor === 16500000,
+    protectedCommitmentsAre4500000: context.protectedCommitmentsMinor === 4500000,
+    minimumProjectedCashIs10800000: context.minimumProjectedCashMinor === 10800000,
+    availableRealSafeIs6900000: context.available.availableRealSafeMinor === 6900000,
+    healthyStateIsSafe: context.available.status === "SAFE",
+    healthyDecisionIsNoAction: nextAction.outcome === "NO_ACTION",
+    safePurchaseAccepted: safePurchase.safe,
+    unsafePurchaseBlocked:
+      !unsafePurchase.safe && unsafePurchase.reasons.includes("crosses_protected_reserve"),
+    staleSourcesDegrade: degradedContext.available.status === "DEGRADED",
+  };
+
   return {
+    ok: Object.values(checks).every(Boolean),
     providerKey: snapshot.providerKey,
+    checks,
     reconciliation,
     context,
+    whatIf: {
+      safePurchase,
+      unsafePurchase,
+    },
+    degradedContext,
     nextAction,
   };
 }
