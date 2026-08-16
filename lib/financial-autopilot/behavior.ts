@@ -143,25 +143,44 @@ export function inferFinancialPatterns(
   });
 }
 
-function cadenceDays(pattern: InferredFinancialPattern) {
-  switch (pattern.cadence) {
-    case "daily":
-      return 1;
-    case "weekly":
-      return 7;
-    case "biweekly":
-      return 14;
-    case "monthly":
-      return 30.4375;
-    default:
-      return 30;
-  }
-}
-
 function addDays(iso: string, days: number) {
   const date = new Date(iso);
-  date.setUTCSeconds(date.getUTCSeconds() + Math.round(days * 86400));
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString();
+}
+
+function addCalendarMonth(iso: string) {
+  const date = new Date(iso);
+  const sourceDay = date.getUTCDate();
+  const sourceHours = date.getUTCHours();
+  const sourceMinutes = date.getUTCMinutes();
+  const sourceSeconds = date.getUTCSeconds();
+  const sourceMs = date.getUTCMilliseconds();
+
+  const firstOfTarget = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1, sourceHours, sourceMinutes, sourceSeconds, sourceMs),
+  );
+  const daysInTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+
+  firstOfTarget.setUTCDate(Math.min(sourceDay, daysInTarget));
+  return firstOfTarget.toISOString();
+}
+
+function nextOccurrence(pattern: InferredFinancialPattern, current: string) {
+  switch (pattern.cadence) {
+    case "daily":
+      return addDays(current, 1);
+    case "weekly":
+      return addDays(current, 7);
+    case "biweekly":
+      return addDays(current, 14);
+    case "monthly":
+      return addCalendarMonth(current);
+    default:
+      return addDays(current, Math.max(1, Math.round(30)));
+  }
 }
 
 export function materializePatternForecast(
@@ -174,7 +193,6 @@ export function materializePatternForecast(
   const events: ForecastEvent[] = [];
   let next = pattern.nextExpectedAt;
   let occurrence = 1;
-  const intervalDays = cadenceDays(pattern);
 
   while (new Date(next).getTime() <= horizon && occurrence <= 120) {
     events.push({
@@ -188,7 +206,7 @@ export function materializePatternForecast(
       essentiality: pattern.essentiality,
       sourceRef: `recurrence:${pattern.recurrenceKey}`,
     });
-    next = addDays(next, intervalDays);
+    next = nextOccurrence(pattern, next);
     occurrence += 1;
   }
 
