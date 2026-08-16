@@ -41,6 +41,7 @@ export type GlobalSourceCoverageReasonCode =
   | "global_closure_authority_insufficient"
   | "global_closure_confidence_below_threshold"
   | "global_closure_not_current"
+  | "global_closure_predates_evidence"
   | "global_closure_not_exhaustive"
   | "global_closure_binding_mismatch"
   | "duplicate_inventory_fingerprint"
@@ -287,6 +288,19 @@ export function aggregateTrustedGlobalSourceCoverage(input: {
     );
   });
 
+  const leafAsOfTimes = input.bundles.map((bundle) =>
+    parseTime(bundle.inventory.asOf),
+  );
+  const allLeafAsOfPresent = leafAsOfTimes.every(
+    (value): value is number => value !== null,
+  );
+  if (
+    allLeafAsOfPresent &&
+    closureAsOf < Math.max(...(leafAsOfTimes as number[]))
+  ) {
+    closureReasons.push("global_closure_predates_evidence");
+  }
+
   const leafValidUntilTimes = leafResolutions.map((leaf) =>
     leaf.resolution.coverageValidUntil
       ? parseTime(leaf.resolution.coverageValidUntil)
@@ -305,7 +319,12 @@ export function aggregateTrustedGlobalSourceCoverage(input: {
     : null;
 
   const reasons = [...closureReasons];
-  if (!allLeafFingerprintsPresent || !locallyValid || !allLeafValidityPresent) {
+  if (
+    !allLeafFingerprintsPresent ||
+    !locallyValid ||
+    !allLeafAsOfPresent ||
+    !allLeafValidityPresent
+  ) {
     reasons.push("scoped_inventory_invalid");
   }
   if (duplicateInventoryFingerprint) {
