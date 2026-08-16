@@ -13,6 +13,7 @@ import {
 import {
   isFinancialStateDemoAllowed,
   runCriticalObligationsPersistenceScenario,
+  runCriticalSourcesPersistenceScenario,
   runFinancialStateApiScenario,
   runFinancialStateResolverScenario,
   runFirstForecastRiskPersistenceScenario,
@@ -21,6 +22,7 @@ import {
   runSupabaseFinancialStateReaderScenario,
   runSupabaseFinancialStateReaderV1_1Scenario,
   runSupabaseFinancialStateReaderV1_2Scenario,
+  runSupabaseFinancialStateReaderV1_3Scenario,
 } from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
@@ -55,10 +57,14 @@ export async function GET() {
   const firstForecastRiskPersistence = await runFirstForecastRiskPersistenceScenario();
   const criticalObligationsPersistence =
     await runCriticalObligationsPersistenceScenario();
+  const criticalSourcesPersistence =
+    await runCriticalSourcesPersistenceScenario();
   const supabaseFinancialStateReaderV1_1 =
     await runSupabaseFinancialStateReaderV1_1Scenario();
   const supabaseFinancialStateReaderV1_2 =
     await runSupabaseFinancialStateReaderV1_2Scenario();
+  const supabaseFinancialStateReaderV1_3 =
+    await runSupabaseFinancialStateReaderV1_3Scenario();
 
   const checks = [
     compact("pilot", scenario),
@@ -77,8 +83,10 @@ export async function GET() {
     compact("financial-state-api", financialStateApi),
     compact("first-forecast-risk-persistence", firstForecastRiskPersistence),
     compact("critical-obligations-persistence", criticalObligationsPersistence),
+    compact("critical-sources-persistence", criticalSourcesPersistence),
     compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
     compact("supabase-financial-state-reader-v1-2", supabaseFinancialStateReaderV1_2),
+    compact("supabase-financial-state-reader-v1-3", supabaseFinancialStateReaderV1_3),
   ];
 
   const failed = checks.filter((check) => !check.ok).map((check) => check.name);
