@@ -16,6 +16,10 @@ const LIQUID_TYPES = new Set<FinancialAccount["type"]>([
   "cash",
 ]);
 
+function isAuthoritativeOwnership(ownership: FinancialAccount["ownership"]) {
+  return ownership === "own" || ownership === "joint";
+}
+
 export function calculateUsableLiquidity(
   accounts: FinancialAccount[],
   currency: string,
@@ -32,7 +36,7 @@ export function calculateUsableLiquidity(
   for (const account of accounts) {
     if (
       account.currency !== currency ||
-      account.ownership === "external" ||
+      !isAuthoritativeOwnership(account.ownership) ||
       !LIQUID_TYPES.has(account.type)
     ) {
       excludedAccountIds.push(account.id);
@@ -47,12 +51,18 @@ export function calculateUsableLiquidity(
     }
 
     const balance = account.availableBalanceMinor ?? account.ledgerBalanceMinor;
-    if (balance === null || !Number.isFinite(balance)) {
+    if (balance === null || !Number.isSafeInteger(balance)) {
       staleAccountIds.push(account.id);
       continue;
     }
 
-    usableMinor += Math.max(0, Math.trunc(balance));
+    const nextUsableMinor = usableMinor + Math.max(0, balance);
+    if (!Number.isSafeInteger(nextUsableMinor)) {
+      staleAccountIds.push(account.id);
+      continue;
+    }
+
+    usableMinor = nextUsableMinor;
     includedAccountIds.push(account.id);
   }
 
@@ -62,6 +72,10 @@ export function calculateUsableLiquidity(
     includedAccountIds,
     staleAccountIds,
     excludedAccountIds,
-    sourcesFresh: staleAccountIds.length === 0,
+    // Freshness is not merely the absence of a stale row. EOS needs at least
+    // one authoritative, usable liquidity source before it may claim that the
+    // user's liquidity picture is current. Zero eligible sources is unknown,
+    // not fresh.
+    sourcesFresh: includedAccountIds.length > 0 && staleAccountIds.length === 0,
   };
 }
