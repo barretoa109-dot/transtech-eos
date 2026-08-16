@@ -20,3 +20,8 @@ export * from "./critical-obligations-persistence-scenario";
 export * from "./supabase-persistence-store-v1-2";
 export * from "./supabase-financial-state-reader-v1-2";
 export * from "./supabase-financial-state-reader-v1-2-scenario";
+export * from "./critical-sources-persistence";
+export * from "./critical-sources-persistence-scenario";
+export * from "./supabase-persistence-store-v1-3";
+export * from "./supabase-financial-state-reader-v1-3";
+export * from "./supabase-financial-state-reader-v1-3-scenario";
