@@ -97,28 +97,25 @@ export function runMultiProviderAnalysisScenario() {
     externalAccountId: "checking-b",
     connectionId: "connection-b",
   });
+  const entryA = entry({
+    id: "30000000-0000-4000-8000-000000000130",
+    accountId: accountA.id,
+    sourceEventId: "event-a",
+    externalTransactionId: "tx-a",
+  });
+  const entryB = entry({
+    id: "30000000-0000-4000-8000-000000000131",
+    accountId: accountB.id,
+    sourceEventId: "event-b",
+    externalTransactionId: "tx-b",
+  });
   const snapshotA = snapshot(
     "provider-a",
     accountA,
-    entry({
-      id: "30000000-0000-4000-8000-000000000130",
-      accountId: accountA.id,
-      sourceEventId: "event-a",
-      externalTransactionId: "tx-a",
-    }),
+    entryA,
     "2026-08-16T18:45:00.000Z",
   );
-  const snapshotB = snapshot(
-    "provider-b",
-    accountB,
-    entry({
-      id: "30000000-0000-4000-8000-000000000131",
-      accountId: accountB.id,
-      sourceEventId: "event-b",
-      externalTransactionId: "tx-b",
-    }),
-    NOW,
-  );
+  const snapshotB = snapshot("provider-b", accountB, entryB, NOW);
 
   const healthy = buildProviderPreservingFinancialAnalysisView({
     trustedUserId: USER_ID,
@@ -140,12 +137,7 @@ export function runMultiProviderAnalysisScenario() {
           {
             ...snapshotB,
             accounts: [{ ...accountB, id: accountA.id }],
-            ledgerEntries: [
-              {
-                ...snapshotB.ledgerEntries[0],
-                accountId: accountA.id,
-              },
-            ],
+            ledgerEntries: [{ ...entryB, accountId: accountA.id }],
           },
         ],
         nowIso: NOW,
@@ -161,9 +153,7 @@ export function runMultiProviderAnalysisScenario() {
           snapshotA,
           {
             ...snapshotB,
-            ledgerEntries: [
-              { ...snapshotB.ledgerEntries[0], id: snapshotA.ledgerEntries[0].id },
-            ],
+            ledgerEntries: [{ ...entryB, id: entryA.id }],
           },
         ],
         nowIso: NOW,
@@ -178,9 +168,7 @@ export function runMultiProviderAnalysisScenario() {
         snapshots: [
           {
             ...snapshotB,
-            ledgerEntries: [
-              { ...snapshotB.ledgerEntries[0], accountId: accountA.id },
-            ],
+            ledgerEntries: [{ ...entryB, accountId: accountA.id }],
           },
         ],
         nowIso: NOW,
@@ -220,24 +208,20 @@ export function runMultiProviderAnalysisScenario() {
       buildProviderPreservingFinancialAnalysisView({
         trustedUserId: USER_ID,
         snapshots: [
-          snapshotA,
           {
             ...snapshotA,
-            accounts: [
-              { ...accountA, id: "20000000-0000-4000-8000-000000000133" },
-            ],
             ledgerEntries: [
+              entryA,
               {
-                ...snapshotA.ledgerEntries[0],
+                ...entryA,
                 id: "30000000-0000-4000-8000-000000000133",
-                accountId: "20000000-0000-4000-8000-000000000133",
               },
             ],
           },
         ],
         nowIso: NOW,
       }),
-    "financial_multi_provider_duplicate_account_source",
+    "financial_multi_provider_duplicate_ledger_source",
   );
 
   const crossUserBlocked = catchesCode(
@@ -297,7 +281,7 @@ export function runMultiProviderAnalysisScenario() {
     duplicateLedgerIdFailsClosed: duplicateLedgerIdBlocked,
     ledgerCannotJumpProviderAccountScope: wrongAccountScopeBlocked,
     duplicateProviderScopedAccountFailsClosed: duplicateAccountSourceBlocked,
-    overlappingProviderSnapshotFailsBeforeDoubleCounting: duplicateLedgerSourceBlocked,
+    duplicateProviderLedgerSourceFailsClosed: duplicateLedgerSourceBlocked,
     crossUserAccountFailsAtSecurityBoundary: crossUserBlocked,
     futureSnapshotBeyondSkewFailsClosed: futureSnapshotBlocked,
   };
