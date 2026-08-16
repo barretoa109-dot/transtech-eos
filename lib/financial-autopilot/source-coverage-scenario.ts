@@ -119,6 +119,26 @@ export function runTrustedSourceCoverageScenario() {
     inventory: inventory([...expected].reverse()),
     nowIso: NOW,
   });
+  const staleCard = account("card-stale", "card-001", {
+    type: "card",
+    freshUntil: "2026-08-16T17:59:59.999Z",
+  });
+  const staleMaterialSource = resolveTrustedSourceCoverage({
+    trustedUserId: USER_ID,
+    snapshot: snapshot([checking, staleCard]),
+    inventory: inventory(expected),
+    nowIso: NOW,
+  });
+  const exactFreshnessBoundaryCard = account("card-boundary", "card-001", {
+    type: "card",
+    freshUntil: NOW,
+  });
+  const exactFreshnessBoundary = resolveTrustedSourceCoverage({
+    trustedUserId: USER_ID,
+    snapshot: snapshot([checking, exactFreshnessBoundaryCard]),
+    inventory: inventory(expected),
+    nowIso: NOW,
+  });
   const missingMaterial = resolveTrustedSourceCoverage({
     trustedUserId: USER_ID,
     snapshot: connected,
@@ -184,6 +204,15 @@ export function runTrustedSourceCoverageScenario() {
     inventory: inventory(expected),
     nowIso: NOW,
   });
+  const extraConnected = account("wallet-extra", "wallet-extra-001", {
+    type: "wallet",
+  });
+  const connectedSourceMissingFromInventory = resolveTrustedSourceCoverage({
+    trustedUserId: USER_ID,
+    snapshot: snapshot([checking, card, extraConnected]),
+    inventory: inventory(expected),
+    nowIso: NOW,
+  });
   const unknownOwnership = resolveTrustedSourceCoverage({
     trustedUserId: USER_ID,
     snapshot: snapshot([
@@ -239,19 +268,35 @@ export function runTrustedSourceCoverageScenario() {
   );
 
   const checks = {
-    trustedCompleteInventoryCanResolveComplete:
+    trustedCompleteInventoryCanResolveCompleteAndFresh:
       healthy.criticalSourcesComplete &&
+      healthy.criticalSourcesFresh &&
       healthy.expectedMaterialCount === 2 &&
       healthy.connectedMaterialCount === 2 &&
       healthy.missingMaterialCount === 0 &&
-      healthy.reasonCodes.length === 0,
-    optionalMissingSourceDoesNotBlockSafety: healthy.criticalSourcesComplete,
+      healthy.staleMaterialSourceCount === 0 &&
+      healthy.reasonCodes.length === 0 &&
+      healthy.freshnessReasonCodes.length === 0,
+    optionalMissingSourceDoesNotBlockSafety:
+      healthy.criticalSourcesComplete && healthy.criticalSourcesFresh,
     identityAndFingerprintAreOrderIndependent:
       healthy.inventoryFingerprint !== null &&
       healthy.inventoryFingerprint === reordered.inventoryFingerprint &&
-      reordered.criticalSourcesComplete,
+      reordered.criticalSourcesComplete &&
+      reordered.criticalSourcesFresh,
+    staleMaterialCardPreservesCoverageButFailsFreshness:
+      staleMaterialSource.criticalSourcesComplete &&
+      !staleMaterialSource.criticalSourcesFresh &&
+      staleMaterialSource.staleMaterialSourceCount === 1 &&
+      staleMaterialSource.freshnessReasonCodes.includes(
+        "material_source_stale_or_unknown",
+      ),
+    exactMaterialFreshnessBoundaryRemainsFresh:
+      exactFreshnessBoundary.criticalSourcesComplete &&
+      exactFreshnessBoundary.criticalSourcesFresh,
     missingMaterialSourceFailsClosed:
       !missingMaterial.criticalSourcesComplete &&
+      !missingMaterial.criticalSourcesFresh &&
       missingMaterial.missingMaterialCount === 1 &&
       missingMaterial.reasonCodes.includes("material_source_missing"),
     unresolvedMaterialHintFailsClosed:
@@ -279,6 +324,11 @@ export function runTrustedSourceCoverageScenario() {
     duplicateConnectedIdentityFailsClosed:
       !duplicateConnected.criticalSourcesComplete &&
       duplicateConnected.reasonCodes.includes("duplicate_connected_source_identity"),
+    connectedSourceMissingFromInventoryFailsClosed:
+      !connectedSourceMissingFromInventory.criticalSourcesComplete &&
+      connectedSourceMissingFromInventory.reasonCodes.includes(
+        "connected_source_not_in_inventory",
+      ),
     unknownOwnershipCannotSatisfyCoverage:
       !unknownOwnership.criticalSourcesComplete &&
       unknownOwnership.reasonCodes.includes("material_source_missing"),
@@ -287,6 +337,7 @@ export function runTrustedSourceCoverageScenario() {
       wrongProviderIdentity.reasonCodes.includes("material_source_missing"),
     explicitEmptyInventoryCanBeCompleteAtCoverageLayer:
       explicitlyEmptyInventory.criticalSourcesComplete &&
+      explicitlyEmptyInventory.criticalSourcesFresh &&
       explicitlyEmptyInventory.expectedMaterialCount === 0 &&
       explicitlyEmptyInventory.connectedSourceCount === 0,
     crossUserAccountFailsAtSecurityBoundary: crossUserAccountBlocked,
@@ -297,8 +348,10 @@ export function runTrustedSourceCoverageScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy,
+    staleMaterialSource,
     missingMaterial,
     unresolvedHint,
+    connectedSourceMissingFromInventory,
     staleInventory,
   };
 }
