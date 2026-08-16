@@ -8,6 +8,7 @@ const ACCOUNT_ID = "20000000-0000-4000-8000-000000000050";
 const SAVINGS_ACCOUNT_ID = "20000000-0000-4000-8000-000000000051";
 const CONNECTION_ID = "10000000-0000-4000-8000-000000000050";
 const AS_OF = "2026-08-16T12:00:00.000Z";
+const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 function account(balanceMinor = 8000000): FinancialAccount {
   return {
@@ -188,6 +189,17 @@ export async function runPersistenceScenario() {
     exactReplayProducesSamePlan: JSON.stringify(first.plan) === JSON.stringify(replay.plan),
     inputOrderDoesNotChangePlan:
       JSON.stringify(first.plan) === JSON.stringify(reordered.plan),
+    compactSha256Fingerprints:
+      SHA256_HEX.test(first.plan.contextInsert.sourceFingerprint) &&
+      first.plan.contextInsert.revision === `ctx:${first.plan.contextInsert.sourceFingerprint}` &&
+      first.plan.ingestionEventUpserts.every(
+        (event) => SHA256_HEX.test(event.sourceFingerprint) && SHA256_HEX.test(event.payloadHash),
+      ) &&
+      first.plan.reconciliationInserts.every((reconciliation) =>
+        SHA256_HEX.test(reconciliation.signature),
+      ),
+    sha256FingerprintStableAcrossInputOrder:
+      first.plan.contextInsert.sourceFingerprint === reordered.plan.contextInsert.sourceFingerprint,
     balanceChangeChangesContextFingerprint:
       first.plan.contextInsert.sourceFingerprint !== changedBalance.plan.contextInsert.sourceFingerprint,
     everyLedgerRowHasIngestionSource:
@@ -263,6 +275,13 @@ export async function runPersistenceScenario() {
       reconciliations: first.plan.reconciliationInserts.length,
       recurrences: first.plan.recurrenceUpserts.length,
       obligations: first.plan.obligationUpserts.length,
+    },
+    identity: {
+      contextFingerprint: first.plan.contextInsert.sourceFingerprint,
+      contextRevision: first.plan.contextInsert.revision,
+      reconciliationSignature: internalTransfer?.signature ?? null,
+      ingestionSourceFingerprint: first.plan.ingestionEventUpserts[0]?.sourceFingerprint ?? null,
+      ingestionPayloadHash: first.plan.ingestionEventUpserts[0]?.payloadHash ?? null,
     },
     reconciliation: internalTransfer ?? null,
     persistence: {
