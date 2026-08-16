@@ -186,16 +186,22 @@ export function classifyEconomicEffect(
   }
 }
 
-function ignoredLifecycleEntryIds(reconciliations: ReconciliationMatch[]) {
+function ignoredLifecycleEntryIds(
+  entriesById: ReadonlyMap<string, LedgerEntry>,
+  reconciliations: ReconciliationMatch[],
+) {
   const ignored = new Set<string>();
   for (const match of reconciliations) {
     if (match.type === "duplicate") {
-      // Preserve the first observed record and suppress later replay copies.
       match.entryIds.slice(1).forEach((id) => ignored.add(id));
     }
     if (match.type === "pending_to_posted") {
-      // Posted is the economic source of truth. Caller input may be unordered,
-      // so pending entries are also filtered by status below.
+      for (const id of match.entryIds) {
+        if (entriesById.get(id)?.status === "pending") ignored.add(id);
+      }
+    }
+    if (match.type === "reversal_match") {
+      // Both source rows remain auditable, but their economic effect nets to zero.
       match.entryIds.forEach((id) => ignored.add(id));
     }
   }
@@ -209,7 +215,8 @@ export function summarizeEconomicActivity(
   reconciliations: ReconciliationMatch[] = [],
 ): EconomicActivitySummary {
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
-  const ignored = ignoredLifecycleEntryIds(reconciliations);
+  const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+  const ignored = ignoredLifecycleEntryIds(entriesById, reconciliations);
   const effects: EconomicEffect[] = [];
 
   for (const entry of entries) {
