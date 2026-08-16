@@ -22,6 +22,7 @@ export interface BuildFinancialContextInput {
   criticalProvisionsMinor: number;
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
+  criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
   confidence: FinancialContextConfidence;
   safeConfidenceThreshold?: number;
@@ -79,6 +80,7 @@ export function buildFinancialContext(input: BuildFinancialContextInput): BuiltF
     uncertaintyBufferMinor: input.uncertaintyBufferMinor,
     minimumProjectedCashMinor: forecast.minimumProjectedCashMinor,
     sourcesFresh: liquidity.sourcesFresh,
+    criticalSourcesComplete: input.criticalSourcesComplete,
     criticalObligationsComplete: input.criticalObligationsComplete,
     confidence: input.confidence,
     safeConfidenceThreshold: input.safeConfidenceThreshold,
