@@ -22,7 +22,7 @@ export async function GET() {
   const forecastHorizons = runForecastHorizonScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
-  const persistence = runPersistenceScenario();
+  const persistence = await runPersistenceScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
