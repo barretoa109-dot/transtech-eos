@@ -97,45 +97,62 @@ Therefore global evidence can never outlive any trusted component that justified
 
 ## Provider-preserving orchestration
 
-The provider-preserving multi-snapshot layer now exists.
-
 `buildProviderPreservingFinancialAnalysisView` combines accounts and Ledger rows for analysis while retaining explicit provider origin for every account and transaction. It rejects global ID collisions, provider-scoped account duplication, duplicate transaction-source identity and cross-provider account jumps instead of inventing a synthetic provider.
 
-`orchestrateTrustedGlobalFinancialSources` then binds the exact global coverage commitment to the exact provider-preserving analysis fingerprint. This prevents a future caller from proving coverage over provider set A+B and then analyzing a different set A+C.
+`orchestrateTrustedGlobalFinancialSources` binds the exact global coverage commitment to the exact provider-preserving analysis fingerprint. This prevents a caller from proving coverage over provider set A+B and then analyzing a different set A+C.
 
 A structurally incomplete global coverage result cannot produce an orchestration fingerprint. Complete-but-stale coverage may retain structural identity, but freshness remains independently unsafe and changes the provider analysis/orchestration material.
 
-## Current implementation boundary
+## Global Zero Entry is now wired
 
-The remaining boundary is Zero Entry/persistence integration.
+`buildZeroEntryFinancialAutopilotFromGlobalSources` now consumes that orchestration directly.
 
-The existing Zero Entry and v1 persistence contracts still accept a single `FinancialConnectorSnapshot`. Canonical persistence identities are provider-scoped, so Bank A + Bank B must **not** be flattened into a synthetic snapshot and sent to the existing persistence builder.
+It runs reconciliation, recurrence/pattern inference, obligations, essential spend, confirmed-income horizon, liquidity, Available Real, 30/60/90 forecasting and Next Best Financial Action across the provider-preserving combined view.
 
-The next safe refactor is to let Zero Entry analysis consume the provider-preserving analysis view while persistence continues to write each original provider snapshot under its original provider + connection identity. See `MULTI_PROVIDER_ANALYSIS_V1_3.md`.
+The result is explicitly marked `analysisScope = "multi_provider"` and carries the source orchestration fingerprint.
+
+A stale non-liquidity source at one provider still forces the normal freshness degradation. An incomplete scoped inventory forces `criticalSourcesComplete = false`, so global Zero Entry cannot claim SAFE.
+
+## Persistence boundary
+
+The existing v1 persistence builder remains intentionally single-provider and now hard-rejects multi-provider Zero Entry results before any persistence plan can be built:
+
+`financial_multi_provider_requires_scoped_persistence`
+
+That prevents Bank B-derived analysis from being flattened under Bank A's `providerKey`.
+
+`buildMultiProviderPersistenceManifest` now provides the next design-only hand-off. It binds original provider snapshots, provider-scoped canonical Ledger identities, global source orchestration and the exact global Zero Entry result into one deterministic manifest. It writes nothing.
+
+See:
+
+- `MULTI_PROVIDER_ANALYSIS_V1_3.md`;
+- `MULTI_PROVIDER_PERSISTENCE_MANIFEST_V1_3.md`.
+
+The next actual persistence generation must write each original provider scope independently and one separately bound global context. No synthetic merged provider snapshot is allowed.
 
 ## Scenario coverage
 
-The dedicated scenarios prove:
+The preview-only scenarios now prove:
 
-- two provider-scoped inventories can become globally complete only through an independent closure;
-- aggregation identity is order-independent;
+- multiple provider-scoped inventories require an independent global closure;
+- global coverage identity is order-independent;
+- closure cannot pre-date the evidence it binds;
 - stale known sources keep coverage complete but freshness false;
 - incomplete leaf coverage fails global closure;
-- closure must bind the exact leaf set;
-- non-exhaustive, weak-confidence and expired closures fail closed;
 - provider authority cannot impersonate the independent global closer;
-- provider self-asserted global leaf evidence is rejected;
 - overlapping source identities fail closed;
-- owner mismatch fails at the security boundary;
-- a closure at the exact leaf evidence timestamp is valid, while a closure even 1 ms earlier fails closed with `global_closure_predates_evidence`;
 - multi-provider analysis preserves provider origin and rejects double-counting identities;
-- global coverage + provider analysis are committed into one orchestration identity.
+- global coverage + provider analysis are committed into one orchestration identity;
+- global Zero Entry can reach normal SAFE/NO_ACTION semantics when evidence is complete/fresh;
+- stale/incomplete provider evidence degrades global Zero Entry;
+- single-provider persistence rejects a global result before flattening;
+- the persistence manifest binds the exact provider scopes and global result and rejects result substitution.
 
 The scenarios are included in the preview-only Financial Autopilot smoke route.
 
 ## Production boundary
 
-No production schema/RPC change is introduced by this aggregator or orchestration layer.
+No production schema/RPC change is introduced by this aggregator, orchestration, global Zero Entry analysis or persistence-manifest layer.
 
 No real provider connection is added. No production Supabase financial table is written. No autonomous financial action or money movement is introduced.
 
