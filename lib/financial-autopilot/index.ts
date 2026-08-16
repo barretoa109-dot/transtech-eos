@@ -30,6 +30,7 @@ export * from "./economic-scenario";
 export * from "./behavior-scenario";
 export * from "./forecast-horizon-scenario";
 export * from "./zero-entry-scenario";
+export * from "./global-zero-entry-scenario";
 export * from "./csv-import-scenario";
 export * from "./financial-state-scenario";
 export * from "./financial-surface-scenario";
