@@ -3,10 +3,12 @@ import {
   classifyFinancialStateReadFailure,
   financialStateApiHeaders,
   isFinancialStateApiEnabled,
+  isFinancialStateV1_2Enabled,
 } from "@/lib/financial-autopilot/financial-state-api-policy";
 import {
   resolveFinancialState,
   SupabaseFinancialStateReaderV1_1,
+  SupabaseFinancialStateReaderV1_2,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -36,7 +38,13 @@ export async function GET() {
       );
     }
 
-    const reader = new SupabaseFinancialStateReaderV1_1(supabase, user.id);
+    // v1.2 is a second exact-true, server-only rollout gate. It must remain off
+    // until its schema/RPC draft has passed non-production Postgres validation.
+    // If enabled without the required column, the v1.2 reader fails closed and
+    // this route returns 503 rather than falling back to a less strict reader.
+    const reader = isFinancialStateV1_2Enabled()
+      ? new SupabaseFinancialStateReaderV1_2(supabase, user.id)
+      : new SupabaseFinancialStateReaderV1_1(supabase, user.id);
     const resolution = await resolveFinancialState({
       trustedUserId: user.id,
       reader,
