@@ -1,4 +1,7 @@
 import { inferFinancialPatterns, materializePatternForecast } from "./behavior";
+import {
+  calculateFinancialConfidenceOverall,
+} from "./confidence-contract";
 import { buildFinancialContext, type BuiltFinancialContext } from "./context";
 import { generateFinancialDecisionCandidates } from "./decision-candidates";
 import { selectNextBestFinancialAction, type NextBestFinancialAction } from "./decision";
@@ -100,13 +103,13 @@ function deriveConfidence(input: {
   );
   const obligationCompleteness = input.criticalObligationsComplete ? 0.96 : 0.5;
   const reconciliationQuality = input.reconciliationQuality;
-  const overall = clamp01(
-    0.3 * sourceFreshness +
-      0.2 * incomePredictability +
-      0.2 * expensePredictability +
-      0.2 * obligationCompleteness +
-      0.1 * reconciliationQuality,
-  );
+  const overall = calculateFinancialConfidenceOverall({
+    sourceFreshness,
+    incomePredictability,
+    expensePredictability,
+    obligationCompleteness,
+    reconciliationQuality,
+  });
 
   return {
     sourceFreshness,
