@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  classifyFinancialStateReadFailure,
   financialStateApiHeaders,
   isFinancialStateApiEnabled,
 } from "@/lib/financial-autopilot/financial-state-api-policy";
@@ -44,8 +45,11 @@ export async function GET() {
 
     return NextResponse.json(resolution, { status: 200, headers });
   } catch (error) {
+    // Never log raw provider/database error messages from the user-facing
+    // finance route. Keep telemetry useful while avoiding SQL/provider detail
+    // disclosure in server logs.
     console.error("Financial State v1 read failed", {
-      code: error instanceof Error ? error.message : "unknown",
+      category: classifyFinancialStateReadFailure(error),
     });
 
     return NextResponse.json(
