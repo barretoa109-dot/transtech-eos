@@ -6,6 +6,28 @@ export function isFinancialStateApiEnabled(
   return env[FINANCIAL_STATE_API_FLAG] === "true";
 }
 
+export function isFinancialStateDemoAllowed(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  const vercelEnv = env.VERCEL_ENV;
+
+  if (vercelEnv === "preview" || vercelEnv === "development") {
+    return true;
+  }
+
+  if (vercelEnv === "production") {
+    return false;
+  }
+
+  return env.NODE_ENV !== "production";
+}
+
+export function isFinancialStateSurfaceVisible(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  return isFinancialStateApiEnabled(env) || isFinancialStateDemoAllowed(env);
+}
+
 export function financialStateApiHeaders() {
   return {
     "Cache-Control": "private, no-store, max-age=0",
