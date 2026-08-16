@@ -146,6 +146,7 @@ export interface ReconciliationMatch {
   entryIds: string[];
   confidence: number;
   reasonCode: string;
+  matchedAmountMinor?: number;
 }
 
 export interface FinancialConnectorSnapshot {
