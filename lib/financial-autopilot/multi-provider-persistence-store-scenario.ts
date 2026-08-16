@@ -3,6 +3,7 @@ import {
   type TrustedGlobalSourceClosure,
   type TrustedScopedSourceBundle,
 } from "./global-source-coverage";
+import { buildMultiProviderGlobalContextCommitFromPlan } from "./global-context-commit";
 import { InMemoryMultiProviderPersistenceStore } from "./multi-provider-persistence-store";
 import { buildMultiProviderScopedPersistencePlan } from "./multi-provider-scoped-persistence";
 import {
@@ -222,6 +223,10 @@ function catchesCode(work: () => Promise<unknown>, code: string) {
 export async function runMultiProviderPersistenceStoreScenario() {
   const store = new InMemoryMultiProviderPersistenceStore(USER_ID);
   const basePlan = planFor(fixtures());
+  const expectedCommit = buildMultiProviderGlobalContextCommitFromPlan({
+    trustedUserId: USER_ID,
+    plan: basePlan,
+  });
   const first = await store.persist(basePlan);
   const countsAfterFirst = store.snapshotCounts();
   const replay = await store.persist(basePlan);
@@ -273,23 +278,32 @@ export async function runMultiProviderPersistenceStoreScenario() {
       !first.replayed &&
       first.providerScopesTouched === 2 &&
       first.globalContextRevision === basePlan.globalContextPlan?.revision,
+    authoritativeCommitMarkerIsWrittenLastDomainMarker:
+      expectedCommit !== null &&
+      first.globalContextCommitFingerprint === expectedCommit.commitFingerprint &&
+      countsAfterFirst.globalContexts === 1 &&
+      countsAfterFirst.globalContextCommits === 1,
     exactReplayIsNoOp:
       replay.replayed &&
       replay.providerScopesTouched === 0 &&
       replay.ledgerRowsTouched === 0 &&
       replay.ingestionRowsTouched === 0 &&
+      replay.globalContextCommitFingerprint ===
+        first.globalContextCommitFingerprint &&
       JSON.stringify(countsAfterFirst) === JSON.stringify(countsAfterReplay),
     immutableProviderEventConflictFailsClosed: conflictBlocked,
     conflictRollsBackAllStagedProviderChanges:
       JSON.stringify(countsAfterFirst) === JSON.stringify(countsAfterConflict),
     crossUserPlanFailsBeforeMutation: crossUserBlocked,
     globalContextMaterialTamperFailsIdentityCheck: contextTamperBlocked,
-    incompleteGlobalCoveragePersistsProvidersWithoutGlobalContext:
+    incompleteGlobalCoveragePersistsProvidersWithoutGlobalContextOrCommit:
       incompletePlan.providerPlans.length === 2 &&
       incompletePlan.globalContextPlan === null &&
       incompletePersist.globalContextRevision === null &&
+      incompletePersist.globalContextCommitFingerprint === null &&
       incompleteStore.snapshotCounts().providerScopes === 2 &&
-      incompleteStore.snapshotCounts().globalContexts === 0,
+      incompleteStore.snapshotCounts().globalContexts === 0 &&
+      incompleteStore.snapshotCounts().globalContextCommits === 0,
   };
 
   return {
