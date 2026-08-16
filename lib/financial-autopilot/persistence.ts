@@ -59,6 +59,8 @@ export interface FinancialIngestionEventUpsert {
 
 export interface FinancialLedgerUpsert {
   userId: string;
+  providerKey: string;
+  connectionKey: string;
   accountExternalId: string;
   sourceEventKey: string;
   canonicalKey: string;
@@ -164,6 +166,12 @@ export interface FinancialPersistencePlan {
   contextInsert: FinancialContextInsert;
 }
 
+export interface FinancialLedgerIdentity {
+  providerKey: string;
+  connectionKey: string;
+  externalAccountId: string;
+}
+
 function normalizeString(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -174,17 +182,30 @@ function accountMap(snapshot: FinancialConnectorSnapshot) {
 
 export function financialLedgerCanonicalKey(
   entry: LedgerEntry,
-  externalAccountId = entry.accountId,
+  identity: FinancialLedgerIdentity,
 ) {
-  const accountKey = normalizeString(externalAccountId);
+  const scope = {
+    providerKey: normalizeString(identity.providerKey),
+    connectionKey: normalizeString(identity.connectionKey),
+    externalAccountId: normalizeString(identity.externalAccountId),
+  };
+
   if (entry.externalTransactionId) {
-    return `external:${accountKey}:${normalizeString(entry.externalTransactionId)}`;
+    return `ext:${sha256FinancialFingerprint({
+      ...scope,
+      externalTransactionId: normalizeString(entry.externalTransactionId),
+    })}`;
   }
+
   if (entry.sourceEventId) {
-    return `source:${accountKey}:${normalizeString(entry.sourceEventId)}`;
+    return `src:${sha256FinancialFingerprint({
+      ...scope,
+      sourceEventId: normalizeString(entry.sourceEventId),
+    })}`;
   }
-  return `fallback:${sha256FinancialFingerprint({
-    accountKey,
+
+  return `fp:${sha256FinancialFingerprint({
+    ...scope,
     occurredAt: entry.occurredAt,
     direction: entry.direction,
     amountMinor: entry.amountMinor,
@@ -236,6 +257,17 @@ function earliestIso(values: Array<string | null | undefined>, fallback: string)
   return valid?.value ?? fallback;
 }
 
+function ledgerIdentity(
+  snapshot: FinancialConnectorSnapshot,
+  account: FinancialAccount,
+): FinancialLedgerIdentity {
+  return {
+    providerKey: snapshot.providerKey,
+    connectionKey: account.connectionId,
+    externalAccountId: account.externalAccountId,
+  };
+}
+
 export function buildFinancialPersistencePlan(input: {
   snapshot: FinancialConnectorSnapshot;
   result: ZeroEntryAutopilotResult;
@@ -254,7 +286,7 @@ export function buildFinancialPersistencePlan(input: {
     snapshot.ledgerEntries.map((entry) => {
       const account = accountsById.get(entry.accountId);
       if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
-      return [entry.id, financialLedgerCanonicalKey(entry, account.externalAccountId)];
+      return [entry.id, financialLedgerCanonicalKey(entry, ledgerIdentity(snapshot, account))];
     }),
   );
 
@@ -346,9 +378,11 @@ export function buildFinancialPersistencePlan(input: {
       if (!account) throw new Error(`ledger entry ${entry.id} references missing account`);
       return {
         userId,
+        providerKey: snapshot.providerKey,
+        connectionKey: account.connectionId,
         accountExternalId: account.externalAccountId,
         sourceEventKey: entry.sourceEventId,
-        canonicalKey: financialLedgerCanonicalKey(entry, account.externalAccountId),
+        canonicalKey: financialLedgerCanonicalKey(entry, ledgerIdentity(snapshot, account)),
         externalTransactionId: entry.externalTransactionId,
         transactionType: entry.type,
         direction: entry.direction,
