@@ -1,3 +1,4 @@
+import { DEFAULT_SAFE_FINANCIAL_CONFIDENCE_THRESHOLD } from "./confidence-contract";
 import type { AvailableRealInput, AvailableRealResult } from "./types";
 
 function assertFiniteNonNegative(name: string, value: number) {
@@ -7,7 +8,8 @@ function assertFiniteNonNegative(name: string, value: number) {
 }
 
 export function calculateAvailableReal(input: AvailableRealInput): AvailableRealResult {
-  const threshold = input.safeConfidenceThreshold ?? 0.8;
+  const threshold =
+    input.safeConfidenceThreshold ?? DEFAULT_SAFE_FINANCIAL_CONFIDENCE_THRESHOLD;
 
   const numericFields: Array<[string, number]> = [
     ["liquidityUsableMinor", input.liquidityUsableMinor],
