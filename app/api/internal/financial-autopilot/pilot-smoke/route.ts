@@ -4,6 +4,7 @@ import {
   runCsvImportScenario,
   runEconomicSemanticsScenario,
   runFinancialStateScenario,
+  runFinancialSurfaceScenario,
   runForecastHorizonScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
@@ -32,6 +33,7 @@ export async function GET() {
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
+  const financialSurface = runFinancialSurfaceScenario();
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
   const financialStateResolver = await runFinancialStateResolverScenario();
@@ -48,6 +50,7 @@ export async function GET() {
     zeroEntry.ok &&
     csvImport.ok &&
     financialState.ok &&
+    financialSurface.ok &&
     persistence.ok &&
     persistenceRpc.ok &&
     financialStateResolver.ok &&
@@ -66,6 +69,7 @@ export async function GET() {
       zeroEntry,
       csvImport,
       financialState,
+      financialSurface,
       persistence,
       persistenceRpc,
       financialStateResolver,
