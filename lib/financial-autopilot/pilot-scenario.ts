@@ -86,6 +86,7 @@ export function runPyPilotScenario() {
     criticalProvisionsMinor: 500000,
     confirmedIncomeMinor: 0,
     uncertaintyBufferMinor: 400000,
+    criticalSourcesComplete: true,
     criticalObligationsComplete: true,
     confidence: {
       sourceFreshness: 0.99,
@@ -141,6 +142,18 @@ export function runPyPilotScenario() {
     }),
   );
 
+  const incompleteSourcesContext = buildFinancialContext({
+    ...contextInput,
+    criticalSourcesComplete: false,
+  });
+  const incompleteSourcesAction = selectNextBestFinancialAction(
+    incompleteSourcesContext.available.status,
+    generateFinancialDecisionCandidates({
+      financialContext: incompleteSourcesContext,
+      protectedReserveMinor: contextInput.protectedReserveMinor,
+    }),
+  );
+
   const stressedAccounts = snapshot.accounts.map((account, index) => ({
     ...account,
     availableBalanceMinor: index === 0 ? 3000000 : 1000000,
@@ -175,6 +188,11 @@ export function runPyPilotScenario() {
     staleSourcesDegrade:
       degradedContext.available.status === "DEGRADED" &&
       degradedAction.outcome === "CONNECTION_REQUIRED",
+    freshButIncompleteSourceCoverageDegrades:
+      incompleteSourcesContext.sourcesFresh === true &&
+      incompleteSourcesContext.available.status === "DEGRADED" &&
+      incompleteSourcesContext.available.degradedReasons.includes("critical_sources_incomplete") &&
+      incompleteSourcesAction.outcome === "CONNECTION_REQUIRED",
     realConflictRequestsOneDecision:
       actionRequiredContext.available.status === "ACTION_REQUIRED" &&
       actionRequiredCandidates.length === 1 &&
@@ -192,9 +210,11 @@ export function runPyPilotScenario() {
       unsafePurchase,
     },
     degradedContext,
+    incompleteSourcesContext,
     actionRequiredContext,
     nextAction,
     degradedAction,
+    incompleteSourcesAction,
     actionRequiredDecision,
   };
 }
