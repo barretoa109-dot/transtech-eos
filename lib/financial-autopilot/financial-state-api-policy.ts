@@ -1,5 +1,6 @@
 export const FINANCIAL_STATE_API_FLAG = "EOS_FINANCIAL_STATE_V1_ENABLED";
 export const FINANCIAL_STATE_V1_2_FLAG = "EOS_FINANCIAL_STATE_V1_2_ENABLED";
+export const FINANCIAL_STATE_V1_3_FLAG = "EOS_FINANCIAL_STATE_V1_3_ENABLED";
 
 export const FINANCIAL_STATE_DEMO_KINDS = [
   "safe",
@@ -56,12 +57,23 @@ export function isFinancialStateApiEnabled(
 /**
  * Secondary, server-only rollout switch for the v1.2 persisted critical-
  * obligation completeness contract. It never enables the API by itself; the
- * primary Financial State API flag must already be on.
+ * primary Financial State API flag must already be on at the route boundary.
  */
 export function isFinancialStateV1_2Enabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
   return env[FINANCIAL_STATE_V1_2_FLAG] === "true";
+}
+
+/**
+ * Tertiary rollout switch for v1.3 source coverage. The route requires v1.2
+ * before it may select v1.3, preventing a newer read contract from skipping
+ * the critical-obligation gate it is layered on top of.
+ */
+export function isFinancialStateV1_3Enabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  return env[FINANCIAL_STATE_V1_3_FLAG] === "true";
 }
 
 export function isFinancialStateDemoAllowed(
