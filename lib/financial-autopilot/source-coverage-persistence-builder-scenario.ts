@@ -57,6 +57,7 @@ function inventory(
     asOf: AS_OF,
     validUntil,
     authority: "provider_discovery",
+    scope: "global_user_finances",
     discoveryComplete: true,
     confidence: 0.99,
     unresolvedMaterialSourceCount: 0,
@@ -103,6 +104,7 @@ export function runSourceCoveragePersistenceBuilderScenario() {
   const checks = {
     resolverProducesCompleteCoverage:
       first.result.sourceCoverage.criticalSourcesComplete === true &&
+      first.result.sourceCoverage.criticalSourcesFresh === true &&
       first.result.sourceCoverage.inventoryFingerprint !== null,
     v1_3PersistsDerivedBoolean:
       first.plan.contextInsert.criticalSourcesComplete === true,
