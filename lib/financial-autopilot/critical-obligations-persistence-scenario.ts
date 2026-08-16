@@ -16,7 +16,10 @@ const OTHER_USER_ID = "00000000-0000-4000-8000-000000000097";
 const BASE_FINGERPRINT = "2".repeat(64);
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 
-function basePlan(userId = USER_ID): FinancialPersistencePlan {
+function basePlan(
+  userId = USER_ID,
+  criticalObligationsComplete = true,
+): FinancialPersistencePlan {
   return {
     version: "financial-persistence-plan-v1",
     userId,
@@ -33,7 +36,7 @@ function basePlan(userId = USER_ID): FinancialPersistencePlan {
       revision: `ctx:${BASE_FINGERPRINT}`,
       sourceFingerprint: BASE_FINGERPRINT,
       currency: "PYG",
-      status: "SAFE",
+      status: criticalObligationsComplete ? "SAFE" : "DEGRADED",
       horizonUntil: "2026-09-01T12:00:00.000Z",
       horizonReason: "rolling_fallback",
       liquidityUsableMinor: 8000000,
@@ -50,9 +53,9 @@ function basePlan(userId = USER_ID): FinancialPersistencePlan {
         sourceFreshness: 0.98,
         incomePredictability: 0.95,
         expensePredictability: 0.82,
-        obligationCompleteness: 0.96,
+        obligationCompleteness: criticalObligationsComplete ? 0.96 : 0.5,
         reconciliationQuality: 1,
-        overall: 0.94,
+        overall: criticalObligationsComplete ? 0.94 : 0.848,
       },
       explanationRefs: [],
       sourcesFresh: true,
@@ -62,9 +65,12 @@ function basePlan(userId = USER_ID): FinancialPersistencePlan {
   };
 }
 
-function v1_1Plan(userId = USER_ID) {
+function v1_1Plan(
+  userId = USER_ID,
+  criticalObligationsComplete = true,
+) {
   return upgradeFinancialPersistencePlanWithFirstForecastRisk({
-    plan: basePlan(userId),
+    plan: basePlan(userId, criticalObligationsComplete),
     firstRisk: null,
   });
 }
@@ -127,9 +133,18 @@ export async function runCriticalObligationsPersistenceScenario() {
     criticalObligationsComplete: true,
   });
   const incomplete = upgradeFinancialPersistencePlanWithCriticalObligations({
-    plan: v1_1Plan(),
+    plan: v1_1Plan(USER_ID, false),
     criticalObligationsComplete: false,
   });
+
+  const inconsistentSafeIncompleteBlocked = await catchesCode(
+    () =>
+      upgradeFinancialPersistencePlanWithCriticalObligations({
+        plan: v1_1Plan(),
+        criticalObligationsComplete: false,
+      }),
+    "financial_persistence_critical_obligations_conflict_with_status",
+  );
 
   const malformedBooleanBlocked = await catchesCode(
     () => parsePersistedCriticalObligationsComplete("true"),
@@ -184,6 +199,10 @@ export async function runCriticalObligationsPersistenceScenario() {
     explicitBooleanPersisted:
       complete.contextInsert.criticalObligationsComplete === true &&
       incomplete.contextInsert.criticalObligationsComplete === false,
+    incompleteContextMustAlreadyBeDegraded:
+      incomplete.contextInsert.status === "DEGRADED",
+    safeCannotPersistIncompleteCriticalObligations:
+      inconsistentSafeIncompleteBlocked,
     completenessCommitsToContextIdentity:
       completenessRefs.length === 1 &&
       SHA256_HEX.test(complete.contextInsert.sourceFingerprint) &&
@@ -192,7 +211,7 @@ export async function runCriticalObligationsPersistenceScenario() {
     exactInputProducesExactIdentity:
       complete.contextInsert.sourceFingerprint ===
         replay.contextInsert.sourceFingerprint,
-    booleanChangeChangesContextRevision:
+    completeAndIncompleteContextsHaveDifferentRevision:
       complete.contextInsert.revision !== incomplete.contextInsert.revision,
     malformedBooleanFailsClosed: malformedBooleanBlocked,
     aggregateIntegrityIsRequired: missingAggregateIntegrityBlocked,
