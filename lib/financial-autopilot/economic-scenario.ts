@@ -1,4 +1,5 @@
 import { summarizeEconomicActivity } from "./economic-impact";
+import { calculateCardLiability } from "./liabilities";
 import { findDeterministicReconciliations } from "./reconciliation";
 import type { FinancialAccount, LedgerEntry } from "./types";
 
@@ -76,8 +77,11 @@ export function runEconomicSemanticsScenario() {
   const entries: LedgerEntry[] = [
     entry("salary", CHECKING_ID, "income", "credit", 9000000, "2026-08-01T12:00:00.000Z"),
     entry("card-purchase", CARD_ID, "expense", "debit", 1200000, "2026-08-02T12:00:00.000Z"),
+    entry("card-purchase-2", CARD_ID, "expense", "debit", 800000, "2026-08-03T09:00:00.000Z"),
     entry("card-refund", CARD_ID, "refund", "credit", 200000, "2026-08-03T12:00:00.000Z"),
-    entry("card-payment", CHECKING_ID, "card_payment", "debit", 1000000, "2026-08-10T12:00:00.000Z"),
+    entry("card-payment", CHECKING_ID, "card_payment", "debit", 1000000, "2026-08-10T12:00:00.000Z", {
+      counterpartyRef: `card:${CARD_ID}`,
+    }),
     entry("transfer-out", CHECKING_ID, "internal_transfer", "debit", 500000, "2026-08-11T12:00:00.000Z"),
     entry("transfer-in", SAVINGS_ID, "internal_transfer", "credit", 500000, "2026-08-11T12:00:03.000Z"),
     entry("loan-draw", CHECKING_ID, "debt_draw", "credit", 3000000, "2026-08-12T12:00:00.000Z"),
@@ -99,13 +103,21 @@ export function runEconomicSemanticsScenario() {
 
   const reconciliation = findDeterministicReconciliations(entries);
   const summary = summarizeEconomicActivity(entries, accounts, "PYG", reconciliation);
+  const cardLiability = calculateCardLiability(
+    CARD_ID,
+    entries,
+    "PYG",
+    "2026-08-16T01:00:00.000Z",
+  );
 
   const checks = {
-    cardPurchaseCountedOnce: summary.expenseMinor === 1650000,
+    cardPurchasesCountedAsConsumption: summary.expenseMinor === 2450000,
     cardPaymentNotDoubleCounted:
       summary.effects.find((effect) => effect.entryId === "card-payment")?.expenseMinor === 0,
     refundOffsetsConsumption: summary.refundMinor === 200000,
-    netConsumptionIs1450000: summary.netConsumptionMinor === 1450000,
+    netConsumptionIs2250000: summary.netConsumptionMinor === 2250000,
+    cardOutstandingIs800000: cardLiability.outstandingMinor === 800000,
+    cardPaymentReducesLiability: cardLiability.paymentsMinor === 1000000,
     loanDrawIsNotIncome: summary.incomeMinor === 9000000,
     ownTransferIsNotConsumption:
       summary.effects
@@ -127,5 +139,6 @@ export function runEconomicSemanticsScenario() {
     checks,
     reconciliation,
     summary,
+    cardLiability,
   };
 }
