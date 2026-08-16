@@ -258,6 +258,57 @@ function assertObligations(
   }
 }
 
+function protectedObligations(obligations: FinancialObligation[]) {
+  return obligations.filter(
+    (obligation) => obligation.mustProtect && obligation.confidence >= 0.75,
+  );
+}
+
+function obligationsMatchPersistedContext(
+  record: PersistedFinancialContextRecord,
+  obligations: FinancialObligation[],
+) {
+  const protectedRows = protectedObligations(obligations);
+  const currentTotal = protectedRows.reduce(
+    (sum, obligation) => sum + obligation.amountMinor,
+    0,
+  );
+  if (currentTotal !== record.protectedCommitmentsMinor) return false;
+
+  const persistedRefs = record.explanationRefs
+    .filter((ref) => ref.startsWith("obligation:"))
+    .sort();
+  const currentRefs = protectedRows
+    .map((obligation) => `obligation:${obligation.id}`)
+    .sort();
+
+  return (
+    persistedRefs.length === currentRefs.length &&
+    persistedRefs.every((ref, index) => ref === currentRefs[index])
+  );
+}
+
+function degradeContextForConsistency(
+  context: BuiltFinancialContext,
+): BuiltFinancialContext {
+  return {
+    ...context,
+    sourcesFresh: false,
+    available: {
+      ...context.available,
+      status: "DEGRADED",
+      availableRealRawMinor: 0,
+      availableRealSafeMinor: 0,
+      shortfallMinor: 0,
+      needsUserAction: false,
+      degradedReasons: [
+        ...context.available.degradedReasons,
+        "persisted_obligations_changed_after_context",
+      ],
+    },
+  };
+}
+
 /**
  * Server-side resolver contract for Web/App.
  *
@@ -286,7 +337,7 @@ export async function resolveFinancialState(input: {
     throw new Error("financial_state_owner_mismatch");
   }
 
-  const context = builtContextFromRecord(record, input.nowIso);
+  const persistedContext = builtContextFromRecord(record, input.nowIso);
   const obligations = await input.reader.getOpenObligations({
     userId: input.trustedUserId,
     currency: record.currency,
@@ -298,6 +349,14 @@ export async function resolveFinancialState(input: {
     record.currency,
     record.horizonUntil,
   );
+
+  // Context + obligations are written together, but the read path can observe a
+  // later obligation mutation or a partially rolled-out persistence boundary.
+  // Never reuse a SAFE amount when the protected obligation set no longer
+  // matches the exact totals and identities committed by the context.
+  const context = obligationsMatchPersistedContext(record, obligations)
+    ? persistedContext
+    : degradeContextForConsistency(persistedContext);
 
   const candidates = generateFinancialDecisionCandidates({
     financialContext: context,
