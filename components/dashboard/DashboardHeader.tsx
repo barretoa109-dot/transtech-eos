@@ -7,11 +7,13 @@ import DashboardSidebar from "./DashboardSidebar";
 interface DashboardHeaderProps {
   nombre: string;
   plan?: string;
+  showFinancialAutopilot?: boolean;
 }
 
 export default function DashboardHeader({
   nombre,
   plan = "Free",
+  showFinancialAutopilot = false,
 }: DashboardHeaderProps) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [notificacionesAbiertas, setNotificacionesAbiertas] =
@@ -150,6 +152,7 @@ export default function DashboardHeader({
           <div className="relative z-10 h-full w-72 animate-[slideIn_.2s_ease-out]">
             <DashboardSidebar
               onNavigate={() => setMenuAbierto(false)}
+              showFinancialAutopilot={showFinancialAutopilot}
             />
           </div>
         </div>
