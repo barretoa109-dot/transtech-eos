@@ -4,6 +4,8 @@ export * from "./liquidity";
 export * from "./reconciliation";
 export * from "./recurrence";
 export * from "./forecast";
+export * from "./context";
+export * from "./decision";
 export * from "./connector";
 export * from "./csv-import";
 export * from "./fixtures";
