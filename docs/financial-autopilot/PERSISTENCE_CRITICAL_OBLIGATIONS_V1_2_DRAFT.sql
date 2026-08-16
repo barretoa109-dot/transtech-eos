@@ -27,6 +27,7 @@ declare
   v_result jsonb;
   v_context jsonb;
   v_revision text;
+  v_status text;
   v_complete boolean;
   v_existing_complete boolean;
 begin
@@ -52,6 +53,14 @@ begin
     raise exception using errcode = '22023', message = 'financial_persistence_invalid_critical_obligations_complete';
   end if;
   v_complete := (v_context ->> 'criticalObligationsComplete')::boolean;
+  v_status := nullif(v_context ->> 'status', '');
+
+  -- Critical-obligation incompleteness is a hard DEGRADED condition in the
+  -- deterministic Available Real contract. Refuse to persist an internally
+  -- contradictory SAFE/ATTENTION/ACTION_REQUIRED context before any base write.
+  if not v_complete and v_status is distinct from 'DEGRADED' then
+    raise exception using errcode = '22023', message = 'financial_persistence_critical_obligations_conflict_with_status';
+  end if;
 
   -- v1.1 performs the complete base snapshot + first forecast risk write in the
   -- same transaction. If any check below fails, PostgreSQL rolls all work back.
@@ -94,8 +103,9 @@ grant execute on function public.eos_financial_persist_snapshot_v1_2(uuid, jsonb
 --   2. verify explicit true and false fresh inserts;
 --   3. verify exact replay is idempotent and conflicting same-revision replay fails;
 --   4. verify malformed/missing boolean fails and rolls back the whole snapshot;
---   5. verify v1.2 owner+revision scoped Financial State reads the exact boolean;
---   6. verify SAFE is impossible when critical_obligations_complete = false;
---   7. verify service_role-only EXECUTE and cross-user isolation;
---   8. rehearse rollback;
---   9. do not apply to production until the EOS 4.0 RC1 freeze is closed.
+--   5. verify SAFE/ATTENTION/ACTION_REQUIRED + false fails before the base write;
+--   6. verify v1.2 owner+revision scoped Financial State reads the exact boolean;
+--   7. verify SAFE is impossible when critical_obligations_complete = false;
+--   8. verify service_role-only EXECUTE and cross-user isolation;
+--   9. rehearse rollback;
+--  10. do not apply to production until the EOS 4.0 RC1 freeze is closed.
