@@ -1,3 +1,7 @@
+import {
+  FINANCIAL_CONTEXT_INTEGRITY_PREFIX,
+  financialContextIntegrityRef,
+} from "./financial-context-integrity";
 import type { FinancialStateRiskView } from "./financial-state";
 import type { ForecastHorizonsResult } from "./forecast-horizons";
 import {
@@ -108,8 +112,9 @@ export function toPersistedFirstForecastRisk(
 
 /**
  * Upgrades the existing v1 persistence plan without changing the v1 batch
- * discriminator expected by the underlying atomic RPC. The new context identity
- * commits to both the full v1 fingerprint and the compact first forecast risk.
+ * discriminator expected by the underlying atomic RPC. The v1.1 identity now
+ * commits to the base fingerprint, the aggregate context integrity commitment
+ * and the compact first forecast risk.
  */
 export function upgradeFinancialPersistencePlanWithFirstForecastRisk(input: {
   plan: FinancialPersistencePlan;
@@ -127,9 +132,17 @@ export function upgradeFinancialPersistencePlanWithFirstForecastRisk(input: {
   }
 
   const firstForecastRisk = toPersistedFirstForecastRisk(input.firstRisk);
+  const contextIntegrityRef = financialContextIntegrityRef(input.plan.contextInsert);
+  const explanationRefs = [
+    ...input.plan.contextInsert.explanationRefs.filter(
+      (ref) => !ref.startsWith(FINANCIAL_CONTEXT_INTEGRITY_PREFIX),
+    ),
+    contextIntegrityRef,
+  ].sort();
   const sourceFingerprint = sha256FinancialFingerprint({
     contract: "financial-context-first-forecast-risk-v1.1",
     baseFingerprint,
+    contextIntegrityRef,
     firstForecastRisk,
   });
 
@@ -139,6 +152,7 @@ export function upgradeFinancialPersistencePlanWithFirstForecastRisk(input: {
       ...input.plan.contextInsert,
       sourceFingerprint,
       revision: `ctx:${sourceFingerprint}`,
+      explanationRefs,
       firstForecastRisk,
     },
   };
