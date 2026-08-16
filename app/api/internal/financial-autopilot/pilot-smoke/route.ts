@@ -6,6 +6,7 @@ import {
   runFinancialStateScenario,
   runFinancialSurfaceScenario,
   runForecastHorizonScenario,
+  runGlobalContextCommitScenario,
   runGlobalSourceCoverageScenario,
   runGlobalSourceCoverageTemporalScenario,
   runGlobalSourceOrchestrationScenario,
@@ -68,6 +69,7 @@ export async function GET() {
     runMultiProviderPersistenceManifestScenario();
   const multiProviderScopedPersistence =
     runMultiProviderScopedPersistenceScenario();
+  const globalContextCommit = runGlobalContextCommitScenario();
   const multiProviderPersistenceStore =
     await runMultiProviderPersistenceStoreScenario();
   const csvImport = runCsvImportScenario();
@@ -109,6 +111,7 @@ export async function GET() {
     compact("global-zero-entry", globalZeroEntry),
     compact("multi-provider-persistence-manifest", multiProviderPersistenceManifest),
     compact("multi-provider-scoped-persistence", multiProviderScopedPersistence),
+    compact("global-context-commit", globalContextCommit),
     compact("multi-provider-persistence-store", multiProviderPersistenceStore),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
