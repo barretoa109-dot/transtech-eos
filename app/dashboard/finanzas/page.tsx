@@ -16,6 +16,7 @@ import {
 } from "@/lib/financial-autopilot";
 import {
   isFinancialStateApiEnabled,
+  isFinancialStateDemoAllowed,
   resolveFinancialState,
   SupabaseFinancialStateReaderV1_1,
 } from "@/lib/financial-autopilot/server";
@@ -439,12 +440,11 @@ export default async function FinancialStatePage({
   searchParams: Promise<{ demo?: string }>;
 }) {
   const params = await searchParams;
-  const isProduction = process.env.VERCEL_ENV === "production";
   const apiEnabled = isFinancialStateApiEnabled();
-  const demoAllowed = !isProduction;
+  const demoAllowed = isFinancialStateDemoAllowed();
   const requestedDemo = demoAllowed ? params.demo : undefined;
 
-  if (isProduction && !apiEnabled) notFound();
+  if (!apiEnabled && !demoAllowed) notFound();
 
   let source: SurfaceSource = "demo";
   let surfaceInput: FinancialSurfaceInput;
