@@ -1,3 +1,4 @@
+import { InMemoryFinancialPersistenceStore } from "./memory-persistence-store";
 import { buildFinancialPersistencePlan } from "./persistence";
 import { buildZeroEntryFinancialAutopilot } from "./zero-entry";
 import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "./types";
@@ -103,7 +104,7 @@ function run(snapshotValue: FinancialConnectorSnapshot) {
   return { result, plan };
 }
 
-export function runPersistenceScenario() {
+export async function runPersistenceScenario() {
   const first = run(snapshot());
   const replay = run(snapshot());
   const reordered = run(snapshot(8000000, true));
@@ -115,6 +116,27 @@ export function runPersistenceScenario() {
   const ledgerCanonicalKeys = first.plan.ledgerUpserts.map((entry) => entry.canonicalKey);
   const obligationKeys = first.plan.obligationUpserts.map((entry) => entry.sourceKey);
   const connectionPayload = JSON.stringify(first.plan.connectionUpserts);
+
+  const store = new InMemoryFinancialPersistenceStore();
+  const firstPersist = await store.persist(first.plan);
+  const replayPersist = await store.persist(replay.plan);
+  const changedPersist = await store.persist(changedBalance.plan);
+
+  const tamperedPlan = JSON.parse(JSON.stringify(first.plan)) as typeof first.plan;
+  tamperedPlan.contextInsert.sourceFingerprint = "tampered-context-fingerprint";
+  tamperedPlan.contextInsert.revision = "ctx:tampered-context-fingerprint";
+  tamperedPlan.ingestionEventUpserts[0] = {
+    ...tamperedPlan.ingestionEventUpserts[0],
+    sourceFingerprint: "tampered-ingestion-fingerprint",
+  };
+  let tamperedReplayBlocked = false;
+  try {
+    await store.persist(tamperedPlan);
+  } catch (error) {
+    tamperedReplayBlocked =
+      error instanceof Error && error.message === "financial_ingestion_replay_mismatch";
+  }
+  const storedCounts = store.snapshotCounts();
 
   const checks = {
     exactReplayProducesSamePlan: JSON.stringify(first.plan) === JSON.stringify(replay.plan),
@@ -156,6 +178,23 @@ export function runPersistenceScenario() {
       first.result.context.available.status === "SAFE" &&
       first.plan.contextInsert.status === "SAFE" &&
       first.plan.contextInsert.availableRealSafeMinor > 0,
+    firstPersistenceWritesCanonicalState:
+      !firstPersist.replayed &&
+      firstPersist.ingestionRowsTouched === first.plan.ingestionEventUpserts.length &&
+      firstPersist.ledgerRowsTouched === first.plan.ledgerUpserts.length,
+    exactReplayHasZeroEconomicWrites:
+      replayPersist.replayed &&
+      replayPersist.ingestionRowsTouched === 0 &&
+      replayPersist.ledgerRowsTouched === 0 &&
+      replayPersist.reconciliationRowsTouched === 0,
+    contextOnlyChangeDoesNotDuplicateLedger:
+      !changedPersist.replayed &&
+      changedPersist.ingestionRowsTouched === 0 &&
+      changedPersist.ledgerRowsTouched === 0,
+    ingestionReplayMismatchFailsClosed: tamperedReplayBlocked,
+    failedReplayDidNotCreateContext: storedCounts.contexts === 2,
+    canonicalLedgerCountRemainsStable:
+      storedCounts.ledgerRows === first.plan.ledgerUpserts.length,
   };
 
   return {
@@ -169,6 +208,13 @@ export function runPersistenceScenario() {
       reconciliations: first.plan.reconciliationInserts.length,
       recurrences: first.plan.recurrenceUpserts.length,
       obligations: first.plan.obligationUpserts.length,
+    },
+    persistence: {
+      firstPersist,
+      replayPersist,
+      changedPersist,
+      storedCounts,
+      tamperedReplayBlocked,
     },
     context: first.plan.contextInsert,
   };
