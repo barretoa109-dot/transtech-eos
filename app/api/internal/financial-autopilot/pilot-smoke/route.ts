@@ -10,6 +10,7 @@ import {
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
 import {
+  isFinancialStateDemoAllowed,
   runFinancialStateApiScenario,
   runFinancialStateResolverScenario,
   runFirstForecastRiskPersistenceScenario,
@@ -22,7 +23,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (process.env.VERCEL_ENV === "production") {
+  if (!isFinancialStateDemoAllowed()) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
