@@ -48,7 +48,7 @@ begin
     raise exception using errcode = '22023', message = 'financial_persistence_invalid_context_identity';
   end if;
 
-  if jsonb_typeof(v_context -> 'criticalObligationsComplete') <> 'boolean' then
+  if coalesce(jsonb_typeof(v_context -> 'criticalObligationsComplete'), 'null') <> 'boolean' then
     raise exception using errcode = '22023', message = 'financial_persistence_invalid_critical_obligations_complete';
   end if;
   v_complete := (v_context ->> 'criticalObligationsComplete')::boolean;
