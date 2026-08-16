@@ -18,6 +18,7 @@ import {
   runPersistenceScenario,
   runSupabaseFinancialStateReaderScenario,
   runSupabaseFinancialStateReaderV1_1Scenario,
+  runSupabaseFinancialStateReaderV1_2Scenario,
 } from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export async function GET() {
   const firstForecastRiskPersistence = await runFirstForecastRiskPersistenceScenario();
   const supabaseFinancialStateReaderV1_1 =
     await runSupabaseFinancialStateReaderV1_1Scenario();
+  const supabaseFinancialStateReaderV1_2 =
+    await runSupabaseFinancialStateReaderV1_2Scenario();
 
   const checks = [
     compact("pilot", scenario),
@@ -68,6 +71,7 @@ export async function GET() {
     compact("financial-state-api", financialStateApi),
     compact("first-forecast-risk-persistence", firstForecastRiskPersistence),
     compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
+    compact("supabase-financial-state-reader-v1-2", supabaseFinancialStateReaderV1_2),
   ];
 
   const failed = checks.filter((check) => !check.ok).map((check) => check.name);
