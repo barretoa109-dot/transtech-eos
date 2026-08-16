@@ -12,6 +12,7 @@ import {
   runGlobalZeroEntryScenario,
   runLiquidityAuthorityScenario,
   runMultiProviderAnalysisScenario,
+  runMultiProviderPersistenceManifestScenario,
   runPyPilotScenario,
   runTrustedSourceCoverageScenario,
   runZeroEntryScenario,
@@ -60,6 +61,8 @@ export async function GET() {
   const globalSourceOrchestration = runGlobalSourceOrchestrationScenario();
   const zeroEntry = runZeroEntryScenario();
   const globalZeroEntry = runGlobalZeroEntryScenario();
+  const multiProviderPersistenceManifest =
+    runMultiProviderPersistenceManifestScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
   const financialSurface = runFinancialSurfaceScenario();
@@ -95,6 +98,7 @@ export async function GET() {
     compact("global-source-orchestration", globalSourceOrchestration),
     compact("zero-entry", zeroEntry),
     compact("global-zero-entry", globalZeroEntry),
+    compact("multi-provider-persistence-manifest", multiProviderPersistenceManifest),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
     compact("financial-surface", financialSurface),
