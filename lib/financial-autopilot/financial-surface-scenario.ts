@@ -164,6 +164,50 @@ export function runFinancialSurfaceScenario() {
     },
   });
 
+  const invalidCurrency = buildFinancialSurfaceModel({
+    kind: "STATE",
+    state: {
+      ...safeState(),
+      currency: "pyg",
+    },
+  });
+
+  const invalidAggregates = buildFinancialSurfaceModel({
+    kind: "STATE",
+    state: {
+      ...safeState(),
+      money: {
+        ...safeState().money,
+        protectedReserveMinor: -1,
+      },
+    },
+  });
+
+  const invalidCommitment = buildFinancialSurfaceModel({
+    kind: "STATE",
+    state: {
+      ...safeState(),
+      nextProtectedCommitment: {
+        ...safeState().nextProtectedCommitment!,
+        amountMinor: -1,
+      },
+    },
+  });
+
+  const invalidRisk = buildFinancialSurfaceModel({
+    kind: "STATE",
+    state: {
+      ...safeState(),
+      firstForecastRisk: {
+        status: "ATTENTION",
+        horizonDays: 60,
+        until: "2026-10-15T12:00:00.000-03:00",
+        reserveGapMinor: -1,
+        negativeCashGapMinor: 0,
+      },
+    },
+  });
+
   const noData = buildFinancialSurfaceModel({ kind: "NO_DATA" });
   const error = buildFinancialSurfaceModel({ kind: "ERROR" });
   const publicJson = JSON.stringify({ safe, attention, action, degraded, noData, error });
@@ -187,20 +231,35 @@ export function runFinancialSurfaceScenario() {
       action.availableReal.amountMinor === 640000 &&
       action.attention.required &&
       action.attention.interrupt,
-    degradedNeverShowsAvailableReal:
+    degradedNeverShowsAvailableRealOrProjection:
       degraded.status === "DEGRADED" &&
       !degraded.availableReal.visible &&
       degraded.availableReal.amountMinor === null &&
-      degraded.validUntil === null,
+      degraded.validUntil === null &&
+      degraded.nextProtectedCommitment === null &&
+      degraded.firstForecastRisk === null &&
+      degraded.why === null,
     staleInconsistencyFailsClosed:
       !inconsistentStale.availableReal.visible &&
-      inconsistentStale.availableReal.amountMinor === null,
+      inconsistentStale.availableReal.amountMinor === null &&
+      inconsistentStale.nextProtectedCommitment === null &&
+      inconsistentStale.why === null,
     unknownFreshnessFailsClosed:
       !unknownFreshness.availableReal.visible &&
       unknownFreshness.availableReal.amountMinor === null,
     invalidMoneyFailsClosed:
       !invalidAvailable.availableReal.visible &&
       invalidAvailable.availableReal.amountMinor === null,
+    invalidCurrencyFailsClosed:
+      invalidCurrency.currency === null &&
+      !invalidCurrency.availableReal.visible &&
+      invalidCurrency.nextProtectedCommitment === null,
+    invalidAggregatesNeverBecomeFabricatedZeroes:
+      invalidAggregates.why === null,
+    malformedCommitmentIsOmitted:
+      invalidCommitment.nextProtectedCommitment === null,
+    malformedForecastRiskIsOmitted:
+      invalidRisk.firstForecastRisk === null,
     noDataNeverInventsMoney:
       noData.kind === "NO_DATA" &&
       noData.currency === null &&
