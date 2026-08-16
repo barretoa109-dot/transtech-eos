@@ -111,14 +111,14 @@ function coverageInventory(
 ): TrustedFinancialSourceInventory {
   const connected = snapshotValue.accounts[0];
   if (!connected) throw new Error("zero entry fixture missing account");
-  const expectedSources = [
+  const expectedSources: TrustedFinancialSourceInventory["expectedSources"] = [
     {
       sourceRef: financialAccountSourceCoverageRef({
         userId: USER_ID,
         providerKey: snapshotValue.providerKey,
         account: connected,
       }),
-      materiality: "critical" as const,
+      materiality: "critical",
       confidence: 0.99,
     },
   ];
@@ -130,7 +130,7 @@ function coverageInventory(
         connectionId: CONNECTION_ID,
         externalAccountId: "card-not-connected",
       }),
-      materiality: "material" as const,
+      materiality: "material",
       confidence: 0.98,
     });
   }
