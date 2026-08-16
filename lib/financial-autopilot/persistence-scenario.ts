@@ -144,6 +144,19 @@ function snapshot(balanceMinor = 8000000, reverse = false): FinancialConnectorSn
 function coverageInventory(
   snapshotValue: FinancialConnectorSnapshot,
 ): TrustedFinancialSourceInventory {
+  const expectedSources: TrustedFinancialSourceInventory["expectedSources"] =
+    snapshotValue.accounts.map(
+      (accountValue): TrustedFinancialSourceInventory["expectedSources"][number] => ({
+        sourceRef: financialAccountSourceCoverageRef({
+          userId: USER_ID,
+          providerKey: snapshotValue.providerKey,
+          account: accountValue,
+        }),
+        materiality: accountValue.type === "checking" ? "critical" : "material",
+        confidence: 0.99,
+      }),
+    );
+
   return {
     version: TRUSTED_SOURCE_INVENTORY_VERSION,
     userId: USER_ID,
@@ -153,15 +166,7 @@ function coverageInventory(
     discoveryComplete: true,
     confidence: 0.99,
     unresolvedMaterialSourceCount: 0,
-    expectedSources: snapshotValue.accounts.map((accountValue) => ({
-      sourceRef: financialAccountSourceCoverageRef({
-        userId: USER_ID,
-        providerKey: snapshotValue.providerKey,
-        account: accountValue,
-      }),
-      materiality: accountValue.type === "checking" ? "critical" : "material",
-      confidence: 0.99,
-    })),
+    expectedSources,
   };
 }
 
@@ -271,7 +276,8 @@ export async function runPersistenceScenario() {
       first.result.sourceCoverage.inventoryFingerprint !== null &&
       first.result.resolvedInputs.sourceCoverageFingerprint ===
         first.result.sourceCoverage.inventoryFingerprint &&
-      first.result.resolvedInputs.criticalSourcesComplete === true,
+      first.result.resolvedInputs.criticalSourcesComplete === true &&
+      first.result.resolvedInputs.criticalSourcesFresh === true,
     everyLedgerRowHasIngestionSource:
       first.plan.ledgerUpserts.every((entry) => ingestionKeys.has(entry.sourceEventKey)),
     everyLedgerRowCarriesResolutionScope:
