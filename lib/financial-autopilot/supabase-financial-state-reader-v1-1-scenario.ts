@@ -140,6 +140,34 @@ function riskClient() {
   });
 }
 
+async function resolveWithObligationDrift(
+  patch: Partial<FinancialObligation>,
+) {
+  const driftedReader = new SupabaseFinancialStateReaderV1_1(
+    riskClient() as never,
+    USER_ID,
+    new FixtureBaseReader([{ ...OBLIGATION, ...patch }]),
+  );
+  const resolution = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: driftedReader,
+    nowIso: NOW,
+  });
+  return resolution.kind === "STATE" ? resolution.state : null;
+}
+
+function isFailClosedDriftState(
+  state: Awaited<ReturnType<typeof resolveWithObligationDrift>>,
+) {
+  return (
+    state?.status === "DEGRADED" &&
+    state.canAssertSafety === false &&
+    state.money.availableRealMinor === null &&
+    state.firstForecastRisk === null &&
+    state.attention.outcome === "CONNECTION_REQUIRED"
+  );
+}
+
 export async function runSupabaseFinancialStateReaderV1_1Scenario() {
   const base = new FixtureBaseReader();
   const client = riskClient();
@@ -161,21 +189,23 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
     nowIso: NOW,
   });
 
-  const driftedBase = new FixtureBaseReader([
-    {
-      ...OBLIGATION,
-      dueAt: "2026-08-26T00:00:00.000Z",
-    },
-  ]);
-  const driftedReader = new SupabaseFinancialStateReaderV1_1(
-    riskClient() as never,
-    USER_ID,
-    driftedBase,
-  );
-  const driftedResolution = await resolveFinancialState({
-    trustedUserId: USER_ID,
-    reader: driftedReader,
-    nowIso: NOW,
+  // All of these preserve the stable source key and amount. They prove the
+  // material obligation identity catches semantic drift that the old id+sum
+  // comparison could not see.
+  const dueDateDriftState = await resolveWithObligationDrift({
+    dueAt: "2026-08-26T00:00:00.000Z",
+  });
+  const priorityDriftState = await resolveWithObligationDrift({
+    priority: 90,
+  });
+  const confidenceDriftState = await resolveWithObligationDrift({
+    confidence: 0.9,
+  });
+  const typeDriftState = await resolveWithObligationDrift({
+    type: "housing_lease",
+  });
+  const sourceDriftState = await resolveWithObligationDrift({
+    source: "reader_v1_1_fixture_changed",
   });
 
   const query = client.queries[0];
@@ -224,8 +254,6 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
   );
 
   const state = resolved.kind === "STATE" ? resolved.state : null;
-  const driftedState =
-    driftedResolution.kind === "STATE" ? driftedResolution.state : null;
   const checks = {
     persistedRiskHydratesContext:
       latest?.firstForecastRisk?.status === "ATTENTION" &&
@@ -239,10 +267,15 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
       hydratedObligations[0]?.id !== OBLIGATION.id &&
       latest?.explanationRefs.includes(`obligation:${hydratedObligations[0]?.id}`) === true,
     dueDateDriftAtSameSourceAndAmountFailsClosed:
-      driftedState?.status === "DEGRADED" &&
-      driftedState.canAssertSafety === false &&
-      driftedState.money.availableRealMinor === null &&
-      driftedState.attention.outcome === "CONNECTION_REQUIRED",
+      isFailClosedDriftState(dueDateDriftState),
+    priorityDriftAtSameSourceAndAmountFailsClosed:
+      isFailClosedDriftState(priorityDriftState),
+    confidenceDriftAtSameSourceAndAmountFailsClosed:
+      isFailClosedDriftState(confidenceDriftState),
+    typeDriftAtSameSourceAndAmountFailsClosed:
+      isFailClosedDriftState(typeDriftState),
+    sourceDriftAtSameSourceKeyAndAmountFailsClosed:
+      isFailClosedDriftState(sourceDriftState),
     extensionReadIsOwnerAndRevisionScoped:
       query?.table === "eos_financial_contexts_v1" &&
       query.query.selected === "revision,first_forecast_risk" &&
@@ -269,7 +302,13 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
     latestRisk: latest?.firstForecastRisk ?? null,
     projectedRisk: state?.firstForecastRisk ?? null,
     materialObligationId: hydratedObligations[0]?.id ?? null,
-    driftedState,
+    driftedStates: {
+      dueDate: dueDateDriftState,
+      priority: priorityDriftState,
+      confidence: confidenceDriftState,
+      type: typeDriftState,
+      source: sourceDriftState,
+    },
     queryAudit: client.queries.map(({ table, query: item }) => ({
       table,
       selected: item.selected,
