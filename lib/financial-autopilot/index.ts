@@ -9,3 +9,4 @@ export * from "./decision";
 export * from "./connector";
 export * from "./csv-import";
 export * from "./fixtures";
+export * from "./pilot-scenario";
