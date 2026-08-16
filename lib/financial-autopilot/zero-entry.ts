@@ -141,6 +141,7 @@ export function buildZeroEntryFinancialAutopilot(
     patterns,
     asOf: input.asOf,
     horizonUntil: primaryHorizon.until,
+    includeAtHorizon: primaryHorizon.reason !== "next_high_confidence_income",
   });
   const liquidity = calculateUsableLiquidity(
     input.snapshot.accounts,
