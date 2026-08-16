@@ -20,7 +20,11 @@ function record(): PersistedFinancialContextRecord {
     horizonUntil: "2026-09-01T12:00:00.000Z",
     liquidityUsableMinor: 8000000,
     protectedCommitmentsMinor: 2100000,
+    essentialSpendExpectedMinor: 1000000,
     protectedReserveMinor: 3000000,
+    criticalProvisionsMinor: 0,
+    confirmedIncomeMinor: 1000000,
+    uncertaintyBufferMinor: 1260000,
     availableRealSafeMinor: 1640000,
     minimumProjectedCashMinor: 6005000,
     minimumProjectedCashAt: "2026-08-25T00:00:00.000Z",
@@ -32,7 +36,7 @@ function record(): PersistedFinancialContextRecord {
       reconciliationQuality: 1,
       overall: 0.94,
     },
-    explanationRefs: [],
+    explanationRefs: ["obligation:resolver-rent"],
     sourcesFresh: true,
     generatedAt: "2026-08-16T12:00:00.000Z",
     validUntil: "2026-08-17T12:00:00.000Z",
@@ -40,7 +44,7 @@ function record(): PersistedFinancialContextRecord {
 }
 
 const OBLIGATION: FinancialObligation = {
-  id: "40000000-0000-4000-8000-000000000092",
+  id: "resolver-rent",
   userId: USER_ID,
   type: "housing",
   amountMinor: 2100000,
