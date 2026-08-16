@@ -87,7 +87,6 @@ function assertConfidence(confidence: FinancialContextConfidence) {
 function assertFirstRisk(
   risk: FinancialStateRiskView | null | undefined,
   generatedAtMs: number,
-  horizonUntilMs: number,
 ) {
   if (!risk) return;
   if (risk.status !== "ATTENTION" && risk.status !== "ACTION_REQUIRED") {
@@ -97,11 +96,34 @@ function assertFirstRisk(
     throw new Error("financial_state_invalid_first_risk");
   }
   const until = parseTime(risk.until, "financial_state_invalid_first_risk");
-  if (until === null || until <= generatedAtMs || until > horizonUntilMs) {
+  if (until === null || until <= generatedAtMs) {
     throw new Error("financial_state_invalid_first_risk");
   }
-  assertSafeInteger(risk.reserveGapMinor, "financial_state_invalid_first_risk");
-  assertSafeInteger(risk.negativeCashGapMinor, "financial_state_invalid_first_risk");
+  const reserveGapMinor = assertSafeInteger(
+    risk.reserveGapMinor,
+    "financial_state_invalid_first_risk",
+  );
+  const negativeCashGapMinor = assertSafeInteger(
+    risk.negativeCashGapMinor,
+    "financial_state_invalid_first_risk",
+  );
+
+  // These are deterministic outputs of forecast-horizons.ts. ATTENTION means
+  // cash remains non-negative but falls below reserve; ACTION_REQUIRED means
+  // projected cash turns negative, so its reserve gap cannot be smaller than
+  // the negative-cash gap.
+  if (
+    risk.status === "ATTENTION" &&
+    (reserveGapMinor <= 0 || negativeCashGapMinor !== 0)
+  ) {
+    throw new Error("financial_state_invalid_first_risk");
+  }
+  if (
+    risk.status === "ACTION_REQUIRED" &&
+    (negativeCashGapMinor <= 0 || reserveGapMinor < negativeCashGapMinor)
+  ) {
+    throw new Error("financial_state_invalid_first_risk");
+  }
 }
 
 function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHorizonsResult {
@@ -121,6 +143,32 @@ function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHor
         }
       : null,
   };
+}
+
+function persistedSafetySignalsMatchStatus(input: {
+  status: FinancialStatus;
+  sourcesFresh: boolean;
+  protectedReserveMinor: number;
+  availableRealSafeMinor: number;
+  minimumProjectedCashMinor: number;
+}) {
+  if (input.status === "SAFE") {
+    return (
+      input.sourcesFresh &&
+      input.minimumProjectedCashMinor >= input.protectedReserveMinor
+    );
+  }
+
+  if (input.status === "ACTION_REQUIRED") {
+    return (
+      input.availableRealSafeMinor === 0 ||
+      input.minimumProjectedCashMinor < input.protectedReserveMinor
+    );
+  }
+
+  // ATTENTION is intentionally left extensible for higher-level risk signals;
+  // DEGRADED already fails closed elsewhere.
+  return true;
 }
 
 function builtContextFromRecord(
@@ -166,7 +214,11 @@ function builtContextFromRecord(
   if (minimumProjectedCashAt !== null && minimumProjectedCashAt < generatedAt) {
     throw new Error("financial_state_minimum_cash_before_generation");
   }
-  assertFirstRisk(record.firstForecastRisk, generatedAt, horizonUntil);
+
+  // firstForecastRisk belongs to the independent 30/60/90 safety forecast and
+  // can legitimately extend beyond the primary context horizon. Only require
+  // it to be forward-looking and internally coherent.
+  assertFirstRisk(record.firstForecastRisk, generatedAt);
 
   const liquidityUsableMinor = assertSafeInteger(
     record.liquidityUsableMinor,
@@ -290,6 +342,7 @@ function obligationsMatchPersistedContext(
 
 function degradeContextForConsistency(
   context: BuiltFinancialContext,
+  reason: string,
 ): BuiltFinancialContext {
   return {
     ...context,
@@ -301,10 +354,7 @@ function degradeContextForConsistency(
       availableRealSafeMinor: 0,
       shortfallMinor: 0,
       needsUserAction: false,
-      degradedReasons: [
-        ...context.available.degradedReasons,
-        "persisted_obligations_changed_after_context",
-      ],
+      degradedReasons: [...context.available.degradedReasons, reason],
     },
   };
 }
@@ -338,6 +388,20 @@ export async function resolveFinancialState(input: {
   }
 
   const persistedContext = builtContextFromRecord(record, input.nowIso);
+  const statusConsistent = persistedSafetySignalsMatchStatus({
+    status: record.status,
+    sourcesFresh: record.sourcesFresh,
+    protectedReserveMinor: record.protectedReserveMinor,
+    availableRealSafeMinor: record.availableRealSafeMinor,
+    minimumProjectedCashMinor: record.minimumProjectedCashMinor,
+  });
+  const statusCheckedContext = statusConsistent
+    ? persistedContext
+    : degradeContextForConsistency(
+        persistedContext,
+        "persisted_status_conflicts_with_safety_signals",
+      );
+
   const obligations = await input.reader.getOpenObligations({
     userId: input.trustedUserId,
     currency: record.currency,
@@ -355,8 +419,11 @@ export async function resolveFinancialState(input: {
   // Never reuse a SAFE amount when the protected obligation set no longer
   // matches the exact totals and identities committed by the context.
   const context = obligationsMatchPersistedContext(record, obligations)
-    ? persistedContext
-    : degradeContextForConsistency(persistedContext);
+    ? statusCheckedContext
+    : degradeContextForConsistency(
+        statusCheckedContext,
+        "persisted_obligations_changed_after_context",
+      );
 
   const candidates = generateFinancialDecisionCandidates({
     financialContext: context,
