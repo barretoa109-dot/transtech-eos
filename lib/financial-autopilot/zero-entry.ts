@@ -7,6 +7,12 @@ import { generateFinancialDecisionCandidates } from "./decision-candidates";
 import { selectNextBestFinancialAction, type NextBestFinancialAction } from "./decision";
 import { buildForecastHorizons, type ForecastHorizonsResult } from "./forecast-horizons";
 import {
+  type TrustedGlobalSourceClosure,
+  type TrustedGlobalSourceCoverageResolution,
+  type TrustedScopedSourceBundle,
+} from "./global-source-coverage";
+import { orchestrateTrustedGlobalFinancialSources } from "./global-source-orchestration";
+import {
   confirmedIncomeWithinHorizon,
   estimateVariableEssentialSpend,
   inferObligationsFromPatterns,
@@ -23,10 +29,12 @@ import {
   type TrustedSourceCoverageResolution,
 } from "./source-coverage";
 import type {
+  FinancialAccount,
   FinancialConnectorSnapshot,
   FinancialContextConfidence,
   FinancialObligation,
   ForecastEvent,
+  LedgerEntry,
   ReconciliationMatch,
 } from "./types";
 
@@ -44,6 +52,26 @@ export interface ZeroEntryAutopilotInput {
   fallbackHorizonDays?: number;
 }
 
+export interface GlobalZeroEntryAutopilotInput {
+  /** Server-derived owner. Every provider bundle and the closure must match it. */
+  trustedUserId: string;
+  bundles: TrustedScopedSourceBundle[];
+  globalSourceClosure: TrustedGlobalSourceClosure;
+  currency: string;
+  asOf: string;
+  protectedReserveMinor: number;
+  criticalObligationsComplete: boolean;
+  criticalProvisionsMinor?: number;
+  baseUncertaintyBufferMinor?: number;
+  fallbackHorizonDays?: number;
+}
+
+export type ZeroEntrySourceCoverageResolution =
+  | TrustedSourceCoverageResolution
+  | TrustedGlobalSourceCoverageResolution;
+
+export type ZeroEntryAnalysisScope = "single_provider" | "multi_provider";
+
 export interface ZeroEntryResolvedInputs {
   protectedReserveMinor: number;
   criticalProvisionsMinor: number;
@@ -57,6 +85,10 @@ export interface ZeroEntryResolvedInputs {
 }
 
 export interface ZeroEntryAutopilotResult {
+  /** Optional for backwards-compatible callers; builders in this module always set it. */
+  analysisScope?: ZeroEntryAnalysisScope;
+  /** Multi-provider binding. Single-provider analysis always returns null. */
+  sourceOrchestrationFingerprint?: string | null;
   primaryHorizon: PrimaryFinancialHorizon;
   reconciliation: ReconciliationMatch[];
   recurrences: DetectedRecurrence[];
@@ -65,11 +97,17 @@ export interface ZeroEntryAutopilotResult {
   essentialSpend: EssentialSpendEstimate;
   forecastEvents: ForecastEvent[];
   confidence: FinancialContextConfidence;
-  sourceCoverage: TrustedSourceCoverageResolution;
+  sourceCoverage: ZeroEntrySourceCoverageResolution;
   resolvedInputs: ZeroEntryResolvedInputs;
   context: BuiltFinancialContext;
   nextAction: NextBestFinancialAction;
   horizons: ForecastHorizonsResult;
+}
+
+export interface GlobalZeroEntryAutopilotResult extends ZeroEntryAutopilotResult {
+  analysisScope: "multi_provider";
+  sourceOrchestrationFingerprint: string | null;
+  sourceCoverage: TrustedGlobalSourceCoverageResolution;
 }
 
 function addDays(iso: string, days: number) {
@@ -83,24 +121,37 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function assertTrustedSnapshotOwner(
-  snapshot: FinancialConnectorSnapshot,
-  trustedUserId: string,
-) {
-  if (!trustedUserId) throw new Error("financial_autopilot_missing_trusted_user");
+function assertTrustedAnalysisOwner(input: {
+  accounts: FinancialAccount[];
+  ledgerEntries: LedgerEntry[];
+  trustedUserId: string;
+}) {
+  if (!input.trustedUserId) {
+    throw new Error("financial_autopilot_missing_trusted_user");
+  }
   if (
-    snapshot.accounts.some((account) => account.userId !== trustedUserId) ||
-    snapshot.ledgerEntries.some((entry) => entry.userId !== trustedUserId)
+    input.accounts.some((account) => account.userId !== input.trustedUserId) ||
+    input.ledgerEntries.some((entry) => entry.userId !== input.trustedUserId)
   ) {
     throw new Error("financial_autopilot_snapshot_user_mismatch");
   }
 }
 
+function assertLedgerAccountReferences(input: {
+  accounts: FinancialAccount[];
+  ledgerEntries: LedgerEntry[];
+}) {
+  const accountIds = new Set(input.accounts.map((account) => account.id));
+  if (input.ledgerEntries.some((entry) => !accountIds.has(entry.accountId))) {
+    throw new Error("financial_autopilot_ledger_account_scope_mismatch");
+  }
+}
+
 function deriveReconciliationQuality(
-  snapshot: FinancialConnectorSnapshot,
+  ledgerEntries: LedgerEntry[],
   reconciliation: ReconciliationMatch[],
 ) {
-  const posted = snapshot.ledgerEntries.filter((entry) => entry.status === "posted");
+  const posted = ledgerEntries.filter((entry) => entry.status === "posted");
   if (posted.length === 0) return 0.7;
   const resolved = new Set(reconciliation.flatMap((match) => match.entryIds));
   const understood = posted.filter(
@@ -147,24 +198,35 @@ function deriveConfidence(input: {
   };
 }
 
-export function buildZeroEntryFinancialAutopilot(
-  input: ZeroEntryAutopilotInput,
+interface ZeroEntryResolvedAnalysisInput {
+  trustedUserId: string;
+  accounts: FinancialAccount[];
+  ledgerEntries: LedgerEntry[];
+  sourceCoverage: ZeroEntrySourceCoverageResolution;
+  analysisScope: ZeroEntryAnalysisScope;
+  sourceOrchestrationFingerprint: string | null;
+  currency: string;
+  asOf: string;
+  protectedReserveMinor: number;
+  criticalObligationsComplete: boolean;
+  criticalProvisionsMinor?: number;
+  baseUncertaintyBufferMinor?: number;
+  fallbackHorizonDays?: number;
+}
+
+function buildZeroEntryFromResolvedAnalysis(
+  input: ZeroEntryResolvedAnalysisInput,
 ): ZeroEntryAutopilotResult {
-  assertTrustedSnapshotOwner(input.snapshot, input.trustedUserId);
+  assertTrustedAnalysisOwner(input);
+  assertLedgerAccountReferences(input);
   if (typeof input.criticalObligationsComplete !== "boolean") {
     throw new Error("criticalObligationsComplete must be boolean");
   }
 
-  const sourceCoverage = resolveTrustedSourceCoverage({
-    trustedUserId: input.trustedUserId,
-    snapshot: input.snapshot,
-    inventory: input.sourceCoverageInventory,
-    nowIso: input.asOf,
-  });
   const fallbackHorizonDays = input.fallbackHorizonDays ?? 30;
-  const reconciliation = findDeterministicReconciliations(input.snapshot.ledgerEntries);
-  const recurrences = detectRecurringPatterns(input.snapshot.ledgerEntries);
-  const patterns = inferFinancialPatterns(recurrences, input.snapshot.ledgerEntries);
+  const reconciliation = findDeterministicReconciliations(input.ledgerEntries);
+  const recurrences = detectRecurringPatterns(input.ledgerEntries);
+  const patterns = inferFinancialPatterns(recurrences, input.ledgerEntries);
   const primaryHorizon = resolvePrimaryFinancialHorizon(
     patterns,
     input.asOf,
@@ -180,7 +242,7 @@ export function buildZeroEntryFinancialAutopilot(
     materializePatternForecast(pattern, primaryHorizon.until),
   );
   const essentialSpend = estimateVariableEssentialSpend({
-    entries: input.snapshot.ledgerEntries,
+    entries: input.ledgerEntries,
     patterns,
     currency: input.currency,
     asOf: input.asOf,
@@ -193,13 +255,16 @@ export function buildZeroEntryFinancialAutopilot(
     includeAtHorizon: primaryHorizon.reason !== "next_high_confidence_income",
   });
   const liquidity = calculateUsableLiquidity(
-    input.snapshot.accounts,
+    input.accounts,
     input.currency,
     input.asOf,
   );
   const allCriticalSourcesFresh =
-    liquidity.sourcesFresh && sourceCoverage.criticalSourcesFresh;
-  const reconciliationQuality = deriveReconciliationQuality(input.snapshot, reconciliation);
+    liquidity.sourcesFresh && input.sourceCoverage.criticalSourcesFresh;
+  const reconciliationQuality = deriveReconciliationQuality(
+    input.ledgerEntries,
+    reconciliation,
+  );
   const confidence = deriveConfidence({
     sourceFresh: allCriticalSourcesFresh,
     horizon: primaryHorizon,
@@ -230,10 +295,10 @@ export function buildZeroEntryFinancialAutopilot(
     criticalProvisionsMinor,
     confirmedIncomeMinor: confirmedIncome.amountMinor,
     uncertaintyBufferMinor,
-    criticalSourcesComplete: sourceCoverage.criticalSourcesComplete,
-    criticalSourcesFresh: sourceCoverage.criticalSourcesFresh,
-    sourceCoverageFingerprint: sourceCoverage.inventoryFingerprint,
-    sourceCoverageValidUntil: sourceCoverage.coverageValidUntil,
+    criticalSourcesComplete: input.sourceCoverage.criticalSourcesComplete,
+    criticalSourcesFresh: input.sourceCoverage.criticalSourcesFresh,
+    sourceCoverageFingerprint: input.sourceCoverage.inventoryFingerprint,
+    sourceCoverageValidUntil: input.sourceCoverage.coverageValidUntil,
     criticalObligationsComplete: input.criticalObligationsComplete,
   };
 
@@ -241,7 +306,7 @@ export function buildZeroEntryFinancialAutopilot(
     currency: input.currency,
     asOf: input.asOf,
     horizonUntil: primaryHorizon.until,
-    accounts: input.snapshot.accounts,
+    accounts: input.accounts,
     obligations,
     forecastEvents,
     essentialSpendExpectedMinor: essentialSpend.expectedMinor,
@@ -274,6 +339,8 @@ export function buildZeroEntryFinancialAutopilot(
   });
 
   return {
+    analysisScope: input.analysisScope,
+    sourceOrchestrationFingerprint: input.sourceOrchestrationFingerprint,
     primaryHorizon,
     reconciliation,
     recurrences,
@@ -282,10 +349,82 @@ export function buildZeroEntryFinancialAutopilot(
     essentialSpend,
     forecastEvents,
     confidence,
-    sourceCoverage,
+    sourceCoverage: input.sourceCoverage,
     resolvedInputs,
     context,
     nextAction,
     horizons,
+  };
+}
+
+export function buildZeroEntryFinancialAutopilot(
+  input: ZeroEntryAutopilotInput,
+): ZeroEntryAutopilotResult {
+  assertTrustedAnalysisOwner({
+    accounts: input.snapshot.accounts,
+    ledgerEntries: input.snapshot.ledgerEntries,
+    trustedUserId: input.trustedUserId,
+  });
+  const sourceCoverage = resolveTrustedSourceCoverage({
+    trustedUserId: input.trustedUserId,
+    snapshot: input.snapshot,
+    inventory: input.sourceCoverageInventory,
+    nowIso: input.asOf,
+  });
+
+  return buildZeroEntryFromResolvedAnalysis({
+    trustedUserId: input.trustedUserId,
+    accounts: input.snapshot.accounts,
+    ledgerEntries: input.snapshot.ledgerEntries,
+    sourceCoverage,
+    analysisScope: "single_provider",
+    sourceOrchestrationFingerprint: null,
+    currency: input.currency,
+    asOf: input.asOf,
+    protectedReserveMinor: input.protectedReserveMinor,
+    criticalObligationsComplete: input.criticalObligationsComplete,
+    criticalProvisionsMinor: input.criticalProvisionsMinor,
+    baseUncertaintyBufferMinor: input.baseUncertaintyBufferMinor,
+    fallbackHorizonDays: input.fallbackHorizonDays,
+  });
+}
+
+/**
+ * Multi-provider Zero Entry analysis. Coverage and analysis are derived from the
+ * same provider bundles through the global orchestration contract. Persistence
+ * must remain provider-scoped; the existing single-provider persistence builder
+ * explicitly rejects this result type.
+ */
+export function buildZeroEntryFinancialAutopilotFromGlobalSources(
+  input: GlobalZeroEntryAutopilotInput,
+): GlobalZeroEntryAutopilotResult {
+  const orchestration = orchestrateTrustedGlobalFinancialSources({
+    trustedUserId: input.trustedUserId,
+    bundles: input.bundles,
+    closure: input.globalSourceClosure,
+    nowIso: input.asOf,
+  });
+
+  const result = buildZeroEntryFromResolvedAnalysis({
+    trustedUserId: input.trustedUserId,
+    accounts: orchestration.analysis.accounts,
+    ledgerEntries: orchestration.analysis.ledgerEntries,
+    sourceCoverage: orchestration.coverage,
+    analysisScope: "multi_provider",
+    sourceOrchestrationFingerprint: orchestration.orchestrationFingerprint,
+    currency: input.currency,
+    asOf: input.asOf,
+    protectedReserveMinor: input.protectedReserveMinor,
+    criticalObligationsComplete: input.criticalObligationsComplete,
+    criticalProvisionsMinor: input.criticalProvisionsMinor,
+    baseUncertaintyBufferMinor: input.baseUncertaintyBufferMinor,
+    fallbackHorizonDays: input.fallbackHorizonDays,
+  });
+
+  return {
+    ...result,
+    analysisScope: "multi_provider",
+    sourceOrchestrationFingerprint: orchestration.orchestrationFingerprint,
+    sourceCoverage: orchestration.coverage,
   };
 }
