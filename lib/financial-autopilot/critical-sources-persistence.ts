@@ -41,14 +41,38 @@ function validIso(value: string | null) {
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
 }
 
-function boundValidity(current: string, coverageValidUntil: string | null) {
-  if (!coverageValidUntil) return current;
-  const currentTime = new Date(current).getTime();
-  const coverageTime = new Date(coverageValidUntil).getTime();
-  if (!Number.isFinite(currentTime) || !Number.isFinite(coverageTime)) {
+function earlierIso(a: string, b: string) {
+  const aTime = new Date(a).getTime();
+  const bTime = new Date(b).getTime();
+  if (!Number.isFinite(aTime) || !Number.isFinite(bTime)) {
     throw new Error("financial_persistence_invalid_source_coverage_evidence");
   }
-  return new Date(Math.min(currentTime, coverageTime)).toISOString();
+  return new Date(Math.min(aTime, bTime)).toISOString();
+}
+
+function resultBoundedByCoverageEvidence(
+  result: ZeroEntryAutopilotResult,
+): ZeroEntryAutopilotResult {
+  const coverageValidUntil = validIso(result.sourceCoverage.coverageValidUntil);
+  if (!coverageValidUntil) return result;
+
+  // The base persistence builder derives context validUntil from the primary
+  // horizon + connector freshness before v1.1 creates its aggregate integrity
+  // commitment. Bound that input *before* v1.1 hashing; never mutate validUntil
+  // after the context-integrity ref has been created.
+  const boundedPersistenceHorizon = earlierIso(
+    result.primaryHorizon.until,
+    coverageValidUntil,
+  );
+  if (boundedPersistenceHorizon === result.primaryHorizon.until) return result;
+
+  return {
+    ...result,
+    primaryHorizon: {
+      ...result.primaryHorizon,
+      until: boundedPersistenceHorizon,
+    },
+  };
 }
 
 export function parsePersistedCriticalSourcesComplete(value: unknown) {
@@ -121,10 +145,9 @@ export function criticalSourcesCompletenessMatches(input: {
 
 /**
  * v1.3 separates source freshness from source coverage. The hard boolean is no
- * longer accepted as a free-standing assertion: persistence receives the
- * compact evidence produced by the trusted source-coverage resolver, binds its
- * fingerprint/lifetime into explanation refs and limits context validity to the
- * lifetime of that evidence.
+ * longer accepted as a free-standing assertion: persistence receives compact
+ * evidence produced by the trusted source-coverage resolver and binds its
+ * fingerprint/lifetime into the v1.3 revision.
  */
 export function upgradeFinancialPersistencePlanWithCriticalSources(input: {
   plan: FinancialPersistencePlanV1_2;
@@ -154,6 +177,7 @@ export function upgradeFinancialPersistencePlanWithCriticalSources(input: {
   const coverageValidUntilTime = normalizedCoverageValidUntil
     ? new Date(normalizedCoverageValidUntil).getTime()
     : Number.NaN;
+  const contextValidUntilTime = new Date(input.plan.contextInsert.validUntil).getTime();
   if (
     (coverage.inventoryFingerprint !== null &&
       !SHA256_HEX.test(coverage.inventoryFingerprint)) ||
@@ -162,7 +186,9 @@ export function upgradeFinancialPersistencePlanWithCriticalSources(input: {
       (!coverage.inventoryFingerprint ||
         normalizedCoverageValidUntil === null ||
         !Number.isFinite(generatedAtTime) ||
-        coverageValidUntilTime <= generatedAtTime))
+        !Number.isFinite(contextValidUntilTime) ||
+        coverageValidUntilTime <= generatedAtTime ||
+        contextValidUntilTime > coverageValidUntilTime))
   ) {
     throw new Error("financial_persistence_invalid_source_coverage_evidence");
   }
@@ -204,10 +230,6 @@ export function upgradeFinancialPersistencePlanWithCriticalSources(input: {
     evidenceRef,
     completenessRef,
   });
-  const validUntil = boundValidity(
-    input.plan.contextInsert.validUntil,
-    normalizedCoverageValidUntil,
-  );
 
   return {
     ...input.plan,
@@ -216,7 +238,6 @@ export function upgradeFinancialPersistencePlanWithCriticalSources(input: {
       sourceFingerprint,
       revision: `ctx:${sourceFingerprint}`,
       explanationRefs,
-      validUntil,
       criticalSourcesComplete: coverage.criticalSourcesComplete,
     },
   };
@@ -226,7 +247,11 @@ export function buildFinancialPersistencePlanV1_3(input: {
   snapshot: FinancialConnectorSnapshot;
   result: ZeroEntryAutopilotResult;
 }): FinancialPersistencePlanV1_3 {
-  const plan = buildFinancialPersistencePlanV1_2(input);
+  const boundedResult = resultBoundedByCoverageEvidence(input.result);
+  const plan = buildFinancialPersistencePlanV1_2({
+    snapshot: input.snapshot,
+    result: boundedResult,
+  });
   return upgradeFinancialPersistencePlanWithCriticalSources({
     plan,
     sourceCoverage: input.result.sourceCoverage,
