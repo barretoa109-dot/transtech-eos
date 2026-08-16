@@ -8,6 +8,7 @@ import {
   runForecastHorizonScenario,
   runLiquidityAuthorityScenario,
   runPyPilotScenario,
+  runTrustedSourceCoverageScenario,
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
 import {
@@ -45,6 +46,7 @@ export async function GET() {
   const behaviorInference = runBehaviorInferenceScenario();
   const forecastHorizons = runForecastHorizonScenario();
   const liquidityAuthority = runLiquidityAuthorityScenario();
+  const sourceCoverage = runTrustedSourceCoverageScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
@@ -72,6 +74,7 @@ export async function GET() {
     compact("behavior-inference", behaviorInference),
     compact("forecast-horizons", forecastHorizons),
     compact("liquidity-authority", liquidityAuthority),
+    compact("source-coverage", sourceCoverage),
     compact("zero-entry", zeroEntry),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
