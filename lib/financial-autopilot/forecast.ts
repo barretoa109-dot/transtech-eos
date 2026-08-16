@@ -34,7 +34,19 @@ export function projectCashflow(
       throw new Error(`invalid forecast amount for ${event.id}`);
     }
 
-    const effectiveAmount = Math.trunc(event.amountMinor * Math.max(0, Math.min(1, event.confidence)));
+    if (!Number.isFinite(event.confidence) || event.confidence < 0 || event.confidence > 1) {
+      throw new Error(`invalid forecast confidence for ${event.id}`);
+    }
+
+    const probability = event.probability ?? 1;
+    if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+      throw new Error(`invalid forecast probability for ${event.id}`);
+    }
+
+    // Confidence describes how trustworthy the source/interpretation is; it must not
+    // silently shrink the economic amount. Probability is the explicit mechanism for
+    // expected-value scenarios. Deterministic events therefore use their full amount.
+    const effectiveAmount = Math.trunc(event.amountMinor * probability);
     cash += event.direction === "credit" ? effectiveAmount : -effectiveAmount;
     appliedEventIds.push(event.id);
 
@@ -67,6 +79,7 @@ export function simulateHypotheticalExpense(
     amountMinor: hypotheticalAmountMinor,
     direction: "debit",
     confidence: 1,
+    probability: 1,
     essentiality: "optional",
     sourceRef: "simulation",
   };
