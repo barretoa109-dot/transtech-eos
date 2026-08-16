@@ -50,16 +50,25 @@ export type SourceCoverageReasonCode =
   | "unresolved_material_source"
   | "duplicate_expected_source_identity"
   | "duplicate_connected_source_identity"
+  | "connected_source_not_in_inventory"
   | "material_source_evidence_below_threshold"
   | "material_source_missing";
 
+export type SourceFreshnessReasonCode =
+  | "coverage_not_authoritative"
+  | "material_source_stale_or_unknown";
+
 export interface TrustedSourceCoverageResolution {
   criticalSourcesComplete: boolean;
+  /** Freshness of the complete critical/material source set, not only liquid accounts. */
+  criticalSourcesFresh: boolean;
   expectedMaterialCount: number;
   connectedMaterialCount: number;
   missingMaterialCount: number;
+  staleMaterialSourceCount: number;
   connectedSourceCount: number;
   reasonCodes: SourceCoverageReasonCode[];
+  freshnessReasonCodes: SourceFreshnessReasonCode[];
   /** Internal integrity aid only. Financial State/Surface must not expose it. */
   inventoryFingerprint: string | null;
   /** The context must never outlive the trusted coverage evidence that justified it. */
@@ -83,6 +92,13 @@ function parseTime(value: string) {
 
 function isAuthoritativeOwnership(ownership: FinancialAccount["ownership"]) {
   return ownership === "own" || ownership === "joint";
+}
+
+function accountIsFresh(account: FinancialAccount, now: number) {
+  const freshUntil = account.freshUntil
+    ? new Date(account.freshUntil).getTime()
+    : Number.NaN;
+  return Number.isFinite(freshUntil) && freshUntil >= now;
 }
 
 export function financialSourceCoverageRef(input: {
@@ -124,28 +140,35 @@ export function financialAccountSourceCoverageRef(input: {
 
 function failClosed(input: {
   reasonCodes: SourceCoverageReasonCode[];
+  freshnessReasonCodes?: SourceFreshnessReasonCode[];
   expectedMaterialCount?: number;
   connectedMaterialCount?: number;
   missingMaterialCount?: number;
+  staleMaterialSourceCount?: number;
   connectedSourceCount?: number;
   inventoryFingerprint?: string | null;
   coverageValidUntil?: string | null;
 }): TrustedSourceCoverageResolution {
   return {
     criticalSourcesComplete: false,
+    criticalSourcesFresh: false,
     expectedMaterialCount: input.expectedMaterialCount ?? 0,
     connectedMaterialCount: input.connectedMaterialCount ?? 0,
     missingMaterialCount: input.missingMaterialCount ?? 0,
+    staleMaterialSourceCount: input.staleMaterialSourceCount ?? 0,
     connectedSourceCount: input.connectedSourceCount ?? 0,
     reasonCodes: [...new Set(input.reasonCodes)].sort(),
+    freshnessReasonCodes: [
+      ...new Set(input.freshnessReasonCodes ?? ["coverage_not_authoritative"]),
+    ].sort(),
     inventoryFingerprint: input.inventoryFingerprint ?? null,
     coverageValidUntil: input.coverageValidUntil ?? null,
   };
 }
 
 /**
- * Resolves the v1.3 hard source-coverage boolean from trusted, structured
- * inventory evidence. Current-source freshness remains a separate gate.
+ * Resolves the v1.3 hard source-coverage boolean and whole-material-set
+ * freshness from trusted, structured inventory evidence.
  *
  * Nothing in this resolver interprets "absence of evidence" as proof that no
  * additional source exists. The inventory itself must be current, trusted,
@@ -219,17 +242,18 @@ export function resolveTrustedSourceCoverage(input: {
     expectedSources,
   });
 
-  const connectedRefs: string[] = [];
+  const connectedRows: Array<{ sourceRef: string; account: FinancialAccount }> = [];
   try {
     for (const account of input.snapshot.accounts) {
       if (!isAuthoritativeOwnership(account.ownership)) continue;
-      connectedRefs.push(
-        financialAccountSourceCoverageRef({
+      connectedRows.push({
+        sourceRef: financialAccountSourceCoverageRef({
           userId: input.trustedUserId,
           providerKey: input.snapshot.providerKey,
           account,
         }),
-      );
+        account,
+      });
     }
   } catch {
     return failClosed({
@@ -239,8 +263,12 @@ export function resolveTrustedSourceCoverage(input: {
     });
   }
 
+  const connectedRefs = connectedRows.map((row) => row.sourceRef);
   const connectedSet = new Set(connectedRefs);
   const expectedSet = new Set(expectedSources.map((source) => source.sourceRef));
+  const connectedByRef = new Map(
+    connectedRows.map((row) => [row.sourceRef, row.account] as const),
+  );
   const materialSources = expectedSources.filter(
     (source) => source.materiality === "critical" || source.materiality === "material",
   );
@@ -248,6 +276,10 @@ export function resolveTrustedSourceCoverage(input: {
     connectedSet.has(source.sourceRef),
   ).length;
   const missingMaterialCount = materialSources.length - connectedMaterialCount;
+  const staleMaterialSourceCount = materialSources.filter((source) => {
+    const account = connectedByRef.get(source.sourceRef);
+    return !account || !accountIsFresh(account, now);
+  }).length;
 
   const reasons: SourceCoverageReasonCode[] = [];
   if (!TRUSTED_AUTHORITIES.has(input.inventory.authority)) {
@@ -275,6 +307,9 @@ export function resolveTrustedSourceCoverage(input: {
   if (connectedSet.size !== connectedRefs.length) {
     reasons.push("duplicate_connected_source_identity");
   }
+  if (connectedRefs.some((sourceRef) => !expectedSet.has(sourceRef))) {
+    reasons.push("connected_source_not_in_inventory");
+  }
   if (
     materialSources.some(
       (source) =>
@@ -290,22 +325,33 @@ export function resolveTrustedSourceCoverage(input: {
   if (reasons.length > 0) {
     return failClosed({
       reasonCodes: reasons,
+      freshnessReasonCodes:
+        staleMaterialSourceCount > 0
+          ? ["coverage_not_authoritative", "material_source_stale_or_unknown"]
+          : ["coverage_not_authoritative"],
       expectedMaterialCount: materialSources.length,
       connectedMaterialCount,
       missingMaterialCount,
+      staleMaterialSourceCount,
       connectedSourceCount: connectedSet.size,
       inventoryFingerprint,
       coverageValidUntil,
     });
   }
 
+  const criticalSourcesFresh = staleMaterialSourceCount === 0;
   return {
     criticalSourcesComplete: true,
+    criticalSourcesFresh,
     expectedMaterialCount: materialSources.length,
     connectedMaterialCount,
     missingMaterialCount: 0,
+    staleMaterialSourceCount,
     connectedSourceCount: connectedSet.size,
     reasonCodes: [],
+    freshnessReasonCodes: criticalSourcesFresh
+      ? []
+      : ["material_source_stale_or_unknown"],
     inventoryFingerprint,
     coverageValidUntil,
   };
