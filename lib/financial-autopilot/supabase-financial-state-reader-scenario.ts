@@ -29,7 +29,7 @@ function contextRow(overrides: Record<string, unknown> = {}) {
       reconciliationQuality: 1,
       overall: 0.932,
     },
-    explanation_refs: ["account:checking", "obligation:rent"],
+    explanation_refs: ["account:checking", "obligation:resolver-rent"],
     sources_fresh: true,
     generated_at: "2026-08-16T04:00:00.000Z",
     valid_until: "2026-08-17T12:00:00.000Z",
@@ -39,7 +39,7 @@ function contextRow(overrides: Record<string, unknown> = {}) {
 
 function obligationRow(overrides: Record<string, unknown> = {}) {
   return {
-    id: "40000000-0000-4000-8000-000000000080",
+    source_key: "resolver-rent",
     usuario_id: USER_ID,
     obligation_type: "housing",
     amount_minor: 2100000,
@@ -194,6 +194,11 @@ export async function runSupabaseFinancialStateReaderScenario() {
       parsePersistedFinancialObligationRow(obligationRow({ currency: "USD" }), USER_ID, "PYG"),
     "financial_state_obligation_currency_mismatch",
   );
+  const malformedObligationIdentityBlocked = await catchesCode(
+    () =>
+      parsePersistedFinancialObligationRow(obligationRow({ source_key: "" }), USER_ID, "PYG"),
+    "financial_state_invalid_obligation_id",
+  );
   const crossUserReadBlocked = await catchesCode(
     () => reader.getLatestContext(OTHER_USER_ID),
     "financial_state_user_mismatch",
@@ -213,13 +218,15 @@ export async function runSupabaseFinancialStateReaderScenario() {
       parsedContext.userId === USER_ID &&
       parsedContext.revision === CONTEXT_REVISION &&
       parsedContext.availableRealSafeMinor === 1640000,
-    obligationParserMapsStrictly:
+    obligationParserPreservesDeterministicIdentity:
       parsedObligation.userId === USER_ID &&
+      parsedObligation.id === "resolver-rent" &&
       parsedObligation.type === "housing" &&
       parsedObligation.amountMinor === 2100000,
     readerReturnsStrictParsedRows:
       latest?.revision === CONTEXT_REVISION &&
       obligations.length === 1 &&
+      obligations[0]?.id === "resolver-rent" &&
       obligations[0]?.type === "housing",
     contextReadIsOwnerScopedAndMinimal:
       contextQuery?.predicates.some(
@@ -241,7 +248,9 @@ export async function runSupabaseFinancialStateReaderScenario() {
       obligationQuery.predicates.some(
         ([column, value]) => column === "status" && value === "open",
       ) &&
-      obligationQuery.ltePredicate?.[0] === "due_at",
+      obligationQuery.ltePredicate?.[0] === "due_at" &&
+      obligationQuery.selected?.includes("source_key") === true &&
+      obligationQuery.selected?.includes("id") === false,
     rawLedgerNeverQueried:
       fake.queries.every(
         (query) =>
@@ -254,6 +263,7 @@ export async function runSupabaseFinancialStateReaderScenario() {
     malformedConfidenceFailsClosed: malformedConfidenceBlocked,
     obligationOwnerMismatchFailsClosed: obligationOwnerMismatchBlocked,
     obligationCurrencyMismatchFailsClosed: obligationCurrencyMismatchBlocked,
+    malformedObligationIdentityFailsClosed: malformedObligationIdentityBlocked,
     crossUserReadFailsBeforeQuery: crossUserReadBlocked,
     databaseReadErrorFailsClosed: readErrorBlocked,
   };
