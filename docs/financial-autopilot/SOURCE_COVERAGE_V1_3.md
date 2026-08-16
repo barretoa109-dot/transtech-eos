@@ -6,20 +6,30 @@
 
 Source freshness and source coverage answer different questions:
 
-- **Freshness:** are the critical sources EOS already knows about current enough?
+- **Freshness:** are the authoritative sources EOS already knows about current enough?
 - **Coverage:** does EOS know the material source set is complete enough to claim financial safety?
 
 A fresh checking account does not prove that the user has no second bank account, credit card, loan, wallet, payroll source or other material financial source outside the current context.
+
+Likewise, complete source coverage does not make a stale card or loan safe.
 
 Therefore:
 
 `sourcesFresh = true` does **not** imply `criticalSourcesComplete = true`.
 
-## Hard safety rule
+And:
+
+`criticalSourcesComplete = true` does **not** imply `sourcesFresh = true`.
+
+## Hard safety rules
 
 For the v1.3 path:
 
 `criticalSourcesComplete = false => Financial Context must be DEGRADED`
+
+and the existing freshness gate remains independently hard:
+
+`known authoritative source stale/unknown => sourcesFresh = false => DEGRADED`
 
 Consequences:
 
@@ -29,7 +39,7 @@ Consequences:
 - first forecast risk is not presented as an authoritative current projection;
 - user-facing attention resolves to `CONNECTION_REQUIRED` under the existing Financial State v1 contract.
 
-This is deliberately fail-closed. EOS may be conservative while source coverage is unresolved; it must not be confidently wrong.
+This is deliberately fail-closed. EOS may be conservative while source coverage or freshness is unresolved; it must not be confidently wrong.
 
 ## Trusted Source Coverage Resolver
 
@@ -41,7 +51,7 @@ Zero Entry receives:
 - the current provider snapshot;
 - a versioned `TrustedFinancialSourceInventory` produced by a trusted discovery/coverage layer.
 
-The resolver derives the boolean from evidence.
+The resolver derives source coverage and known-source freshness from evidence.
 
 The inventory includes:
 
@@ -59,7 +69,7 @@ A source identity is opaque:
 
 Its SHA-256 material is scoped by trusted user + provider + connection + external account identity. Display names, account numbers and provider payloads are not used as matching keys and are not exposed to Financial State/Surface.
 
-## Resolution rules
+## Coverage resolution rules
 
 Coverage can resolve `true` only when all of the following hold:
 
@@ -70,25 +80,56 @@ Coverage can resolve `true` only when all of the following hold:
 5. inventory confidence meets the hard threshold;
 6. no unresolved material-source hint remains;
 7. expected and connected source identities are unambiguous;
-8. material expected-source evidence meets its confidence threshold;
-9. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
+8. every authoritative connected source is represented in the inventory;
+9. material expected-source evidence meets its confidence threshold;
+10. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
 
 Missing `optional` sources do not block coverage.
 
 A source with `external` or `unknown` ownership cannot satisfy material coverage. A source under a different provider/connection/account scope cannot satisfy the expected identity either.
 
+If the provider suddenly exposes an additional own/joint source that the trusted inventory does not contain yet, coverage fails closed until inventory discovery catches up. This prevents a newly appeared card/account from being silently ignored.
+
 Absence of another source is never interpreted as proof that another source does not exist.
+
+## Known-source freshness
+
+Freshness is evaluated separately from inventory completeness.
+
+Every authoritative connected source (`own` or `joint`) participates in the whole-known-source freshness signal, including non-liquidity products such as cards or loans.
+
+The final Financial Context freshness gate is:
+
+`usableLiquidityFresh AND knownAuthoritativeSourcesFresh`
+
+This matters because the usable-liquidity engine intentionally excludes non-liquid products. Without this second signal, a fresh checking account could hide a stale material card.
+
+The exact `freshUntil == now` boundary remains fresh. Missing/invalid `freshUntil` on an authoritative connected source is stale/unknown.
 
 ## Fresh but incomplete example
 
 A user may have one checking account that is fully synchronized and fresh. If the trusted inventory also expects a material card that is not connected, then:
 
-- `sourcesFresh = true` for the known checking account;
+- `sourcesFresh = true` for the known connected source set;
 - `criticalSourcesComplete = false` because the material card is missing;
-- Financial Context becomes `DEGRADED`;
+- Financial Context becomes `DEGRADED` through the independent coverage gate;
 - EOS does not expose `Disponible Real` as safe.
 
-This is covered by the Zero Entry and source-coverage scenarios.
+This proves freshness and coverage are not aliases.
+
+## Complete but stale example
+
+EOS may know exactly that the user has a checking account and one material credit card, with both identities present in the trusted inventory. If the checking account is current but the card has expired freshness:
+
+- `criticalSourcesComplete = true`;
+- known-source freshness is false;
+- usable liquidity can remain unchanged because the stale product is not liquid;
+- Financial Context still becomes `DEGRADED` through `critical_source_stale`;
+- confidence source freshness also drops through the same shared safety signal.
+
+This prevents a stale card/loan from being hidden behind a current bank balance.
+
+Both cases are covered by the Zero Entry and source-coverage scenarios.
 
 ## Coverage evidence identity and lifetime
 
@@ -100,7 +141,10 @@ Zero Entry carries both into resolved safety inputs. For v1.3 persistence:
 - the critical-source completeness commitment binds to that evidence ref;
 - changing evidence changes the v1.3 context revision;
 - a SAFE v1.3 context cannot be persisted without a valid coverage fingerprint and future validity window;
-- context `validUntil` is capped so it cannot outlive the trusted coverage evidence that justified SAFE.
+- context `validUntil` is capped **before** the v1.1 aggregate context-integrity hash is created, so persisted validity and its integrity commitment remain identical;
+- the context cannot outlive the trusted coverage evidence that justified SAFE.
+
+Known-source freshness is also already committed through the base persistence safety inputs and the persisted aggregate `sourcesFresh` field. The v1.3 evidence ref does not need to expose raw account freshness metadata.
 
 The raw expected-source inventory is not persisted into the user-facing Financial State contract.
 
@@ -118,6 +162,8 @@ The v1.3 context revision commits to:
 - the source-coverage evidence commitment;
 - the derived `criticalSourcesComplete` boolean.
 
+The base fingerprint and aggregate context integrity already carry the resulting combined freshness state.
+
 ## Read boundary
 
 `SupabaseFinancialStateReaderV1_3`:
@@ -126,8 +172,9 @@ The v1.3 context revision commits to:
 2. reads `critical_sources_complete` scoped by trusted `usuario_id` + exact context `revision`;
 3. requires the persisted source-coverage evidence commitment;
 4. validates the critical-source SHA-256 commitment against the persisted explanation refs;
-5. fails closed on missing, malformed, tampered or unreadable data;
-6. forces DEGRADED when the persisted derived value is false.
+5. inherits v1.1 aggregate integrity verification, including `sourcesFresh` and `validUntil`;
+6. fails closed on missing, malformed, tampered or unreadable data;
+7. forces DEGRADED when the persisted derived coverage value is false.
 
 No raw Ledger or ingestion row is required for this user-facing read.
 
@@ -150,4 +197,4 @@ Both `/api/finance/state` and `/dashboard/finanzas` select the same strictest en
 
 The Trusted Source Coverage Resolver currently uses fixtures/contracts only. It does not connect to a real bank, aggregator or provider and does not move money.
 
-Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
+Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime, stale non-liquidity material sources and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
