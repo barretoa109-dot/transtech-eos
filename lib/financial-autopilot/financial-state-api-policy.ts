@@ -10,6 +10,18 @@ export const FINANCIAL_STATE_DEMO_KINDS = [
 ] as const;
 
 export type FinancialStateDemoKind = (typeof FINANCIAL_STATE_DEMO_KINDS)[number];
+export type FinancialStateReadFailureCategory =
+  | "security_boundary_violation"
+  | "persisted_state_invalid"
+  | "source_read_failed"
+  | "unexpected";
+
+const FINANCIAL_STATE_SECURITY_FAILURES = new Set([
+  "financial_state_invalid_trusted_user",
+  "financial_state_user_mismatch",
+  "financial_state_owner_mismatch",
+  "financial_state_obligation_owner_mismatch",
+]);
 
 export function isFinancialStateDemoKind(
   value: string | undefined,
@@ -18,6 +30,20 @@ export function isFinancialStateDemoKind(
     value !== undefined &&
     (FINANCIAL_STATE_DEMO_KINDS as readonly string[]).includes(value)
   );
+}
+
+export function classifyFinancialStateReadFailure(
+  error: unknown,
+): FinancialStateReadFailureCategory {
+  if (!(error instanceof Error)) return "unexpected";
+
+  const code = error.message.split(":", 1)[0];
+  if (FINANCIAL_STATE_SECURITY_FAILURES.has(code)) {
+    return "security_boundary_violation";
+  }
+  if (code.endsWith("_read_failed")) return "source_read_failed";
+  if (code.startsWith("financial_state_")) return "persisted_state_invalid";
+  return "unexpected";
 }
 
 export function isFinancialStateApiEnabled(
