@@ -17,6 +17,8 @@ import {
 import {
   isFinancialStateApiEnabled,
   isFinancialStateDemoAllowed,
+  isFinancialStateDemoKind,
+  type FinancialStateDemoKind,
   resolveFinancialState,
   SupabaseFinancialStateReaderV1_1,
 } from "@/lib/financial-autopilot/server";
@@ -26,8 +28,12 @@ export const dynamic = "force-dynamic";
 
 const DEMO_REVISION = `ctx:${"d".repeat(64)}`;
 type SurfaceSource = "live" | "demo";
+type FinancialStateFixtureKind = Exclude<
+  FinancialStateDemoKind,
+  "empty" | "error"
+>;
 
-function demoState(kind: string | undefined): FinancialStateView {
+function demoState(kind: FinancialStateFixtureKind): FinancialStateView {
   const common: Omit<
     FinancialStateView,
     | "status"
@@ -442,9 +448,15 @@ export default async function FinancialStatePage({
   const params = await searchParams;
   const apiEnabled = isFinancialStateApiEnabled();
   const demoAllowed = isFinancialStateDemoAllowed();
-  const requestedDemo = demoAllowed ? params.demo : undefined;
 
   if (!apiEnabled && !demoAllowed) notFound();
+
+  if (demoAllowed && params.demo !== undefined && !isFinancialStateDemoKind(params.demo)) {
+    notFound();
+  }
+
+  const requestedDemo =
+    demoAllowed && isFinancialStateDemoKind(params.demo) ? params.demo : undefined;
 
   let source: SurfaceSource = "demo";
   let surfaceInput: FinancialSurfaceInput;
