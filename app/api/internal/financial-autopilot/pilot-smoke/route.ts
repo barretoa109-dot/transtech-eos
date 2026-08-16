@@ -4,6 +4,7 @@ import {
   runEconomicSemanticsScenario,
   runForecastHorizonScenario,
   runPyPilotScenario,
+  runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +18,13 @@ export async function GET() {
   const economicSemantics = runEconomicSemanticsScenario();
   const behaviorInference = runBehaviorInferenceScenario();
   const forecastHorizons = runForecastHorizonScenario();
+  const zeroEntry = runZeroEntryScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
     behaviorInference.ok &&
-    forecastHorizons.ok;
+    forecastHorizons.ok &&
+    zeroEntry.ok;
 
   return NextResponse.json(
     {
@@ -30,6 +33,7 @@ export async function GET() {
       economicSemantics,
       behaviorInference,
       forecastHorizons,
+      zeroEntry,
     },
     {
       status: ok ? 200 : 500,
