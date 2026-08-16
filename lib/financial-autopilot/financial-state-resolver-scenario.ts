@@ -210,6 +210,23 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const elapsedAttentionRisk = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"6".repeat(64)}`,
+        firstForecastRisk: {
+          status: "ATTENTION",
+          horizonDays: 30,
+          until: "2026-08-16T04:15:00.000Z",
+          reserveGapMinor: 500000,
+          negativeCashGapMinor: 0,
+        },
+      }),
+    ),
+    nowIso: NOW,
+  });
+
   const noData = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(null),
@@ -445,6 +462,8 @@ export async function runFinancialStateResolverScenario() {
     inconsistentSafe.kind === "STATE" ? inconsistentSafe.state : null;
   const longRangeAttentionState =
     longRangeAttentionRisk.kind === "STATE" ? longRangeAttentionRisk.state : null;
+  const elapsedAttentionState =
+    elapsedAttentionRisk.kind === "STATE" ? elapsedAttentionRisk.state : null;
   const expiredState = expired.kind === "STATE" ? expired.state : null;
   const exactExpiryState =
     expiresExactlyNow.kind === "STATE" ? expiresExactlyNow.state : null;
@@ -501,6 +520,12 @@ export async function runFinancialStateResolverScenario() {
       longRangeAttentionState.canAssertSafety === true &&
       longRangeAttentionState.firstForecastRisk?.status === "ATTENTION" &&
       longRangeAttentionState.firstForecastRisk.horizonDays === 60,
+    elapsedForecastRiskFailsClosed:
+      elapsedAttentionState?.status === "DEGRADED" &&
+      elapsedAttentionState.canAssertSafety === false &&
+      elapsedAttentionState.money.availableRealMinor === null &&
+      elapsedAttentionState.firstForecastRisk === null &&
+      elapsedAttentionState.attention.outcome === "CONNECTION_REQUIRED",
     noDataIsExplicitNotFakeSafe:
       noData.kind === "NO_DATA" &&
       noData.state === null &&
@@ -560,6 +585,7 @@ export async function runFinancialStateResolverScenario() {
     changedProtectedIdentity: changedIdentityState,
     inconsistentSafe: inconsistentSafeState,
     longRangeAttentionRisk: longRangeAttentionState,
+    elapsedAttentionRisk: elapsedAttentionState,
     noData,
     expired: expiredState,
     expiresExactlyNow: exactExpiryState,
