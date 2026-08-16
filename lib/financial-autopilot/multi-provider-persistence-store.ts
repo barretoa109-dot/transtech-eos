@@ -2,6 +2,7 @@ import {
   sha256FinancialFingerprint,
   stableFinancialFingerprintMaterial,
 } from "./persistence-fingerprint";
+import type { MultiProviderPersistenceManifest } from "./multi-provider-persistence-manifest";
 import type {
   MultiProviderGlobalContextPlan,
   MultiProviderScopedPersistencePlan,
@@ -97,6 +98,22 @@ function providerPlanFingerprint(plan: MultiProviderScopedProviderPlan) {
   });
 }
 
+function manifestFingerprint(manifest: MultiProviderPersistenceManifest) {
+  return sha256FinancialFingerprint({
+    contract: "multi-provider-persistence-manifest-v1",
+    trustedUserId: manifest.trustedUserId,
+    providerScopes: manifest.providerScopes.map((scope) => ({
+      providerKey: scope.providerKey,
+      scopeFingerprint: scope.scopeFingerprint,
+    })),
+    analysisFingerprint: manifest.analysisFingerprint,
+    globalCoverageFingerprint: manifest.globalCoverageFingerprint,
+    sourceOrchestrationFingerprint: manifest.sourceOrchestrationFingerprint,
+    globalResultFingerprint: manifest.globalResultFingerprint,
+    globalContextEligible: manifest.globalContextEligible,
+  });
+}
+
 function globalContextFingerprint(context: MultiProviderGlobalContextPlan) {
   return sha256FinancialFingerprint({
     contract: "multi-provider-global-financial-context-v1",
@@ -160,25 +177,64 @@ function assertProviderPlan(
     throw new Error("financial_multi_provider_store_invalid_provider_plan_identity");
   }
 
+  const connectionKeys = new Set<string>();
   for (const row of plan.connectionUpserts) {
     if (row.userId !== trustedUserId || row.providerKey !== plan.providerKey) {
       throw new Error("financial_multi_provider_store_provider_scope_mismatch");
     }
+    if (connectionKeys.has(row.connectionKey)) {
+      throw new Error("financial_multi_provider_store_duplicate_connection_identity");
+    }
+    connectionKeys.add(row.connectionKey);
   }
+
+  const accountKeys = new Set<string>();
   for (const row of plan.accountUpserts) {
     if (row.userId !== trustedUserId) {
       throw new Error("financial_multi_provider_store_user_mismatch");
     }
+    if (!connectionKeys.has(row.connectionKey)) {
+      throw new Error("financial_multi_provider_store_account_connection_mismatch");
+    }
+    const key = `${row.connectionKey}|${row.externalAccountId}`;
+    if (accountKeys.has(key)) {
+      throw new Error("financial_multi_provider_store_duplicate_account_identity");
+    }
+    accountKeys.add(key);
   }
+
+  const ingestionKeys = new Set<string>();
   for (const row of plan.ingestionEventUpserts) {
     if (row.userId !== trustedUserId || row.providerKey !== plan.providerKey) {
       throw new Error("financial_multi_provider_store_provider_scope_mismatch");
     }
+    const accountKey = `${row.connectionKey}|${row.accountExternalId}`;
+    if (!accountKeys.has(accountKey)) {
+      throw new Error("financial_multi_provider_store_ingestion_account_mismatch");
+    }
+    const key = `${accountKey}|${row.sourceEventKey}`;
+    if (ingestionKeys.has(key)) {
+      throw new Error("financial_multi_provider_store_duplicate_ingestion_identity");
+    }
+    ingestionKeys.add(key);
   }
+
+  const ledgerKeys = new Set<string>();
   for (const row of plan.ledgerUpserts) {
     if (row.userId !== trustedUserId || row.providerKey !== plan.providerKey) {
       throw new Error("financial_multi_provider_store_provider_scope_mismatch");
     }
+    const accountKey = `${row.connectionKey}|${row.accountExternalId}`;
+    if (!accountKeys.has(accountKey)) {
+      throw new Error("financial_multi_provider_store_ledger_account_mismatch");
+    }
+    if (!ingestionKeys.has(`${accountKey}|${row.sourceEventKey}`)) {
+      throw new Error("financial_multi_provider_store_ledger_ingestion_mismatch");
+    }
+    if (ledgerKeys.has(row.canonicalKey)) {
+      throw new Error("financial_multi_provider_store_duplicate_ledger_identity");
+    }
+    ledgerKeys.add(row.canonicalKey);
   }
 }
 
@@ -205,6 +261,47 @@ function assertGlobalContext(
   }
 }
 
+function assertManifest(
+  manifest: MultiProviderPersistenceManifest,
+  trustedUserId: string,
+) {
+  if (
+    manifest.version !== "multi-provider-persistence-manifest-v1" ||
+    manifest.trustedUserId !== trustedUserId ||
+    !SHA256_HEX.test(manifest.manifestFingerprint) ||
+    !SHA256_HEX.test(manifest.analysisFingerprint) ||
+    !SHA256_HEX.test(manifest.globalResultFingerprint) ||
+    (manifest.globalCoverageFingerprint !== null &&
+      !SHA256_HEX.test(manifest.globalCoverageFingerprint)) ||
+    (manifest.sourceOrchestrationFingerprint !== null &&
+      !SHA256_HEX.test(manifest.sourceOrchestrationFingerprint)) ||
+    manifestFingerprint(manifest) !== manifest.manifestFingerprint
+  ) {
+    throw new Error("financial_multi_provider_store_invalid_manifest_identity");
+  }
+
+  if (
+    manifest.globalContextEligible &&
+    (!manifest.globalCoverageFingerprint || !manifest.sourceOrchestrationFingerprint)
+  ) {
+    throw new Error("financial_multi_provider_store_invalid_global_eligibility");
+  }
+
+  const scopeFingerprints = new Set<string>();
+  for (const scope of manifest.providerScopes) {
+    if (
+      !scope.providerKey ||
+      scope.providerKey.trim() !== scope.providerKey ||
+      !SHA256_HEX.test(scope.scopeFingerprint) ||
+      !SHA256_HEX.test(scope.snapshotFingerprint) ||
+      scopeFingerprints.has(scope.scopeFingerprint)
+    ) {
+      throw new Error("financial_multi_provider_store_invalid_manifest_scope");
+    }
+    scopeFingerprints.add(scope.scopeFingerprint);
+  }
+}
+
 function assertPlan(
   plan: MultiProviderScopedPersistencePlan,
   trustedUserId: string,
@@ -212,11 +309,12 @@ function assertPlan(
   if (
     plan.version !== "multi-provider-scoped-persistence-plan-v1" ||
     plan.userId !== trustedUserId ||
-    plan.manifest.trustedUserId !== trustedUserId ||
     !SHA256_HEX.test(plan.planFingerprint)
   ) {
     throw new Error("financial_multi_provider_store_user_or_version_mismatch");
   }
+
+  assertManifest(plan.manifest, trustedUserId);
 
   if (
     plan.providerPlans.length !== plan.manifest.providerScopes.length ||
