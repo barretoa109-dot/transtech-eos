@@ -1,6 +1,7 @@
 import { sha256FinancialFingerprint } from "./persistence-fingerprint";
 import type {
   MultiProviderGlobalContextPlan,
+  MultiProviderScopedPersistencePlan,
   MultiProviderScopedProviderPlan,
 } from "./multi-provider-scoped-persistence";
 
@@ -112,6 +113,30 @@ export function buildMultiProviderGlobalContextCommit(input: {
   };
 }
 
+export function buildMultiProviderGlobalContextCommitFromPlan(input: {
+  trustedUserId: string;
+  plan: MultiProviderScopedPersistencePlan;
+}) {
+  if (input.plan.userId !== input.trustedUserId) {
+    throw new Error("financial_global_context_commit_user_mismatch");
+  }
+  if (!input.plan.globalContextPlan) {
+    if (input.plan.manifest.globalContextEligible) {
+      throw new Error("financial_global_context_commit_missing_context");
+    }
+    return null;
+  }
+  if (!input.plan.manifest.globalContextEligible) {
+    throw new Error("financial_global_context_commit_unexpected_context");
+  }
+
+  return buildMultiProviderGlobalContextCommit({
+    trustedUserId: input.trustedUserId,
+    globalContext: input.plan.globalContextPlan,
+    providerPlans: input.plan.providerPlans,
+  });
+}
+
 export function globalContextCommitMatches(input: {
   trustedUserId: string;
   commit: MultiProviderGlobalContextCommit;
@@ -124,10 +149,5 @@ export function globalContextCommitMatches(input: {
     providerPlans: input.providerPlans,
   });
 
-  return (
-    input.commit.version === expected.version &&
-    input.commit.userId === expected.userId &&
-    input.commit.commitFingerprint === expected.commitFingerprint &&
-    JSON.stringify(input.commit) === JSON.stringify(expected)
-  );
+  return JSON.stringify(input.commit) === JSON.stringify(expected);
 }
