@@ -8,6 +8,7 @@ import {
   runForecastHorizonScenario,
   runGlobalSourceCoverageScenario,
   runGlobalSourceCoverageTemporalScenario,
+  runGlobalSourceOrchestrationScenario,
   runLiquidityAuthorityScenario,
   runMultiProviderAnalysisScenario,
   runPyPilotScenario,
@@ -55,6 +56,7 @@ export async function GET() {
   const globalSourceCoverageTemporal =
     runGlobalSourceCoverageTemporalScenario();
   const multiProviderAnalysis = runMultiProviderAnalysisScenario();
+  const globalSourceOrchestration = runGlobalSourceOrchestrationScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
@@ -88,6 +90,7 @@ export async function GET() {
     compact("global-source-coverage", globalSourceCoverage),
     compact("global-source-coverage-temporal", globalSourceCoverageTemporal),
     compact("multi-provider-analysis", multiProviderAnalysis),
+    compact("global-source-orchestration", globalSourceOrchestration),
     compact("zero-entry", zeroEntry),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
