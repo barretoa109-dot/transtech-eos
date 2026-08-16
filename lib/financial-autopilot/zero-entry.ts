@@ -30,6 +30,8 @@ export interface ZeroEntryAutopilotInput {
   currency: string;
   asOf: string;
   protectedReserveMinor: number;
+  /** Hard coverage assertion supplied by the trusted source/connection layer. */
+  criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
   criticalProvisionsMinor?: number;
   baseUncertaintyBufferMinor?: number;
@@ -41,6 +43,7 @@ export interface ZeroEntryResolvedInputs {
   criticalProvisionsMinor: number;
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
+  criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
 }
 
@@ -124,6 +127,13 @@ function deriveConfidence(input: {
 export function buildZeroEntryFinancialAutopilot(
   input: ZeroEntryAutopilotInput,
 ): ZeroEntryAutopilotResult {
+  if (typeof input.criticalSourcesComplete !== "boolean") {
+    throw new Error("criticalSourcesComplete must be boolean");
+  }
+  if (typeof input.criticalObligationsComplete !== "boolean") {
+    throw new Error("criticalObligationsComplete must be boolean");
+  }
+
   const fallbackHorizonDays = input.fallbackHorizonDays ?? 30;
   const reconciliation = findDeterministicReconciliations(input.snapshot.ledgerEntries);
   const recurrences = detectRecurringPatterns(input.snapshot.ledgerEntries);
@@ -191,6 +201,7 @@ export function buildZeroEntryFinancialAutopilot(
     criticalProvisionsMinor,
     confirmedIncomeMinor: confirmedIncome.amountMinor,
     uncertaintyBufferMinor,
+    criticalSourcesComplete: input.criticalSourcesComplete,
     criticalObligationsComplete: input.criticalObligationsComplete,
   };
 
@@ -206,6 +217,7 @@ export function buildZeroEntryFinancialAutopilot(
     criticalProvisionsMinor: resolvedInputs.criticalProvisionsMinor,
     confirmedIncomeMinor: resolvedInputs.confirmedIncomeMinor,
     uncertaintyBufferMinor: resolvedInputs.uncertaintyBufferMinor,
+    criticalSourcesComplete: resolvedInputs.criticalSourcesComplete,
     criticalObligationsComplete: resolvedInputs.criticalObligationsComplete,
     confidence,
   });
