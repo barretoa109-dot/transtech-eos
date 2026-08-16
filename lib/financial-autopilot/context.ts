@@ -1,6 +1,7 @@
 import { calculateAvailableReal } from "./available-real";
 import { projectCashflow } from "./forecast";
 import { calculateUsableLiquidity } from "./liquidity";
+import { protectedObligationsFingerprintRef } from "./protected-obligations-fingerprint";
 import type {
   AvailableRealResult,
   FinancialAccount,
@@ -96,6 +97,7 @@ export function buildFinancialContext(input: BuildFinancialContextInput): BuiltF
     explanationRefs: [
       ...liquidity.includedAccountIds.map((id) => `account:${id}`),
       ...protectedObligations.map((obligation) => `obligation:${obligation.id}`),
+      protectedObligationsFingerprintRef(protectedObligations),
       ...forecast.appliedEventIds.map((id) => `forecast:${id}`),
     ],
   };
