@@ -70,7 +70,7 @@ A source identity is opaque:
 
 Its SHA-256 material is scoped by trusted user + provider + connection + external account identity. Display names, account numbers and provider payloads are not used as matching keys and are not exposed to Financial State/Surface.
 
-## Coverage scope
+## Coverage scope and authority
 
 The inventory declares one of:
 
@@ -84,9 +84,11 @@ A provider can truthfully discover every account available through one connector
 
 Scoped inventories fail closed with `inventory_scope_insufficient`. Their connected-source freshness signal remains usable independently, but they cannot authorize SAFE.
 
+A provider also cannot self-promote its own discovery to global merely by labeling the inventory `global_user_finances`. In v1.3, global closure requires `user_confirmed` or `verified_document` authority. A `provider_discovery + global_user_finances` combination fails closed with `global_scope_authority_insufficient`.
+
 A future aggregation layer may combine several provider/institution inventories plus user/document evidence into a trusted global inventory. That aggregation is not implemented in v1.3 and must not be silently inferred.
 
-The scope itself is committed into the inventory SHA-256 fingerprint, so changing a global claim into a scoped claim changes the evidence identity.
+Both scope and authority are committed into the inventory SHA-256 fingerprint, so changing either changes the evidence identity.
 
 ## Coverage resolution rules
 
@@ -96,13 +98,14 @@ Coverage can resolve `true` only when all of the following hold:
 2. inventory structure and time window are valid;
 3. inventory authority is trusted;
 4. inventory scope is `global_user_finances`;
-5. discovery completed;
-6. inventory confidence meets the hard threshold;
-7. no unresolved material-source hint remains;
-8. expected and connected source identities are unambiguous;
-9. every authoritative connected source is represented in the inventory;
-10. material expected-source evidence meets its confidence threshold;
-11. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
+5. global scope is backed by `user_confirmed` or `verified_document` authority;
+6. discovery completed;
+7. inventory confidence meets the hard threshold;
+8. no unresolved material-source hint remains;
+9. expected and connected source identities are unambiguous;
+10. every authoritative connected source is represented in the inventory;
+11. material expected-source evidence meets its confidence threshold;
+12. every `critical` or `material` expected source is connected under an authoritative own/joint identity.
 
 Missing `optional` sources do not block coverage.
 
@@ -159,7 +162,7 @@ Zero Entry carries both into resolved safety inputs. For v1.3 persistence:
 
 - the compact coverage fingerprint/lifetime become `source-coverage-evidence:<sha256>`;
 - the critical-source completeness commitment binds to that evidence ref;
-- changing evidence, including scope, changes the v1.3 context revision;
+- changing evidence, including scope or authority, changes the v1.3 context revision;
 - a SAFE v1.3 context cannot be persisted without a valid coverage fingerprint and future validity window;
 - context `validUntil` is capped **before** the v1.1 aggregate context-integrity hash is created, so persisted validity and its integrity commitment remain identical;
 - the context cannot outlive the trusted coverage evidence that justified SAFE.
@@ -217,4 +220,4 @@ Both `/api/finance/state` and `/dashboard/finanzas` select the same strictest en
 
 The Trusted Source Coverage Resolver currently uses fixtures/contracts only. It does not connect to a real bank, aggregator or provider and does not move money.
 
-Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime, stale non-liquidity material sources, provider-scoped inventory rejection and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
+Before promotion, the v1.3 path must pass non-production PostgreSQL/Supabase validation for fresh insert, exact replay, conflicting replay, rollback, owner isolation, service-role-only execution, malformed values, missing values, coverage-evidence lifetime, stale non-liquidity material sources, provider-scoped inventory rejection, provider-self-asserted-global rejection and the invariant that fresh-known-but-incomplete coverage never becomes SAFE.
