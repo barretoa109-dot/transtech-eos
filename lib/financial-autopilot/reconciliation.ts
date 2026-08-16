@@ -27,6 +27,7 @@ export function findDeterministicReconciliations(entries: LedgerEntry[]): Reconc
       entryIds: [original.id, entry.id],
       confidence: 1,
       reasonCode: "explicit_reversal_of_link",
+      matchedAmountMinor: original.amountMinor,
     });
     used.add(original.id);
     used.add(entry.id);
@@ -43,6 +44,7 @@ export function findDeterministicReconciliations(entries: LedgerEntry[]): Reconc
         entryIds: [prior.id, entry.id],
         confidence: 1,
         reasonCode: "same_account_external_transaction_id",
+        matchedAmountMinor: prior.amountMinor,
       });
       used.add(prior.id);
       used.add(entry.id);
@@ -74,6 +76,7 @@ export function findDeterministicReconciliations(entries: LedgerEntry[]): Reconc
           entryIds: [a.id, b.id],
           confidence: 0.99,
           reasonCode: "same_account_amount_pending_and_posted",
+          matchedAmountMinor: a.amountMinor,
         });
         used.add(a.id);
         used.add(b.id);
@@ -94,6 +97,7 @@ export function findDeterministicReconciliations(entries: LedgerEntry[]): Reconc
           entryIds: [a.id, b.id],
           confidence: 0.97,
           reasonCode: "equal_opposite_amount_between_user_accounts",
+          matchedAmountMinor: a.amountMinor,
         });
         used.add(a.id);
         used.add(b.id);
@@ -112,6 +116,7 @@ export function findDeterministicReconciliations(entries: LedgerEntry[]): Reconc
           entryIds: [a.id, b.id],
           confidence: 0.95,
           reasonCode: "equal_amount_opposite_direction_expense_refund_pair",
+          matchedAmountMinor: a.amountMinor,
         });
         used.add(a.id);
         used.add(b.id);
