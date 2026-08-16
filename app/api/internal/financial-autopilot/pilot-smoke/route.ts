@@ -4,6 +4,7 @@ import {
   runCsvImportScenario,
   runEconomicSemanticsScenario,
   runForecastHorizonScenario,
+  runPersistenceRpcScenario,
   runPersistenceScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
@@ -23,6 +24,7 @@ export async function GET() {
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const persistence = await runPersistenceScenario();
+  const persistenceRpc = await runPersistenceRpcScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
@@ -30,7 +32,8 @@ export async function GET() {
     forecastHorizons.ok &&
     zeroEntry.ok &&
     csvImport.ok &&
-    persistence.ok;
+    persistence.ok &&
+    persistenceRpc.ok;
 
   return NextResponse.json(
     {
@@ -42,6 +45,7 @@ export async function GET() {
       zeroEntry,
       csvImport,
       persistence,
+      persistenceRpc,
     },
     {
       status: ok ? 200 : 500,
