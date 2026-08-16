@@ -62,7 +62,7 @@ function inventory(
     userId: USER_ID,
     asOf: NOW,
     validUntil: "2026-08-17T18:00:00.000Z",
-    authority: "provider_discovery",
+    authority: "user_confirmed",
     scope: "global_user_finances",
     discoveryComplete: true,
     confidence: 0.98,
@@ -117,7 +117,19 @@ export function runTrustedSourceCoverageScenario() {
   const providerScopedOnly = resolveTrustedSourceCoverage({
     trustedUserId: USER_ID,
     snapshot: connected,
-    inventory: inventory(expected, { scope: "provider_connection" }),
+    inventory: inventory(expected, {
+      authority: "provider_discovery",
+      scope: "provider_connection",
+    }),
+    nowIso: NOW,
+  });
+  const providerSelfAssertedGlobal = resolveTrustedSourceCoverage({
+    trustedUserId: USER_ID,
+    snapshot: connected,
+    inventory: inventory(expected, {
+      authority: "provider_discovery",
+      scope: "global_user_finances",
+    }),
     nowIso: NOW,
   });
   const reordered = resolveTrustedSourceCoverage({
@@ -288,6 +300,12 @@ export function runTrustedSourceCoverageScenario() {
       !providerScopedOnly.criticalSourcesComplete &&
       providerScopedOnly.criticalSourcesFresh &&
       providerScopedOnly.reasonCodes.includes("inventory_scope_insufficient"),
+    providerCannotSelfAssertGlobalCoverage:
+      !providerSelfAssertedGlobal.criticalSourcesComplete &&
+      providerSelfAssertedGlobal.criticalSourcesFresh &&
+      providerSelfAssertedGlobal.reasonCodes.includes(
+        "global_scope_authority_insufficient",
+      ),
     optionalMissingSourceDoesNotBlockSafety:
       healthy.criticalSourcesComplete && healthy.criticalSourcesFresh,
     identityAndFingerprintAreOrderIndependent:
@@ -364,6 +382,7 @@ export function runTrustedSourceCoverageScenario() {
     checks,
     healthy,
     providerScopedOnly,
+    providerSelfAssertedGlobal,
     staleKnownSource,
     missingMaterial,
     unresolvedHint,
