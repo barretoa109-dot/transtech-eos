@@ -66,23 +66,11 @@ export function calculateAvailableReal(input: AvailableRealInput): AvailableReal
     };
   }
 
-  const attentionFloor = Math.max(
-    input.protectedReserveMinor,
-    Math.trunc(input.essentialSpendExpectedMinor * 0.25),
-  );
-
-  if (availableRealSafeMinor <= attentionFloor) {
-    return {
-      status: "ATTENTION",
-      currency: input.currency,
-      availableRealRawMinor: Math.trunc(availableRealRawMinor),
-      availableRealSafeMinor,
-      shortfallMinor: 0,
-      needsUserAction: false,
-      degradedReasons: [],
-    };
-  }
-
+  // A protected reserve is already deducted from Available Real. Requiring the
+  // remaining free amount to exceed the reserve again would double-protect it
+  // and generate false ATTENTION states. ATTENTION belongs to higher-level
+  // deviation/risk signals; the deterministic core is SAFE whenever all hard
+  // protections are intact and data quality is sufficient.
   return {
     status: "SAFE",
     currency: input.currency,
