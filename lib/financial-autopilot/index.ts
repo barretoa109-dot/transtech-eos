@@ -34,3 +34,4 @@ export * from "./financial-surface-scenario";
 export * from "./liquidity-scenario";
 export * from "./source-coverage-scenario";
 export * from "./global-source-coverage-scenario";
+export * from "./global-source-coverage-temporal-scenario";
