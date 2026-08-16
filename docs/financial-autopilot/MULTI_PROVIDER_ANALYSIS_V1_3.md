@@ -61,7 +61,7 @@ The fingerprint commits to full analysis-relevant account and ledger material pl
 
 ## Global Source Orchestration
 
-`orchestrateTrustedGlobalFinancialSources` now couples two previously separate questions:
+`orchestrateTrustedGlobalFinancialSources` couples two previously separate questions:
 
 1. **Coverage:** does trusted evidence prove EOS knows the material source set?
 2. **Analysis:** what exact provider snapshots are EOS reasoning over?
@@ -74,19 +74,50 @@ The orchestration fingerprint commits to:
 - exact leaf inventory fingerprints;
 - provider-preserving analysis fingerprint.
 
-This prevents a future caller from proving coverage over providers A+B while analyzing a different provider set A+C.
+This prevents a caller from proving coverage over providers A+B while analyzing a different provider set A+C.
 
 If global coverage is structurally incomplete, `orchestrationFingerprint = null`.
 
-Freshness remains independent. A complete-but-stale source set can retain a structural orchestration identity, but the stale analysis material changes the analysis/orchestration fingerprints and later financial safety gates must still DEGRADED.
+Freshness remains independent. A complete-but-stale source set can retain a structural orchestration identity, but the stale analysis material changes the analysis/orchestration fingerprints and financial safety still becomes DEGRADED.
 
-## Current boundary
+## Multi-provider Zero Entry
 
-This layer deliberately stops before multi-provider persistence.
+`buildZeroEntryFinancialAutopilotFromGlobalSources` now consumes the global source orchestration directly.
 
-The existing v1 persistence builder accepts one `FinancialConnectorSnapshot`, because canonical ingestion identities are provider-scoped. The next safe step is to refactor Zero Entry analysis so it can consume the provider-preserving analysis view while persistence continues to write each original provider snapshot under its original provider + connection identity.
+It runs the existing Zero Entry intelligence across the combined provider-preserving account/Ledger view:
 
-Until that refactor is complete, do **not** construct a synthetic snapshot and pass it to persistence.
+- reconciliation;
+- recurrence detection;
+- behavioral patterns;
+- inferred obligations;
+- variable essential spend;
+- confirmed-income horizon;
+- usable liquidity;
+- Available Real;
+- 30/60/90 forecast;
+- Next Best Financial Action.
+
+The returned result is explicitly marked:
+
+`analysisScope = "multi_provider"`
+
+and carries the global `sourceOrchestrationFingerprint`.
+
+Coverage and freshness flow through the same hard safety gates as single-provider Zero Entry. Therefore a stale card at Bank B can degrade a context even when liquid cash at Bank A is perfectly fresh, and an incomplete Bank B inventory cannot produce SAFE.
+
+## Persistence boundary is now executable
+
+The existing v1 persistence builder still accepts one `FinancialConnectorSnapshot`, because canonical ingestion identity is provider-scoped.
+
+It now explicitly rejects any Zero Entry result marked `analysisScope = "multi_provider"` with:
+
+`financial_multi_provider_requires_scoped_persistence`
+
+This check executes before provider-scoped persistence planning. It prevents a developer from accidentally passing a global result together with Bank A's snapshot and persisting Bank B-derived analysis under Bank A's provider identity.
+
+The v1.1/v1.2/v1.3 persistence builders inherit this rejection because they layer on top of the v1 builder.
+
+The next persistence step is not a synthetic merged snapshot. It must be a provider-scoped multi-plan design that writes each original provider snapshot under its original provider + connection identity and commits one separately bound global context.
 
 ## Scenario coverage
 
@@ -103,7 +134,11 @@ Preview-only scenarios prove:
 - cross-user account data fails at the security boundary;
 - future snapshot skew beyond five minutes fails closed;
 - global coverage and analysis are bound into one orchestration identity;
-- incomplete coverage cannot produce a trusted orchestration fingerprint.
+- incomplete coverage cannot produce a trusted orchestration fingerprint;
+- multi-provider Zero Entry can reach normal SAFE/NO_ACTION product semantics when evidence is complete/fresh;
+- stale non-liquidity provider evidence degrades that result;
+- incomplete scoped-provider evidence cannot claim global SAFE;
+- single-provider v1 persistence rejects the multi-provider result before flattening can occur.
 
 The scenarios are included in the internal preview-only Financial Autopilot smoke route.
 
