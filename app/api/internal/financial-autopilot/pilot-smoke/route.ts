@@ -4,6 +4,7 @@ import {
   runCsvImportScenario,
   runEconomicSemanticsScenario,
   runForecastHorizonScenario,
+  runPersistenceScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
@@ -21,13 +22,15 @@ export async function GET() {
   const forecastHorizons = runForecastHorizonScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
+  const persistence = runPersistenceScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
     behaviorInference.ok &&
     forecastHorizons.ok &&
     zeroEntry.ok &&
-    csvImport.ok;
+    csvImport.ok &&
+    persistence.ok;
 
   return NextResponse.json(
     {
@@ -38,6 +41,7 @@ export async function GET() {
       forecastHorizons,
       zeroEntry,
       csvImport,
+      persistence,
     },
     {
       status: ok ? 200 : 500,
