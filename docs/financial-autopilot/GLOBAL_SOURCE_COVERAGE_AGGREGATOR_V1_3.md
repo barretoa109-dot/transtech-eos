@@ -55,6 +55,8 @@ A provider cannot act as the independent global closer for its own discovery.
 
 The closure must be current, sufficiently confident, explicitly exhaustive and bind the exact leaf fingerprint set. Missing, extra or duplicate fingerprints fail closed.
 
+The closure also cannot pre-date evidence it claims to close. Its `asOf` must be greater than or equal to the latest bound leaf inventory `asOf`. This prevents a historical user/document assertion from being replayed as if it had certified provider evidence discovered later.
+
 ## Global identity
 
 The closure receives its own SHA-256 fingerprint over:
@@ -103,7 +105,7 @@ Before wiring the aggregator into multi-provider Zero Entry persistence, EOS nee
 
 ## Scenario coverage
 
-The dedicated scenario proves:
+The dedicated scenarios prove:
 
 - two provider-scoped inventories can become globally complete only through an independent closure;
 - aggregation identity is order-independent;
@@ -114,9 +116,10 @@ The dedicated scenario proves:
 - provider authority cannot impersonate the independent global closer;
 - provider self-asserted global leaf evidence is rejected;
 - overlapping source identities fail closed;
-- owner mismatch fails at the security boundary.
+- owner mismatch fails at the security boundary;
+- a closure at the exact leaf evidence timestamp is valid, while a closure even 1 ms earlier fails closed with `global_closure_predates_evidence`.
 
-The scenario is included in the preview-only Financial Autopilot smoke route.
+The scenarios are included in the preview-only Financial Autopilot smoke route.
 
 ## Production boundary
 
