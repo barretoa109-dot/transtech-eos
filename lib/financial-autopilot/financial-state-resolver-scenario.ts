@@ -113,6 +113,28 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const expiresExactlyNow = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"e".repeat(64)}`,
+        validUntil: NOW,
+      }),
+    ),
+    nowIso: NOW,
+  });
+
+  const smallFutureSkew = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"f".repeat(64)}`,
+        generatedAt: "2026-08-16T04:32:00.000Z",
+      }),
+    ),
+    nowIso: NOW,
+  });
+
   const expiredHorizon = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(
@@ -140,7 +162,7 @@ export async function runFinancialStateResolverScenario() {
         firstForecastRisk: {
           status: "ACTION_REQUIRED",
           horizonDays: 30,
-          until: "2026-09-15T04:30:00.000Z",
+          until: "2026-09-01T00:00:00.000Z",
           reserveGapMinor: 4700000,
           negativeCashGapMinor: 1700000,
         },
@@ -181,6 +203,58 @@ export async function runFinancialStateResolverScenario() {
     "financial_state_context_from_future",
   );
 
+  const minimumCashBeforeGenerationBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(
+          contextRecord({ minimumProjectedCashAt: "2026-08-16T03:59:59.000Z" }),
+        ),
+        nowIso: NOW,
+      }),
+    "financial_state_minimum_cash_before_generation",
+  );
+
+  const forecastRiskBeforeGenerationBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(
+          contextRecord({
+            firstForecastRisk: {
+              status: "ATTENTION",
+              horizonDays: 30,
+              until: "2026-08-16T03:59:59.000Z",
+              reserveGapMinor: 1,
+              negativeCashGapMinor: 0,
+            },
+          }),
+        ),
+        nowIso: NOW,
+      }),
+    "financial_state_invalid_first_risk",
+  );
+
+  const forecastRiskBeyondHorizonBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(
+          contextRecord({
+            firstForecastRisk: {
+              status: "ATTENTION",
+              horizonDays: 90,
+              until: "2026-09-02T12:00:00.000Z",
+              reserveGapMinor: 1,
+              negativeCashGapMinor: 0,
+            },
+          }),
+        ),
+        nowIso: NOW,
+      }),
+    "financial_state_invalid_first_risk",
+  );
+
   const malformedRevisionBlocked = await catchesCode(
     () =>
       resolveFinancialState({
@@ -215,6 +289,10 @@ export async function runFinancialStateResolverScenario() {
 
   const healthyState = healthy.kind === "STATE" ? healthy.state : null;
   const expiredState = expired.kind === "STATE" ? expired.state : null;
+  const exactExpiryState =
+    expiresExactlyNow.kind === "STATE" ? expiresExactlyNow.state : null;
+  const smallFutureSkewState =
+    smallFutureSkew.kind === "STATE" ? smallFutureSkew.state : null;
   const expiredHorizonState = expiredHorizon.kind === "STATE" ? expiredHorizon.state : null;
   const actionState = actionRequired.kind === "STATE" ? actionRequired.state : null;
   const publicJson = JSON.stringify(healthyState);
@@ -238,7 +316,16 @@ export async function runFinancialStateResolverScenario() {
       expiredState?.status === "DEGRADED" &&
       expiredState.canAssertSafety === false &&
       expiredState.money.availableRealMinor === null &&
+      expiredState.firstForecastRisk === null &&
       expiredState.attention.outcome === "CONNECTION_REQUIRED",
+    exactValidityBoundaryFailsClosed:
+      exactExpiryState?.status === "DEGRADED" &&
+      exactExpiryState.canAssertSafety === false &&
+      exactExpiryState.money.availableRealMinor === null,
+    toleratedFutureClockSkewStillFailsClosed:
+      smallFutureSkewState?.status === "DEGRADED" &&
+      smallFutureSkewState.canAssertSafety === false &&
+      smallFutureSkewState.money.availableRealMinor === null,
     expiredHorizonAlsoFailsClosed:
       expiredHorizonState?.status === "DEGRADED" &&
       expiredHorizonState.canAssertSafety === false &&
@@ -254,6 +341,9 @@ export async function runFinancialStateResolverScenario() {
     ownerMismatchFailsClosed: ownerMismatchBlocked,
     obligationOwnerMismatchFailsClosed: obligationOwnerMismatchBlocked,
     impossibleFutureContextFailsClosed: futureContextBlocked,
+    minimumProjectedCashCannotPredateContext: minimumCashBeforeGenerationBlocked,
+    firstRiskCannotPredateContext: forecastRiskBeforeGenerationBlocked,
+    firstRiskCannotOutliveHorizon: forecastRiskBeyondHorizonBlocked,
     malformedRevisionFailsClosed: malformedRevisionBlocked,
     decimalMoneyFailsClosed: decimalMoneyBlocked,
     validityCannotOutliveHorizon: validityBeyondHorizonBlocked,
@@ -270,6 +360,8 @@ export async function runFinancialStateResolverScenario() {
     healthy: healthyState,
     noData,
     expired: expiredState,
+    expiresExactlyNow: exactExpiryState,
+    smallFutureSkew: smallFutureSkewState,
     expiredHorizon: expiredHorizonState,
     actionRequired: actionState,
   };
