@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { financialContextIntegrityMatches } from "./financial-context-integrity";
 import { parsePersistedFirstForecastRisk } from "./first-forecast-risk-persistence";
 import type {
   FinancialStateReader,
@@ -38,6 +39,13 @@ export class SupabaseFinancialStateReaderV1_1 implements FinancialStateReader {
 
     const base = await this.baseReader.getLatestContext(userId);
     if (!base) return null;
+
+    // v1.1 contexts carry a compact commitment over every aggregate field used
+    // to assert safety. Any DB/context drift must fail before a state can be
+    // projected as current or SAFE.
+    if (!financialContextIntegrityMatches(base, base.explanationRefs)) {
+      throw new Error("financial_state_context_integrity_mismatch");
+    }
 
     const { data, error } = await this.client
       .from("eos_financial_contexts_v1")
