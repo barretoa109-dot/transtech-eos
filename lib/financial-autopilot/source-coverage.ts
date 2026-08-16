@@ -12,12 +12,18 @@ const TRUSTED_AUTHORITIES = new Set<TrustedFinancialSourceInventory["authority"]
   "provider_discovery",
   "verified_document",
 ]);
+const GLOBAL_COVERAGE_SCOPE: TrustedFinancialSourceInventoryScope =
+  "global_user_finances";
 
 export type FinancialSourceMateriality = "critical" | "material" | "optional";
 export type TrustedFinancialSourceInventoryAuthority =
   | "user_confirmed"
   | "provider_discovery"
   | "verified_document";
+export type TrustedFinancialSourceInventoryScope =
+  | "global_user_finances"
+  | "institution"
+  | "provider_connection";
 
 export interface ExpectedFinancialSourceEvidence {
   /** Opaque SHA-256 identity. Never a display name, account number or provider payload. */
@@ -32,7 +38,9 @@ export interface TrustedFinancialSourceInventory {
   asOf: string;
   validUntil: string;
   authority: TrustedFinancialSourceInventoryAuthority;
-  /** Whether the trusted discovery process itself completed for this inventory window. */
+  /** Global coverage is required before this single-inventory resolver may claim SAFE. */
+  scope: TrustedFinancialSourceInventoryScope;
+  /** Whether the trusted discovery process itself completed for this inventory window/scope. */
   discoveryComplete: boolean;
   /** Confidence in the inventory/discovery result, not in current account freshness. */
   confidence: number;
@@ -44,6 +52,7 @@ export interface TrustedFinancialSourceInventory {
 export type SourceCoverageReasonCode =
   | "inventory_invalid"
   | "inventory_not_trusted"
+  | "inventory_scope_insufficient"
   | "inventory_discovery_incomplete"
   | "inventory_confidence_below_threshold"
   | "inventory_not_current"
@@ -86,6 +95,16 @@ function finiteConfidence(value: number) {
 function parseTime(value: string) {
   const time = new Date(value).getTime();
   return Number.isFinite(time) ? time : null;
+}
+
+function validInventoryScope(
+  value: unknown,
+): value is TrustedFinancialSourceInventoryScope {
+  return (
+    value === "global_user_finances" ||
+    value === "institution" ||
+    value === "provider_connection"
+  );
 }
 
 function isAuthoritativeOwnership(ownership: FinancialAccount["ownership"]) {
@@ -166,10 +185,10 @@ function failCoverage(input: {
 /**
  * Resolves two deliberately independent questions:
  * 1) are the authoritative sources EOS currently knows fresh?;
- * 2) is the trusted material-source inventory complete enough to claim safety?
+ * 2) is a GLOBAL trusted material-source inventory complete enough for safety?
  *
- * A fresh known source set does not prove complete coverage. Likewise, complete
- * coverage does not make a stale connected card/loan safe.
+ * Institution/provider-scoped discovery is useful evidence, but one scoped
+ * connector must never be mistaken for proof of the user's entire finances.
  */
 export function resolveTrustedSourceCoverage(input: {
   trustedUserId: string;
@@ -215,6 +234,7 @@ export function resolveTrustedSourceCoverage(input: {
     input.inventory.version === TRUSTED_SOURCE_INVENTORY_VERSION &&
     asOf !== null &&
     validUntil !== null &&
+    validInventoryScope(input.inventory.scope) &&
     typeof input.inventory.discoveryComplete === "boolean" &&
     finiteConfidence(input.inventory.confidence) &&
     Number.isSafeInteger(input.inventory.unresolvedMaterialSourceCount) &&
@@ -262,6 +282,7 @@ export function resolveTrustedSourceCoverage(input: {
     asOf: new Date(asOf).toISOString(),
     validUntil: coverageValidUntil,
     authority: input.inventory.authority,
+    scope: input.inventory.scope,
     discoveryComplete: input.inventory.discoveryComplete,
     confidence: input.inventory.confidence,
     unresolvedMaterialSourceCount: input.inventory.unresolvedMaterialSourceCount,
@@ -306,6 +327,9 @@ export function resolveTrustedSourceCoverage(input: {
   const reasons: SourceCoverageReasonCode[] = [];
   if (!TRUSTED_AUTHORITIES.has(input.inventory.authority)) {
     reasons.push("inventory_not_trusted");
+  }
+  if (input.inventory.scope !== GLOBAL_COVERAGE_SCOPE) {
+    reasons.push("inventory_scope_insufficient");
   }
   if (!input.inventory.discoveryComplete) {
     reasons.push("inventory_discovery_incomplete");
