@@ -18,9 +18,13 @@ import {
   isFinancialStateApiEnabled,
   isFinancialStateDemoAllowed,
   isFinancialStateDemoKind,
+  isFinancialStateV1_2Enabled,
+  isFinancialStateV1_3Enabled,
   type FinancialStateDemoKind,
   resolveFinancialState,
   SupabaseFinancialStateReaderV1_1,
+  SupabaseFinancialStateReaderV1_2,
+  SupabaseFinancialStateReaderV1_3,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -286,7 +290,13 @@ async function resolveLiveInput(): Promise<FinancialSurfaceInput> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("financial_state_missing_session");
 
-  const reader = new SupabaseFinancialStateReaderV1_1(supabase, user.id);
+  const v1_2Enabled = isFinancialStateV1_2Enabled();
+  const v1_3Enabled = v1_2Enabled && isFinancialStateV1_3Enabled();
+  const reader = v1_3Enabled
+    ? new SupabaseFinancialStateReaderV1_3(supabase, user.id)
+    : v1_2Enabled
+      ? new SupabaseFinancialStateReaderV1_2(supabase, user.id)
+      : new SupabaseFinancialStateReaderV1_1(supabase, user.id);
   const resolution = await resolveFinancialState({
     trustedUserId: user.id,
     reader,
