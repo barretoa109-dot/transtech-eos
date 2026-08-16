@@ -31,6 +31,10 @@ export function runFinancialStateApiScenario() {
     localProductionFailsClosed: !isFinancialStateDemoAllowed({
       NODE_ENV: "production",
     }),
+    ambiguousRuntimeFailsClosed:
+      !isFinancialStateDemoAllowed({}) &&
+      !isFinancialStateDemoAllowed({ NODE_ENV: "test" }) &&
+      !isFinancialStateDemoAllowed({ VERCEL_ENV: "unknown" }),
     productionSurfaceHiddenByDefault: !isFinancialStateSurfaceVisible({
       VERCEL_ENV: "production",
       NODE_ENV: "production",
