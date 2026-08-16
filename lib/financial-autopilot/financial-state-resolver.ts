@@ -13,6 +13,15 @@ import type {
   FinancialStatus,
 } from "./types";
 
+const CONTEXT_REVISION = /^ctx:[a-f0-9]{64}$/;
+const CURRENCY = /^[A-Z]{3}$/;
+const FINANCIAL_STATUSES = new Set<FinancialStatus>([
+  "SAFE",
+  "ATTENTION",
+  "ACTION_REQUIRED",
+  "DEGRADED",
+]);
+
 export interface PersistedFinancialContextRecord {
   userId: string;
   revision: string;
@@ -60,9 +69,32 @@ function parseTime(value: string | null, errorCode: string) {
   return time;
 }
 
-function assertNonNegativeFinite(value: number, errorCode: string) {
-  if (!Number.isFinite(value) || value < 0) throw new Error(errorCode);
-  return Math.trunc(value);
+function assertSafeInteger(value: number, errorCode: string, allowNegative = false) {
+  if (!Number.isSafeInteger(value) || (!allowNegative && value < 0)) {
+    throw new Error(errorCode);
+  }
+  return value;
+}
+
+function assertConfidence(confidence: FinancialContextConfidence) {
+  for (const value of Object.values(confidence)) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error("financial_state_invalid_confidence");
+    }
+  }
+}
+
+function assertFirstRisk(risk: FinancialStateRiskView | null | undefined) {
+  if (!risk) return;
+  if (risk.status !== "ATTENTION" && risk.status !== "ACTION_REQUIRED") {
+    throw new Error("financial_state_invalid_first_risk");
+  }
+  if (!Number.isSafeInteger(risk.horizonDays) || risk.horizonDays <= 0) {
+    throw new Error("financial_state_invalid_first_risk");
+  }
+  parseTime(risk.until, "financial_state_invalid_first_risk");
+  assertSafeInteger(risk.reserveGapMinor, "financial_state_invalid_first_risk");
+  assertSafeInteger(risk.negativeCashGapMinor, "financial_state_invalid_first_risk");
 }
 
 function syntheticHorizons(record: PersistedFinancialContextRecord): ForecastHorizonsResult {
@@ -88,44 +120,70 @@ function builtContextFromRecord(
   record: PersistedFinancialContextRecord,
   nowIso: string,
 ): BuiltFinancialContext {
+  if (!CONTEXT_REVISION.test(record.revision)) {
+    throw new Error("financial_state_invalid_revision");
+  }
+  if (!CURRENCY.test(record.currency)) throw new Error("financial_state_invalid_currency");
+  if (!FINANCIAL_STATUSES.has(record.status)) throw new Error("financial_state_invalid_status");
+  if (!Array.isArray(record.explanationRefs) || record.explanationRefs.some((ref) => typeof ref !== "string")) {
+    throw new Error("financial_state_invalid_explanation_refs");
+  }
+  if (typeof record.sourcesFresh !== "boolean") {
+    throw new Error("financial_state_invalid_sources_fresh");
+  }
+  assertConfidence(record.confidence);
+  assertFirstRisk(record.firstForecastRisk);
+
   const now = parseTime(nowIso, "financial_state_invalid_now");
   const generatedAt = parseTime(record.generatedAt, "financial_state_invalid_generated_at");
   const horizonUntil = parseTime(record.horizonUntil, "financial_state_invalid_horizon");
   const validUntil = parseTime(record.validUntil, "financial_state_invalid_valid_until");
+  const minimumProjectedCashAt = parseTime(
+    record.minimumProjectedCashAt,
+    "financial_state_invalid_minimum_cash_at",
+  );
   if (now === null || generatedAt === null || horizonUntil === null) {
     throw new Error("financial_state_invalid_context_time");
   }
   if (generatedAt > now + 5 * 60 * 1000) {
     throw new Error("financial_state_context_from_future");
   }
+  if (generatedAt > horizonUntil) {
+    throw new Error("financial_state_generated_after_horizon");
+  }
+  if (validUntil !== null && validUntil > horizonUntil) {
+    throw new Error("financial_state_validity_exceeds_horizon");
+  }
+  if (minimumProjectedCashAt !== null && minimumProjectedCashAt > horizonUntil) {
+    throw new Error("financial_state_minimum_cash_outside_horizon");
+  }
 
-  const liquidityUsableMinor = assertNonNegativeFinite(
+  const liquidityUsableMinor = assertSafeInteger(
     record.liquidityUsableMinor,
     "financial_state_invalid_liquidity",
   );
-  const protectedCommitmentsMinor = assertNonNegativeFinite(
+  const protectedCommitmentsMinor = assertSafeInteger(
     record.protectedCommitmentsMinor,
     "financial_state_invalid_commitments",
   );
-  const protectedReserveMinor = assertNonNegativeFinite(
+  const protectedReserveMinor = assertSafeInteger(
     record.protectedReserveMinor,
     "financial_state_invalid_reserve",
   );
-  const availableRealSafeMinor = assertNonNegativeFinite(
+  const availableRealSafeMinor = assertSafeInteger(
     record.availableRealSafeMinor,
     "financial_state_invalid_available",
   );
-  if (!Number.isFinite(record.minimumProjectedCashMinor)) {
-    throw new Error("financial_state_invalid_minimum_cash");
-  }
+  const minimumProjectedCashMinor = assertSafeInteger(
+    record.minimumProjectedCashMinor,
+    "financial_state_invalid_minimum_cash",
+    true,
+  );
 
-  const expired = validUntil === null || validUntil < now;
+  const expired = validUntil === null || validUntil < now || horizonUntil < now;
   const degraded = record.status === "DEGRADED" || !record.sourcesFresh || expired;
   const status: FinancialStatus = degraded ? "DEGRADED" : record.status;
-  const reserveGapMinor = Math.max(
-    0,
-    protectedReserveMinor - Math.trunc(record.minimumProjectedCashMinor),
-  );
+  const reserveGapMinor = Math.max(0, protectedReserveMinor - minimumProjectedCashMinor);
 
   return {
     currency: record.currency,
@@ -133,7 +191,7 @@ function builtContextFromRecord(
     horizonUntil: record.horizonUntil,
     liquidityUsableMinor,
     protectedCommitmentsMinor,
-    minimumProjectedCashMinor: Math.trunc(record.minimumProjectedCashMinor),
+    minimumProjectedCashMinor,
     minimumProjectedCashAt: record.minimumProjectedCashAt,
     sourcesFresh: !degraded,
     available: {
@@ -147,6 +205,45 @@ function builtContextFromRecord(
     },
     explanationRefs: [...record.explanationRefs],
   };
+}
+
+function assertObligations(
+  obligations: FinancialObligation[],
+  trustedUserId: string,
+  currency: string,
+  horizonUntil: string,
+) {
+  const horizonTime = parseTime(horizonUntil, "financial_state_invalid_horizon");
+  if (horizonTime === null) throw new Error("financial_state_invalid_horizon");
+
+  for (const obligation of obligations) {
+    if (obligation.userId !== trustedUserId) {
+      throw new Error("financial_state_obligation_owner_mismatch");
+    }
+    if (obligation.currency !== currency) {
+      throw new Error("financial_state_obligation_currency_mismatch");
+    }
+    assertSafeInteger(obligation.amountMinor, "financial_state_invalid_obligation_amount");
+    assertSafeInteger(obligation.priority, "financial_state_invalid_obligation_priority", true);
+    if (
+      typeof obligation.confidence !== "number" ||
+      !Number.isFinite(obligation.confidence) ||
+      obligation.confidence < 0 ||
+      obligation.confidence > 1
+    ) {
+      throw new Error("financial_state_invalid_obligation_confidence");
+    }
+    if (typeof obligation.mustProtect !== "boolean") {
+      throw new Error("financial_state_invalid_obligation_protection");
+    }
+    if (!obligation.id || !obligation.type || !obligation.source) {
+      throw new Error("financial_state_invalid_obligation");
+    }
+    const dueAt = parseTime(obligation.dueAt, "financial_state_invalid_obligation_due_at");
+    if (dueAt === null || dueAt > horizonTime) {
+      throw new Error("financial_state_obligation_outside_horizon");
+    }
+  }
 }
 
 /**
@@ -183,10 +280,12 @@ export async function resolveFinancialState(input: {
     currency: record.currency,
     horizonUntil: record.horizonUntil,
   });
-
-  if (obligations.some((obligation) => obligation.userId !== input.trustedUserId)) {
-    throw new Error("financial_state_obligation_owner_mismatch");
-  }
+  assertObligations(
+    obligations,
+    input.trustedUserId,
+    record.currency,
+    record.horizonUntil,
+  );
 
   const candidates = generateFinancialDecisionCandidates({
     financialContext: context,

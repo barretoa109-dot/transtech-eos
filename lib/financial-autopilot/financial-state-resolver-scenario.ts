@@ -8,13 +8,16 @@ import type { FinancialObligation } from "./types";
 const USER_ID = "00000000-0000-4000-8000-000000000070";
 const OTHER_USER_ID = "00000000-0000-4000-8000-000000000071";
 const NOW = "2026-08-16T04:30:00.000Z";
+const SAFE_REVISION = `ctx:${"a".repeat(64)}`;
+const EXPIRED_REVISION = `ctx:${"b".repeat(64)}`;
+const ACTION_REVISION = `ctx:${"c".repeat(64)}`;
 
 function contextRecord(
   overrides: Partial<PersistedFinancialContextRecord> = {},
 ): PersistedFinancialContextRecord {
   return {
     userId: USER_ID,
-    revision: "ctx:resolver-safe-v1",
+    revision: SAFE_REVISION,
     currency: "PYG",
     status: "SAFE",
     horizonUntil: "2026-09-01T12:00:00.000Z",
@@ -103,9 +106,24 @@ export async function runFinancialStateResolverScenario() {
     trustedUserId: USER_ID,
     reader: new FixtureReader(
       contextRecord({
-        revision: "ctx:resolver-expired-v1",
+        revision: EXPIRED_REVISION,
         validUntil: "2026-08-16T03:00:00.000Z",
       }),
+    ),
+    nowIso: NOW,
+  });
+
+  const expiredHorizon = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(
+      contextRecord({
+        revision: `ctx:${"d".repeat(64)}`,
+        generatedAt: "2026-08-15T03:00:00.000Z",
+        horizonUntil: "2026-08-16T03:30:00.000Z",
+        validUntil: "2026-08-16T03:30:00.000Z",
+        minimumProjectedCashAt: "2026-08-16T03:00:00.000Z",
+      }),
+      [],
     ),
     nowIso: NOW,
   });
@@ -114,7 +132,7 @@ export async function runFinancialStateResolverScenario() {
     trustedUserId: USER_ID,
     reader: new FixtureReader(
       contextRecord({
-        revision: "ctx:resolver-action-v1",
+        revision: ACTION_REVISION,
         status: "ACTION_REQUIRED",
         liquidityUsableMinor: 4000000,
         availableRealSafeMinor: 0,
@@ -163,8 +181,41 @@ export async function runFinancialStateResolverScenario() {
     "financial_state_context_from_future",
   );
 
+  const malformedRevisionBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(contextRecord({ revision: "ctx:not-a-hash" })),
+        nowIso: NOW,
+      }),
+    "financial_state_invalid_revision",
+  );
+
+  const decimalMoneyBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(contextRecord({ liquidityUsableMinor: 1.5 })),
+        nowIso: NOW,
+      }),
+    "financial_state_invalid_liquidity",
+  );
+
+  const validityBeyondHorizonBlocked = await catchesCode(
+    () =>
+      resolveFinancialState({
+        trustedUserId: USER_ID,
+        reader: new FixtureReader(
+          contextRecord({ validUntil: "2026-09-02T12:00:00.000Z" }),
+        ),
+        nowIso: NOW,
+      }),
+    "financial_state_validity_exceeds_horizon",
+  );
+
   const healthyState = healthy.kind === "STATE" ? healthy.state : null;
   const expiredState = expired.kind === "STATE" ? expired.state : null;
+  const expiredHorizonState = expiredHorizon.kind === "STATE" ? expiredHorizon.state : null;
   const actionState = actionRequired.kind === "STATE" ? actionRequired.state : null;
   const publicJson = JSON.stringify(healthyState);
 
@@ -172,7 +223,7 @@ export async function runFinancialStateResolverScenario() {
     healthyStateResolvedForTrustedUser:
       healthy.kind === "STATE" &&
       healthyState?.status === "SAFE" &&
-      healthyState.contextRevision === "ctx:resolver-safe-v1",
+      healthyState.contextRevision === SAFE_REVISION,
     healthyAvailableRealExposed:
       healthyState?.canAssertSafety === true &&
       healthyState.money.availableRealMinor === 1640000,
@@ -188,6 +239,10 @@ export async function runFinancialStateResolverScenario() {
       expiredState.canAssertSafety === false &&
       expiredState.money.availableRealMinor === null &&
       expiredState.attention.outcome === "CONNECTION_REQUIRED",
+    expiredHorizonAlsoFailsClosed:
+      expiredHorizonState?.status === "DEGRADED" &&
+      expiredHorizonState.canAssertSafety === false &&
+      expiredHorizonState.money.availableRealMinor === null,
     actionRequiredEscalatesOneDecision:
       actionState?.status === "ACTION_REQUIRED" &&
       actionState.attention.outcome === "USER_DECISION_REQUIRED" &&
@@ -199,6 +254,9 @@ export async function runFinancialStateResolverScenario() {
     ownerMismatchFailsClosed: ownerMismatchBlocked,
     obligationOwnerMismatchFailsClosed: obligationOwnerMismatchBlocked,
     impossibleFutureContextFailsClosed: futureContextBlocked,
+    malformedRevisionFailsClosed: malformedRevisionBlocked,
+    decimalMoneyFailsClosed: decimalMoneyBlocked,
+    validityCannotOutliveHorizon: validityBeyondHorizonBlocked,
     resolverStillDoesNotLeakLedgerInternals:
       !publicJson.includes("explanationRefs") &&
       !publicJson.includes("ledgerEntries") &&
@@ -212,6 +270,7 @@ export async function runFinancialStateResolverScenario() {
     healthy: healthyState,
     noData,
     expired: expiredState,
+    expiredHorizon: expiredHorizonState,
     actionRequired: actionState,
   };
 }

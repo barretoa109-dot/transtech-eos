@@ -9,6 +9,7 @@ import {
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
 import {
+  runFinancialStateApiScenario,
   runFinancialStateResolverScenario,
   runPersistenceRpcScenario,
   runPersistenceScenario,
@@ -33,6 +34,7 @@ export async function GET() {
   const persistenceRpc = await runPersistenceRpcScenario();
   const financialStateResolver = await runFinancialStateResolverScenario();
   const supabaseFinancialStateReader = await runSupabaseFinancialStateReaderScenario();
+  const financialStateApi = runFinancialStateApiScenario();
   const ok =
     scenario.ok &&
     economicSemantics.ok &&
@@ -44,7 +46,8 @@ export async function GET() {
     persistence.ok &&
     persistenceRpc.ok &&
     financialStateResolver.ok &&
-    supabaseFinancialStateReader.ok;
+    supabaseFinancialStateReader.ok &&
+    financialStateApi.ok;
 
   return NextResponse.json(
     {
@@ -60,6 +63,7 @@ export async function GET() {
       persistenceRpc,
       financialStateResolver,
       supabaseFinancialStateReader,
+      financialStateApi,
     },
     {
       status: ok ? 200 : 500,
