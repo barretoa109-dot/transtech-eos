@@ -1,5 +1,25 @@
 export const FINANCIAL_STATE_API_FLAG = "EOS_FINANCIAL_STATE_V1_ENABLED";
 
+export const FINANCIAL_STATE_DEMO_KINDS = [
+  "safe",
+  "attention",
+  "action",
+  "degraded",
+  "empty",
+  "error",
+] as const;
+
+export type FinancialStateDemoKind = (typeof FINANCIAL_STATE_DEMO_KINDS)[number];
+
+export function isFinancialStateDemoKind(
+  value: string | undefined,
+): value is FinancialStateDemoKind {
+  return (
+    value !== undefined &&
+    (FINANCIAL_STATE_DEMO_KINDS as readonly string[]).includes(value)
+  );
+}
+
 export function isFinancialStateApiEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
