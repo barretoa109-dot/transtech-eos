@@ -3,6 +3,7 @@ import type {
   FinancialStateReader,
   PersistedFinancialContextRecord,
 } from "./financial-state-resolver";
+import { protectedObligationExplanationRef } from "./protected-obligations-fingerprint";
 import { SupabaseFinancialStateReaderV1_1 } from "./supabase-financial-state-reader-v1-1";
 import type { FinancialObligation } from "./types";
 
@@ -10,6 +11,19 @@ const USER_ID = "00000000-0000-4000-8000-000000000092";
 const OTHER_USER_ID = "00000000-0000-4000-8000-000000000093";
 const REVISION = `ctx:${"a".repeat(64)}`;
 const NOW = "2026-08-16T12:30:00.000Z";
+
+const OBLIGATION: FinancialObligation = {
+  id: "resolver-rent",
+  userId: USER_ID,
+  type: "housing",
+  amountMinor: 2100000,
+  currency: "PYG",
+  dueAt: "2026-08-25T00:00:00.000Z",
+  priority: 100,
+  mustProtect: true,
+  confidence: 0.95,
+  source: "reader_v1_1_fixture",
+};
 
 function record(): PersistedFinancialContextRecord {
   return {
@@ -36,29 +50,18 @@ function record(): PersistedFinancialContextRecord {
       reconciliationQuality: 1,
       overall: 0.94,
     },
-    explanationRefs: ["obligation:resolver-rent"],
+    explanationRefs: [protectedObligationExplanationRef(OBLIGATION)],
     sourcesFresh: true,
     generatedAt: "2026-08-16T12:00:00.000Z",
     validUntil: "2026-08-17T12:00:00.000Z",
   };
 }
 
-const OBLIGATION: FinancialObligation = {
-  id: "resolver-rent",
-  userId: USER_ID,
-  type: "housing",
-  amountMinor: 2100000,
-  currency: "PYG",
-  dueAt: "2026-08-25T00:00:00.000Z",
-  priority: 100,
-  mustProtect: true,
-  confidence: 0.95,
-  source: "reader_v1_1_fixture",
-};
-
 class FixtureBaseReader implements FinancialStateReader {
   contextCalls = 0;
   obligationCalls = 0;
+
+  constructor(private readonly obligations: FinancialObligation[] = [OBLIGATION]) {}
 
   async getLatestContext(_userId: string) {
     this.contextCalls += 1;
@@ -71,7 +74,7 @@ class FixtureBaseReader implements FinancialStateReader {
     horizonUntil: string;
   }) {
     this.obligationCalls += 1;
-    return [OBLIGATION];
+    return this.obligations;
   }
 }
 
@@ -121,9 +124,8 @@ async function catchesCode(work: () => unknown | Promise<unknown>, code: string)
   }
 }
 
-export async function runSupabaseFinancialStateReaderV1_1Scenario() {
-  const base = new FixtureBaseReader();
-  const client = new FakeRiskClient({
+function riskClient() {
+  return new FakeRiskClient({
     data: {
       revision: REVISION,
       first_forecast_risk: {
@@ -136,6 +138,11 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
     },
     error: null,
   });
+}
+
+export async function runSupabaseFinancialStateReaderV1_1Scenario() {
+  const base = new FixtureBaseReader();
+  const client = riskClient();
   const reader = new SupabaseFinancialStateReaderV1_1(
     client as never,
     USER_ID,
@@ -143,9 +150,31 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
   );
 
   const latest = await reader.getLatestContext(USER_ID);
+  const hydratedObligations = await reader.getOpenObligations({
+    userId: USER_ID,
+    currency: "PYG",
+    horizonUntil: "2026-09-01T12:00:00.000Z",
+  });
   const resolved = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader,
+    nowIso: NOW,
+  });
+
+  const driftedBase = new FixtureBaseReader([
+    {
+      ...OBLIGATION,
+      dueAt: "2026-08-26T00:00:00.000Z",
+    },
+  ]);
+  const driftedReader = new SupabaseFinancialStateReaderV1_1(
+    riskClient() as never,
+    USER_ID,
+    driftedBase,
+  );
+  const driftedResolution = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: driftedReader,
     nowIso: NOW,
   });
 
@@ -195,6 +224,8 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
   );
 
   const state = resolved.kind === "STATE" ? resolved.state : null;
+  const driftedState =
+    driftedResolution.kind === "STATE" ? driftedResolution.state : null;
   const checks = {
     persistedRiskHydratesContext:
       latest?.firstForecastRisk?.status === "ATTENTION" &&
@@ -204,6 +235,14 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
       state?.firstForecastRisk?.status === "ATTENTION" &&
       state.firstForecastRisk.horizonDays === 60 &&
       state.firstForecastRisk.reserveGapMinor === 750000,
+    obligationReadUsesMaterialContextIdentity:
+      hydratedObligations[0]?.id !== OBLIGATION.id &&
+      latest?.explanationRefs.includes(`obligation:${hydratedObligations[0]?.id}`) === true,
+    dueDateDriftAtSameSourceAndAmountFailsClosed:
+      driftedState?.status === "DEGRADED" &&
+      driftedState.canAssertSafety === false &&
+      driftedState.money.availableRealMinor === null &&
+      driftedState.attention.outcome === "CONNECTION_REQUIRED",
     extensionReadIsOwnerAndRevisionScoped:
       query?.table === "eos_financial_contexts_v1" &&
       query.query.selected === "revision,first_forecast_risk" &&
@@ -229,6 +268,8 @@ export async function runSupabaseFinancialStateReaderV1_1Scenario() {
     checks,
     latestRisk: latest?.firstForecastRisk ?? null,
     projectedRisk: state?.firstForecastRisk ?? null,
+    materialObligationId: hydratedObligations[0]?.id ?? null,
+    driftedState,
     queryAudit: client.queries.map(({ table, query: item }) => ({
       table,
       selected: item.selected,
