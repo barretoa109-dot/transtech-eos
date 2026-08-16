@@ -5,6 +5,7 @@ import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "
 
 const USER_ID = "00000000-0000-4000-8000-000000000050";
 const ACCOUNT_ID = "20000000-0000-4000-8000-000000000050";
+const SAVINGS_ACCOUNT_ID = "20000000-0000-4000-8000-000000000051";
 const CONNECTION_ID = "10000000-0000-4000-8000-000000000050";
 const AS_OF = "2026-08-16T12:00:00.000Z";
 
@@ -26,6 +27,24 @@ function account(balanceMinor = 8000000): FinancialAccount {
   };
 }
 
+function savingsAccount(): FinancialAccount {
+  return {
+    id: SAVINGS_ACCOUNT_ID,
+    userId: USER_ID,
+    externalAccountId: "savings-persistence-demo",
+    connectionId: CONNECTION_ID,
+    type: "savings",
+    institutionName: "Banco Demo Paraguay",
+    displayName: "Ahorro",
+    currency: "PYG",
+    ownership: "own",
+    availableBalanceMinor: 0,
+    ledgerBalanceMinor: 0,
+    balanceAsOf: AS_OF,
+    freshUntil: "2026-08-17T12:00:00.000Z",
+  };
+}
+
 function row(
   id: string,
   direction: "credit" | "debit",
@@ -34,14 +53,16 @@ function row(
   descriptionRaw: string,
   category: string | null = null,
   subcategory: string | null = null,
+  accountId = ACCOUNT_ID,
+  type: LedgerEntry["type"] = direction === "credit" ? "income" : "expense",
 ): LedgerEntry {
   return {
     id,
     userId: USER_ID,
-    accountId: ACCOUNT_ID,
+    accountId,
     sourceEventId: `event:${id}`,
     externalTransactionId: `external:${id}`,
-    type: direction === "credit" ? "income" : "expense",
+    type,
     direction,
     status: "posted",
     amountMinor,
@@ -74,6 +95,28 @@ function ledgerHistory() {
     row("grocery-b", "debit", 350000, "2026-07-26T18:00:00.000Z", "SUPERMERCADO B", "food", "groceries"),
     row("grocery-c", "debit", 350000, "2026-08-02T18:00:00.000Z", "SUPERMERCADO C", "food", "groceries"),
     row("grocery-d", "debit", 350000, "2026-08-09T18:00:00.000Z", "SUPERMERCADO D", "food", "groceries"),
+    row(
+      "own-transfer-out",
+      "debit",
+      500000,
+      "2026-08-14T10:00:00.000Z",
+      "TRANSFERENCIA A AHORRO",
+      null,
+      null,
+      ACCOUNT_ID,
+      "unknown",
+    ),
+    row(
+      "own-transfer-in",
+      "credit",
+      500000,
+      "2026-08-14T10:00:05.000Z",
+      "TRANSFERENCIA RECIBIDA DE CUENTA PRINCIPAL",
+      null,
+      null,
+      SAVINGS_ACCOUNT_ID,
+      "unknown",
+    ),
   ];
 }
 
@@ -82,7 +125,7 @@ function snapshot(balanceMinor = 8000000, reverse = false): FinancialConnectorSn
   return {
     providerKey: "mock_persistence_py_v1",
     fetchedAt: AS_OF,
-    accounts: [account(balanceMinor)],
+    accounts: [account(balanceMinor), savingsAccount()],
     ledgerEntries: reverse ? [...entries].reverse() : entries,
   };
 }
@@ -137,6 +180,9 @@ export async function runPersistenceScenario() {
       error instanceof Error && error.message === "financial_ingestion_replay_mismatch";
   }
   const storedCounts = store.snapshotCounts();
+  const internalTransfer = first.plan.reconciliationInserts.find(
+    (match) => match.reconciliationType === "internal_transfer_match",
+  );
 
   const checks = {
     exactReplayProducesSamePlan: JSON.stringify(first.plan) === JSON.stringify(replay.plan),
@@ -152,7 +198,7 @@ export async function runPersistenceScenario() {
       ),
     ledgerCanonicalKeysUseStableExternalAccount:
       first.plan.ledgerUpserts.every((entry) =>
-        entry.canonicalKey.includes("checking-persistence-demo"),
+        entry.canonicalKey.includes("persistence-demo"),
       ),
     ledgerCanonicalKeysUnique:
       new Set(ledgerCanonicalKeys).size === ledgerCanonicalKeys.length,
@@ -164,6 +210,12 @@ export async function runPersistenceScenario() {
       ),
     reconciliationPlanMatchesEngine:
       first.plan.reconciliationInserts.length === first.result.reconciliation.length,
+    ownTransferReconciliationPersisted:
+      first.result.reconciliation.filter((match) => match.type === "internal_transfer_match").length === 1 &&
+      Boolean(internalTransfer) &&
+      internalTransfer?.ledgerCanonicalKeys.length === 2 &&
+      internalTransfer.ledgerCanonicalKeys.some((key) => key.includes("checking-persistence-demo")) &&
+      internalTransfer.ledgerCanonicalKeys.some((key) => key.includes("savings-persistence-demo")),
     contextCarriesResolvedSafetyInputs:
       first.plan.contextInsert.protectedReserveMinor === first.result.resolvedInputs.protectedReserveMinor &&
       first.plan.contextInsert.criticalProvisionsMinor === first.result.resolvedInputs.criticalProvisionsMinor &&
@@ -181,7 +233,8 @@ export async function runPersistenceScenario() {
     firstPersistenceWritesCanonicalState:
       !firstPersist.replayed &&
       firstPersist.ingestionRowsTouched === first.plan.ingestionEventUpserts.length &&
-      firstPersist.ledgerRowsTouched === first.plan.ledgerUpserts.length,
+      firstPersist.ledgerRowsTouched === first.plan.ledgerUpserts.length &&
+      firstPersist.reconciliationRowsTouched === 1,
     exactReplayHasZeroEconomicWrites:
       replayPersist.replayed &&
       replayPersist.ingestionRowsTouched === 0 &&
@@ -190,11 +243,13 @@ export async function runPersistenceScenario() {
     contextOnlyChangeDoesNotDuplicateLedger:
       !changedPersist.replayed &&
       changedPersist.ingestionRowsTouched === 0 &&
-      changedPersist.ledgerRowsTouched === 0,
+      changedPersist.ledgerRowsTouched === 0 &&
+      changedPersist.reconciliationRowsTouched === 0,
     ingestionReplayMismatchFailsClosed: tamperedReplayBlocked,
     failedReplayDidNotCreateContext: storedCounts.contexts === 2,
     canonicalLedgerCountRemainsStable:
       storedCounts.ledgerRows === first.plan.ledgerUpserts.length,
+    reconciliationCountRemainsStable: storedCounts.reconciliations === 1,
   };
 
   return {
@@ -209,6 +264,7 @@ export async function runPersistenceScenario() {
       recurrences: first.plan.recurrenceUpserts.length,
       obligations: first.plan.obligationUpserts.length,
     },
+    reconciliation: internalTransfer ?? null,
     persistence: {
       firstPersist,
       replayPersist,
