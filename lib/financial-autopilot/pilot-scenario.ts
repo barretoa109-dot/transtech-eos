@@ -86,6 +86,7 @@ export function runPyPilotScenario() {
     criticalProvisionsMinor: 500000,
     confirmedIncomeMinor: 0,
     uncertaintyBufferMinor: 400000,
+    criticalSourcesFresh: true,
     criticalSourcesComplete: true,
     criticalObligationsComplete: true,
     confidence: {
@@ -142,6 +143,18 @@ export function runPyPilotScenario() {
     }),
   );
 
+  const staleNonLiquiditySourceContext = buildFinancialContext({
+    ...contextInput,
+    criticalSourcesFresh: false,
+  });
+  const staleNonLiquiditySourceAction = selectNextBestFinancialAction(
+    staleNonLiquiditySourceContext.available.status,
+    generateFinancialDecisionCandidates({
+      financialContext: staleNonLiquiditySourceContext,
+      protectedReserveMinor: contextInput.protectedReserveMinor,
+    }),
+  );
+
   const incompleteSourcesContext = buildFinancialContext({
     ...contextInput,
     criticalSourcesComplete: false,
@@ -185,9 +198,18 @@ export function runPyPilotScenario() {
     safePurchaseAccepted: safePurchase.safe,
     unsafePurchaseBlocked:
       !unsafePurchase.safe && unsafePurchase.reasons.includes("crosses_protected_reserve"),
-    staleSourcesDegrade:
+    staleLiquiditySourcesDegrade:
       degradedContext.available.status === "DEGRADED" &&
       degradedAction.outcome === "CONNECTION_REQUIRED",
+    staleMaterialNonLiquiditySourceAlsoDegrades:
+      staleNonLiquiditySourceContext.liquidityUsableMinor ===
+        context.liquidityUsableMinor &&
+      staleNonLiquiditySourceContext.sourcesFresh === false &&
+      staleNonLiquiditySourceContext.available.status === "DEGRADED" &&
+      staleNonLiquiditySourceContext.available.degradedReasons.includes(
+        "critical_source_stale",
+      ) &&
+      staleNonLiquiditySourceAction.outcome === "CONNECTION_REQUIRED",
     freshButIncompleteSourceCoverageDegrades:
       incompleteSourcesContext.sourcesFresh === true &&
       incompleteSourcesContext.available.status === "DEGRADED" &&
@@ -210,10 +232,12 @@ export function runPyPilotScenario() {
       unsafePurchase,
     },
     degradedContext,
+    staleNonLiquiditySourceContext,
     incompleteSourcesContext,
     actionRequiredContext,
     nextAction,
     degradedAction,
+    staleNonLiquiditySourceAction,
     incompleteSourcesAction,
     actionRequiredDecision,
   };
