@@ -3,6 +3,7 @@ import {
   runBehaviorInferenceScenario,
   runCsvImportScenario,
   runEconomicSemanticsScenario,
+  runFinancialStateScenario,
   runForecastHorizonScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
@@ -25,6 +26,7 @@ export async function GET() {
   const forecastHorizons = runForecastHorizonScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
+  const financialState = runFinancialStateScenario();
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
   const ok =
@@ -34,6 +36,7 @@ export async function GET() {
     forecastHorizons.ok &&
     zeroEntry.ok &&
     csvImport.ok &&
+    financialState.ok &&
     persistence.ok &&
     persistenceRpc.ok;
 
@@ -46,6 +49,7 @@ export async function GET() {
       forecastHorizons,
       zeroEntry,
       csvImport,
+      financialState,
       persistence,
       persistenceRpc,
     },
