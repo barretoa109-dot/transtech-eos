@@ -1,4 +1,7 @@
-import { sha256FinancialFingerprint } from "./persistence-fingerprint";
+import {
+  sha256FinancialFingerprint,
+  stableFinancialFingerprintMaterial,
+} from "./persistence-fingerprint";
 import type {
   MultiProviderGlobalContextPlan,
   MultiProviderScopedPersistencePlan,
@@ -149,5 +152,8 @@ export function globalContextCommitMatches(input: {
     providerPlans: input.providerPlans,
   });
 
-  return JSON.stringify(input.commit) === JSON.stringify(expected);
+  return (
+    stableFinancialFingerprintMaterial(input.commit) ===
+    stableFinancialFingerprintMaterial(expected)
+  );
 }
