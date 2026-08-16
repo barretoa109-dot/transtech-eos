@@ -22,6 +22,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type SmokeCheck = {
+  ok: boolean;
+};
+
+function compact(name: string, result: SmokeCheck) {
+  return { name, ok: result.ok };
+}
+
 export async function GET() {
   if (!isFinancialStateDemoAllowed()) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -43,46 +51,40 @@ export async function GET() {
   const firstForecastRiskPersistence = await runFirstForecastRiskPersistenceScenario();
   const supabaseFinancialStateReaderV1_1 =
     await runSupabaseFinancialStateReaderV1_1Scenario();
-  const ok =
-    scenario.ok &&
-    economicSemantics.ok &&
-    behaviorInference.ok &&
-    forecastHorizons.ok &&
-    zeroEntry.ok &&
-    csvImport.ok &&
-    financialState.ok &&
-    financialSurface.ok &&
-    persistence.ok &&
-    persistenceRpc.ok &&
-    financialStateResolver.ok &&
-    supabaseFinancialStateReader.ok &&
-    financialStateApi.ok &&
-    firstForecastRiskPersistence.ok &&
-    supabaseFinancialStateReaderV1_1.ok;
+
+  const checks = [
+    compact("pilot", scenario),
+    compact("economic-semantics", economicSemantics),
+    compact("behavior-inference", behaviorInference),
+    compact("forecast-horizons", forecastHorizons),
+    compact("zero-entry", zeroEntry),
+    compact("csv-import", csvImport),
+    compact("financial-state", financialState),
+    compact("financial-surface", financialSurface),
+    compact("persistence", persistence),
+    compact("persistence-rpc", persistenceRpc),
+    compact("financial-state-resolver", financialStateResolver),
+    compact("supabase-financial-state-reader", supabaseFinancialStateReader),
+    compact("financial-state-api", financialStateApi),
+    compact("first-forecast-risk-persistence", firstForecastRiskPersistence),
+    compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
+  ];
+
+  const failed = checks.filter((check) => !check.ok).map((check) => check.name);
+  const ok = failed.length === 0;
 
   return NextResponse.json(
     {
       ok,
-      scenario,
-      economicSemantics,
-      behaviorInference,
-      forecastHorizons,
-      zeroEntry,
-      csvImport,
-      financialState,
-      financialSurface,
-      persistence,
-      persistenceRpc,
-      financialStateResolver,
-      supabaseFinancialStateReader,
-      financialStateApi,
-      firstForecastRiskPersistence,
-      supabaseFinancialStateReaderV1_1,
+      total: checks.length,
+      passed: checks.length - failed.length,
+      failed,
     },
     {
       status: ok ? 200 : 500,
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, no-store, max-age=0",
+        Pragma: "no-cache",
         "X-Robots-Tag": "noindex",
       },
     },
