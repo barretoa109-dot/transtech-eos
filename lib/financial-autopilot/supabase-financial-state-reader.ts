@@ -27,7 +27,11 @@ const CONTEXT_COLUMNS = [
   "horizon_until",
   "liquidity_usable_minor",
   "protected_commitments_minor",
+  "essential_spend_expected_minor",
   "protected_reserve_minor",
+  "critical_provisions_minor",
+  "confirmed_income_minor",
+  "uncertainty_buffer_minor",
   "available_real_safe_minor",
   "minimum_projected_cash_minor",
   "minimum_projected_cash_at",
@@ -195,9 +199,25 @@ export function parsePersistedFinancialContextRow(
       row.protected_commitments_minor,
       "financial_state_invalid_commitments",
     ),
+    essentialSpendExpectedMinor: safeInteger(
+      row.essential_spend_expected_minor,
+      "financial_state_invalid_essential_spend",
+    ),
     protectedReserveMinor: safeInteger(
       row.protected_reserve_minor,
       "financial_state_invalid_reserve",
+    ),
+    criticalProvisionsMinor: safeInteger(
+      row.critical_provisions_minor,
+      "financial_state_invalid_critical_provisions",
+    ),
+    confirmedIncomeMinor: safeInteger(
+      row.confirmed_income_minor,
+      "financial_state_invalid_confirmed_income",
+    ),
+    uncertaintyBufferMinor: safeInteger(
+      row.uncertainty_buffer_minor,
+      "financial_state_invalid_uncertainty_buffer",
     ),
     availableRealSafeMinor: safeInteger(
       row.available_real_safe_minor,
@@ -241,9 +261,6 @@ export function parsePersistedFinancialObligationRow(
   }
 
   return {
-    // Preserve the deterministic obligation identity used by the context
-    // fingerprint/explanation contract. The database UUID is storage metadata,
-    // not the financial identity needed by the resolver.
     id: stringValue(row.source_key, "financial_state_invalid_obligation_id", 512),
     userId,
     type: stringValue(row.obligation_type, "financial_state_invalid_obligation_type", 128),
@@ -262,13 +279,6 @@ function readError(prefix: string, error: { code?: string | null } | null) {
   return new Error(`${prefix}:${error.code || "unknown"}`);
 }
 
-/**
- * Read-only Supabase adapter for the server-side Financial State resolver.
- *
- * It uses the authenticated server client/RLS and still applies explicit
- * usuario_id predicates as defense in depth. It never reads raw Ledger or
- * ingestion tables for the user-facing state endpoint.
- */
 export class SupabaseFinancialStateReader implements FinancialStateReader {
   constructor(
     private readonly client: Pick<SupabaseClient, "from">,
