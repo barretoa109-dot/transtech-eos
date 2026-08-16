@@ -3,6 +3,11 @@ import {
   buildFinancialPersistencePlan,
   financialLedgerCanonicalKey,
 } from "./persistence";
+import {
+  TRUSTED_SOURCE_INVENTORY_VERSION,
+  financialAccountSourceCoverageRef,
+  type TrustedFinancialSourceInventory,
+} from "./source-coverage";
 import { buildZeroEntryFinancialAutopilot } from "./zero-entry";
 import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "./types";
 
@@ -11,6 +16,7 @@ const ACCOUNT_ID = "20000000-0000-4000-8000-000000000050";
 const SAVINGS_ACCOUNT_ID = "20000000-0000-4000-8000-000000000051";
 const CONNECTION_ID = "10000000-0000-4000-8000-000000000050";
 const AS_OF = "2026-08-16T12:00:00.000Z";
+const COVERAGE_VALID_UNTIL = "2026-08-17T06:00:00.000Z";
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 const COMPACT_LEDGER_KEY = /^(ext|src|fp):[a-f0-9]{64}$/;
 
@@ -135,13 +141,38 @@ function snapshot(balanceMinor = 8000000, reverse = false): FinancialConnectorSn
   };
 }
 
+function coverageInventory(
+  snapshotValue: FinancialConnectorSnapshot,
+): TrustedFinancialSourceInventory {
+  return {
+    version: TRUSTED_SOURCE_INVENTORY_VERSION,
+    userId: USER_ID,
+    asOf: AS_OF,
+    validUntil: COVERAGE_VALID_UNTIL,
+    authority: "provider_discovery",
+    discoveryComplete: true,
+    confidence: 0.99,
+    unresolvedMaterialSourceCount: 0,
+    expectedSources: snapshotValue.accounts.map((accountValue) => ({
+      sourceRef: financialAccountSourceCoverageRef({
+        userId: USER_ID,
+        providerKey: snapshotValue.providerKey,
+        account: accountValue,
+      }),
+      materiality: accountValue.type === "checking" ? "critical" : "material",
+      confidence: 0.99,
+    })),
+  };
+}
+
 function run(snapshotValue: FinancialConnectorSnapshot) {
   const result = buildZeroEntryFinancialAutopilot({
+    trustedUserId: USER_ID,
     snapshot: snapshotValue,
+    sourceCoverageInventory: coverageInventory(snapshotValue),
     currency: "PYG",
     asOf: AS_OF,
     protectedReserveMinor: 3000000,
-    criticalSourcesComplete: true,
     criticalObligationsComplete: true,
     criticalProvisionsMinor: 100000,
     baseUncertaintyBufferMinor: 120000,
@@ -236,6 +267,11 @@ export async function runPersistenceScenario() {
       first.plan.contextInsert.sourceFingerprint === reordered.plan.contextInsert.sourceFingerprint,
     balanceChangeChangesContextFingerprint:
       first.plan.contextInsert.sourceFingerprint !== changedBalance.plan.contextInsert.sourceFingerprint,
+    sourceCoverageEvidenceIsCommittedToSafetyInputs:
+      first.result.sourceCoverage.inventoryFingerprint !== null &&
+      first.result.resolvedInputs.sourceCoverageFingerprint ===
+        first.result.sourceCoverage.inventoryFingerprint &&
+      first.result.resolvedInputs.criticalSourcesComplete === true,
     everyLedgerRowHasIngestionSource:
       first.plan.ledgerUpserts.every((entry) => ingestionKeys.has(entry.sourceEventKey)),
     everyLedgerRowCarriesResolutionScope:
@@ -316,6 +352,7 @@ export async function runPersistenceScenario() {
     identity: {
       contextFingerprint: first.plan.contextInsert.sourceFingerprint,
       contextRevision: first.plan.contextInsert.revision,
+      sourceCoverageFingerprint: first.result.sourceCoverage.inventoryFingerprint,
       reconciliationSignature: internalTransfer?.signature ?? null,
       ingestionSourceFingerprint: first.plan.ingestionEventUpserts[0]?.sourceFingerprint ?? null,
       ingestionPayloadHash: first.plan.ingestionEventUpserts[0]?.payloadHash ?? null,
