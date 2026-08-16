@@ -115,6 +115,7 @@ export async function runPersistenceRpcScenario() {
     crossUserBlocked =
       error instanceof Error && error.message === "financial_persistence_user_mismatch";
   }
+  const callsAfterCrossUserAttempt = client.calls.length;
 
   client.mode = "invalid";
   let invalidResponseBlocked = false;
@@ -152,7 +153,9 @@ export async function runPersistenceRpcScenario() {
     trustedUserPassedSeparately:
       firstCall?.trustedUserId === USER_ID && firstCall?.batch.userId === USER_ID,
     crossUserPlanBlockedBeforeRpc:
-      crossUserBlocked && client.calls.length >= callsAfterSuccess && callsAfterSuccess === 1,
+      crossUserBlocked &&
+      callsAfterSuccess === 1 &&
+      callsAfterCrossUserAttempt === callsAfterSuccess,
     invalidRpcResponseFailsClosed: invalidResponseBlocked,
     contextRevisionMismatchFailsClosed: revisionMismatchBlocked,
     rpcErrorFailsClosed,
