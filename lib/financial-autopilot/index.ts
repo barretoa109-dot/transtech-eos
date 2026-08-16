@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./available-real";
 export * from "./liquidity";
+export * from "./source-coverage";
 export * from "./reconciliation";
 export * from "./economic-impact";
 export * from "./liabilities";
@@ -30,3 +31,4 @@ export * from "./csv-import-scenario";
 export * from "./financial-state-scenario";
 export * from "./financial-surface-scenario";
 export * from "./liquidity-scenario";
+export * from "./source-coverage-scenario";
