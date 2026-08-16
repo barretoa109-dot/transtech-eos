@@ -9,6 +9,7 @@ import type { FinancialAccount, FinancialConnectorSnapshot, LedgerEntry } from "
 
 const USER_ID = "00000000-0000-4000-8000-000000000030";
 const ACCOUNT_ID = "20000000-0000-4000-8000-000000000030";
+const CARD_ACCOUNT_ID = "20000000-0000-4000-8000-000000000031";
 const CONNECTION_ID = "10000000-0000-4000-8000-000000000030";
 const AS_OF = "2026-08-16T12:00:00.000Z";
 
@@ -27,6 +28,24 @@ function account(fresh = true): FinancialAccount {
     ledgerBalanceMinor: 8000000,
     balanceAsOf: AS_OF,
     freshUntil: fresh ? "2026-08-17T12:00:00.000Z" : "2026-08-15T12:00:00.000Z",
+  };
+}
+
+function cardAccount(fresh = true): FinancialAccount {
+  return {
+    id: CARD_ACCOUNT_ID,
+    userId: USER_ID,
+    externalAccountId: "card-zero-entry",
+    connectionId: CONNECTION_ID,
+    type: "card",
+    institutionName: "Banco Demo Paraguay",
+    displayName: "Tarjeta principal",
+    currency: "PYG",
+    ownership: "own",
+    availableBalanceMinor: null,
+    ledgerBalanceMinor: null,
+    balanceAsOf: AS_OF,
+    freshUntil: fresh ? "2026-08-17T12:00:00.000Z" : "2026-08-16T11:59:59.999Z",
   };
 }
 
@@ -95,12 +114,16 @@ function history() {
   ];
 }
 
-function snapshot(fresh = true, includeSalary = true): FinancialConnectorSnapshot {
+function snapshot(
+  fresh = true,
+  includeSalary = true,
+  cardFresh: boolean | null = null,
+): FinancialConnectorSnapshot {
   const rows = history().filter((entry) => includeSalary || !entry.id.startsWith("salary-"));
   return {
     providerKey: "mock_zero_entry_py_v1",
     fetchedAt: AS_OF,
-    accounts: [account(fresh)],
+    accounts: cardFresh === null ? [account(fresh)] : [account(fresh), cardAccount(cardFresh)],
     ledgerEntries: rows,
   };
 }
@@ -109,19 +132,18 @@ function coverageInventory(
   snapshotValue: FinancialConnectorSnapshot,
   includeMissingMaterialSource = false,
 ): TrustedFinancialSourceInventory {
-  const connected = snapshotValue.accounts[0];
-  if (!connected) throw new Error("zero entry fixture missing account");
-  const expectedSources: TrustedFinancialSourceInventory["expectedSources"] = [
-    {
-      sourceRef: financialAccountSourceCoverageRef({
-        userId: USER_ID,
-        providerKey: snapshotValue.providerKey,
-        account: connected,
+  const expectedSources: TrustedFinancialSourceInventory["expectedSources"] =
+    snapshotValue.accounts.map(
+      (connected): TrustedFinancialSourceInventory["expectedSources"][number] => ({
+        sourceRef: financialAccountSourceCoverageRef({
+          userId: USER_ID,
+          providerKey: snapshotValue.providerKey,
+          account: connected,
+        }),
+        materiality: connected.type === "checking" ? "critical" : "material",
+        confidence: 0.99,
       }),
-      materiality: "critical",
-      confidence: 0.99,
-    },
-  ];
+    );
   if (includeMissingMaterialSource) {
     expectedSources.push({
       sourceRef: financialSourceCoverageRef({
@@ -170,7 +192,8 @@ function run(
 
 export function runZeroEntryScenario() {
   const healthy = run(snapshot());
-  const stale = run(snapshot(false));
+  const staleLiquidity = run(snapshot(false));
+  const staleCard = run(snapshot(true, true, false));
   const incompleteObligations = run(snapshot(true), false, false);
   const incompleteSources = run(snapshot(true), true, true);
   const variableIncome = run(snapshot(true, false));
@@ -194,22 +217,35 @@ export function runZeroEntryScenario() {
       healthy.essentialSpend.sampleCount === 8,
     healthyCoverageIsEvidenceDerived:
       healthy.sourceCoverage.criticalSourcesComplete === true &&
+      healthy.sourceCoverage.criticalSourcesFresh === true &&
       healthy.sourceCoverage.inventoryFingerprint !== null &&
       healthy.resolvedInputs.criticalSourcesComplete === true &&
+      healthy.resolvedInputs.criticalSourcesFresh === true &&
       healthy.resolvedInputs.sourceCoverageFingerprint ===
         healthy.sourceCoverage.inventoryFingerprint,
     healthyIsSafeAndSilent:
       healthy.context.available.status === "SAFE" && healthy.nextAction.outcome === "NO_ACTION",
-    staleConnectionNeverClaimsSafe:
-      stale.context.available.status === "DEGRADED" &&
-      stale.context.available.degradedReasons.includes("critical_source_stale") &&
-      stale.nextAction.outcome === "CONNECTION_REQUIRED",
+    staleLiquidityNeverClaimsSafe:
+      staleLiquidity.context.available.status === "DEGRADED" &&
+      staleLiquidity.context.available.degradedReasons.includes("critical_source_stale") &&
+      staleLiquidity.nextAction.outcome === "CONNECTION_REQUIRED",
+    staleConnectedCardDegradesDespiteFreshChecking:
+      staleCard.context.liquidityUsableMinor === healthy.context.liquidityUsableMinor &&
+      staleCard.sourceCoverage.criticalSourcesComplete === true &&
+      staleCard.sourceCoverage.criticalSourcesFresh === false &&
+      staleCard.sourceCoverage.staleConnectedSourceCount === 1 &&
+      staleCard.context.sourcesFresh === false &&
+      staleCard.confidence.sourceFreshness === 0.35 &&
+      staleCard.context.available.status === "DEGRADED" &&
+      staleCard.context.available.degradedReasons.includes("critical_source_stale") &&
+      staleCard.nextAction.outcome === "CONNECTION_REQUIRED",
     incompleteObligationsNeverClaimsSafe:
       incompleteObligations.context.available.status === "DEGRADED" &&
       incompleteObligations.context.available.degradedReasons.includes("critical_obligations_incomplete") &&
       incompleteObligations.nextAction.outcome === "CONNECTION_REQUIRED",
-    freshButMissingMaterialSourceNeverClaimsSafe:
+    freshKnownSourcesButMissingMaterialSourceNeverClaimsSafe:
       incompleteSources.context.sourcesFresh === true &&
+      incompleteSources.sourceCoverage.criticalSourcesFresh === true &&
       incompleteSources.confidence.sourceFreshness === healthy.confidence.sourceFreshness &&
       incompleteSources.sourceCoverage.criticalSourcesComplete === false &&
       incompleteSources.sourceCoverage.reasonCodes.includes("material_source_missing") &&
@@ -226,7 +262,9 @@ export function runZeroEntryScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy,
-    staleStatus: stale.context.available,
+    staleLiquidityStatus: staleLiquidity.context.available,
+    staleCardStatus: staleCard.context.available,
+    staleCardCoverage: staleCard.sourceCoverage,
     incompleteObligationsStatus: incompleteObligations.context.available,
     incompleteSourcesStatus: incompleteSources.context.available,
     missingSourceCoverage: incompleteSources.sourceCoverage,
