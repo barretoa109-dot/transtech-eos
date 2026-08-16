@@ -15,3 +15,7 @@ export * from "./supabase-persistence-store-v1-1";
 export * from "./first-forecast-risk-persistence-scenario";
 export * from "./supabase-financial-state-reader-v1-1";
 export * from "./supabase-financial-state-reader-v1-1-scenario";
+export * from "./critical-obligations-persistence";
+export * from "./supabase-persistence-store-v1-2";
+export * from "./supabase-financial-state-reader-v1-2";
+export * from "./supabase-financial-state-reader-v1-2-scenario";
