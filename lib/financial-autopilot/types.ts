@@ -86,6 +86,20 @@ export interface FinancialObligation {
   source: string;
 }
 
+export interface ForecastEvent {
+  id: string;
+  date: string;
+  type: "income" | "expense" | "obligation" | "reserve" | "goal" | "other";
+  amountMinor: number;
+  direction: "credit" | "debit";
+  /** Confidence in the source/interpretation. */
+  confidence: number;
+  /** Probability that the event occurs. Defaults to 1 when omitted. */
+  probability?: number;
+  essentiality: "critical" | "essential" | "flexible" | "optional";
+  sourceRef: string;
+}
+
 export interface FinancialContextConfidence {
   sourceFreshness: number;
   incomePredictability: number;
