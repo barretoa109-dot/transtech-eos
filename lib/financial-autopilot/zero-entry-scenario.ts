@@ -161,7 +161,7 @@ function coverageInventory(
     userId: USER_ID,
     asOf: AS_OF,
     validUntil: "2026-08-17T12:00:00.000Z",
-    authority: "provider_discovery",
+    authority: "user_confirmed",
     scope: "global_user_finances",
     discoveryComplete: true,
     confidence: 0.98,
