@@ -119,7 +119,10 @@ export interface AvailableRealInput {
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
   minimumProjectedCashMinor: number;
+  /** Whether every currently connected critical source is fresh enough. */
   sourcesFresh: boolean;
+  /** Whether EOS knows the material source set is complete enough to claim safety. */
+  criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
   confidence: FinancialContextConfidence;
   safeConfidenceThreshold?: number;
