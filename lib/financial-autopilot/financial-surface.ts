@@ -244,8 +244,13 @@ export function buildFinancialSurfaceModel(
     state.money.protectedCommitmentsMinor,
   );
   const protectedReserveMinor = publicMinor(state.money.protectedReserveMinor);
+  const safetyAggregatesTrusted =
+    protectedCommitmentsMinor !== null && protectedReserveMinor !== null;
   const projectionTrusted =
-    state.status !== "DEGRADED" && freshness.status === "FRESH" && Boolean(currency);
+    state.status !== "DEGRADED" &&
+    freshness.status === "FRESH" &&
+    Boolean(currency) &&
+    safetyAggregatesTrusted;
   const visible =
     projectionTrusted &&
     state.canAssertSafety &&
@@ -259,10 +264,6 @@ export function buildFinancialSurfaceModel(
       : "No necesitas hacer nada."
     : "EOS no mostrará un monto seguro mientras los datos no sean suficientemente confiables.";
   const explanationRefCount = publicCount(state.trace.explanationRefCount);
-  const whyTrusted =
-    projectionTrusted &&
-    protectedCommitmentsMinor !== null &&
-    protectedReserveMinor !== null;
 
   return {
     version: "financial-surface-v1",
@@ -292,10 +293,10 @@ export function buildFinancialSurfaceModel(
       interrupt: state.attention.interrupt || state.status === "DEGRADED",
       message: state.attention.message,
     },
-    why: whyTrusted
+    why: projectionTrusted
       ? {
-          protectedCommitmentsMinor,
-          protectedReserveMinor,
+          protectedCommitmentsMinor: protectedCommitmentsMinor!,
+          protectedReserveMinor: protectedReserveMinor!,
           explanationAvailable:
             Boolean(state.trace.explanationAvailable) && explanationRefCount > 0,
           explanationRefCount,
