@@ -22,6 +22,8 @@ export interface BuildFinancialContextInput {
   criticalProvisionsMinor: number;
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
+  /** Freshness of the complete critical/material source set, beyond liquid accounts. */
+  criticalSourcesFresh: boolean;
   criticalSourcesComplete: boolean;
   criticalObligationsComplete: boolean;
   confidence: FinancialContextConfidence;
@@ -44,8 +46,15 @@ export interface BuiltFinancialContext {
 export function buildFinancialContext(input: BuildFinancialContextInput): BuiltFinancialContext {
   const horizon = new Date(input.horizonUntil).getTime();
   if (!Number.isFinite(horizon)) throw new Error("horizonUntil must be a valid date");
+  if (typeof input.criticalSourcesFresh !== "boolean") {
+    throw new Error("criticalSourcesFresh must be boolean");
+  }
 
   const liquidity = calculateUsableLiquidity(input.accounts, input.currency, input.asOf);
+  // Whole-source freshness and usable-liquidity freshness are intentionally
+  // independent. A fresh checking account cannot hide a stale material card or
+  // loan, while a fresh card cannot make unknown/invalid liquidity safe.
+  const sourcesFresh = liquidity.sourcesFresh && input.criticalSourcesFresh;
 
   const protectedObligations = input.obligations.filter((obligation) => {
     const due = new Date(obligation.dueAt).getTime();
@@ -79,7 +88,7 @@ export function buildFinancialContext(input: BuildFinancialContextInput): BuiltF
     confirmedIncomeMinor: input.confirmedIncomeMinor,
     uncertaintyBufferMinor: input.uncertaintyBufferMinor,
     minimumProjectedCashMinor: forecast.minimumProjectedCashMinor,
-    sourcesFresh: liquidity.sourcesFresh,
+    sourcesFresh,
     criticalSourcesComplete: input.criticalSourcesComplete,
     criticalObligationsComplete: input.criticalObligationsComplete,
     confidence: input.confidence,
@@ -94,7 +103,7 @@ export function buildFinancialContext(input: BuildFinancialContextInput): BuiltF
     protectedCommitmentsMinor,
     minimumProjectedCashMinor: forecast.minimumProjectedCashMinor,
     minimumProjectedCashAt: forecast.minimumProjectedCashAt,
-    sourcesFresh: liquidity.sourcesFresh,
+    sourcesFresh,
     available,
     explanationRefs: [
       ...liquidity.includedAccountIds.map((id) => `account:${id}`),
