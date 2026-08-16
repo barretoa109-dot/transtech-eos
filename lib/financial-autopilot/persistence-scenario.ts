@@ -163,6 +163,7 @@ function coverageInventory(
     asOf: AS_OF,
     validUntil: COVERAGE_VALID_UNTIL,
     authority: "provider_discovery",
+    scope: "global_user_finances",
     discoveryComplete: true,
     confidence: 0.99,
     unresolvedMaterialSourceCount: 0,
