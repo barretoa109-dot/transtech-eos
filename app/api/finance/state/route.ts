@@ -4,11 +4,13 @@ import {
   financialStateApiHeaders,
   isFinancialStateApiEnabled,
   isFinancialStateV1_2Enabled,
+  isFinancialStateV1_3Enabled,
 } from "@/lib/financial-autopilot/financial-state-api-policy";
 import {
   resolveFinancialState,
   SupabaseFinancialStateReaderV1_1,
   SupabaseFinancialStateReaderV1_2,
+  SupabaseFinancialStateReaderV1_3,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,8 +20,8 @@ export async function GET() {
   const headers = financialStateApiHeaders();
 
   // Server-only kill switch. The route exists in code but stays dark until the
-  // finance-v1 + first-forecast-risk v1.1 schema has been validated outside
-  // production and explicitly enabled.
+  // finance-v1 persistence layers have been validated outside production and
+  // explicitly enabled.
   if (!isFinancialStateApiEnabled()) {
     return NextResponse.json({ error: "not_found" }, { status: 404, headers });
   }
@@ -38,13 +40,17 @@ export async function GET() {
       );
     }
 
-    // v1.2 is a second exact-true, server-only rollout gate. It must remain off
-    // until its schema/RPC draft has passed non-production Postgres validation.
-    // If enabled without the required column, the v1.2 reader fails closed and
-    // this route returns 503 rather than falling back to a less strict reader.
-    const reader = isFinancialStateV1_2Enabled()
-      ? new SupabaseFinancialStateReaderV1_2(supabase, user.id)
-      : new SupabaseFinancialStateReaderV1_1(supabase, user.id);
+    const v1_2Enabled = isFinancialStateV1_2Enabled();
+    const v1_3Enabled = v1_2Enabled && isFinancialStateV1_3Enabled();
+
+    // Rollout is strictly layered. v1.3 may only run on top of v1.2, so source
+    // coverage can never bypass the critical-obligation completeness gate.
+    // Missing schema/columns fail closed with 503; there is no silent downgrade.
+    const reader = v1_3Enabled
+      ? new SupabaseFinancialStateReaderV1_3(supabase, user.id)
+      : v1_2Enabled
+        ? new SupabaseFinancialStateReaderV1_2(supabase, user.id)
+        : new SupabaseFinancialStateReaderV1_1(supabase, user.id);
     const resolution = await resolveFinancialState({
       trustedUserId: user.id,
       reader,
