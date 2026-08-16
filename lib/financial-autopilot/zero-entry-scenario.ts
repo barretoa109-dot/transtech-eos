@@ -99,12 +99,17 @@ function snapshot(fresh = true, includeSalary = true): FinancialConnectorSnapsho
   };
 }
 
-function run(snapshotValue: FinancialConnectorSnapshot, criticalObligationsComplete = true) {
+function run(
+  snapshotValue: FinancialConnectorSnapshot,
+  criticalObligationsComplete = true,
+  criticalSourcesComplete = true,
+) {
   return buildZeroEntryFinancialAutopilot({
     snapshot: snapshotValue,
     currency: "PYG",
     asOf: AS_OF,
     protectedReserveMinor: 3000000,
+    criticalSourcesComplete,
     criticalObligationsComplete,
     criticalProvisionsMinor: 100000,
     baseUncertaintyBufferMinor: 120000,
@@ -114,7 +119,8 @@ function run(snapshotValue: FinancialConnectorSnapshot, criticalObligationsCompl
 export function runZeroEntryScenario() {
   const healthy = run(snapshot());
   const stale = run(snapshot(false));
-  const incomplete = run(snapshot(true), false);
+  const incompleteObligations = run(snapshot(true), false, true);
+  const incompleteSources = run(snapshot(true), true, false);
   const variableIncome = run(snapshot(true, false));
 
   const checks = {
@@ -138,10 +144,18 @@ export function runZeroEntryScenario() {
       healthy.context.available.status === "SAFE" && healthy.nextAction.outcome === "NO_ACTION",
     staleConnectionNeverClaimsSafe:
       stale.context.available.status === "DEGRADED" &&
+      stale.context.available.degradedReasons.includes("critical_source_stale") &&
       stale.nextAction.outcome === "CONNECTION_REQUIRED",
     incompleteObligationsNeverClaimsSafe:
-      incomplete.context.available.status === "DEGRADED" &&
-      incomplete.context.available.degradedReasons.includes("critical_obligations_incomplete"),
+      incompleteObligations.context.available.status === "DEGRADED" &&
+      incompleteObligations.context.available.degradedReasons.includes("critical_obligations_incomplete") &&
+      incompleteObligations.nextAction.outcome === "CONNECTION_REQUIRED",
+    freshButIncompleteSourceCoverageNeverClaimsSafe:
+      incompleteSources.context.sourcesFresh === true &&
+      incompleteSources.confidence.sourceFreshness === healthy.confidence.sourceFreshness &&
+      incompleteSources.context.available.status === "DEGRADED" &&
+      incompleteSources.context.available.degradedReasons.includes("critical_sources_incomplete") &&
+      incompleteSources.nextAction.outcome === "CONNECTION_REQUIRED",
     unpredictableIncomeUsesRollingHorizon:
       variableIncome.primaryHorizon.reason === "rolling_fallback" &&
       variableIncome.primaryHorizon.incomePatternRef === null,
@@ -153,7 +167,8 @@ export function runZeroEntryScenario() {
     checks,
     healthy,
     staleStatus: stale.context.available,
-    incompleteStatus: incomplete.context.available,
+    incompleteObligationsStatus: incompleteObligations.context.available,
+    incompleteSourcesStatus: incompleteSources.context.available,
     variableIncomeHorizon: variableIncome.primaryHorizon,
   };
 }
