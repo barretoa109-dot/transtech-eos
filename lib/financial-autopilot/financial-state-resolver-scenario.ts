@@ -35,7 +35,7 @@ function contextRecord(
       reconciliationQuality: 1,
       overall: 0.932,
     },
-    explanationRefs: ["account:checking", "obligation:rent"],
+    explanationRefs: ["account:checking", "obligation:resolver-rent"],
     sourcesFresh: true,
     generatedAt: "2026-08-16T04:00:00.000Z",
     validUntil: "2026-08-17T12:00:00.000Z",
@@ -96,6 +96,22 @@ export async function runFinancialStateResolverScenario() {
     nowIso: NOW,
   });
 
+  const changedProtectedAmount = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(contextRecord(), [
+      { ...obligations()[0], amountMinor: 2300000 },
+    ]),
+    nowIso: NOW,
+  });
+
+  const changedProtectedIdentity = await resolveFinancialState({
+    trustedUserId: USER_ID,
+    reader: new FixtureReader(contextRecord(), [
+      { ...obligations()[0], id: "resolver-rent-new" },
+    ]),
+    nowIso: NOW,
+  });
+
   const noData = await resolveFinancialState({
     trustedUserId: USER_ID,
     reader: new FixtureReader(null),
@@ -144,6 +160,8 @@ export async function runFinancialStateResolverScenario() {
         horizonUntil: "2026-08-16T03:30:00.000Z",
         validUntil: "2026-08-16T03:30:00.000Z",
         minimumProjectedCashAt: "2026-08-16T03:00:00.000Z",
+        protectedCommitmentsMinor: 0,
+        explanationRefs: ["account:checking"],
       }),
       [],
     ),
@@ -288,6 +306,10 @@ export async function runFinancialStateResolverScenario() {
   );
 
   const healthyState = healthy.kind === "STATE" ? healthy.state : null;
+  const changedAmountState =
+    changedProtectedAmount.kind === "STATE" ? changedProtectedAmount.state : null;
+  const changedIdentityState =
+    changedProtectedIdentity.kind === "STATE" ? changedProtectedIdentity.state : null;
   const expiredState = expired.kind === "STATE" ? expired.state : null;
   const exactExpiryState =
     expiresExactlyNow.kind === "STATE" ? expiresExactlyNow.state : null;
@@ -308,6 +330,16 @@ export async function runFinancialStateResolverScenario() {
     nextProtectedCommitmentResolved:
       healthyState?.nextProtectedCommitment?.type === "housing" &&
       healthyState.nextProtectedCommitment.amountMinor === 2100000,
+    changedProtectedAmountFailsClosed:
+      changedAmountState?.status === "DEGRADED" &&
+      changedAmountState.canAssertSafety === false &&
+      changedAmountState.money.availableRealMinor === null &&
+      changedAmountState.firstForecastRisk === null &&
+      changedAmountState.attention.outcome === "CONNECTION_REQUIRED",
+    changedProtectedIdentityFailsClosedEvenAtSameAmount:
+      changedIdentityState?.status === "DEGRADED" &&
+      changedIdentityState.canAssertSafety === false &&
+      changedIdentityState.money.availableRealMinor === null,
     noDataIsExplicitNotFakeSafe:
       noData.kind === "NO_DATA" &&
       noData.state === null &&
@@ -358,6 +390,8 @@ export async function runFinancialStateResolverScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy: healthyState,
+    changedProtectedAmount: changedAmountState,
+    changedProtectedIdentity: changedIdentityState,
     noData,
     expired: expiredState,
     expiresExactlyNow: exactExpiryState,
