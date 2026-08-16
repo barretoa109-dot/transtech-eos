@@ -6,6 +6,7 @@ import {
   runFinancialStateScenario,
   runFinancialSurfaceScenario,
   runForecastHorizonScenario,
+  runLiquidityAuthorityScenario,
   runPyPilotScenario,
   runZeroEntryScenario,
 } from "@/lib/financial-autopilot";
@@ -41,6 +42,7 @@ export async function GET() {
   const economicSemantics = runEconomicSemanticsScenario();
   const behaviorInference = runBehaviorInferenceScenario();
   const forecastHorizons = runForecastHorizonScenario();
+  const liquidityAuthority = runLiquidityAuthorityScenario();
   const zeroEntry = runZeroEntryScenario();
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
@@ -63,6 +65,7 @@ export async function GET() {
     compact("economic-semantics", economicSemantics),
     compact("behavior-inference", behaviorInference),
     compact("forecast-horizons", forecastHorizons),
+    compact("liquidity-authority", liquidityAuthority),
     compact("zero-entry", zeroEntry),
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
