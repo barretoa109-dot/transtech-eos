@@ -123,7 +123,7 @@ export function runTrustedSourceCoverageScenario() {
     type: "card",
     freshUntil: "2026-08-16T17:59:59.999Z",
   });
-  const staleMaterialSource = resolveTrustedSourceCoverage({
+  const staleKnownSource = resolveTrustedSourceCoverage({
     trustedUserId: USER_ID,
     snapshot: snapshot([checking, staleCard]),
     inventory: inventory(expected),
@@ -274,7 +274,7 @@ export function runTrustedSourceCoverageScenario() {
       healthy.expectedMaterialCount === 2 &&
       healthy.connectedMaterialCount === 2 &&
       healthy.missingMaterialCount === 0 &&
-      healthy.staleMaterialSourceCount === 0 &&
+      healthy.staleConnectedSourceCount === 0 &&
       healthy.reasonCodes.length === 0 &&
       healthy.freshnessReasonCodes.length === 0,
     optionalMissingSourceDoesNotBlockSafety:
@@ -284,36 +284,39 @@ export function runTrustedSourceCoverageScenario() {
       healthy.inventoryFingerprint === reordered.inventoryFingerprint &&
       reordered.criticalSourcesComplete &&
       reordered.criticalSourcesFresh,
-    staleMaterialCardPreservesCoverageButFailsFreshness:
-      staleMaterialSource.criticalSourcesComplete &&
-      !staleMaterialSource.criticalSourcesFresh &&
-      staleMaterialSource.staleMaterialSourceCount === 1 &&
-      staleMaterialSource.freshnessReasonCodes.includes(
-        "material_source_stale_or_unknown",
+    staleConnectedCardPreservesCoverageButFailsFreshness:
+      staleKnownSource.criticalSourcesComplete &&
+      !staleKnownSource.criticalSourcesFresh &&
+      staleKnownSource.staleConnectedSourceCount === 1 &&
+      staleKnownSource.freshnessReasonCodes.includes(
+        "connected_source_stale_or_unknown",
       ),
-    exactMaterialFreshnessBoundaryRemainsFresh:
+    exactConnectedFreshnessBoundaryRemainsFresh:
       exactFreshnessBoundary.criticalSourcesComplete &&
       exactFreshnessBoundary.criticalSourcesFresh,
-    missingMaterialSourceFailsClosed:
+    missingMaterialSourceKeepsKnownFreshnessSeparate:
       !missingMaterial.criticalSourcesComplete &&
-      !missingMaterial.criticalSourcesFresh &&
+      missingMaterial.criticalSourcesFresh &&
       missingMaterial.missingMaterialCount === 1 &&
       missingMaterial.reasonCodes.includes("material_source_missing"),
-    unresolvedMaterialHintFailsClosed:
+    unresolvedMaterialHintFailsCoverageButNotKnownFreshness:
       !unresolvedHint.criticalSourcesComplete &&
+      unresolvedHint.criticalSourcesFresh &&
       unresolvedHint.reasonCodes.includes("unresolved_material_source"),
-    incompleteDiscoveryFailsClosed:
+    incompleteDiscoveryFailsCoverageButNotKnownFreshness:
       !incompleteDiscovery.criticalSourcesComplete &&
+      incompleteDiscovery.criticalSourcesFresh &&
       incompleteDiscovery.reasonCodes.includes("inventory_discovery_incomplete"),
     weakInventoryAuthorityConfidenceFailsClosed:
       !lowInventoryConfidence.criticalSourcesComplete &&
       lowInventoryConfidence.reasonCodes.includes(
         "inventory_confidence_below_threshold",
       ),
-    expiredInventoryFailsClosed:
+    expiredInventoryDoesNotMakeFreshConnectedSourcesStale:
       !staleInventory.criticalSourcesComplete &&
+      staleInventory.criticalSourcesFresh &&
       staleInventory.reasonCodes.includes("inventory_not_current"),
-    weakMaterialEvidenceFailsClosed:
+    weakMaterialEvidenceFailsCoverage:
       !lowMaterialEvidence.criticalSourcesComplete &&
       lowMaterialEvidence.reasonCodes.includes(
         "material_source_evidence_below_threshold",
@@ -324,8 +327,9 @@ export function runTrustedSourceCoverageScenario() {
     duplicateConnectedIdentityFailsClosed:
       !duplicateConnected.criticalSourcesComplete &&
       duplicateConnected.reasonCodes.includes("duplicate_connected_source_identity"),
-    connectedSourceMissingFromInventoryFailsClosed:
+    connectedSourceMissingFromInventoryFailsCoverage:
       !connectedSourceMissingFromInventory.criticalSourcesComplete &&
+      connectedSourceMissingFromInventory.criticalSourcesFresh &&
       connectedSourceMissingFromInventory.reasonCodes.includes(
         "connected_source_not_in_inventory",
       ),
@@ -348,7 +352,7 @@ export function runTrustedSourceCoverageScenario() {
     ok: Object.values(checks).every(Boolean),
     checks,
     healthy,
-    staleMaterialSource,
+    staleKnownSource,
     missingMaterial,
     unresolvedHint,
     connectedSourceMissingFromInventory,
