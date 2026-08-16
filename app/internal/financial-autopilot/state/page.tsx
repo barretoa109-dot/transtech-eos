@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import FinancialStateCard from "@/components/financial-autopilot/FinancialStateCard";
 import type { FinancialStateView } from "@/lib/financial-autopilot/financial-state";
+import { isFinancialStateDemoAllowed } from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +128,7 @@ const STATES = [
 ];
 
 export default function FinancialStateInternalPreviewPage() {
-  if (process.env.VERCEL_ENV === "production") notFound();
+  if (!isFinancialStateDemoAllowed()) notFound();
 
   return (
     <main className="min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6 sm:py-12">
