@@ -50,6 +50,7 @@ export interface ZeroEntryResolvedInputs {
   confirmedIncomeMinor: number;
   uncertaintyBufferMinor: number;
   criticalSourcesComplete: boolean;
+  criticalSourcesFresh: boolean;
   sourceCoverageFingerprint: string | null;
   sourceCoverageValidUntil: string | null;
   criticalObligationsComplete: boolean;
@@ -196,9 +197,11 @@ export function buildZeroEntryFinancialAutopilot(
     input.currency,
     input.asOf,
   );
+  const allCriticalSourcesFresh =
+    liquidity.sourcesFresh && sourceCoverage.criticalSourcesFresh;
   const reconciliationQuality = deriveReconciliationQuality(input.snapshot, reconciliation);
   const confidence = deriveConfidence({
-    sourceFresh: liquidity.sourcesFresh,
+    sourceFresh: allCriticalSourcesFresh,
     horizon: primaryHorizon,
     debitPatternCount: patterns.filter((pattern) => pattern.direction === "debit").length,
     essentialSpendConfidence: essentialSpend.confidence,
@@ -228,6 +231,7 @@ export function buildZeroEntryFinancialAutopilot(
     confirmedIncomeMinor: confirmedIncome.amountMinor,
     uncertaintyBufferMinor,
     criticalSourcesComplete: sourceCoverage.criticalSourcesComplete,
+    criticalSourcesFresh: sourceCoverage.criticalSourcesFresh,
     sourceCoverageFingerprint: sourceCoverage.inventoryFingerprint,
     sourceCoverageValidUntil: sourceCoverage.coverageValidUntil,
     criticalObligationsComplete: input.criticalObligationsComplete,
@@ -245,6 +249,7 @@ export function buildZeroEntryFinancialAutopilot(
     criticalProvisionsMinor: resolvedInputs.criticalProvisionsMinor,
     confirmedIncomeMinor: resolvedInputs.confirmedIncomeMinor,
     uncertaintyBufferMinor: resolvedInputs.uncertaintyBufferMinor,
+    criticalSourcesFresh: resolvedInputs.criticalSourcesFresh,
     criticalSourcesComplete: resolvedInputs.criticalSourcesComplete,
     criticalObligationsComplete: resolvedInputs.criticalObligationsComplete,
     confidence,
