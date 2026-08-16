@@ -82,16 +82,12 @@ class FixtureBaseReader implements FinancialStateReader {
     private readonly contextRecord: PersistedFinancialContextRecord = record(),
   ) {}
 
-  async getLatestContext(_userId: string) {
+  async getLatestContext() {
     this.contextCalls += 1;
     return this.contextRecord;
   }
 
-  async getOpenObligations(_input: {
-    userId: string;
-    currency: string;
-    horizonUntil: string;
-  }) {
+  async getOpenObligations() {
     this.obligationCalls += 1;
     return this.obligations;
   }

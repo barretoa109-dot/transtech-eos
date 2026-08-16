@@ -4,19 +4,22 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function TestPage() {
-  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<Record<string, unknown>[]>([]);
 
   useEffect(() => {
-    cargar();
-  }, []);
+    let active = true;
 
-  async function cargar() {
-    const { data } = await supabase
+    void supabase
       .from("usuarios")
-      .select("*");
+      .select("*")
+      .then(({ data }) => {
+        if (active) setUsuarios(data || []);
+      });
 
-    setUsuarios(data || []);
-  }
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div style={{ padding: 20 }}>

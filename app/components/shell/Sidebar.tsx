@@ -3,8 +3,6 @@
 import {
   BarChart3,
   BrainCircuit,
-  ChevronLeft,
-  ChevronRight,
   CircleUserRound,
   FileText,
   LayoutDashboard,
@@ -15,7 +13,6 @@ import {
   Plus,
   Search,
   Settings,
-  Sparkles,
   Target,
   X,
 } from "lucide-react";

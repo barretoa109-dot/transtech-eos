@@ -1,6 +1,13 @@
 import { supabase } from "../../../lib/supabase";
 import type { Conversacion, Mensaje } from "../types/chat";
 
+type StoredMessageRow = {
+  remitente?: unknown;
+  rol?: unknown;
+  mensaje?: unknown;
+  texto?: unknown;
+};
+
 export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
   const { data, error } = await supabase
     .from("conversaciones")
@@ -43,9 +50,14 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
     return [];
   }
 
-  return (data || []).map((m: any) => ({
+  return (data || []).map((m: StoredMessageRow) => ({
     rol: m.remitente === "usuario" || m.rol === "usuario" ? "usuario" : "eos",
-    texto: m.mensaje || m.texto || "",
+    texto:
+      typeof m.mensaje === "string"
+        ? m.mensaje
+        : typeof m.texto === "string"
+          ? m.texto
+          : "",
   }));
 }
 

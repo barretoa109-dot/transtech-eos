@@ -5,6 +5,16 @@ import { createAdminClient } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type PagoPendienteRow = {
+  id: string;
+  metadata?: {
+    comprobante?: {
+      ruta?: string;
+    };
+  } | null;
+  [key: string]: unknown;
+};
+
 function correosAdministradores() {
   return (process.env.ADMIN_EMAILS || "")
     .split(",")
@@ -45,7 +55,7 @@ export async function GET() {
       );
     }
 
-    const admin: any = createAdminClient();
+    const admin = createAdminClient();
 
     const { data, error } = await admin
       .from("solicitudes_pago")
@@ -67,7 +77,7 @@ export async function GET() {
     }
 
     const pagos = await Promise.all(
-      (data || []).map(async (pago: any) => {
+      (data || []).map(async (pago: PagoPendienteRow) => {
         const ruta = pago.metadata?.comprobante?.ruta;
         let comprobanteUrl: string | null = null;
 

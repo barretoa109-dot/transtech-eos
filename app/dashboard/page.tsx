@@ -1,26 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-type AnyRow = Record<string, any>;
+type DashboardRow = Record<string, unknown> & {
+  id: string;
+  titulo?: string | null;
+  descripcion?: string | null;
+  estado?: string | null;
+  progreso?: number | null;
+  completada?: boolean | null;
+  mensaje?: string | null;
+  remitente?: string | null;
+  diagnostico_actual?: string | null;
+  ultimo_resumen?: string | null;
+  problema_principal?: string | null;
+  acciones_recomendadas?: string | null;
+  recomendacion?: string | null;
+  objetivos_activos?: number | null;
+  tareas_pendientes?: number | null;
+  progreso_promedio?: number | null;
+  puntuacion_eos?: number | null;
+  puntuacion?: number | null;
+  nivel?: string | null;
+  riesgo?: string | null;
+};
 
 export default function DashboardPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [usuarioId, setUsuarioId] = useState("");
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
 
-  const [objetivos, setObjetivos] = useState<AnyRow[]>([]);
-  const [tareas, setTareas] = useState<AnyRow[]>([]);
-  const [seguimientos, setSeguimientos] = useState<AnyRow[]>([]);
-  const [mensajes, setMensajes] = useState<AnyRow[]>([]);
-  const [actividad, setActividad] = useState<AnyRow[]>([]);
-  const [contexto, setContexto] = useState<AnyRow | null>(null);
-  const [dashboardResumen, setDashboardResumen] = useState<AnyRow | null>(null);
-  const [dashboardIA, setDashboardIA] = useState<AnyRow | null>(null);
+  const [objetivos, setObjetivos] = useState<DashboardRow[]>([]);
+  const [tareas, setTareas] = useState<DashboardRow[]>([]);
+  const [seguimientos, setSeguimientos] = useState<DashboardRow[]>([]);
+  const [mensajes, setMensajes] = useState<DashboardRow[]>([]);
+  const [contexto, setContexto] = useState<DashboardRow | null>(null);
+  const [dashboardResumen, setDashboardResumen] = useState<DashboardRow | null>(null);
+  const [dashboardIA, setDashboardIA] = useState<DashboardRow | null>(null);
 
   const [cargando, setCargando] = useState(true);
   const [creando, setCreando] = useState(false);
@@ -28,113 +49,18 @@ export default function DashboardPage() {
   const [nuevoObjetivo, setNuevoObjetivo] = useState("");
   const [nuevaTarea, setNuevaTarea] = useState("");
 
-  useEffect(() => {
-  async function cargarSesion() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("nombre,plan")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    setUsuarioId(user.id);
-    setNombre(
-      usuario?.nombre ??
-        user.user_metadata?.nombre ??
-        user.email?.split("@")[0] ??
-        "Usuario"
-    );
-    setPlan(usuario?.plan ?? "free");
-
-    await cargarDatos(user.id);
-  }
-
-  cargarSesion();
-}, [router, supabase]);
-
-useEffect(() => {
-  if (!usuarioId) return;
-
-  const canal = supabase
-    .channel(`dashboard-eos-realtime-${usuarioId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "objetivos",
-        filter: `usuario_id=eq.${usuarioId}`,
-      },
-      () => cargarDatos(usuarioId)
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "tareas",
-        filter: `usuario_id=eq.${usuarioId}`,
-      },
-      () => cargarDatos(usuarioId)
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "seguimientos",
-        filter: `usuario_id=eq.${usuarioId}`,
-      },
-      () => cargarDatos(usuarioId)
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "dashboard_resumen",
-        filter: `usuario_id=eq.${usuarioId}`,
-      },
-      () => cargarDatos(usuarioId)
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "dashboard_ia",
-        filter: `usuario_id=eq.${usuarioId}`,
-      },
-      () => cargarDatos(usuarioId)
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(canal);
-  };
-}, [usuarioId, supabase]);
-
-  async function cargarDatos(id: string) {
+  const cargarDatos = useCallback(async (id: string) => {
     setCargando(true);
 
     const [
-  objetivosRes,
-  tareasRes,
-  seguimientosRes,
-  contextoRes,
-  resumenRes,
-  iaRes,
-  conversacionesRes,
-  actividadRes,
-] = await Promise.all([
+      objetivosRes,
+      tareasRes,
+      seguimientosRes,
+      contextoRes,
+      resumenRes,
+      iaRes,
+      conversacionesRes,
+    ] = await Promise.all([
       supabase.from("objetivos").select("*").eq("usuario_id", id).order("created_at", { ascending: false }),
       supabase.from("tareas").select("*").eq("usuario_id", id).order("created_at", { ascending: false }),
       supabase.from("seguimientos").select("*").eq("usuario_id", id).order("created_at", { ascending: false }).limit(6),
@@ -142,12 +68,6 @@ useEffect(() => {
       supabase.from("dashboard_resumen").select("*").eq("usuario_id", id).order("updated_at", { ascending: false }).limit(1),
       supabase.from("dashboard_ia").select("*").eq("usuario_id", id).order("created_at", { ascending: false }).limit(1),
       supabase.from("conversaciones").select("id").eq("usuario_id", id).limit(1),
-supabase
-  .from("actividad_reciente")
-  .select("*")
-  .eq("usuario_id", id)
-  .order("created_at", { ascending: false })
-  .limit(10),
     ]);
 
     setObjetivos(objetivosRes.data || []);
@@ -156,7 +76,6 @@ supabase
     setContexto(contextoRes.data?.[0] || null);
     setDashboardResumen(resumenRes.data?.[0] || null);
     setDashboardIA(iaRes.data?.[0] || null);
-    setActividad(actividadRes.data || []);
 
     const conversacionId = conversacionesRes.data?.[0]?.id;
 
@@ -172,7 +91,101 @@ supabase
     }
 
     setCargando(false);
-  }
+  }, [supabase]);
+
+  useEffect(() => {
+    async function cargarSesion() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data: usuario } = await supabase
+        .from("usuarios")
+        .select("nombre,plan")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      setUsuarioId(user.id);
+      setNombre(
+        usuario?.nombre ??
+          user.user_metadata?.nombre ??
+          user.email?.split("@")[0] ??
+          "Usuario",
+      );
+      setPlan(usuario?.plan ?? "free");
+
+      await cargarDatos(user.id);
+    }
+
+    void cargarSesion();
+  }, [cargarDatos, router, supabase]);
+
+  useEffect(() => {
+    if (!usuarioId) return;
+
+    const canal = supabase
+      .channel(`dashboard-eos-realtime-${usuarioId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "objetivos",
+          filter: `usuario_id=eq.${usuarioId}`,
+        },
+        () => void cargarDatos(usuarioId),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tareas",
+          filter: `usuario_id=eq.${usuarioId}`,
+        },
+        () => void cargarDatos(usuarioId),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "seguimientos",
+          filter: `usuario_id=eq.${usuarioId}`,
+        },
+        () => void cargarDatos(usuarioId),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dashboard_resumen",
+          filter: `usuario_id=eq.${usuarioId}`,
+        },
+        () => void cargarDatos(usuarioId),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dashboard_ia",
+          filter: `usuario_id=eq.${usuarioId}`,
+        },
+        () => void cargarDatos(usuarioId),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(canal);
+    };
+  }, [cargarDatos, usuarioId, supabase]);
 
   async function completarTarea(id: string, completada: boolean) {
   const tarea = tareas.find((t) => t.id === id);
@@ -389,9 +402,9 @@ const recomendacionIA =
 >
   Abrir EOS
 </a>
-            <a href="/" className="border border-white/10 px-6 py-3 rounded-2xl">
+            <Link href="/" className="border border-white/10 px-6 py-3 rounded-2xl">
               Inicio
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -545,7 +558,7 @@ const recomendacionIA =
         <button
           type="button"
           key={tarea.id}
-          onClick={() => completarTarea(tarea.id, tarea.completada)}
+          onClick={() => completarTarea(tarea.id, tarea.completada === true)}
           className={`w-full text-left border p-5 rounded-2xl transition ${
             tarea.completada
               ? "bg-cyan-400/10 border-cyan-400/30"
@@ -629,7 +642,7 @@ const recomendacionIA =
   );
 }
 
-function Card({ titulo, valor, texto }: { titulo: string; valor: any; texto: string }) {
+function Card({ titulo, valor, texto }: { titulo: string; valor: ReactNode; texto: string }) {
   return (
     <div className="bg-[#091633] border border-cyan-400/20 rounded-3xl p-7 min-h-[180px]">
       <p className="text-slate-400">{titulo}</p>
@@ -639,7 +652,7 @@ function Card({ titulo, valor, texto }: { titulo: string; valor: any; texto: str
   );
 }
 
-function Mini({ titulo, valor }: { titulo: string; valor: any }) {
+function Mini({ titulo, valor }: { titulo: string; valor: ReactNode }) {
   return (
     <div className="bg-slate-950/70 border border-white/10 rounded-2xl p-5">
       <p className="text-slate-400 text-sm">{titulo}</p>
@@ -648,7 +661,7 @@ function Mini({ titulo, valor }: { titulo: string; valor: any }) {
   );
 }
 
-function Box({ titulo, children }: { titulo: string; children: any }) {
+function Box({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <div className="bg-[#091633] border border-white/10 rounded-3xl p-7">
       <h2 className="text-2xl font-black mb-5">{titulo}</h2>

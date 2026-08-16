@@ -63,21 +63,6 @@ export default function LoginForm({
     router.refresh();
   }
 
-  async function loginGoogle() {
-    setErrorMessage("");
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/eos/chat`,
-      },
-    });
-
-    if (error) {
-      setErrorMessage(error.message);
-    }
-  }
-
   return (
     <div className="rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-2xl sm:p-10">
       <h2 className="text-4xl font-black">Iniciar sesión</h2>

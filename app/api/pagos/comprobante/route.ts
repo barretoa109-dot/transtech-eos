@@ -96,7 +96,7 @@ function respuestaErrorRpc(error: unknown) {
 
 export async function POST(request: Request) {
   let rutaSubida = "";
-  let admin: any = null;
+  let admin: ReturnType<typeof createAdminClient> | null = null;
 
   try {
     const formData = await request.formData();

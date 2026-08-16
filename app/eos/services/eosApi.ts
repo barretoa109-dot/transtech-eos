@@ -34,8 +34,26 @@ function limpiarTexto(valor: unknown): string {
     .trim();
 }
 
+function comoRegistro(valor: unknown): Record<string, unknown> | null {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
+
+  return valor as Record<string, unknown>;
+}
+
+function primerValor(
+  registro: Record<string, unknown>,
+  claves: string[],
+): unknown {
+  for (const clave of claves) {
+    const valor = registro[clave];
+    if (valor !== undefined && valor !== null && valor !== "") return valor;
+  }
+
+  return "";
+}
+
 function normalizarRespuesta(valor: unknown): RespuestaEOS {
-  let data: any = valor;
+  let data: unknown = valor;
 
   if (typeof data === "string") {
     const texto = data.trim();
@@ -54,64 +72,66 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
     }
   }
 
-  if (data?.body && typeof data.body === "object") {
-    data = data.body;
+  let registro = comoRegistro(data) ?? {};
+  const body = comoRegistro(registro.body);
+
+  if (body) {
+    registro = body;
   }
 
-  if (data?.response?.body && typeof data.response.body === "object") {
-    data = data.response.body;
+  const response = comoRegistro(registro.response);
+  const responseBody = comoRegistro(response?.body);
+
+  if (responseBody) {
+    registro = responseBody;
   }
 
-  if (typeof data?.data === "object" && data.data !== null) {
-    data = {
-      ...data,
-      ...data.data,
+  const nestedData = comoRegistro(registro.data);
+
+  if (nestedData) {
+    registro = {
+      ...registro,
+      ...nestedData,
     };
   }
 
   const textoRespuestaOriginal = String(
-  data?.respuesta ||
-    data?.output ||
-    data?.text ||
-    data?.message ||
-    ""
-);
+    primerValor(registro, ["respuesta", "output", "text", "message"]),
+  );
 
-const urlEncontrada =
-  textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
+  const urlEncontrada =
+    textoRespuestaOriginal.match(/https?:\/\/[^\s]+/)?.[0] || "";
 
-const archivoUrl = String(
-  data?.archivo_url ||
-    data?.archivoUrl ||
-    data?.download_url ||
-    data?.url ||
-    urlEncontrada ||
-    ""
-).trim();
+  const archivoUrl = String(
+    primerValor(registro, [
+      "archivo_url",
+      "archivoUrl",
+      "download_url",
+      "url",
+    ]) || urlEncontrada,
+  ).trim();
 
   const respuesta = limpiarTexto(
-  textoRespuestaOriginal
-    .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
-    .trim() ||
-    (archivoUrl
-      ? "Tu archivo ya está listo para descargar."
-      : "Listo.")
-);
+    textoRespuestaOriginal
+      .replace(/Descargar archivo:\s*https?:\/\/[^\s]+/i, "")
+      .trim() ||
+      (archivoUrl
+        ? "Tu archivo ya está listo para descargar."
+        : "Listo."),
+  );
 
   return {
     respuesta,
-    tipo: archivoUrl ? "archivo" : String(data?.tipo || "texto"),
+    tipo: archivoUrl ? "archivo" : String(registro.tipo || "texto"),
     accion: archivoUrl
-      ? String(data?.accion || "GENERAR_ARCHIVO")
-      : String(data?.accion || "RESPONDER"),
+      ? String(registro.accion || "GENERAR_ARCHIVO")
+      : String(registro.accion || "RESPONDER"),
     archivo_url: archivoUrl,
     archivo_tipo: archivoUrl
-      ? String(data?.archivo_tipo || data?.archivoTipo || "excel")
+      ? String(primerValor(registro, ["archivo_tipo", "archivoTipo"]) || "excel")
       : "",
     metadata:
-      data?.metadata && typeof data.metadata === "object"
-        ? data.metadata
-        : {},
+      comoRegistro(registro.metadata) ?? {},
   };
 }
 

@@ -3,7 +3,6 @@
 import {
   Activity,
   BrainCircuit,
-  Gauge,
   ShieldAlert,
   Sparkles,
   TrendingUp,

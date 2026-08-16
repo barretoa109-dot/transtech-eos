@@ -104,6 +104,13 @@ export interface ZeroEntryAutopilotResult {
   horizons: ForecastHorizonsResult;
 }
 
+export interface SingleProviderZeroEntryAutopilotResult
+  extends ZeroEntryAutopilotResult {
+  analysisScope: "single_provider";
+  sourceOrchestrationFingerprint: null;
+  sourceCoverage: TrustedSourceCoverageResolution;
+}
+
 export interface GlobalZeroEntryAutopilotResult extends ZeroEntryAutopilotResult {
   analysisScope: "multi_provider";
   sourceOrchestrationFingerprint: string | null;
@@ -359,7 +366,7 @@ function buildZeroEntryFromResolvedAnalysis(
 
 export function buildZeroEntryFinancialAutopilot(
   input: ZeroEntryAutopilotInput,
-): ZeroEntryAutopilotResult {
+): SingleProviderZeroEntryAutopilotResult {
   assertTrustedAnalysisOwner({
     accounts: input.snapshot.accounts,
     ledgerEntries: input.snapshot.ledgerEntries,
@@ -372,7 +379,7 @@ export function buildZeroEntryFinancialAutopilot(
     nowIso: input.asOf,
   });
 
-  return buildZeroEntryFromResolvedAnalysis({
+  const result = buildZeroEntryFromResolvedAnalysis({
     trustedUserId: input.trustedUserId,
     accounts: input.snapshot.accounts,
     ledgerEntries: input.snapshot.ledgerEntries,
@@ -387,6 +394,13 @@ export function buildZeroEntryFinancialAutopilot(
     baseUncertaintyBufferMinor: input.baseUncertaintyBufferMinor,
     fallbackHorizonDays: input.fallbackHorizonDays,
   });
+
+  return {
+    ...result,
+    analysisScope: "single_provider",
+    sourceOrchestrationFingerprint: null,
+    sourceCoverage,
+  };
 }
 
 /**

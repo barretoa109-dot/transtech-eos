@@ -71,15 +71,11 @@ class FixtureReader implements FinancialStateReader {
     private readonly rows: FinancialObligation[] = obligations(),
   ) {}
 
-  async getLatestContext(_userId: string) {
+  async getLatestContext() {
     return this.record;
   }
 
-  async getOpenObligations(_input: {
-    userId: string;
-    currency: string;
-    horizonUntil: string;
-  }) {
+  async getOpenObligations() {
     return this.rows;
   }
 }

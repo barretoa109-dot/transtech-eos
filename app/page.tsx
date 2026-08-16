@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 
@@ -141,7 +142,7 @@ export default function Home() {
       {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-          <a href="/" className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-4">
   <div className="relative h-14 w-16 shrink-0">
     <Image
       src="/transtech-logo.png"
@@ -156,7 +157,7 @@ export default function Home() {
   <p className="text-[24px] font-black leading-none tracking-[-0.035em] text-[#071226]">
     TRANSTECH
   </p>
-</a>
+</Link>
 
           <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
             <a href="#empresa" className="transition hover:text-blue-600">

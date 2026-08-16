@@ -267,7 +267,7 @@ export async function runSupabaseFinancialStateReaderScenario() {
       ) &&
       obligationQuery.ltePredicate?.[0] === "due_at" &&
       obligationQuery.selected?.includes("source_key") === true &&
-      obligationQuery.selected?.includes("id") === false,
+      obligationQuery.selected?.split(",").includes("id") === false,
     rawLedgerNeverQueried:
       fake.queries.every(
         (query) =>

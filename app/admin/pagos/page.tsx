@@ -46,6 +46,31 @@ type RespuestaListado = {
   error?: string;
 };
 
+async function obtenerPagos(signal?: AbortSignal) {
+  const respuesta = await fetch("/api/admin/pagos/listar", {
+    cache: "no-store",
+    signal,
+  });
+
+  const resultado = (await respuesta
+    .json()
+    .catch(() => null)) as RespuestaListado | null;
+
+  if (!respuesta.ok) {
+    throw new Error(
+      resultado?.error || "No se pudieron cargar los pagos pendientes.",
+    );
+  }
+
+  return resultado?.pagos || [];
+}
+
+function mensajeCargaError(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "No se pudieron cargar los pagos pendientes.";
+}
+
 export default function AdminPagosPage() {
   const [pagos, setPagos] = useState<PagoPendiente[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -57,35 +82,36 @@ export default function AdminPagosPage() {
     setError("");
 
     try {
-      const respuesta = await fetch("/api/admin/pagos/listar", {
-        cache: "no-store",
-      });
-
-      const resultado = (await respuesta
-        .json()
-        .catch(() => null)) as RespuestaListado | null;
-
-      if (!respuesta.ok) {
-        throw new Error(
-          resultado?.error || "No se pudieron cargar los pagos pendientes.",
-        );
-      }
-
-      setPagos(resultado?.pagos || []);
+      setPagos(await obtenerPagos());
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudieron cargar los pagos pendientes.",
-      );
+      setError(mensajeCargaError(err));
     } finally {
       setCargando(false);
     }
   }, []);
 
   useEffect(() => {
-    cargarPagos();
-  }, [cargarPagos]);
+    let active = true;
+    const controller = new AbortController();
+
+    void obtenerPagos(controller.signal)
+      .then((resultado) => {
+        if (active) setPagos(resultado);
+      })
+      .catch((err: unknown) => {
+        if (active && !(err instanceof DOMException && err.name === "AbortError")) {
+          setError(mensajeCargaError(err));
+        }
+      })
+      .finally(() => {
+        if (active) setCargando(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
 
   async function ejecutarAccion(
     solicitudId: string,

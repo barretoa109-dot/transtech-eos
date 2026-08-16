@@ -107,16 +107,12 @@ class FixtureV1_2Reader implements FinancialStateReader {
 
   constructor(private readonly contextRecord: PersistedFinancialContextRecord) {}
 
-  async getLatestContext(_userId: string) {
+  async getLatestContext() {
     this.contextCalls += 1;
     return this.contextRecord;
   }
 
-  async getOpenObligations(_input: {
-    userId: string;
-    currency: string;
-    horizonUntil: string;
-  }) {
+  async getOpenObligations() {
     this.obligationCalls += 1;
     return [MATERIAL_OBLIGATION];
   }
