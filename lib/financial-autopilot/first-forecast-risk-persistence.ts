@@ -56,26 +56,40 @@ export function parsePersistedFirstForecastRisk(
 ): FinancialStateRiskView | null {
   if (value === null) return null;
 
-  const row = object(value, "financial_state_invalid_first_forecast_risk");
+  const code = "financial_state_invalid_first_forecast_risk";
+  const row = object(value, code);
   if (row.status !== "ATTENTION" && row.status !== "ACTION_REQUIRED") {
-    throw new Error("financial_state_invalid_first_forecast_risk");
+    throw new Error(code);
+  }
+
+  const horizonDays = positiveSafeInteger(row.horizonDays, code);
+  const until = iso(row.until, code);
+  const reserveGapMinor = safeNonNegativeInteger(row.reserveGapMinor, code);
+  const negativeCashGapMinor = safeNonNegativeInteger(row.negativeCashGapMinor, code);
+
+  // Keep the persistence boundary semantically identical to the deterministic
+  // 30/60/90 forecast contract. Invalid combinations must never become part of
+  // a context revision and later look authoritative merely because they were
+  // persisted successfully.
+  if (
+    row.status === "ATTENTION" &&
+    (reserveGapMinor <= 0 || negativeCashGapMinor !== 0)
+  ) {
+    throw new Error(code);
+  }
+  if (
+    row.status === "ACTION_REQUIRED" &&
+    (negativeCashGapMinor <= 0 || reserveGapMinor < negativeCashGapMinor)
+  ) {
+    throw new Error(code);
   }
 
   return {
     status: row.status,
-    horizonDays: positiveSafeInteger(
-      row.horizonDays,
-      "financial_state_invalid_first_forecast_risk",
-    ),
-    until: iso(row.until, "financial_state_invalid_first_forecast_risk"),
-    reserveGapMinor: safeNonNegativeInteger(
-      row.reserveGapMinor,
-      "financial_state_invalid_first_forecast_risk",
-    ),
-    negativeCashGapMinor: safeNonNegativeInteger(
-      row.negativeCashGapMinor,
-      "financial_state_invalid_first_forecast_risk",
-    ),
+    horizonDays,
+    until,
+    reserveGapMinor,
+    negativeCashGapMinor,
   };
 }
 
