@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 
 function buscarTexto(valor: unknown): string {
@@ -70,6 +71,8 @@ function noStoreHeaders() {
 }
 
 export async function POST(req: Request) {
+  let releaseReservedQuota: ((reason: string) => Promise<void>) | null = null;
+
   try {
     const supabase = await createClient();
     const {
@@ -162,17 +165,110 @@ export async function POST(req: Request) {
       );
     }
 
-    const response = await fetch(
-      "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
+    const quotaAdmin = createAdminClient();
+    const { data: quotaRaw, error: quotaError } = await quotaAdmin.rpc(
+      "eos_reserve_message_quota_server_v75",
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30_000),
+        p_usuario_id: user.id,
+        p_request_id: payload.request_id,
       },
     );
+
+    if (
+      quotaError ||
+      !quotaRaw ||
+      typeof quotaRaw !== "object" ||
+      Array.isArray(quotaRaw)
+    ) {
+      console.error(
+        "No se pudo reservar la cuota de mensajes EOS:",
+        quotaError || quotaRaw,
+      );
+      return Response.json(
+        {
+          respuesta:
+            "No pudimos verificar tu disponibilidad de mensajes. Probá nuevamente en unos segundos.",
+          code: "EOS_MESSAGE_QUOTA_UNAVAILABLE",
+        },
+        { status: 503, headers: noStoreHeaders() },
+      );
+    }
+
+    const quota = quotaRaw as Record<string, unknown>;
+    if (quota.allowed !== true) {
+      const code =
+        typeof quota.code === "string" ? quota.code : "EOS_MESSAGE_NOT_ALLOWED";
+      const isLimit = code === "EOS_MESSAGE_LIMIT_REACHED";
+      const isInProgress = code === "EOS_MESSAGE_REQUEST_IN_PROGRESS";
+      const isConsumedReplay = code === "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED";
+      const isReplayConflict = isInProgress || isConsumedReplay;
+      const isFree = quota.plan === "free";
+
+      return Response.json(
+        {
+          respuesta: isLimit
+            ? isFree
+              ? "Llegaste a tus 5 mensajes gratuitos de hoy. Tu cupo se renueva mañana según la hora de Paraguay. Si querés seguir ahora, podés elegir un plan en Planes."
+              : "Llegaste al límite de mensajes de tu plan actual. Podés revisar tus opciones en Planes."
+            : isInProgress
+              ? "Este mensaje ya se está procesando. Esperá la respuesta antes de volver a enviarlo."
+              : isConsumedReplay
+                ? "Este mensaje ya fue procesado. Para continuar, enviá un mensaje nuevo."
+                : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
+          code,
+          commercial: quota,
+          ...(isLimit || !isReplayConflict ? { upgrade_url: "/planes" } : {}),
+        },
+        {
+          status: isReplayConflict ? 409 : isLimit ? 429 : 402,
+          headers: noStoreHeaders(),
+        },
+      );
+    }
+
+    let quotaReleased = false;
+    const releaseQuota = async (reason: string) => {
+      if (quotaReleased) return;
+      quotaReleased = true;
+
+      const { error: releaseError } = await quotaAdmin.rpc(
+        "eos_release_message_quota_server_v75",
+        {
+          p_usuario_id: user.id,
+          p_request_id: payload.request_id,
+          p_reason: reason.slice(0, 160),
+        },
+      );
+
+      if (releaseError) {
+        console.error("No se pudo liberar la reserva de mensaje EOS:", releaseError);
+      }
+    };
+
+    releaseReservedQuota = releaseQuota;
+
+    let response: Response;
+    try {
+      response = await fetch(
+        "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+    } catch (n8nError) {
+      await releaseQuota(
+        n8nError instanceof Error &&
+          (n8nError.name === "TimeoutError" || n8nError.name === "AbortError")
+          ? "n8n_timeout"
+          : "n8n_fetch_error",
+      );
+      throw n8nError;
+    }
 
     const rawText = await response.text();
 
@@ -186,14 +282,11 @@ export async function POST(req: Request) {
     }
 
     respuesta = limpiarRespuesta(respuesta);
-
-    if (!respuesta || respuesta === "[object Object]") {
-      respuesta =
-        "Recibí tu mensaje, pero EOS no pudo generar una respuesta clara en este momento. Probá nuevamente.";
-    }
+    const respuestaValida = Boolean(respuesta && respuesta !== "[object Object]");
 
     if (!response.ok) {
       console.log("Error desde n8n:", response.status, rawText);
+      await releaseQuota(`n8n_http_${response.status}`);
 
       return Response.json(
         {
@@ -203,6 +296,52 @@ export async function POST(req: Request) {
         { status: response.status, headers: noStoreHeaders() },
       );
     }
+
+    if (!respuestaValida) {
+      await releaseQuota("n8n_empty_response");
+      return Response.json(
+        {
+          respuesta:
+            "Recibí tu mensaje, pero EOS no pudo generar una respuesta clara en este momento. Probá nuevamente.",
+          code: "EOS_EMPTY_RESPONSE",
+        },
+        { status: 502, headers: noStoreHeaders() },
+      );
+    }
+
+    const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
+      "eos_finalize_message_quota_server_v75",
+      {
+        p_usuario_id: user.id,
+        p_request_id: payload.request_id,
+      },
+    );
+
+    const finalizeOk =
+      !finalizeError &&
+      finalizeRaw &&
+      typeof finalizeRaw === "object" &&
+      !Array.isArray(finalizeRaw) &&
+      (finalizeRaw as Record<string, unknown>).ok === true;
+
+    if (!finalizeOk) {
+      console.error(
+        "EOS respondió, pero no se pudo confirmar el consumo:",
+        finalizeError || finalizeRaw,
+      );
+      await releaseQuota("quota_finalize_failed");
+      return Response.json(
+        {
+          respuesta:
+            "EOS procesó tu mensaje, pero no pudimos confirmar tu cupo de forma segura. Probá nuevamente.",
+          code: "EOS_MESSAGE_QUOTA_FINALIZE_FAILED",
+        },
+        { status: 503, headers: noStoreHeaders() },
+      );
+    }
+
+    quotaReleased = true;
+    releaseReservedQuota = null;
 
     try {
       await fetch(
@@ -239,6 +378,14 @@ export async function POST(req: Request) {
       { headers: noStoreHeaders() },
     );
   } catch (error) {
+    if (releaseReservedQuota) {
+      try {
+        await releaseReservedQuota("api_eos_exception");
+      } catch (releaseError) {
+        console.error("No se pudo liberar la reserva tras excepción:", releaseError);
+      }
+    }
+
     const timeout =
       error instanceof Error &&
       (error.name === "TimeoutError" || error.name === "AbortError");
