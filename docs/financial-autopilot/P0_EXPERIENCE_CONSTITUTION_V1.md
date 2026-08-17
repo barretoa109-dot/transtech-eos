@@ -118,6 +118,7 @@ draft migration contract only; it has not been applied to Supabase production.
 - n8n/Worker Gate changes;
 - money movement.
 
-The next P0 block is explicit source-coverage onboarding input and consent-state
-orchestration behind the post-RC1 feature gate. It must reuse this domain and
-persistence contract and may not relax any current Financial State gate.
+The next P0 source-coverage onboarding and consent-state contract is documented
+in `P0_SOURCE_ONBOARDING_V1.md`. Its later server persistence and UI integration
+must remain behind the post-RC1 feature gate and may not relax any Financial
+State gate.

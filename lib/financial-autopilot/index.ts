@@ -32,6 +32,8 @@ export * from "./financial-surface";
 export * from "./financial-constitution";
 export * from "./financial-experience";
 export * from "./financial-experience-scenario";
+export * from "./source-onboarding";
+export * from "./source-onboarding-scenario";
 export * from "./fixtures";
 export * from "./pilot-scenario";
 export * from "./economic-scenario";
