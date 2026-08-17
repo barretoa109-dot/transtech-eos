@@ -79,16 +79,19 @@ SHA-256 fingerprints prevent accidental or untrusted application-layer substitut
 
 An attacker with authority to rewrite every database row and recompute every fingerprint remains inside the trust root. Production safety still requires service-role isolation, RLS/grant review, auditability, non-production PostgreSQL tests and rollback rehearsal.
 
-## Required validation before any Supabase deployment
+## Supabase validation status
 
-The isolated PostgreSQL 17 harness now covers fresh insert, exact replay, late-provider rollback, owner isolation, service-role-only execution, DEGRADED commit semantics and incomplete-coverage omission. Before any Supabase deployment, still validate at minimum:
+The isolated PostgreSQL 17 harness and a real non-production Supabase project
+now cover fresh insert, exact replay, two-session same-user concurrency,
+late-provider rollback, forced final-commit rollback, owner isolation,
+service-role PostgREST execution, anon/authenticated denial, Advisors,
+DEGRADED semantics, incomplete-coverage omission and migration down/up.
 
-- two-session concurrency on a non-production Supabase branch/project;
-- Supabase Security and Performance Advisors;
-- PostgREST service-role invocation with anon/authenticated negative tests;
-- forced commit-marker/foreign-key failure with complete transaction rollback;
-- migration-up and migration-down rehearsal against a production-like clone;
-- explicit operational rollback approval.
+See `SUPABASE_VALIDATION_V1_3.md` for the evidence and
+`PERSISTENCE_STACK_V1_3_ROLLBACK_DRAFT.sql` for the rehearsed rollback.
+
+The remaining gate is operational rather than technical: explicit production
+rollback/deployment approval after the EOS 4.0 RC1 freeze closes.
 
 ## Release boundary
 

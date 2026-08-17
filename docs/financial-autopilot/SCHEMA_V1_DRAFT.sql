@@ -59,6 +59,12 @@ create table if not exists public.eos_financial_accounts_v1 (
 create index if not exists eos_fin_accounts_user_connection_idx
   on public.eos_financial_accounts_v1(usuario_id, connection_id);
 
+-- PostgreSQL does not create indexes for foreign keys automatically. Keep a
+-- direct connection_id index so connection deletion/cascade and joins do not
+-- scan every account across every user.
+create index if not exists eos_fin_accounts_connection_idx
+  on public.eos_financial_accounts_v1(connection_id);
+
 create table if not exists public.eos_financial_ingestion_events_v1 (
   id uuid primary key default gen_random_uuid(),
   usuario_id uuid not null references auth.users(id) on delete cascade,
@@ -94,6 +100,12 @@ create unique index if not exists eos_fin_ingestion_fingerprint_uidx
 
 create index if not exists eos_fin_ingestion_user_received_idx
   on public.eos_financial_ingestion_events_v1(usuario_id, received_at desc);
+
+create index if not exists eos_fin_ingestion_connection_idx
+  on public.eos_financial_ingestion_events_v1(connection_id);
+
+create index if not exists eos_fin_ingestion_account_idx
+  on public.eos_financial_ingestion_events_v1(account_id);
 
 create table if not exists public.eos_financial_ledger_v1 (
   id uuid primary key default gen_random_uuid(),
@@ -145,6 +157,16 @@ create index if not exists eos_fin_ledger_user_time_idx
 
 create index if not exists eos_fin_ledger_user_status_idx
   on public.eos_financial_ledger_v1(usuario_id, status, occurred_at desc);
+
+create index if not exists eos_fin_ledger_account_idx
+  on public.eos_financial_ledger_v1(account_id);
+
+create index if not exists eos_fin_ledger_source_event_idx
+  on public.eos_financial_ledger_v1(source_event_id);
+
+create index if not exists eos_fin_ledger_reversal_idx
+  on public.eos_financial_ledger_v1(reversal_of)
+  where reversal_of is not null;
 
 create table if not exists public.eos_financial_reconciliations_v1 (
   id uuid primary key default gen_random_uuid(),
@@ -213,6 +235,9 @@ create table if not exists public.eos_financial_obligations_v1 (
 create index if not exists eos_fin_obligations_user_due_idx
   on public.eos_financial_obligations_v1(usuario_id, due_at)
   where status = 'open';
+
+create index if not exists eos_fin_obligations_recurrence_idx
+  on public.eos_financial_obligations_v1(recurrence_id);
 
 create table if not exists public.eos_financial_constitutions_v1 (
   id uuid primary key default gen_random_uuid(),
@@ -291,32 +316,32 @@ grant select on table public.eos_financial_contexts_v1 to authenticated;
 create policy eos_fin_accounts_select_own
   on public.eos_financial_accounts_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 create policy eos_fin_ledger_select_own
   on public.eos_financial_ledger_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 create policy eos_fin_recurrences_select_own
   on public.eos_financial_recurrences_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 create policy eos_fin_obligations_select_own
   on public.eos_financial_obligations_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 create policy eos_fin_constitutions_select_own
   on public.eos_financial_constitutions_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 create policy eos_fin_contexts_select_own
   on public.eos_financial_contexts_v1
   for select to authenticated
-  using (usuario_id = auth.uid());
+  using (usuario_id = (select auth.uid()));
 
 -- Deliberately NO authenticated policy for:
 --   eos_financial_connections_v1 (may contain provider metadata/scopes),

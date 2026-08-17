@@ -116,12 +116,18 @@ These scenarios are included in the internal Financial Autopilot pilot smoke rou
 - complete-but-stale context committed as DEGRADED;
 - structurally incomplete coverage persisted without global context/commit.
 
-This is real PostgreSQL execution, but it is not a substitute for the remaining Supabase-specific branch validation, Security/Performance Advisors, two-session concurrency test and rollback rehearsal.
+The same contract has now also passed real non-production Supabase validation:
+two-session concurrency, PostgREST role boundaries, forced late-provider and
+final-commit rollback, Advisors, and full migration down/up rehearsal. See
+`SUPABASE_VALIDATION_V1_3.md`.
 
 ## Production boundary
 
-No database call is made by the preview store.
+No production database call is made by the preview store.
 
-The Supabase adapter is not wired to a production call site. The new SQL exists only as a draft file and reproducible isolated validation. No RPC has been deployed, no financial schema has been applied to Supabase, and no real provider credential or financial data is introduced.
+The Supabase adapter is not wired to a production call site. The SQL remains a
+draft plus reproducible isolated validation; the temporary validation project
+contains only synthetic data and is removed after the rehearsal. No production
+RPC/schema, real provider credential or real financial data is introduced.
 
 PR #58 remains draft / post-RC1 / **DO NOT MERGE** until the EOS 4.0 RC1 gates close.

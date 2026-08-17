@@ -1624,6 +1624,11 @@ revoke all on function public.eos_financial_persist_multi_provider_v1_3(uuid, js
 grant execute on function public.eos_financial_persist_multi_provider_v1_3(uuid, jsonb)
   to service_role;
 
+-- Rehearsed non-production evidence:
+--   SUPABASE_VALIDATION_V1_3.md
+-- Rehearsed fail-closed rollback:
+--   PERSISTENCE_STACK_V1_3_ROLLBACK_DRAFT.sql
+
 -- Promotion gates before this draft may become a real migration:
 --   1. validate canonical JSON/SHA parity against TypeScript fixtures;
 --   2. fresh write + exact replay + conflicting replay;
