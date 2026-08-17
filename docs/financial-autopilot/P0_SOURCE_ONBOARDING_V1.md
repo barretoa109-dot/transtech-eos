@@ -63,7 +63,7 @@ The preview smoke scenario proves:
 8. onboarding never claims safety;
 9. cross-user consent fails closed.
 
-The complete preview-only Financial Autopilot smoke route now contains 36
+The complete preview-only Financial Autopilot smoke route now contains 37
 independent scenario groups.
 
 ## Server-owned persistence draft
@@ -103,6 +103,25 @@ Invalid or production preview parameters fail to `404`. Action buttons are
 deliberately disabled and labelled “disponible tras RC1”; no browser write path
 exists in this block.
 
+## Sanitized server read model
+
+`SupabaseSourceOnboardingReader` reads the active onboarding commit only on the
+server and validates every boundary before producing UI state:
+
+- the trusted EOS user is bound before the query;
+- only the active owner-scoped row is requested;
+- consent and inventory payloads are parsed as untrusted data;
+- both canonical fingerprints are recomputed;
+- cross-user and malformed responses fail closed;
+- database errors expose only their stable code;
+- provider secrets, raw transactions and RPC receipts are never selected.
+
+`resolveSourceOnboardingReadModel` additionally requires an independent
+`TrustedSourceCoverageResolution`. A persisted inventory alone can never
+self-promote to `COVERAGE_READY`; absent coverage remains `DISCOVERING`, and
+onboarding still cannot assert financial safety. The reader is exported only
+from the server entry point and is not wired to a browser route in this block.
+
 ## Still excluded
 
 - real banking/provider integration;
@@ -113,6 +132,6 @@ exists in this block.
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is a sanitized server read model for the onboarding UI,
-followed by authenticated preview E2E. It must not receive provider credentials
-or expose persistence RPC access to the browser.
+The next P0 block is authenticated preview wiring and E2E for this sanitized
+read model. It must use a server-held client, remain feature-gated and avoid
+exposing persistence RPC access to the browser.

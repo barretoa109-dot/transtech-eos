@@ -33,3 +33,5 @@ export * from "./supabase-financial-constitution-store";
 export * from "./supabase-financial-constitution-store-scenario";
 export * from "./supabase-source-onboarding-store";
 export * from "./supabase-source-onboarding-store-scenario";
+export * from "./source-onboarding-reader";
+export * from "./source-onboarding-reader-scenario";
