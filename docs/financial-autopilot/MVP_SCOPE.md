@@ -125,6 +125,8 @@ These belong to the separate execution readiness milestone.
 
 ## Pilot user journey
 
+The detailed day-by-day product, intervention and measurement contract is defined in [`FIRST_30_DAYS_USER_JOURNEY_V1.md`](./FIRST_30_DAYS_USER_JOURNEY_V1.md). The summary below is retained as the pilot stage map; when it is ambiguous, the detailed 30-day contract governs the experience.
+
 ### Day 0
 User creates/uses EOS account and opens Financial Autopilot.
 
@@ -157,6 +159,8 @@ Only material uncertainty or conflict produces a user question.
 
 ### End of first month
 EOS compares forecast vs actual, recalibrates soft estimates and reports a short automatic summary focused on what changed and whether user intervention was required.
+
+It must not repeat onboarding, silently change the Financial Constitution or convert learned behavior into monetary authority. In the read-only pilot, any proposed payday allocation is a simulation only.
 
 ## Pilot acceptance scenarios
 
@@ -201,6 +205,8 @@ Initial targets to validate, not permanent SLAs:
 - after baseline stabilizes, <= 1 unnecessary financial interruption per user/week;
 - every Available Real result traces to source components and freshness;
 - pilot users can explain what Available Real means without needing to understand the underlying formula.
+- the user can answer safety, available amount and action-needed status in ten seconds without opening details;
+- month-end learning changes only soft estimates and never silently changes policy or autonomy.
 
 ## Qualitative pilot targets
 

@@ -448,7 +448,7 @@ No Financial Autopilot expansion enters the frozen release candidate.
 - one-screen Available Real;
 - Next Best Financial Action;
 - minimal-interruption notifications;
-- 30-day user validation.
+- 30-day user validation governed by [`FIRST_30_DAYS_USER_JOURNEY_V1.md`](./FIRST_30_DAYS_USER_JOURNEY_V1.md), including the intervention ladder, Constitution confirmation, month-end learning boundary and ten-second reassurance test.
 
 ### Track 4 — Real connectivity
 - authorized banking/aggregator connectors;
