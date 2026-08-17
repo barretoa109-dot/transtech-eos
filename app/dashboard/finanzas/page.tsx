@@ -7,12 +7,14 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import FinancialSourceOnboardingCard from "@/components/financial-autopilot/FinancialSourceOnboardingCard";
 import {
   buildFinancialSurfaceModel,
   type FinancialStateView,
   type FinancialSurfaceInput,
   type FinancialSurfaceModel,
   type FinancialSurfaceStatus,
+  type FinancialSourceOnboardingModel,
 } from "@/lib/financial-autopilot";
 import {
   isFinancialStateApiEnabled,
@@ -32,6 +34,8 @@ export const dynamic = "force-dynamic";
 
 const DEMO_REVISION = `ctx:${"d".repeat(64)}`;
 type SurfaceSource = "live" | "demo";
+const ONBOARDING_DEMO_KINDS = ["consent", "discovering", "source", "refresh", "ready"] as const;
+type OnboardingDemoKind = (typeof ONBOARDING_DEMO_KINDS)[number];
 type FinancialStateFixtureKind = Exclude<
   FinancialStateDemoKind,
   "empty" | "error"
@@ -279,8 +283,26 @@ function PreviewHint() {
       <span className="text-slate-500">degraded</span>,{" "}
       <span className="text-slate-500">empty</span> o{" "}
       <span className="text-slate-500">error</span>. En producción la ruta permanece oculta mientras el feature flag esté apagado.
+      Para revisar el onboarding usa <span className="text-slate-500">?onboarding=consent</span>,{" "}
+      <span className="text-slate-500">discovering</span>,{" "}
+      <span className="text-slate-500">source</span>,{" "}
+      <span className="text-slate-500">refresh</span> o{" "}
+      <span className="text-slate-500">ready</span>.
     </p>
   );
+}
+
+function isOnboardingDemoKind(value: string | undefined): value is OnboardingDemoKind {
+  return value !== undefined && (ONBOARDING_DEMO_KINDS as readonly string[]).includes(value);
+}
+
+function onboardingDemo(kind: OnboardingDemoKind): FinancialSourceOnboardingModel {
+  const common = { version: "financial-source-onboarding-v1" as const, mayAssertSafety: false };
+  if (kind === "consent") return { ...common, state: "CONSENT_REQUIRED", progressPercent: 0, headline: "Autoriza la lectura de tu información financiera.", detail: "EOS solo solicita acceso de lectura. Este piloto no puede mover dinero.", userAction: "AUTHORIZE_READ", actionLabel: "Autorizar lectura", interrupt: true, mayBuildBaseline: false };
+  if (kind === "discovering") return { ...common, state: "DISCOVERING", progressPercent: 25, headline: "EOS está buscando tus fuentes financieras.", detail: "Estoy identificando cuentas, tarjetas y obligaciones. No necesitas cargarlas manualmente.", userAction: "NOTHING", actionLabel: null, interrupt: false, mayBuildBaseline: false };
+  if (kind === "source") return { ...common, state: "SOURCE_REQUIRED", progressPercent: 55, headline: "Necesito conectar la tarjeta terminada en 4821.", detail: "Es necesaria para calcular tu Disponible Real con seguridad.", userAction: "CONNECT_SOURCE", actionLabel: "Conectar fuente", interrupt: true, mayBuildBaseline: false };
+  if (kind === "refresh") return { ...common, state: "REFRESH_REQUIRED", progressPercent: 90, headline: "Necesito actualizar una conexión financiera.", detail: "La cobertura está identificada, pero sus datos ya no son suficientemente recientes.", userAction: "REFRESH_SOURCE", actionLabel: "Actualizar conexión", interrupt: true, mayBuildBaseline: false };
+  return { ...common, state: "COVERAGE_READY", progressPercent: 100, headline: "Fuentes financieras listas.", detail: "EOS puede comenzar a organizar la información. No necesitas clasificar nada.", userAction: "NOTHING", actionLabel: null, interrupt: false, mayBuildBaseline: true };
 }
 
 async function resolveLiveInput(): Promise<FinancialSurfaceInput> {
@@ -453,7 +475,7 @@ function renderStateDetails(surface: FinancialSurfaceModel) {
 export default async function FinancialStatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ demo?: string }>;
+  searchParams: Promise<{ demo?: string; onboarding?: string }>;
 }) {
   const params = await searchParams;
   const apiEnabled = isFinancialStateApiEnabled();
@@ -463,6 +485,21 @@ export default async function FinancialStatePage({
 
   if (demoAllowed && params.demo !== undefined && !isFinancialStateDemoKind(params.demo)) {
     notFound();
+  }
+  if (params.onboarding !== undefined && (!demoAllowed || !isOnboardingDemoKind(params.onboarding))) {
+    notFound();
+  }
+
+  if (demoAllowed && isOnboardingDemoKind(params.onboarding)) {
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <div className="mx-auto max-w-3xl space-y-5">
+          <PageHeader source="demo" />
+          <FinancialSourceOnboardingCard model={onboardingDemo(params.onboarding)} preview />
+          <PreviewHint />
+        </div>
+      </div>
+    );
   }
 
   const requestedDemo =

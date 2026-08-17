@@ -84,16 +84,35 @@ inventory as one versioned commit:
 The PostgreSQL 17 suite now proves 22 guarantees: the prior 17 plus five source
 onboarding persistence invariants. The SQL remains a non-production draft.
 
+## Read-only preview UI
+
+`FinancialSourceOnboardingCard` renders the five onboarding states inside EOS
+Finanzas without exposing persistence or provider internals:
+
+- one calm headline and explanation;
+- an accessible 0–100 preparation indicator;
+- at most one required action;
+- `EOS necesita de ti: Nada` while EOS can keep working alone;
+- a permanent read-only/no-money-movement reassurance;
+- no account identifiers except an optional user-safe masked label;
+- no Ledger rows, provider metadata, fingerprints, tokens or RPC receipts.
+
+The dashboard preview accepts `?onboarding=consent`, `discovering`, `source`,
+`refresh` or `ready` only when the existing non-production demo gate is active.
+Invalid or production preview parameters fail to `404`. Action buttons are
+deliberately disabled and labelled “disponible tras RC1”; no browser write path
+exists in this block.
+
 ## Still excluded
 
 - real banking/provider integration;
 - OAuth token or provider-secret storage;
-- a deployed consent-write route;
+- a deployed consent-write route or active onboarding button;
 - production schema or RPC changes;
 - n8n/Worker Gate changes;
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is the read-only onboarding UI behind the post-RC1 feature
-gate. It will consume sanitized server state only and will not receive provider
-credentials or expose persistence RPC access to the browser.
+The next P0 block is a sanitized server read model for the onboarding UI,
+followed by authenticated preview E2E. It must not receive provider credentials
+or expose persistence RPC access to the browser.
