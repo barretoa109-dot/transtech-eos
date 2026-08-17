@@ -6,6 +6,8 @@ Environment: temporary Supabase Free project, PostgreSQL 17.6, `pgcrypto`
 
 Production project: untouched
 
+Final environment status: `INACTIVE` (paused immediately after validation)
+
 Release state: design/post-RC1, PR #58 remains draft and **DO NOT MERGE**
 
 ## Outcome

@@ -127,7 +127,8 @@ No production database call is made by the preview store.
 
 The Supabase adapter is not wired to a production call site. The SQL remains a
 draft plus reproducible isolated validation; the temporary validation project
-contains only synthetic data and is removed after the rehearsal. No production
+contained only synthetic data and was paused to `INACTIVE` immediately after
+the rehearsal. No production
 RPC/schema, real provider credential or real financial data is introduced.
 
 PR #58 remains draft / post-RC1 / **DO NOT MERGE** until the EOS 4.0 RC1 gates close.
