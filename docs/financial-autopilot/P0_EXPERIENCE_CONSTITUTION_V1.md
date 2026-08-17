@@ -88,15 +88,36 @@ When attention is required, the same field contains only the single necessary in
 11. DEGRADED producing `I4/REFRESH_CONNECTION` without safety;
 12. security pause overriding a healthy surface.
 
-The scenario is part of the preview-only internal Financial Autopilot smoke route. The complete route now contains 33 independent scenario groups.
+The scenario is part of the preview-only internal Financial Autopilot smoke route. The complete route now contains 34 independent scenario groups.
+
+## Server-owned persistence draft
+
+`PERSISTENCE_CONSTITUTION_RPC_V1_DRAFT.sql` and
+`supabase-financial-constitution-store.ts` define the post-RC1 write boundary without
+activating it in production:
+
+- the server binds the authenticated EOS user and never accepts a caller-selected owner;
+- PostgreSQL recomputes and verifies the canonical policy fingerprint;
+- only `service_role` may execute the RPC; `anon`, `authenticated` and `PUBLIC` are denied;
+- exact retries are no-ops and return the existing receipt;
+- updates use an expected-version compare-and-swap under a per-user advisory lock;
+- a successful update supersedes the previous active version atomically;
+- `executionAuthorityMinor` must remain zero in both TypeScript and PostgreSQL;
+- database error details are not exposed by the adapter.
+
+The PostgreSQL 17 validation suite now exercises 17 guarantees: the original 12
+multi-provider invariants plus five Constitution persistence invariants. This is a
+draft migration contract only; it has not been applied to Supabase production.
 
 ## Still excluded
 
-- Constitution writes from the user interface;
+- Constitution writes from the user interface or any deployed route;
 - production application of `eos_financial_constitutions_v1`;
 - real connector consent or credential storage;
 - prepare/approve monetary commands;
 - n8n/Worker Gate changes;
 - money movement.
 
-The next P0 block is server-owned Constitution read/write behind the post-RC1 feature gate, followed by explicit source-coverage onboarding inputs. It must reuse this domain contract and may not relax any current Financial State gate.
+The next P0 block is explicit source-coverage onboarding input and consent-state
+orchestration behind the post-RC1 feature gate. It must reuse this domain and
+persistence contract and may not relax any current Financial State gate.

@@ -36,6 +36,7 @@ import {
   runSupabaseFinancialStateReaderV1_1Scenario,
   runSupabaseFinancialStateReaderV1_2Scenario,
   runSupabaseFinancialStateReaderV1_3Scenario,
+  runSupabaseFinancialConstitutionStoreScenario,
 } from "@/lib/financial-autopilot/server";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +98,8 @@ export async function GET() {
     await runSupabaseFinancialStateReaderV1_2Scenario();
   const supabaseFinancialStateReaderV1_3 =
     await runSupabaseFinancialStateReaderV1_3Scenario();
+  const financialConstitutionStore =
+    await runSupabaseFinancialConstitutionStoreScenario();
 
   const checks = [
     compact("pilot", scenario),
@@ -132,6 +135,7 @@ export async function GET() {
     compact("supabase-financial-state-reader-v1-1", supabaseFinancialStateReaderV1_1),
     compact("supabase-financial-state-reader-v1-2", supabaseFinancialStateReaderV1_2),
     compact("supabase-financial-state-reader-v1-3", supabaseFinancialStateReaderV1_3),
+    compact("supabase-financial-constitution-store", financialConstitutionStore),
   ];
 
   const failed = checks.filter((check) => !check.ok).map((check) => check.name);

@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
+import {
+  buildFinancialConstitutionV1,
+  financialConstitutionPolicyMaterial,
+} from "../../lib/financial-autopilot/financial-constitution";
 import { buildMultiProviderGlobalContextCommitFromPlan } from "../../lib/financial-autopilot/global-context-commit";
 import { runMultiProviderScopedPersistenceScenario } from "../../lib/financial-autopilot/multi-provider-scoped-persistence-scenario";
 import type { MultiProviderScopedPersistencePlan } from "../../lib/financial-autopilot/multi-provider-scoped-persistence";
@@ -19,6 +23,7 @@ const SQL_FILES = [
   "docs/financial-autopilot/PERSISTENCE_CRITICAL_SOURCES_V1_3_DRAFT.sql",
   "docs/financial-autopilot/GLOBAL_CONTEXT_COMMIT_V1_3_DRAFT.sql",
   "docs/financial-autopilot/PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql",
+  "docs/financial-autopilot/PERSISTENCE_CONSTITUTION_RPC_V1_DRAFT.sql",
 ] as const;
 
 type RpcResult = {
@@ -38,6 +43,13 @@ type PersistenceCounts = {
   contexts: number;
   commits: number;
   plans: number;
+};
+
+type ConstitutionRpcResult = {
+  constitutionId: string;
+  version: number;
+  policyFingerprint: string;
+  replayed: boolean;
 };
 
 function errorCode(error: unknown) {
@@ -115,6 +127,146 @@ async function persistenceCounts(database: PGlite) {
   `);
   assert(result.rows[0]);
   return result.rows[0];
+}
+
+async function persistConstitution(input: {
+  database: PGlite;
+  constitution: ReturnType<typeof buildFinancialConstitutionV1>;
+  expectedCurrentVersion: number;
+  userId?: string;
+}) {
+  const result = await input.database.query<{ result: ConstitutionRpcResult }>(
+    `select public.eos_financial_persist_constitution_v1(
+      $1::uuid, $2::jsonb, $3::text, $4::timestamptz, $5::integer
+    ) as result`,
+    [
+      input.userId ?? OTHER_USER_ID,
+      JSON.stringify(financialConstitutionPolicyMaterial(input.constitution)),
+      input.constitution.policyFingerprint,
+      input.constitution.confirmedAt,
+      input.expectedCurrentVersion,
+    ],
+  );
+  assert(result.rows[0]);
+  return result.rows[0].result;
+}
+
+async function validateConstitutionPersistence(
+  database: PGlite,
+  userId: string,
+) {
+  const firstPolicy = buildFinancialConstitutionV1({
+    currency: "PYG",
+    protectedLiquidityMinor: 5_000_000,
+    minimumSavingsRateBps: 1_500,
+    debtPolicy: "PAY_CARD_FULL",
+    primaryGoal: {
+      id: "emergency-fund",
+      label: "Fondo de emergencia",
+      priority: "HIGH",
+    },
+    approvalThresholdMinor: 2_000_000,
+    autonomyLevel: "RECOMMEND",
+    confirmedAt: "2026-08-16T17:00:00.000-03:00",
+  });
+  const first = await persistConstitution({
+    database,
+    constitution: firstPolicy,
+    expectedCurrentVersion: 0,
+    userId,
+  });
+  assert.equal(first.version, 1);
+  assert.equal(first.policyFingerprint, firstPolicy.policyFingerprint);
+  assert.equal(first.replayed, false);
+
+  await database.exec("set role service_role");
+  const replay = await persistConstitution({
+    database,
+    constitution: firstPolicy,
+    expectedCurrentVersion: 0,
+    userId,
+  });
+  assert.equal(replay.constitutionId, first.constitutionId);
+  assert.equal(replay.version, 1);
+  assert.equal(replay.replayed, true);
+
+  const secondPolicy = buildFinancialConstitutionV1({
+    ...financialConstitutionPolicyMaterial(firstPolicy),
+    protectedLiquidityMinor: 5_500_000,
+    confirmedAt: "2026-08-16T18:00:00.000-03:00",
+  });
+  const second = await persistConstitution({
+    database,
+    constitution: secondPolicy,
+    expectedCurrentVersion: 1,
+    userId,
+  });
+  assert.equal(second.version, 2);
+  assert.equal(second.replayed, false);
+
+  const stalePolicy = buildFinancialConstitutionV1({
+    ...financialConstitutionPolicyMaterial(secondPolicy),
+    approvalThresholdMinor: 2_500_000,
+    confirmedAt: "2026-08-16T19:00:00.000-03:00",
+  });
+  assert.equal(
+    await rejectsMessage(
+      () =>
+        persistConstitution({
+          database,
+          constitution: stalePolicy,
+          expectedCurrentVersion: 1,
+          userId,
+        }),
+      "financial_constitution_version_conflict",
+    ),
+    "40001",
+  );
+
+  await database.exec("reset role");
+  const rows = await database.query<{
+    version: number;
+    active: boolean;
+    execution_authority: string;
+  }>(`select
+      version,
+      superseded_at is null as active,
+      policy ->> 'executionAuthorityMinor' as execution_authority
+    from public.eos_financial_constitutions_v1
+    where usuario_id = $1
+    order by version`, [userId]);
+  assert.deepEqual(rows.rows, [
+    { version: 1, active: false, execution_authority: "0" },
+    { version: 2, active: true, execution_authority: "0" },
+  ]);
+
+  const tamperedPolicy = {
+    ...financialConstitutionPolicyMaterial(stalePolicy),
+    executionAuthorityMinor: 1,
+  };
+  const tamperedFingerprint = `policy:${sha256FinancialFingerprint(tamperedPolicy)}`;
+  await database.exec("set role service_role");
+  assert.equal(
+    await rejectsMessage(
+      () =>
+        database.query(
+          `select public.eos_financial_persist_constitution_v1(
+            $1::uuid, $2::jsonb, $3::text, $4::timestamptz, $5::integer
+          )`,
+          [
+            userId,
+            JSON.stringify(tamperedPolicy),
+            tamperedFingerprint,
+            tamperedPolicy.confirmedAt,
+            2,
+          ],
+        ),
+      "financial_constitution_invalid_policy_amounts",
+    ),
+    "22023",
+  );
+  await database.exec("reset role");
+  return firstPolicy;
 }
 
 function buildLateProviderConflictPlan(
@@ -217,6 +369,11 @@ async function validateHealthyAndFailurePaths(
     sha256FinancialFingerprint(canonicalFixture),
   );
 
+  const constitution = await validateConstitutionPersistence(
+    database,
+    healthy.userId,
+  );
+
   const first = await persist(database, healthy);
   assert.equal(first.replayed, false);
   assert.equal(first.planFingerprint, healthy.planFingerprint);
@@ -258,6 +415,16 @@ async function validateHealthyAndFailurePaths(
   );
   await rejectsMessage(
     () =>
+      persistConstitution({
+        database,
+        constitution,
+        expectedCurrentVersion: 0,
+        userId: healthy.userId,
+      }),
+    "permission denied for function eos_financial_persist_constitution_v1",
+  );
+  await rejectsMessage(
+    () =>
       database.query(
         "select * from public.eos_financial_multi_provider_plans_v1_3",
       ),
@@ -267,6 +434,16 @@ async function validateHealthyAndFailurePaths(
   await rejectsMessage(
     () => persist(database, healthy),
     "permission denied for function eos_financial_persist_multi_provider_v1_3",
+  );
+  await rejectsMessage(
+    () =>
+      persistConstitution({
+        database,
+        constitution,
+        expectedCurrentVersion: 0,
+        userId: healthy.userId,
+      }),
+    "permission denied for function eos_financial_persist_constitution_v1",
   );
   await rejectsMessage(
     () =>
@@ -287,7 +464,10 @@ async function validateHealthyAndFailurePaths(
         and grantee in ('PUBLIC', 'anon', 'authenticated')) +
     (select count(*) from information_schema.routine_privileges
       where routine_schema = 'public'
-        and routine_name = 'eos_financial_persist_multi_provider_v1_3'
+        and routine_name in (
+          'eos_financial_persist_multi_provider_v1_3',
+          'eos_financial_persist_constitution_v1'
+        )
         and grantee in ('PUBLIC', 'anon', 'authenticated'))
   )::integer as count`);
   assert.equal(forbiddenAcl.rows[0]?.count, 0);
@@ -406,6 +586,11 @@ async function main() {
         lateProviderConflictRollsBackEverything: true,
         staleContextCommitsAsDegraded: true,
         incompleteCoverageHasNoContextOrCommit: true,
+        constitutionFingerprintVerifiedByPostgres: true,
+        constitutionExactReplayNoOp: true,
+        constitutionVersionCas: true,
+        constitutionServiceRoleOnly: true,
+        constitutionExecutionAuthorityFixedToZero: true,
       },
     }),
   );

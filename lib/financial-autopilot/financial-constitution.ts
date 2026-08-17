@@ -41,6 +41,11 @@ export interface FinancialConstitutionV1Input {
   confirmedAt?: string | null;
 }
 
+export type FinancialConstitutionPolicyV1 = Omit<
+  FinancialConstitutionV1,
+  "policyFingerprint"
+>;
+
 function integerInRange(value: number, minimum: number, maximum: number) {
   return Number.isSafeInteger(value) && value >= minimum && value <= maximum;
 }
@@ -106,6 +111,24 @@ export function buildFinancialConstitutionV1(
   return {
     ...policy,
     policyFingerprint: `policy:${sha256FinancialFingerprint(policy)}`,
+  };
+}
+
+export function financialConstitutionPolicyMaterial(
+  constitution: FinancialConstitutionV1,
+): FinancialConstitutionPolicyV1 {
+  return {
+    version: constitution.version,
+    policyVersion: constitution.policyVersion,
+    currency: constitution.currency,
+    protectedLiquidityMinor: constitution.protectedLiquidityMinor,
+    minimumSavingsRateBps: constitution.minimumSavingsRateBps,
+    debtPolicy: constitution.debtPolicy,
+    primaryGoal: constitution.primaryGoal,
+    approvalThresholdMinor: constitution.approvalThresholdMinor,
+    autonomyLevel: constitution.autonomyLevel,
+    executionAuthorityMinor: constitution.executionAuthorityMinor,
+    confirmedAt: constitution.confirmedAt,
   };
 }
 

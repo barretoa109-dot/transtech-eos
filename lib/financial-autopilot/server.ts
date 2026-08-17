@@ -29,3 +29,5 @@ export * from "./supabase-financial-state-reader-v1-3-scenario";
 export * from "./global-context-commit";
 export * from "./supabase-multi-provider-persistence-store";
 export * from "./multi-provider-persistence-rpc-scenario";
+export * from "./supabase-financial-constitution-store";
+export * from "./supabase-financial-constitution-store-scenario";

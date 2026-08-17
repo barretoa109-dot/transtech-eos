@@ -1,6 +1,10 @@
 -- EOS Financial Autopilot v1.3 — complete persistence stack rollback draft
 -- NON-PRODUCTION REHEARSAL ONLY.
 -- DO NOT APPLY TO PRODUCTION DURING THE EOS 4.0 RC1 FREEZE.
+
+drop function if exists public.eos_financial_persist_constitution_v1(
+  uuid, jsonb, text, timestamptz, integer
+);
 --
 -- This rollback deliberately preserves the shared pgcrypto extension and
 -- auth.users. It removes only the Financial Autopilot draft functions, private
