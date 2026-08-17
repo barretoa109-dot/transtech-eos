@@ -20,6 +20,7 @@ import {
   isFinancialStateApiEnabled,
   isFinancialStateDemoAllowed,
   isFinancialStateDemoKind,
+  isFinancialOnboardingEnabled,
   isFinancialStateV1_2Enabled,
   isFinancialStateV1_3Enabled,
   type FinancialStateDemoKind,
@@ -27,8 +28,12 @@ import {
   SupabaseFinancialStateReaderV1_1,
   SupabaseFinancialStateReaderV1_2,
   SupabaseFinancialStateReaderV1_3,
+  SupabaseSourceOnboardingReader,
+  resolveAuthenticatedSourceOnboarding,
+  sourceOnboardingReadFailureModel,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -329,6 +334,23 @@ async function resolveLiveInput(): Promise<FinancialSurfaceInput> {
   return { kind: "STATE", state: resolution.state };
 }
 
+async function resolveLiveOnboarding(): Promise<FinancialSourceOnboardingModel> {
+  const sessionClient = await createClient();
+  const {
+    data: { user },
+  } = await sessionClient.auth.getUser();
+  if (!user) throw new Error("financial_source_onboarding_auth_required");
+
+  const reader = new SupabaseSourceOnboardingReader(createAdminClient(), user.id);
+  return resolveAuthenticatedSourceOnboarding({
+    sessionUserId: user.id,
+    reader,
+    nowIso: new Date().toISOString(),
+    // Persisted inventory cannot prove connected coverage on its own.
+    coverage: null,
+  });
+}
+
 function renderStateDetails(surface: FinancialSurfaceModel) {
   if (surface.kind !== "STATE") {
     return (
@@ -479,9 +501,10 @@ export default async function FinancialStatePage({
 }) {
   const params = await searchParams;
   const apiEnabled = isFinancialStateApiEnabled();
+  const onboardingEnabled = isFinancialOnboardingEnabled();
   const demoAllowed = isFinancialStateDemoAllowed();
 
-  if (!apiEnabled && !demoAllowed) notFound();
+  if (!apiEnabled && !onboardingEnabled && !demoAllowed) notFound();
 
   if (demoAllowed && params.demo !== undefined && !isFinancialStateDemoKind(params.demo)) {
     notFound();
@@ -497,6 +520,23 @@ export default async function FinancialStatePage({
           <PageHeader source="demo" />
           <FinancialSourceOnboardingCard model={onboardingDemo(params.onboarding)} preview />
           <PreviewHint />
+        </div>
+      </div>
+    );
+  }
+
+  if (onboardingEnabled && params.demo === undefined) {
+    let model: FinancialSourceOnboardingModel;
+    try {
+      model = await resolveLiveOnboarding();
+    } catch {
+      model = sourceOnboardingReadFailureModel();
+    }
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <div className="mx-auto max-w-3xl space-y-5">
+          <PageHeader source="live" />
+          <FinancialSourceOnboardingCard model={model} preview />
         </div>
       </div>
     );

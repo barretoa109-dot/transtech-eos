@@ -1,6 +1,7 @@
 export const FINANCIAL_STATE_API_FLAG = "EOS_FINANCIAL_STATE_V1_ENABLED";
 export const FINANCIAL_STATE_V1_2_FLAG = "EOS_FINANCIAL_STATE_V1_2_ENABLED";
 export const FINANCIAL_STATE_V1_3_FLAG = "EOS_FINANCIAL_STATE_V1_3_ENABLED";
+export const FINANCIAL_ONBOARDING_V1_FLAG = "EOS_FINANCIAL_ONBOARDING_V1_ENABLED";
 
 export const FINANCIAL_STATE_DEMO_KINDS = [
   "safe",
@@ -95,10 +96,20 @@ export function isFinancialStateDemoAllowed(
   return env.NODE_ENV === "development";
 }
 
+export function isFinancialOnboardingEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  return env[FINANCIAL_ONBOARDING_V1_FLAG] === "true";
+}
+
 export function isFinancialStateSurfaceVisible(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ) {
-  return isFinancialStateApiEnabled(env) || isFinancialStateDemoAllowed(env);
+  return (
+    isFinancialStateApiEnabled(env) ||
+    isFinancialOnboardingEnabled(env) ||
+    isFinancialStateDemoAllowed(env)
+  );
 }
 
 export function financialStateApiHeaders() {

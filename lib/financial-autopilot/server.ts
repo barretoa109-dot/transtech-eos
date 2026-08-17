@@ -35,3 +35,5 @@ export * from "./supabase-source-onboarding-store";
 export * from "./supabase-source-onboarding-store-scenario";
 export * from "./source-onboarding-reader";
 export * from "./source-onboarding-reader-scenario";
+export * from "./source-onboarding-service";
+export * from "./source-onboarding-service-scenario";

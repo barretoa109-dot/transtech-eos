@@ -63,7 +63,7 @@ The preview smoke scenario proves:
 8. onboarding never claims safety;
 9. cross-user consent fails closed.
 
-The complete preview-only Financial Autopilot smoke route now contains 37
+The complete preview-only Financial Autopilot smoke route now contains 38
 independent scenario groups.
 
 ## Server-owned persistence draft
@@ -120,7 +120,26 @@ server and validates every boundary before producing UI state:
 `TrustedSourceCoverageResolution`. A persisted inventory alone can never
 self-promote to `COVERAGE_READY`; absent coverage remains `DISCOVERING`, and
 onboarding still cannot assert financial safety. The reader is exported only
-from the server entry point and is not wired to a browser route in this block.
+from the server entry point; the browser receives only its sanitized model.
+
+## Authenticated feature-gated wiring
+
+`EOS_FINANCIAL_ONBOARDING_V1_ENABLED=true` is now the only live activation
+switch. It defaults off and must equal the exact string `true`.
+
+When enabled, the EOS Finanzas Server Component:
+
+1. obtains the user with Supabase Auth `getUser()`;
+2. creates the service-role client only on the server;
+3. constructs an owner-bound `SupabaseSourceOnboardingReader`;
+4. passes the same session identity into the authenticated resolver;
+5. renders only the sanitized onboarding model.
+
+No caller-selected user ID exists. Missing sessions are rejected, two-user
+scenarios prove independent owner-bound reads, and any reader failure produces a
+zero-safety `REFRESH_REQUIRED` model. Because no independently persisted
+coverage resolver is wired yet, a valid stored inventory remains `DISCOVERING`.
+The live UI action also remains disabled; this block adds no browser mutation.
 
 ## Still excluded
 
@@ -132,6 +151,6 @@ from the server entry point and is not wired to a browser route in this block.
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is authenticated preview wiring and E2E for this sanitized
-read model. It must use a server-held client, remain feature-gated and avoid
-exposing persistence RPC access to the browser.
+The next P0 block is persistence/read plumbing for independent coverage evidence
+plus authenticated two-user E2E against a non-production database. It must
+remain feature-gated and avoid exposing persistence RPC access to the browser.
