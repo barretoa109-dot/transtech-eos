@@ -165,7 +165,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const quotaAdmin = createAdminClient();
+    const quotaAdmin: any = createAdminClient();
     const { data: quotaRaw, error: quotaError } = await quotaAdmin.rpc(
       "eos_reserve_message_quota_server_v75",
       {
