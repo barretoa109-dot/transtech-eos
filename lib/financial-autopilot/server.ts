@@ -31,3 +31,5 @@ export * from "./supabase-multi-provider-persistence-store";
 export * from "./multi-provider-persistence-rpc-scenario";
 export * from "./supabase-financial-constitution-store";
 export * from "./supabase-financial-constitution-store-scenario";
+export * from "./supabase-source-onboarding-store";
+export * from "./supabase-source-onboarding-store-scenario";

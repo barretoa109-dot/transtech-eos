@@ -59,7 +59,9 @@ function normalize(value: string, code: string) {
   return normalized;
 }
 
-function consentMaterial(input: Omit<FinancialReadConsentV1, "fingerprint">) {
+export function financialReadConsentMaterial(
+  input: Omit<FinancialReadConsentV1, "fingerprint">,
+) {
   return {
     version: input.version,
     userId: input.userId,
@@ -90,7 +92,7 @@ export function buildFinancialReadConsentV1(input: {
   if (!REQUIRED_READ_SCOPES.every((scope) => readScopes.includes(scope))) {
     throw new Error("financial_consent_missing_read_scope");
   }
-  const material = consentMaterial({
+  const material = financialReadConsentMaterial({
     version: FINANCIAL_READ_CONSENT_VERSION,
     userId,
     providerKey,
@@ -117,7 +119,7 @@ export function isFinancialReadConsentCurrent(input: {
   const validUntil = validDate(consent.validUntil);
   if (grantedAt === null || validUntil === null || grantedAt > now || validUntil <= now) return false;
   if (!REQUIRED_READ_SCOPES.every((scope) => consent.readScopes.includes(scope))) return false;
-  return sha256FinancialFingerprint(consentMaterial(consent)) === consent.fingerprint;
+  return sha256FinancialFingerprint(financialReadConsentMaterial(consent)) === consent.fingerprint;
 }
 
 function model(value: Omit<FinancialSourceOnboardingModel, "version" | "mayAssertSafety">) {

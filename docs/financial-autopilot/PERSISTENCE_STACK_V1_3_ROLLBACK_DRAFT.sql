@@ -5,6 +5,9 @@
 drop function if exists public.eos_financial_persist_constitution_v1(
   uuid, jsonb, text, timestamptz, integer
 );
+drop function if exists public.eos_financial_persist_source_onboarding_v1(
+  uuid, jsonb, text, jsonb, text, integer
+);
 --
 -- This rollback deliberately preserves the shared pgcrypto extension and
 -- auth.users. It removes only the Financial Autopilot draft functions, private
@@ -22,6 +25,7 @@ drop function if exists public.eos_financial_persist_snapshot_v1_1(uuid, jsonb);
 drop function if exists public.eos_financial_persist_snapshot_v1(uuid, jsonb);
 
 drop table if exists public.eos_financial_global_context_commits_v1_3;
+drop table if exists public.eos_financial_source_onboarding_commits_v1;
 drop table if exists public.eos_financial_multi_provider_plans_v1_3;
 drop table if exists public.eos_financial_provider_scopes_v1_3;
 drop table if exists public.eos_financial_contexts_v1;

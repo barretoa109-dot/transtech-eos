@@ -11,6 +11,16 @@ import { buildMultiProviderGlobalContextCommitFromPlan } from "../../lib/financi
 import { runMultiProviderScopedPersistenceScenario } from "../../lib/financial-autopilot/multi-provider-scoped-persistence-scenario";
 import type { MultiProviderScopedPersistencePlan } from "../../lib/financial-autopilot/multi-provider-scoped-persistence";
 import { sha256FinancialFingerprint } from "../../lib/financial-autopilot/persistence-fingerprint";
+import {
+  financialSourceCoverageRef,
+  trustedFinancialSourceInventoryFingerprint,
+  trustedFinancialSourceInventoryMaterial,
+  type TrustedFinancialSourceInventory,
+} from "../../lib/financial-autopilot/source-coverage";
+import {
+  buildFinancialReadConsentV1,
+  financialReadConsentMaterial,
+} from "../../lib/financial-autopilot/source-onboarding";
 
 const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const OTHER_USER_ID = "00000000-0000-4000-8000-000000000999";
@@ -24,6 +34,7 @@ const SQL_FILES = [
   "docs/financial-autopilot/GLOBAL_CONTEXT_COMMIT_V1_3_DRAFT.sql",
   "docs/financial-autopilot/PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql",
   "docs/financial-autopilot/PERSISTENCE_CONSTITUTION_RPC_V1_DRAFT.sql",
+  "docs/financial-autopilot/PERSISTENCE_SOURCE_ONBOARDING_RPC_V1_DRAFT.sql",
 ] as const;
 
 type RpcResult = {
@@ -49,6 +60,14 @@ type ConstitutionRpcResult = {
   constitutionId: string;
   version: number;
   policyFingerprint: string;
+  replayed: boolean;
+};
+
+type SourceOnboardingRpcResult = {
+  commitId: string;
+  version: number;
+  consentFingerprint: string;
+  inventoryFingerprint: string;
   replayed: boolean;
 };
 
@@ -269,6 +288,73 @@ async function validateConstitutionPersistence(
   return firstPolicy;
 }
 
+async function validateSourceOnboardingPersistence(database: PGlite, userId: string) {
+  const consent = buildFinancialReadConsentV1({
+    trustedUserId: userId,
+    providerKey: "mock-source-onboarding",
+    grantedAt: "2026-08-16T20:00:00.000-03:00",
+    validUntil: "2026-09-16T20:00:00.000-03:00",
+    readScopes: ["ACCOUNTS_READ", "BALANCES_READ", "LIABILITIES_READ", "TRANSACTIONS_READ"],
+  });
+  const inventory: TrustedFinancialSourceInventory = {
+    version: "trusted-financial-source-inventory-v1",
+    userId,
+    asOf: "2026-08-16T20:05:00.000-03:00",
+    validUntil: "2026-08-18T20:05:00.000-03:00",
+    authority: "user_confirmed",
+    scope: "global_user_finances",
+    discoveryComplete: true,
+    confidence: 0.98,
+    unresolvedMaterialSourceCount: 0,
+    expectedSources: [{
+      sourceRef: financialSourceCoverageRef({ userId, providerKey: "mock-source-onboarding", connectionId: "connection-1", externalAccountId: "account-1" }),
+      materiality: "critical",
+      confidence: 0.99,
+    }],
+  };
+  const persistOnboarding = async (expectedVersion: number, value = inventory) => {
+    const result = await database.query<{ result: SourceOnboardingRpcResult }>(
+      `select public.eos_financial_persist_source_onboarding_v1(
+        $1::uuid,$2::jsonb,$3::text,$4::jsonb,$5::text,$6::integer
+      ) as result`,
+      [userId, JSON.stringify(financialReadConsentMaterial(consent)), consent.fingerprint, JSON.stringify(trustedFinancialSourceInventoryMaterial(value)), trustedFinancialSourceInventoryFingerprint(value), expectedVersion],
+    );
+    assert(result.rows[0]);
+    return result.rows[0].result;
+  };
+
+  await database.exec("set role service_role");
+  const first = await persistOnboarding(0);
+  assert.equal(first.version, 1);
+  assert.equal(first.replayed, false);
+  const replay = await persistOnboarding(0);
+  assert.equal(replay.commitId, first.commitId);
+  assert.equal(replay.replayed, true);
+
+  const changedInventory = { ...inventory, asOf: "2026-08-16T20:10:00.000-03:00", validUntil: "2026-08-18T20:10:00.000-03:00" };
+  const second = await persistOnboarding(1, changedInventory);
+  assert.equal(second.version, 2);
+  assert.equal(second.replayed, false);
+  assert.equal(await rejectsMessage(() => persistOnboarding(1, { ...changedInventory, confidence: 0.97 }), "financial_source_onboarding_version_conflict"), "40001");
+
+  await database.exec("reset role");
+  const rows = await database.query<{ version: number; active: boolean; movement: boolean }>(
+    `select version, superseded_at is null as active,
+      (consent ->> 'movementAuthority')::boolean as movement
+     from public.eos_financial_source_onboarding_commits_v1
+     where usuario_id = $1 order by version`, [userId],
+  );
+  assert.deepEqual(rows.rows, [
+    { version: 1, active: false, movement: false },
+    { version: 2, active: true, movement: false },
+  ]);
+
+  await database.exec("set role authenticated");
+  await rejectsMessage(() => persistOnboarding(1), "permission denied for function eos_financial_persist_source_onboarding_v1");
+  await rejectsMessage(() => database.query("select * from public.eos_financial_source_onboarding_commits_v1"), "permission denied for table eos_financial_source_onboarding_commits_v1");
+  await database.exec("reset role");
+}
+
 function buildLateProviderConflictPlan(
   source: MultiProviderScopedPersistencePlan,
 ) {
@@ -373,6 +459,7 @@ async function validateHealthyAndFailurePaths(
     database,
     healthy.userId,
   );
+  await validateSourceOnboardingPersistence(database, healthy.userId);
 
   const first = await persist(database, healthy);
   assert.equal(first.replayed, false);
@@ -459,14 +546,16 @@ async function validateHealthyAndFailurePaths(
       where table_schema = 'public'
         and table_name in (
           'eos_financial_provider_scopes_v1_3',
-          'eos_financial_multi_provider_plans_v1_3'
+          'eos_financial_multi_provider_plans_v1_3',
+          'eos_financial_source_onboarding_commits_v1'
         )
         and grantee in ('PUBLIC', 'anon', 'authenticated')) +
     (select count(*) from information_schema.routine_privileges
       where routine_schema = 'public'
         and routine_name in (
           'eos_financial_persist_multi_provider_v1_3',
-          'eos_financial_persist_constitution_v1'
+          'eos_financial_persist_constitution_v1',
+          'eos_financial_persist_source_onboarding_v1'
         )
         and grantee in ('PUBLIC', 'anon', 'authenticated'))
   )::integer as count`);
@@ -591,6 +680,11 @@ async function main() {
         constitutionVersionCas: true,
         constitutionServiceRoleOnly: true,
         constitutionExecutionAuthorityFixedToZero: true,
+        sourceOnboardingFingerprintVerifiedByPostgres: true,
+        sourceOnboardingExactReplayNoOp: true,
+        sourceOnboardingVersionCas: true,
+        sourceOnboardingServiceRoleOnly: true,
+        sourceOnboardingMovementAuthorityFixedToFalse: true,
       },
     }),
   );

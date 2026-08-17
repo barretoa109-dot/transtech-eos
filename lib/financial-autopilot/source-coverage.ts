@@ -52,6 +52,38 @@ export interface TrustedFinancialSourceInventory {
   expectedSources: ExpectedFinancialSourceEvidence[];
 }
 
+export function trustedFinancialSourceInventoryMaterial(
+  inventory: TrustedFinancialSourceInventory,
+) {
+  const asOf = parseTime(inventory.asOf);
+  const validUntil = parseTime(inventory.validUntil);
+  if (asOf === null || validUntil === null) {
+    throw new Error("financial_source_inventory_invalid_window");
+  }
+  return {
+    contract: "trusted-financial-source-inventory-v1",
+    userId: inventory.userId,
+    asOf: new Date(asOf).toISOString(),
+    validUntil: new Date(validUntil).toISOString(),
+    authority: inventory.authority,
+    scope: inventory.scope,
+    discoveryComplete: inventory.discoveryComplete,
+    confidence: inventory.confidence,
+    unresolvedMaterialSourceCount: inventory.unresolvedMaterialSourceCount,
+    expectedSources: [...inventory.expectedSources].sort((a, b) =>
+      a.sourceRef.localeCompare(b.sourceRef),
+    ),
+  };
+}
+
+export function trustedFinancialSourceInventoryFingerprint(
+  inventory: TrustedFinancialSourceInventory,
+) {
+  return sha256FinancialFingerprint(
+    trustedFinancialSourceInventoryMaterial(inventory),
+  );
+}
+
 export type SourceCoverageReasonCode =
   | "inventory_invalid"
   | "inventory_not_trusted"
@@ -282,16 +314,9 @@ export function resolveTrustedSourceCoverage(input: {
   const expectedSources = [...input.inventory.expectedSources].sort((a, b) =>
     a.sourceRef.localeCompare(b.sourceRef),
   );
-  const inventoryFingerprint = sha256FinancialFingerprint({
-    contract: "trusted-financial-source-inventory-v1",
+  const inventoryFingerprint = trustedFinancialSourceInventoryFingerprint({
+    ...input.inventory,
     userId: input.trustedUserId,
-    asOf: new Date(asOf).toISOString(),
-    validUntil: coverageValidUntil,
-    authority: input.inventory.authority,
-    scope: input.inventory.scope,
-    discoveryComplete: input.inventory.discoveryComplete,
-    confidence: input.inventory.confidence,
-    unresolvedMaterialSourceCount: input.inventory.unresolvedMaterialSourceCount,
     expectedSources,
   });
 

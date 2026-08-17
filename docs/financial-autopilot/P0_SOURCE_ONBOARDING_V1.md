@@ -63,8 +63,26 @@ The preview smoke scenario proves:
 8. onboarding never claims safety;
 9. cross-user consent fails closed.
 
-The complete preview-only Financial Autopilot smoke route now contains 35
+The complete preview-only Financial Autopilot smoke route now contains 36
 independent scenario groups.
+
+## Server-owned persistence draft
+
+`PERSISTENCE_SOURCE_ONBOARDING_RPC_V1_DRAFT.sql` and
+`supabase-source-onboarding-store.ts` persist consent plus its exact trusted
+inventory as one versioned commit:
+
+- PostgreSQL recomputes both canonical fingerprints;
+- exact replay performs no write;
+- updates use expected-version CAS under a per-user advisory lock;
+- only one version remains active after an atomic supersession;
+- `service_role` is the only executable role;
+- the receipt table is inaccessible to `PUBLIC`, `anon` and `authenticated`;
+- consent with movement authority is rejected;
+- no OAuth token, provider secret or raw banking payload is accepted.
+
+The PostgreSQL 17 suite now proves 22 guarantees: the prior 17 plus five source
+onboarding persistence invariants. The SQL remains a non-production draft.
 
 ## Still excluded
 
@@ -76,5 +94,6 @@ independent scenario groups.
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is the server-owned consent and inventory persistence boundary,
-followed by the read-only onboarding UI behind the post-RC1 feature gate.
+The next P0 block is the read-only onboarding UI behind the post-RC1 feature
+gate. It will consume sanitized server state only and will not receive provider
+credentials or expose persistence RPC access to the browser.
