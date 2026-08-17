@@ -562,6 +562,35 @@ export default async function FinancialStatePage({
 
         {renderStateDetails(surface)}
 
+        <section
+          className={`rounded-3xl border p-5 sm:p-6 ${
+            surface.attention.required
+              ? "border-blue-500/25 bg-blue-500/[0.07]"
+              : "border-emerald-500/20 bg-emerald-500/[0.05]"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {surface.attention.required ? (
+              <CircleAlert className="mt-0.5 h-5 w-5 text-blue-300" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-300" aria-hidden="true" />
+            )}
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                EOS necesita de ti
+              </p>
+              <p className="mt-2 text-xl font-black text-white">
+                {surface.attention.required ? surface.attention.message : "Nada"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                {surface.attention.required
+                  ? "EOS absorbió todo lo que podía dentro de sus límites y te presenta una sola intervención necesaria."
+                  : "EOS seguirá vigilando tus compromisos, tu reserva y los cambios materiales en segundo plano."}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-3xl border border-slate-800 bg-slate-900/45 p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <Clock3 className="h-5 w-5 text-slate-400" aria-hidden="true" />

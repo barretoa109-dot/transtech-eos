@@ -5,6 +5,8 @@ import type {
   FinancialStateView,
 } from "./financial-state";
 import type { FinancialStatus } from "./types";
+import type { FinancialDecisionOutcome } from "./decision";
+import type { FinancialInterventionLevel } from "./financial-experience";
 
 const PUBLIC_CURRENCY = /^[A-Z]{3}$/;
 
@@ -43,6 +45,8 @@ export interface FinancialSurfaceModel {
   attention: {
     required: boolean;
     interrupt: boolean;
+    outcome: FinancialDecisionOutcome;
+    level: FinancialInterventionLevel;
     message: string;
   };
   why: {
@@ -211,12 +215,24 @@ function emptySurface(kind: "NO_DATA" | "ERROR"): FinancialSurfaceModel {
     attention: {
       required: true,
       interrupt: true,
+      outcome: "CONNECTION_REQUIRED",
+      level: "I4",
       message: noData
         ? "Necesito una primera lectura financiera validada."
         : "Necesito recuperar una lectura financiera confiable.",
     },
     why: null,
   };
+}
+
+function interventionLevel(
+  outcome: FinancialDecisionOutcome,
+): FinancialInterventionLevel {
+  if (outcome === "CONNECTION_REQUIRED") return "I4";
+  if (outcome === "USER_DECISION_REQUIRED") return "I3";
+  if (outcome === "SILENT_ADJUSTMENT") return "I2";
+  if (outcome === "INFORM_NO_ACTION") return "I1";
+  return "I0";
 }
 
 /**
@@ -257,7 +273,15 @@ export function buildFinancialSurfaceModel(
     availableMinor !== null &&
     asOf !== null;
 
-  const needsAttention = state.attention.required || state.status === "ACTION_REQUIRED";
+  const outcome =
+    state.status === "DEGRADED"
+      ? "CONNECTION_REQUIRED"
+      : state.status === "ACTION_REQUIRED"
+        ? "USER_DECISION_REQUIRED"
+        : state.attention.outcome;
+  const level = interventionLevel(outcome);
+  const needsAttention =
+    state.attention.required || level === "I3" || level === "I4";
   const supportingText = visible
     ? needsAttention
       ? state.attention.message
@@ -290,7 +314,9 @@ export function buildFinancialSurfaceModel(
     freshness,
     attention: {
       required: needsAttention,
-      interrupt: state.attention.interrupt || state.status === "DEGRADED",
+      interrupt: state.attention.interrupt || level === "I3" || level === "I4",
+      outcome,
+      level,
       message: state.attention.message,
     },
     why: projectionTrusted

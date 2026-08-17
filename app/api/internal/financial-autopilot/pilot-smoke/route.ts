@@ -5,6 +5,7 @@ import {
   runEconomicSemanticsScenario,
   runFinancialStateScenario,
   runFinancialSurfaceScenario,
+  runFinancialExperienceScenario,
   runForecastHorizonScenario,
   runGlobalContextCommitScenario,
   runGlobalSourceCoverageScenario,
@@ -75,6 +76,7 @@ export async function GET() {
   const csvImport = runCsvImportScenario();
   const financialState = runFinancialStateScenario();
   const financialSurface = runFinancialSurfaceScenario();
+  const financialExperience = runFinancialExperienceScenario();
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
   const multiProviderPersistenceRpc =
@@ -116,6 +118,7 @@ export async function GET() {
     compact("csv-import", csvImport),
     compact("financial-state", financialState),
     compact("financial-surface", financialSurface),
+    compact("financial-experience", financialExperience),
     compact("persistence", persistence),
     compact("persistence-rpc", persistenceRpc),
     compact("multi-provider-persistence-rpc", multiProviderPersistenceRpc),
