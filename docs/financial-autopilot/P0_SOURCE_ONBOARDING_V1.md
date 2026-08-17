@@ -171,7 +171,16 @@ money movement.
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is authenticated two-user E2E against a non-production
-database, including valid, missing, expired and cross-inventory evidence. It
-must remain feature-gated and avoid exposing persistence RPC access to the
-browser.
+## Authenticated two-user database E2E
+
+`npm run test:financial-onboarding:e2e` exercises persistence, server-only
+readers and authenticated orchestration against an isolated PostgreSQL 17
+database. Two deterministic users prove valid, absent, expired,
+cross-inventory and cross-user evidence behavior. Valid evidence may enable
+baseline construction but never `SAFE`; every other case remains fail-closed.
+The suite also verifies that the `authenticated` database role cannot access
+the internal tables or evidence persistence RPC.
+
+This is a hermetic database E2E, not a claim that Supabase Auth HTTP,
+PostgREST or a production project was exercised. Those external integration
+gates remain post-RC1.

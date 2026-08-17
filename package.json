@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:financial-rpc:v1.3": "node --import tsx scripts/financial-autopilot/validate-multi-provider-rpc-v1-3.ts"
+    "test:financial-rpc:v1.3": "node --import tsx scripts/financial-autopilot/validate-multi-provider-rpc-v1-3.ts",
+    "test:financial-onboarding:e2e": "node --import tsx scripts/financial-autopilot/validate-authenticated-onboarding-e2e.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
