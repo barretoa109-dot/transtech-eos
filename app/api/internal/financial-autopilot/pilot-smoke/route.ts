@@ -7,6 +7,7 @@ import {
   runFinancialSurfaceScenario,
   runFinancialExperienceScenario,
   runFinancialSourceOnboardingScenario,
+  runSourceCoverageEvidenceScenario,
   runForecastHorizonScenario,
   runGlobalContextCommitScenario,
   runGlobalSourceCoverageScenario,
@@ -83,6 +84,7 @@ export async function GET() {
   const financialSurface = runFinancialSurfaceScenario();
   const financialExperience = runFinancialExperienceScenario();
   const financialSourceOnboarding = runFinancialSourceOnboardingScenario();
+  const sourceCoverageEvidence = runSourceCoverageEvidenceScenario();
   const persistence = await runPersistenceScenario();
   const persistenceRpc = await runPersistenceRpcScenario();
   const multiProviderPersistenceRpc =
@@ -134,6 +136,7 @@ export async function GET() {
     compact("financial-surface", financialSurface),
     compact("financial-experience", financialExperience),
     compact("financial-source-onboarding", financialSourceOnboarding),
+    compact("source-coverage-evidence", sourceCoverageEvidence),
     compact("persistence", persistence),
     compact("persistence-rpc", persistenceRpc),
     compact("multi-provider-persistence-rpc", multiProviderPersistenceRpc),

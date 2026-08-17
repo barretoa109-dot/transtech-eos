@@ -31,6 +31,7 @@ import {
   SupabaseSourceOnboardingReader,
   resolveAuthenticatedSourceOnboarding,
   sourceOnboardingReadFailureModel,
+  SupabaseSourceCoverageEvidenceReader,
 } from "@/lib/financial-autopilot/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -341,13 +342,16 @@ async function resolveLiveOnboarding(): Promise<FinancialSourceOnboardingModel> 
   } = await sessionClient.auth.getUser();
   if (!user) throw new Error("financial_source_onboarding_auth_required");
 
-  const reader = new SupabaseSourceOnboardingReader(createAdminClient(), user.id);
+  const admin = createAdminClient();
+  const reader = new SupabaseSourceOnboardingReader(admin, user.id);
   return resolveAuthenticatedSourceOnboarding({
     sessionUserId: user.id,
     reader,
     nowIso: new Date().toISOString(),
-    // Persisted inventory cannot prove connected coverage on its own.
+    // Explicit null prevents inventory-only promotion; the independent reader
+    // may supply fingerprint-bound, current coverage evidence.
     coverage: null,
+    coverageReader: new SupabaseSourceCoverageEvidenceReader(admin),
   });
 }
 

@@ -37,3 +37,4 @@ export * from "./source-onboarding-reader";
 export * from "./source-onboarding-reader-scenario";
 export * from "./source-onboarding-service";
 export * from "./source-onboarding-service-scenario";
+export * from "./supabase-source-coverage-evidence-reader";

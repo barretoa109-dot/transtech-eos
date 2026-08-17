@@ -34,6 +34,8 @@ export * from "./financial-experience";
 export * from "./financial-experience-scenario";
 export * from "./source-onboarding";
 export * from "./source-onboarding-scenario";
+export * from "./source-coverage-evidence";
+export * from "./source-coverage-evidence-scenario";
 export * from "./fixtures";
 export * from "./pilot-scenario";
 export * from "./economic-scenario";

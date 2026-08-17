@@ -11,6 +11,7 @@ import { buildMultiProviderGlobalContextCommitFromPlan } from "../../lib/financi
 import { runMultiProviderScopedPersistenceScenario } from "../../lib/financial-autopilot/multi-provider-scoped-persistence-scenario";
 import type { MultiProviderScopedPersistencePlan } from "../../lib/financial-autopilot/multi-provider-scoped-persistence";
 import { sha256FinancialFingerprint } from "../../lib/financial-autopilot/persistence-fingerprint";
+import { buildSourceCoverageEvidenceV1 } from "../../lib/financial-autopilot/source-coverage-evidence";
 import {
   financialSourceCoverageRef,
   trustedFinancialSourceInventoryFingerprint,
@@ -35,6 +36,7 @@ const SQL_FILES = [
   "docs/financial-autopilot/PERSISTENCE_MULTI_PROVIDER_RPC_V1_3_DRAFT.sql",
   "docs/financial-autopilot/PERSISTENCE_CONSTITUTION_RPC_V1_DRAFT.sql",
   "docs/financial-autopilot/PERSISTENCE_SOURCE_ONBOARDING_RPC_V1_DRAFT.sql",
+  "docs/financial-autopilot/PERSISTENCE_SOURCE_COVERAGE_EVIDENCE_RPC_V1_DRAFT.sql",
 ] as const;
 
 type RpcResult = {
@@ -355,6 +357,49 @@ async function validateSourceOnboardingPersistence(database: PGlite, userId: str
   await database.exec("reset role");
 }
 
+async function validateCoverageEvidencePersistence(database: PGlite, userId: string) {
+  const inventoryFingerprint = "b".repeat(64);
+  const evidence = buildSourceCoverageEvidenceV1({
+    trustedUserId: userId,
+    inventoryFingerprint,
+    resolvedAt: "2026-08-16T21:00:00.000-03:00",
+    validUntil: "2026-08-18T21:00:00.000-03:00",
+    resolution: {
+      criticalSourcesComplete: true,
+      criticalSourcesFresh: true,
+      expectedMaterialCount: 2,
+      connectedMaterialCount: 2,
+      missingMaterialCount: 0,
+      staleConnectedSourceCount: 0,
+      connectedSourceCount: 2,
+      reasonCodes: [],
+      freshnessReasonCodes: [],
+      inventoryFingerprint,
+      coverageValidUntil: "2026-08-19T00:00:00.000Z",
+    },
+  });
+  const persistEvidence = async (value = evidence) => {
+    const result = await database.query<{ result: { evidenceId: string; evidenceFingerprint: string; replayed: boolean } }>(
+      "select public.eos_financial_persist_source_coverage_evidence_v1($1::uuid,$2::jsonb,$3::text) as result",
+      [userId, JSON.stringify(value), value.fingerprint],
+    );
+    assert(result.rows[0]);
+    return result.rows[0].result;
+  };
+  await database.exec("set role service_role");
+  const first = await persistEvidence();
+  assert.equal(first.replayed, false);
+  const replay = await persistEvidence();
+  assert.equal(replay.evidenceId, first.evidenceId);
+  assert.equal(replay.replayed, true);
+  const tampered = { ...evidence, connectedMaterialCount: 1 };
+  assert.equal(await rejectsMessage(() => persistEvidence(tampered), "financial_coverage_evidence_fingerprint_mismatch"), "22023");
+  await database.exec("reset role; set role authenticated");
+  await rejectsMessage(() => persistEvidence(), "permission denied for function eos_financial_persist_source_coverage_evidence_v1");
+  await rejectsMessage(() => database.query("select * from public.eos_financial_source_coverage_evidence_v1"), "permission denied for table eos_financial_source_coverage_evidence_v1");
+  await database.exec("reset role");
+}
+
 function buildLateProviderConflictPlan(
   source: MultiProviderScopedPersistencePlan,
 ) {
@@ -460,6 +505,7 @@ async function validateHealthyAndFailurePaths(
     healthy.userId,
   );
   await validateSourceOnboardingPersistence(database, healthy.userId);
+  await validateCoverageEvidencePersistence(database, healthy.userId);
 
   const first = await persist(database, healthy);
   assert.equal(first.replayed, false);
@@ -685,6 +731,10 @@ async function main() {
         sourceOnboardingVersionCas: true,
         sourceOnboardingServiceRoleOnly: true,
         sourceOnboardingMovementAuthorityFixedToFalse: true,
+        coverageEvidenceFingerprintVerifiedByPostgres: true,
+        coverageEvidenceExactReplayNoOp: true,
+        coverageEvidenceTamperRejected: true,
+        coverageEvidenceServiceRoleOnly: true,
       },
     }),
   );

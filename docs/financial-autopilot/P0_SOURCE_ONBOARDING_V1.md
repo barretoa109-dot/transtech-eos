@@ -81,8 +81,9 @@ inventory as one versioned commit:
 - consent with movement authority is rejected;
 - no OAuth token, provider secret or raw banking payload is accepted.
 
-The PostgreSQL 17 suite now proves 22 guarantees: the prior 17 plus five source
-onboarding persistence invariants. The SQL remains a non-production draft.
+The PostgreSQL 17 suite now proves 26 guarantees: the prior 22 plus four
+independent coverage-evidence persistence invariants. The SQL remains a
+non-production draft.
 
 ## Read-only preview UI
 
@@ -141,6 +142,25 @@ zero-safety `REFRESH_REQUIRED` model. Because no independently persisted
 coverage resolver is wired yet, a valid stored inventory remains `DISCOVERING`.
 The live UI action also remains disabled; this block adds no browser mutation.
 
+## Independent coverage evidence
+
+`SourceCoverageEvidenceV1` is a separate, expiring commitment bound to the exact
+trusted inventory fingerprint. It records completeness, freshness, connected /
+missing / stale counts and normalized reason codes without storing transactions
+or provider credentials.
+
+The builder rejects inconsistent counts, false completeness, freshness
+contradictions, inventory substitution and invalid validity windows. The
+PostgreSQL RPC independently recomputes the fingerprint, makes exact replay a
+no-op and is executable only by `service_role`; its table is unavailable to
+`PUBLIC`, `anon` and `authenticated`.
+
+The authenticated Server Component now reads only current evidence for the same
+user and inventory fingerprint. Valid complete+fresh evidence may transition
+the UI to `COVERAGE_READY`; missing, expired or mismatched evidence remains
+fail-closed. This authorizes baseline construction only—never `SAFE` and never
+money movement.
+
 ## Still excluded
 
 - real banking/provider integration;
@@ -151,6 +171,7 @@ The live UI action also remains disabled; this block adds no browser mutation.
 - prepare/approve/execute monetary commands;
 - money movement.
 
-The next P0 block is persistence/read plumbing for independent coverage evidence
-plus authenticated two-user E2E against a non-production database. It must
-remain feature-gated and avoid exposing persistence RPC access to the browser.
+The next P0 block is authenticated two-user E2E against a non-production
+database, including valid, missing, expired and cross-inventory evidence. It
+must remain feature-gated and avoid exposing persistence RPC access to the
+browser.
