@@ -413,7 +413,6 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     const requestId = crypto.randomUUID();
-    const now = new Date().toISOString();
 
     const { data: run, error: runError } = await supabase
       .from("eos_document_intelligence_runs_v11")
@@ -424,7 +423,6 @@ export async function POST(_request: Request, context: RouteContext) {
         status: "processing",
         model_version: "deterministic-v1",
         prompt_version: "document-intelligence-signals-v1",
-        started_at: now,
       })
       .select("id")
       .single();

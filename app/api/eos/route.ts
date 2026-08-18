@@ -1,5 +1,15 @@
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
+import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
+import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
+
+const SYNC_EXTRACTABLE_TYPES = new Set([
+  "text/plain",
+  "text/csv",
+  "application/json",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
 
 const N8N_EOS_URL =
   process.env.N8N_EOS_WEBHOOK_URL ||
@@ -336,6 +346,71 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
   };
 }
 
+async function analizarArchivoSincrono(
+  archivo: ArchivoEOS,
+  conversacionId: string,
+): Promise<string | null> {
+  try {
+    const bytes = Buffer.from(archivo.base64, "base64");
+    const file = new File([bytes], archivo.nombre, { type: archivo.tipo });
+
+    const formData = new FormData();
+    formData.append("archivo", file);
+    if (conversacionId) formData.append("conversacion_id", conversacionId);
+
+    const ingestRequest = new Request("http://eos.internal/api/documents/ingest", {
+      method: "POST",
+      body: formData,
+    });
+
+    const ingestResponse = await ingestDocument(ingestRequest);
+    if (!ingestResponse.ok) return null;
+
+    const ingestData = (await ingestResponse.json()) as {
+      document?: { id?: string; extraction_status?: string };
+      extraction?: { status?: string };
+    };
+
+    const documentId = ingestData.document?.id;
+    const extractionStatus =
+      ingestData.extraction?.status || ingestData.document?.extraction_status || "";
+    if (!documentId || !["ready", "partial"].includes(extractionStatus)) {
+      return null;
+    }
+
+    const analyzeRequest = new Request(
+      `http://eos.internal/api/documents/${documentId}/analyze`,
+      { method: "POST" },
+    );
+
+    const analyzeResponse = await analyzeDocument(analyzeRequest, {
+      params: Promise.resolve({ id: documentId }),
+    });
+    if (!analyzeResponse.ok) return null;
+
+    const analysis = (await analyzeResponse.json()) as {
+      summary?: string;
+      top_findings?: Array<{ title?: string; value_text?: string | null }>;
+    };
+
+    const hallazgos = (analysis.top_findings || [])
+      .slice(0, 6)
+      .map((f) => `- ${f.title}${f.value_text ? `: ${f.value_text}` : ""}`)
+      .join("\n");
+
+    const partes = [
+      `[Documento adjunto: ${archivo.nombre}]`,
+      analysis.summary ? `Resumen: ${analysis.summary}` : "",
+      hallazgos ? `Hallazgos:\n${hallazgos}` : "",
+    ].filter(Boolean);
+
+    return partes.length > 1 ? partes.join("\n") : null;
+  } catch (error) {
+    console.error("No se pudo analizar el documento adjunto de forma sincrónica:", error);
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
@@ -431,6 +506,14 @@ export async function POST(req: Request) {
       }
     }
 
+    let mensajeConAnalisis = mensaje;
+    if (archivo && SYNC_EXTRACTABLE_TYPES.has(archivo.tipo)) {
+      const analisis = await analizarArchivoSincrono(archivo, conversacionId);
+      if (analisis) {
+        mensajeConAnalisis = mensaje ? `${mensaje}\n\n${analisis}` : analisis;
+      }
+    }
+
     const { data: usuario, error: usuarioError } = await supabase
       .from("usuarios")
       .select("nombre, plan, estado_suscripcion, plan_vencimiento")
@@ -459,7 +542,7 @@ export async function POST(req: Request) {
       conversacion_id: conversacionId,
       nombre: nombreServidor,
       plan: planServidor,
-      mensaje,
+      mensaje: mensajeConAnalisis,
       historial: normalizarHistorial(body.historial),
       nuevo_chat: nuevoChat,
       archivo,
