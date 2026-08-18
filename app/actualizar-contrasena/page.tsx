@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isPasswordPwned } from "@/lib/pwnedPassword";
 import { useRouter } from "next/navigation";
 
 export default function ActualizarContrasenaPage() {
@@ -32,6 +33,14 @@ export default function ActualizarContrasenaPage() {
     }
 
     setLoading(true);
+
+    if (await isPasswordPwned(password)) {
+      setLoading(false);
+      setError(
+        "Esta contraseña apareció en filtraciones de datos conocidas. Elegí otra para proteger tu cuenta."
+      );
+      return;
+    }
 
     const { error } = await supabase.auth.updateUser({
       password,

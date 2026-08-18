@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isPasswordPwned } from "@/lib/pwnedPassword";
 
 interface Props {
   onLogin: () => void;
@@ -57,6 +58,13 @@ export default function RegisterForm({ onLogin }: Props) {
     setLoading(true);
 
     try {
+      if (await isPasswordPwned(password)) {
+        setErrorMessage(
+          "Esta contraseña apareció en filtraciones de datos conocidas. Elegí otra para proteger tu cuenta."
+        );
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
