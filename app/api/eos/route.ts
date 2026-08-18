@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
@@ -712,26 +714,28 @@ export async function POST(req: Request) {
     quotaReleased = true;
     releaseReservedQuota = null;
 
-    try {
-      await fetch(
-        process.env.N8N_DECISION_CAPTURE_URL ||
-          "https://n8n-production-6cdb.up.railway.app/webhook/eos-decision-capture",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            usuario_id: payload.usuario_id,
-            request_id: payload.request_id,
-            conversacion_id: payload.conversacion_id,
-            mensaje: payload.mensaje,
-            respuesta: resultado.respuesta,
-          }),
-          signal: AbortSignal.timeout(2500),
-        },
-      );
-    } catch (captureError) {
-      console.log("Registro de decisión no disponible:", captureError);
-    }
+    after(async () => {
+      try {
+        await fetch(
+          process.env.N8N_DECISION_CAPTURE_URL ||
+            "https://n8n-production-6cdb.up.railway.app/webhook/eos-decision-capture",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              usuario_id: payload.usuario_id,
+              request_id: payload.request_id,
+              conversacion_id: payload.conversacion_id,
+              mensaje: payload.mensaje,
+              respuesta: resultado.respuesta,
+            }),
+            signal: AbortSignal.timeout(2500),
+          },
+        );
+      } catch (captureError) {
+        console.log("Registro de decisión no disponible:", captureError);
+      }
+    });
 
     return Response.json(
       {
