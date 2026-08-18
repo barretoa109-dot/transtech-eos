@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import {
   ArrowUpRight,
@@ -8,7 +7,6 @@ import {
   Copy,
   Download,
   RefreshCw,
-  UserRound,
 } from "lucide-react";
 
 type MessageBubbleProps = {
@@ -18,18 +16,6 @@ type MessageBubbleProps = {
   onRegenerar?: () => void;
   regenerando?: boolean;
 };
-
-function obtenerIniciales(nombre: string) {
-  const limpio = nombre.trim();
-
-  if (!limpio) return "U";
-
-  return limpio
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((parte) => parte.charAt(0).toUpperCase())
-    .join("");
-}
 
 function esEnlace(texto: string) {
   return (
@@ -74,7 +60,7 @@ function renderizarTextoEnLinea(texto: string) {
 export default function MessageBubble({
   rol,
   texto,
-  nombre,
+  nombre: _nombre,
   onRegenerar,
   regenerando = false,
 }: MessageBubbleProps) {
@@ -101,28 +87,12 @@ export default function MessageBubble({
         esUsuario ? "message-row-user" : "message-row-eos"
       }`}
     >
-      {!esUsuario ? (
-        <div className="message-avatar message-avatar-eos">
-          <Image
-            src="/transtech-logo.png"
-            alt="Logo de TRANSTECH"
-            width={24}
-            height={24}
-            className="message-avatar-logo"
-          />
-        </div>
-      ) : null}
-
       <div className="message-column">
         <article
           className={`message-bubble ${
             esUsuario ? "message-user" : "message-eos"
           }`}
         >
-          <div className="message-meta">
-            {esUsuario ? nombre : "TRANSTECH EOS"}
-          </div>
-
           <div className="message-content">
             {lineas.map((linea, index) => {
               const limpio = linea.trim();
@@ -270,26 +240,13 @@ export default function MessageBubble({
         ) : null}
       </div>
 
-      {esUsuario ? (
-        <div className="message-avatar message-avatar-user">
-          <span className="message-user-initials">
-            {obtenerIniciales(nombre)}
-          </span>
-
-          <UserRound
-            size={15}
-            className="message-user-icon"
-          />
-        </div>
-      ) : null}
-
       <style jsx>{`
         .message-row {
           width: 100%;
           display: flex;
           align-items: flex-start;
-          gap: 11px;
-          margin-bottom: 22px;
+          gap: 0;
+          margin-bottom: 18px;
         }
 
         .message-row-user {
@@ -302,7 +259,7 @@ export default function MessageBubble({
 
         .message-column {
           min-width: 0;
-          max-width: min(760px, calc(100% - 52px));
+          max-width: min(780px, 100%);
           display: flex;
           flex-direction: column;
           align-items: flex-start;
@@ -312,49 +269,11 @@ export default function MessageBubble({
           align-items: flex-end;
         }
 
-        .message-avatar {
-          width: 38px;
-          height: 38px;
-          flex-shrink: 0;
-          display: grid;
-          place-items: center;
-          border-radius: 13px;
-        }
-
-        .message-avatar-eos {
-          border: 1px solid rgba(37, 99, 235, 0.16);
-          background: #ffffff;
-          box-shadow: 0 10px 25px rgba(37, 99, 235, 0.12);
-        }
-
-        .message-avatar-logo {
-          width: 24px;
-          height: 24px;
-          object-fit: contain;
-        }
-
-        .message-avatar-user {
-          position: relative;
-          overflow: hidden;
-          border: 1px solid #dbe3ef;
-          background: white;
-          color: #071226;
-        }
-
-        .message-user-icon {
-          display: none;
-        }
-
-        .message-user-initials {
-          font-size: 10px;
-          font-weight: 900;
-        }
-
         .message-bubble {
           width: fit-content;
           max-width: 100%;
-          padding: 16px 18px;
-          border-radius: 20px;
+          padding: 14px 16px;
+          border-radius: 18px;
           font-size: 14px;
           line-height: 1.72;
           box-sizing: border-box;
@@ -362,27 +281,20 @@ export default function MessageBubble({
 
         .message-user {
           border: 1px solid rgba(37, 99, 235, 0.14);
-          border-top-right-radius: 7px;
+          border-top-right-radius: 6px;
           background: #2563eb;
           color: white;
-          box-shadow: 0 10px 30px rgba(37, 99, 235, 0.14);
+          box-shadow: none;
         }
 
         .message-eos {
-          border: 1px solid #e2e8f0;
-          border-top-left-radius: 7px;
-          background: rgba(255, 255, 255, 0.94);
+          border: 0;
+          border-radius: 0;
+          background: transparent;
           color: #172033;
-          box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
-        }
-
-        .message-meta {
-          margin-bottom: 8px;
-          color: inherit;
-          font-size: 9px;
-          font-weight: 900;
-          letter-spacing: 0.1em;
-          opacity: 0.68;
+          box-shadow: none;
+          padding-left: 0;
+          padding-right: 0;
         }
 
         .message-content {
@@ -604,14 +516,8 @@ export default function MessageBubble({
         }
 
         @media (max-width: 620px) {
-          .message-avatar {
-            width: 34px;
-            height: 34px;
-            border-radius: 11px;
-          }
-
           .message-column {
-            max-width: calc(100% - 45px);
+            max-width: 100%;
           }
 
           .message-bubble {

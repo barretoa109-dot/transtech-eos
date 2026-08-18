@@ -1,24 +1,53 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const usuarioId = "3c3cb83c-6ff8-4f1c-9ed2-6b3f91a9cbf7";
+  try {
+    const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("seguimientos")
-    .select("*")
-    .eq("usuario_id", usuarioId)
-    .order("created_at", { ascending: false })
-    .limit(10);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("seguimientos")
+      .select("*")
+      .eq("usuario_id", user.id)
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(10);
+
+    if (error) {
+      console.error(error);
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data ?? []);
+  } catch (err) {
+    console.error(err);
+
+    return NextResponse.json(
+      {
+        error: "Error interno del servidor",
+      },
+      {
+        status: 500,
+      }
+    );
   }
-
-  return NextResponse.json(data ?? []);
 }

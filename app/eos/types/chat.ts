@@ -9,10 +9,13 @@ export type EstadoMensaje =
 export type TipoArchivoEOS =
   | "excel"
   | "xlsx"
+  | "xls"
   | "pdf"
   | "word"
+  | "doc"
   | "docx"
   | "csv"
+  | "txt"
   | "imagen"
   | "archivo"
   | string;
@@ -48,15 +51,11 @@ export type VistaEOS =
   | "dashboard"
   | "perfil";
 
-export type ImagenAdjunta = {
-  nombre: string;
-  tipo: string;
-  base64: string;
-};
-
 export type ArchivoAdjunto = {
   nombre: string;
   tipo: string;
   tamanio?: number;
   base64: string;
+  extension?: string;
+  url?: string;
 };

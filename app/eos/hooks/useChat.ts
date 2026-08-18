@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 
 import type {
-  ImagenAdjunta,
+  ArchivoAdjunto,
   Mensaje,
 } from "../types/chat";
 
@@ -35,6 +35,15 @@ type UseChatParams = {
   ) => Promise<void>;
 };
 
+type EjecutarEOSParams = {
+  textoUsuario: string;
+  conversacionActiva: string;
+  historialParaContexto: Mensaje[];
+  archivo: ArchivoAdjunto | null;
+  guardarUsuario: boolean;
+  reemplazarUltimaRespuesta: boolean;
+};
+
 function crearIdMensaje(prefijo: string) {
   return `${prefijo}-${Date.now()}-${Math.random()
     .toString(36)
@@ -44,7 +53,11 @@ function crearIdMensaje(prefijo: string) {
 function obtenerUltimoMensajeUsuario(
   mensajes: Mensaje[],
 ): Mensaje | null {
-  for (let index = mensajes.length - 1; index >= 0; index -= 1) {
+  for (
+    let index = mensajes.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
     if (mensajes[index]?.rol === "usuario") {
       return mensajes[index];
     }
@@ -53,10 +66,52 @@ function obtenerUltimoMensajeUsuario(
   return null;
 }
 
-function limpiarReferenciaDeImagen(texto: string) {
+function limpiarReferenciaDeArchivo(texto: string) {
   return texto
-    .replace(/\n\n\[Imagen adjunta:[^\]]+\]\s*$/i, "")
+    .replace(
+      /\n\n\[(?:Imagen|Archivo) adjunt[oa]:[^\]]+\]\s*$/i,
+      "",
+    )
     .trim();
+}
+
+function esImagenAdjunta(
+  archivo: ArchivoAdjunto | null,
+): boolean {
+  return Boolean(
+    archivo?.tipo?.toLowerCase().startsWith("image/"),
+  );
+}
+
+function construirTextoPredeterminado(
+  archivo: ArchivoAdjunto,
+): string {
+  if (esImagenAdjunta(archivo)) {
+    return `Analizá esta imagen: ${archivo.nombre}`;
+  }
+
+  return `Analizá este archivo: ${archivo.nombre}`;
+}
+
+function construirReferenciaArchivo(
+  archivo: ArchivoAdjunto,
+): string {
+  const etiqueta = esImagenAdjunta(archivo)
+    ? "Imagen adjunta"
+    : "Archivo adjunto";
+
+  return `[${etiqueta}: ${archivo.nombre}]`;
+}
+
+function obtenerMensajeError(error: unknown): string {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+
+  return "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
 }
 
 export function useChat({
@@ -74,25 +129,18 @@ export function useChat({
   const [cargando, setCargando] = useState(false);
   const [pensando, setPensando] = useState(false);
 
-  const [imagenAdjunta, setImagenAdjunta] =
-    useState<ImagenAdjunta | null>(null);
+  const [archivoAdjunto, setArchivoAdjunto] =
+    useState<ArchivoAdjunto | null>(null);
 
   const ejecutarEOS = useCallback(
     async ({
       textoUsuario,
       conversacionActiva,
       historialParaContexto,
-      imagen,
+      archivo,
       guardarUsuario,
       reemplazarUltimaRespuesta,
-    }: {
-      textoUsuario: string;
-      conversacionActiva: string;
-      historialParaContexto: Mensaje[];
-      imagen: ImagenAdjunta | null;
-      guardarUsuario: boolean;
-      reemplazarUltimaRespuesta: boolean;
-    }) => {
+    }: EjecutarEOSParams) => {
       setCargando(true);
       setPensando(true);
 
@@ -118,7 +166,7 @@ export function useChat({
           mensaje: textoUsuario,
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
-          imagen,
+          archivo,
         });
 
         const textoEOS =
@@ -176,7 +224,7 @@ export function useChat({
         console.error("ERROR EOS:", error);
 
         const respuestaError =
-          "Ahora mismo no pude conectarme correctamente. Probá nuevamente en unos segundos.";
+          obtenerMensajeError(error);
 
         const mensajeError: Mensaje = {
           id: crearIdMensaje("error"),
@@ -224,10 +272,15 @@ export function useChat({
         ? textoManual
         : mensaje;
 
-    const tieneTexto = textoFinal.trim().length > 0;
-    const tieneImagen = Boolean(imagenAdjunta);
+    const tieneTexto =
+      textoFinal.trim().length > 0;
+    const tieneArchivo =
+      Boolean(archivoAdjunto);
 
-    if ((!tieneTexto && !tieneImagen) || cargando) {
+    if (
+      (!tieneTexto && !tieneArchivo) ||
+      cargando
+    ) {
       return;
     }
 
@@ -239,7 +292,8 @@ export function useChat({
     let conversacionActiva = conversacionId;
 
     if (!conversacionActiva) {
-      const nueva = await nuevaConversacion(usuarioId);
+      const nueva =
+        await nuevaConversacion(usuarioId);
 
       if (!nueva) {
         window.alert(
@@ -251,28 +305,43 @@ export function useChat({
       conversacionActiva = nueva;
     }
 
-    const imagenActual = imagenAdjunta;
+    const archivoActual = archivoAdjunto;
 
     const textoUsuario =
       textoFinal.trim() ||
-      `Analizá esta imagen: ${
-        imagenActual?.nombre || "imagen adjunta"
-      }`;
+      (archivoActual
+        ? construirTextoPredeterminado(
+            archivoActual,
+          )
+        : "");
+
+    const textoVisibleUsuario =
+      archivoActual
+        ? `${textoUsuario}\n\n${construirReferenciaArchivo(
+            archivoActual,
+          )}`
+        : textoUsuario;
 
     const mensajeUsuario: Mensaje = {
       id: crearIdMensaje("usuario"),
       rol: "usuario",
-      texto: imagenActual
-        ? `${textoUsuario}\n\n[Imagen adjunta: ${imagenActual.nombre}]`
-        : textoUsuario,
+      texto: textoVisibleUsuario,
       estado: "completado",
+      archivo_nombre:
+        archivoActual?.nombre || "",
+      archivo_tipo:
+        archivoActual?.tipo || "",
+      tipo: archivoActual
+        ? "archivo_adjunto"
+        : "texto",
       creado_en: new Date().toISOString(),
     };
 
-    const historialAntesDelEnvio = historial.slice(-10);
+    const historialAntesDelEnvio =
+      historial.slice(-10);
 
     setMensaje("");
-    setImagenAdjunta(null);
+    setArchivoAdjunto(null);
 
     setHistorial((actual) => [
       ...actual,
@@ -282,15 +351,20 @@ export function useChat({
     await ejecutarEOS({
       textoUsuario,
       conversacionActiva,
-      historialParaContexto: historialAntesDelEnvio,
-      imagen: imagenActual,
+      historialParaContexto:
+        historialAntesDelEnvio,
+      archivo: archivoActual,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
     });
   }
 
   async function regenerarRespuesta() {
-    if (cargando || pensando || !usuarioId) {
+    if (
+      cargando ||
+      pensando ||
+      !usuarioId
+    ) {
       return;
     }
 
@@ -312,17 +386,28 @@ export function useChat({
     }
 
     const textoUsuario =
-      limpiarReferenciaDeImagen(ultimoUsuario.texto);
+      limpiarReferenciaDeArchivo(
+        ultimoUsuario.texto,
+      );
 
-    const historialSinUltimaRespuesta = [...historial];
+    const historialSinUltimaRespuesta = [
+      ...historial,
+    ];
 
     for (
-      let index = historialSinUltimaRespuesta.length - 1;
+      let index =
+        historialSinUltimaRespuesta.length - 1;
       index >= 0;
       index -= 1
     ) {
-      if (historialSinUltimaRespuesta[index]?.rol === "eos") {
-        historialSinUltimaRespuesta.splice(index, 1);
+      if (
+        historialSinUltimaRespuesta[index]
+          ?.rol === "eos"
+      ) {
+        historialSinUltimaRespuesta.splice(
+          index,
+          1,
+        );
         break;
       }
     }
@@ -332,7 +417,7 @@ export function useChat({
       conversacionActiva: conversacionId,
       historialParaContexto:
         historialSinUltimaRespuesta.slice(-10),
-      imagen: null,
+      archivo: null,
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
     });
@@ -345,8 +430,8 @@ export function useChat({
     cargando,
     pensando,
 
-    imagenAdjunta,
-    setImagenAdjunta,
+    archivoAdjunto,
+    setArchivoAdjunto,
 
     enviarMensaje,
     regenerarRespuesta,

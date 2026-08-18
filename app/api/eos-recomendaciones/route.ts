@@ -1,12 +1,49 @@
-import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('recomendaciones')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(5)
+  try {
+    const supabase = await createClient();
 
-  return NextResponse.json({ data, error })
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("recomendaciones")
+      .select("*")
+      .eq("usuario_id", user.id)
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(5);
+
+    if (error) {
+      console.error(error);
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error(err);
+
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
+  }
 }

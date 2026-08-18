@@ -18,8 +18,49 @@ import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
 
-import { convertirImagenABase64 } from "../services/uploads";
-import type { VistaEOS } from "../types/chat";
+import { convertirArchivoABase64 } from "../services/uploads";
+import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
+
+
+function formatearTamanio(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+
+  const unidades = ["B", "KB", "MB", "GB"];
+  const indice = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    unidades.length - 1,
+  );
+
+  const valor = bytes / 1024 ** indice;
+  const decimales = indice === 0 || valor >= 10 ? 0 : 1;
+
+  return `${valor.toFixed(decimales)} ${unidades[indice]}`;
+}
+
+function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
+  const tipo = archivo.tipo.toLowerCase();
+  const extension =
+    archivo.extension ||
+    archivo.nombre.split(".").pop()?.toLowerCase() ||
+    "";
+
+  if (tipo.startsWith("image/")) return "IMAGEN";
+  if (tipo === "application/pdf" || extension === "pdf") return "PDF";
+  if (tipo.includes("word") || ["doc", "docx"].includes(extension)) {
+    return "WORD";
+  }
+  if (
+    tipo.includes("excel") ||
+    tipo.includes("spreadsheet") ||
+    ["xls", "xlsx"].includes(extension)
+  ) {
+    return "EXCEL";
+  }
+  if (tipo === "text/csv" || extension === "csv") return "CSV";
+  if (tipo === "text/plain" || extension === "txt") return "TXT";
+
+  return extension ? extension.toUpperCase() : "ARCHIVO";
+}
 
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
@@ -60,8 +101,8 @@ export default function EOSPage() {
     mensaje,
     setMensaje,
     cargando,
-    imagenAdjunta,
-    setImagenAdjunta,
+    archivoAdjunto,
+    setArchivoAdjunto,
     enviarMensaje,
   } = useChat({
     usuarioId,
@@ -152,18 +193,27 @@ export default function EOSPage() {
     setMenuMovilAbierto(false);
   }
 
-  async function manejarImagen(file: File) {
+  async function manejarArchivo(file: File) {
     try {
-      const imagen = await convertirImagenABase64(file);
+      const archivo = await convertirArchivoABase64(file);
 
-      setImagenAdjunta(imagen);
+      setArchivoAdjunto(archivo);
 
       if (!mensaje.trim()) {
-        setMensaje(`Analizá esta imagen: ${imagen.nombre}`);
+        const instruccion = archivo.tipo.startsWith("image/")
+          ? "Analizá esta imagen"
+          : "Analizá este archivo";
+
+        setMensaje(`${instruccion}: ${archivo.nombre}`);
       }
     } catch (error) {
-      console.error("No se pudo cargar la imagen:", error);
-      window.alert("No se pudo cargar la imagen.");
+      console.error("No se pudo cargar el archivo:", error);
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el archivo.",
+      );
     }
   }
 
@@ -178,10 +228,13 @@ export default function EOSPage() {
     setMenuMovilAbierto(false);
   }
 
-  function quitarImagenAdjunta() {
-    setImagenAdjunta(null);
+  function quitarArchivoAdjunto() {
+    setArchivoAdjunto(null);
 
-    if (mensaje.startsWith("Analizá esta imagen:")) {
+    if (
+      mensaje.startsWith("Analizá esta imagen:") ||
+      mensaje.startsWith("Analizá este archivo:")
+    ) {
       setMensaje("");
     }
   }
@@ -260,21 +313,28 @@ export default function EOSPage() {
                 onEnviarSugerencia={(texto) => enviarMensaje(texto)}
               />
 
-              {imagenAdjunta && (
-                <div className="eos-image-preview-wrapper">
-                  <div className="eos-image-preview">
-                    <div className="eos-image-preview-info">
-                      <span className="eos-image-icon">IMG</span>
+              {archivoAdjunto && (
+                <div className="eos-file-preview-wrapper">
+                  <div className="eos-file-preview">
+                    <div className="eos-file-preview-info">
+                      <span className="eos-file-icon">
+                        {obtenerEtiquetaArchivo(archivoAdjunto)}
+                      </span>
 
-                      <span className="eos-image-text">
-                        <small>IMAGEN ADJUNTA</small>
-                        <strong>{imagenAdjunta.nombre}</strong>
+                      <span className="eos-file-text">
+                        <small>
+                          {obtenerEtiquetaArchivo(archivoAdjunto)} ADJUNTO
+                          {archivoAdjunto.tamanio
+                            ? ` · ${formatearTamanio(archivoAdjunto.tamanio)}`
+                            : ""}
+                        </small>
+                        <strong>{archivoAdjunto.nombre}</strong>
                       </span>
                     </div>
 
                     <button
                       type="button"
-                      onClick={quitarImagenAdjunta}
+                      onClick={quitarArchivoAdjunto}
                     >
                       Quitar
                     </button>
@@ -287,7 +347,7 @@ export default function EOSPage() {
                 cargando={cargando}
                 onMensajeChange={setMensaje}
                 onEnviar={() => enviarMensaje()}
-                onImagenSeleccionada={manejarImagen}
+                onArchivoSeleccionado={manejarArchivo}
               />
             </>
           )}
@@ -402,7 +462,7 @@ export default function EOSPage() {
           display: none;
         }
 
-        .eos-image-preview-wrapper {
+        .eos-file-preview-wrapper {
           position: fixed;
           left: 280px;
           right: 0;
@@ -412,7 +472,7 @@ export default function EOSPage() {
           pointer-events: none;
         }
 
-        .eos-image-preview {
+        .eos-file-preview {
           width: min(100%, 900px);
           min-height: 62px;
           display: flex;
@@ -430,14 +490,14 @@ export default function EOSPage() {
           pointer-events: auto;
         }
 
-        .eos-image-preview-info {
+        .eos-file-preview-info {
           min-width: 0;
           display: flex;
           align-items: center;
           gap: 12px;
         }
 
-        .eos-image-icon {
+        .eos-file-icon {
           width: 38px;
           height: 38px;
           flex-shrink: 0;
@@ -450,21 +510,21 @@ export default function EOSPage() {
           font-weight: 900;
         }
 
-        .eos-image-text {
+        .eos-file-text {
           min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 3px;
         }
 
-        .eos-image-text small {
+        .eos-file-text small {
           color: #64748b;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.13em;
         }
 
-        .eos-image-text strong {
+        .eos-file-text strong {
           overflow: hidden;
           color: #071226;
           font-size: 11px;
@@ -472,7 +532,7 @@ export default function EOSPage() {
           white-space: nowrap;
         }
 
-        .eos-image-preview button {
+        .eos-file-preview button {
           flex-shrink: 0;
           padding: 8px 12px;
           border: 1px solid rgba(239, 68, 68, 0.2);
@@ -573,13 +633,13 @@ export default function EOSPage() {
             cursor: pointer;
           }
 
-          .eos-image-preview-wrapper {
+          .eos-file-preview-wrapper {
             left: 0;
             bottom: calc(105px + env(safe-area-inset-bottom));
             padding: 0 12px;
           }
 
-          .eos-image-preview {
+          .eos-file-preview {
             border-radius: 14px;
           }
         }

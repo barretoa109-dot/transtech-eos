@@ -18,8 +18,49 @@ import { useBriefing } from "../eos/hooks/useBriefing";
 import { useConversations } from "../eos/hooks/useConversations";
 import { useChat } from "../eos/hooks/useChat";
 
-import { convertirImagenABase64 } from "../eos/services/uploads";
-import type { VistaEOS } from "../eos/types/chat";
+import { convertirArchivoABase64 } from "../eos/services/uploads";
+import type { ArchivoAdjunto, VistaEOS } from "../eos/types/chat";
+
+
+function formatearTamanio(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+
+  const unidades = ["B", "KB", "MB", "GB"];
+  const indice = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    unidades.length - 1,
+  );
+
+  const valor = bytes / 1024 ** indice;
+  const decimales = indice === 0 || valor >= 10 ? 0 : 1;
+
+  return `${valor.toFixed(decimales)} ${unidades[indice]}`;
+}
+
+function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
+  const tipo = archivo.tipo.toLowerCase();
+  const extension =
+    archivo.extension ||
+    archivo.nombre.split(".").pop()?.toLowerCase() ||
+    "";
+
+  if (tipo.startsWith("image/")) return "IMAGEN";
+  if (tipo === "application/pdf" || extension === "pdf") return "PDF";
+  if (tipo.includes("word") || ["doc", "docx"].includes(extension)) {
+    return "WORD";
+  }
+  if (
+    tipo.includes("excel") ||
+    tipo.includes("spreadsheet") ||
+    ["xls", "xlsx"].includes(extension)
+  ) {
+    return "EXCEL";
+  }
+  if (tipo === "text/csv" || extension === "csv") return "CSV";
+  if (tipo === "text/plain" || extension === "txt") return "TXT";
+
+  return extension ? extension.toUpperCase() : "ARCHIVO";
+}
 
 export default function MobileEOSPage() {
   const router = useRouter();
@@ -63,8 +104,8 @@ export default function MobileEOSPage() {
     setMensaje,
     cargando,
     pensando,
-    imagenAdjunta,
-    setImagenAdjunta,
+    archivoAdjunto,
+    setArchivoAdjunto,
     enviarMensaje,
     regenerarRespuesta,
   } = useChat({
@@ -161,24 +202,37 @@ export default function MobileEOSPage() {
     setMenuAbierto(false);
   }
 
-  async function manejarImagen(file: File) {
+  async function manejarArchivo(file: File) {
     try {
-      const imagen = await convertirImagenABase64(file);
-      setImagenAdjunta(imagen);
+      const archivo = await convertirArchivoABase64(file);
+
+      setArchivoAdjunto(archivo);
 
       if (!mensaje.trim()) {
-        setMensaje(`Analizá esta imagen: ${imagen.nombre}`);
+        const instruccion = archivo.tipo.startsWith("image/")
+          ? "Analizá esta imagen"
+          : "Analizá este archivo";
+
+        setMensaje(`${instruccion}: ${archivo.nombre}`);
       }
     } catch (error) {
-      console.error("No se pudo cargar la imagen:", error);
-      window.alert("No se pudo cargar la imagen.");
+      console.error("No se pudo cargar el archivo:", error);
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el archivo.",
+      );
     }
   }
 
-  function quitarImagenAdjunta() {
-    setImagenAdjunta(null);
+  function quitarArchivoAdjunto() {
+    setArchivoAdjunto(null);
 
-    if (mensaje.startsWith("Analizá esta imagen:")) {
+    if (
+      mensaje.startsWith("Analizá esta imagen:") ||
+      mensaje.startsWith("Analizá este archivo:")
+    ) {
       setMensaje("");
     }
   }
@@ -313,14 +367,23 @@ export default function MobileEOSPage() {
               regenerando={cargando}
             />
 
-            {imagenAdjunta && (
-              <div className="mobile-image-preview">
+            {archivoAdjunto && (
+              <div className="mobile-file-preview">
+                <span className="mobile-file-preview-icon">
+                  {obtenerEtiquetaArchivo(archivoAdjunto)}
+                </span>
+
                 <div>
-                  <small>IMAGEN ADJUNTA</small>
-                  <strong>{imagenAdjunta.nombre}</strong>
+                  <small>
+                    {obtenerEtiquetaArchivo(archivoAdjunto)} ADJUNTO
+                    {archivoAdjunto.tamanio
+                      ? ` · ${formatearTamanio(archivoAdjunto.tamanio)}`
+                      : ""}
+                  </small>
+                  <strong>{archivoAdjunto.nombre}</strong>
                 </div>
 
-                <button type="button" onClick={quitarImagenAdjunta}>
+                <button type="button" onClick={quitarArchivoAdjunto}>
                   Quitar
                 </button>
               </div>
@@ -331,7 +394,7 @@ export default function MobileEOSPage() {
               cargando={cargando}
               onMensajeChange={setMensaje}
               onEnviar={() => enviarMensaje()}
-              onImagenSeleccionada={manejarImagen}
+              onArchivoSeleccionado={manejarArchivo}
               mobile
             />
           </>
@@ -532,7 +595,7 @@ export default function MobileEOSPage() {
           padding-bottom: env(safe-area-inset-bottom);
         }
 
-        .mobile-image-preview {
+        .mobile-file-preview {
           position: absolute;
           left: 12px;
           right: 12px;
@@ -550,21 +613,36 @@ export default function MobileEOSPage() {
           backdrop-filter: blur(18px);
         }
 
-        .mobile-image-preview div {
+        .mobile-file-preview-icon {
+          width: 44px;
+          height: 44px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(96, 165, 250, 0.22);
+          border-radius: 13px;
+          background: rgba(37, 99, 235, 0.16);
+          color: #93c5fd;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.04em;
+        }
+
+        .mobile-file-preview div {
           min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 3px;
         }
 
-        .mobile-image-preview small {
+        .mobile-file-preview small {
           color: #64748b;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.12em;
         }
 
-        .mobile-image-preview strong {
+        .mobile-file-preview strong {
           overflow: hidden;
           color: #e2e8f0;
           font-size: 11px;
@@ -572,7 +650,7 @@ export default function MobileEOSPage() {
           white-space: nowrap;
         }
 
-        .mobile-image-preview button {
+        .mobile-file-preview button {
           flex-shrink: 0;
           padding: 8px 11px;
           border: 1px solid rgba(239, 68, 68, 0.22);
