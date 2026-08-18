@@ -157,7 +157,7 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { data, error } = await (admin as any).rpc(
+    const { data, error } = await admin.rpc(
       "eos_process_manual_payment_v42",
       {
         p_solicitud_id: solicitudId,

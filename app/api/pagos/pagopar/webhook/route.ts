@@ -102,7 +102,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin: any = createAdminClient();
+    const admin = createAdminClient();
 
     const {
       data: solicitud,

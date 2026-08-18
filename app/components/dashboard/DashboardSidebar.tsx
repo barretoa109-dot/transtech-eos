@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -43,7 +43,7 @@ export default function DashboardSidebar({
 
     const pathname = usePathname();
     const router = useRouter();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     const [nombre, setNombre] = useState("Usuario");
     const [email, setEmail] = useState("");
@@ -77,7 +77,7 @@ export default function DashboardSidebar({
 
         cargarUsuario();
 
-    }, []);
+    }, [supabase]);
 
     async function cerrarSesion() {
 

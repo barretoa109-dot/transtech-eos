@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isFinancialStateSurfaceVisible } from "@/lib/financial-autopilot/financial-state-api-policy";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
@@ -31,15 +32,20 @@ export default async function DashboardLayout({
     "Usuario";
 
   const plan = usuario?.plan ?? "Free";
+  const showFinancialAutopilot = isFinancialStateSurfaceVisible();
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
       <div className="hidden lg:block">
-        <DashboardSidebar />
+        <DashboardSidebar showFinancialAutopilot={showFinancialAutopilot} />
       </div>
 
       <div className="min-w-0 flex-1">
-        <DashboardHeader nombre={nombre} plan={plan} />
+        <DashboardHeader
+          nombre={nombre}
+          plan={plan}
+          showFinancialAutopilot={showFinancialAutopilot}
+        />
 
         <main className="min-h-[calc(100vh-5rem)] overflow-y-auto">
           {children}

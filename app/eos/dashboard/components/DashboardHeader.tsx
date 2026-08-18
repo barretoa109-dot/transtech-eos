@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Home,
   MessageSquareText,
-  Sparkles,
 } from "lucide-react";
 
 type DashboardHeaderProps = {

@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: solicitud, error } = await (supabase as any)
+    const { data: solicitud, error } = await supabase
       .from("solicitudes_pago")
       .select(
         "id,plan_codigo,periodicidad,monto,moneda,estado,referencia_interna,pagado_at,created_at",
