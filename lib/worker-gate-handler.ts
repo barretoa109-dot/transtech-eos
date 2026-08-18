@@ -27,7 +27,7 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
 };
 
 const DEFAULT_PROFILE = {
-  default_level: 1,
+  default_level: 2,
   max_auto_actions_per_day: 5,
   max_daily_risk_points: 10,
   approval_ttl_minutes: 60,
