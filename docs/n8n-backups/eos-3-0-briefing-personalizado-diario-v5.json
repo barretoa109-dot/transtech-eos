@@ -1,0 +1,510 @@
+{
+  "updatedAt": "2026-08-11T12:58:40.882Z",
+  "createdAt": "2026-08-11T12:58:40.882Z",
+  "id": "bFY6PPhJyTPJ4X2P",
+  "name": "EOS 3.0 - Briefing Personalizado Diario v5",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cddec6cd-655b-4673-9889-5fbda4233706",
+      "name": "00 F5 Programacion diaria",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_daily_briefing_context_v5",
+        "limit": 500
+      },
+      "id": "cb91b94e-da4a-4993-bb24-863444bb0c0d",
+      "name": "01 F5 Leer contexto diario",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $json || {};\n\nconst asArray = (value) => Array.isArray(value) ? value : [];\nconst trimText = (value, max = 600) => String(value ?? '').trim().slice(0, max);\n\nconst actividad = asArray(source.actividad_reciente)\n  .slice(0, 8)\n  .map((item) => ({\n    rol: trimText(item?.rol, 40),\n    texto: trimText(item?.texto, 600),\n    created_at: item?.created_at || null,\n  }));\n\nconst contexto = {\n  usuario_id: source.usuario_id,\n  briefing_date: source.briefing_date,\n  nombre: trimText(source.nombre, 120) || 'Usuario',\n  tipo_usuario: trimText(source.tipo_usuario, 80) || 'indefinido',\n  rubro: trimText(source.rubro, 160),\n  etapa_actual: trimText(source.etapa_actual, 120),\n  score_actual: Number(source.score_actual || 0),\n  prioridad_actual: trimText(source.prioridad_actual, 500),\n  resumen_actual: trimText(source.resumen_actual, 900),\n  objetivos: asArray(source.objetivos).slice(0, 6),\n  tareas: asArray(source.tareas).slice(0, 8),\n  seguimientos: asArray(source.seguimientos).slice(0, 6),\n  acciones_recientes: asArray(source.acciones_recientes).slice(0, 8),\n  memorias_relevantes: asArray(source.memorias_relevantes).slice(0, 10),\n  diagnosticos_recientes: asArray(source.diagnosticos_recientes).slice(0, 5),\n  actividad_reciente: actividad,\n  metricas: source.metricas && typeof source.metricas === 'object' ? source.metricas : {},\n};\n\nreturn {\n  json: {\n    ...source,\n    nombre: contexto.nombre,\n    tipo_usuario: contexto.tipo_usuario,\n    contexto_briefing: JSON.stringify(contexto),\n    prompt_version: 'briefing-prompt-v5',\n    model_version: 'gpt-5.4-mini',\n  },\n};"
+      },
+      "id": "22b77a70-525b-497e-8da9-ab96672b374f",
+      "name": "02 F5 Preparar contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=Sos el motor de briefing ejecutivo diario de TransTech EOS. Genera un briefing personalizado, concreto y accionable usando UNICAMENTE el contexto recibido. No inventes hechos, cifras, compromisos ni logros. Si falta informacion, converti esa ausencia en una recomendacion prudente. Escribi en espanol natural y profesional, con voseo paraguayo moderado. Priorizá impacto, urgencia y continuidad.\n\nDevolve exclusivamente JSON valido, sin markdown ni texto adicional, con esta forma exacta:\n{\"saludo\":\"...\",\"titulo_dia\":\"...\",\"resumen\":\"...\",\"enfoque_dia\":\"...\",\"prioridad_1\":\"...\",\"prioridad_2\":\"...\",\"prioridad_3\":\"...\",\"recomendacion_principal\":\"...\",\"logros\":[{\"titulo\":\"...\",\"descripcion\":\"...\"}],\"riesgos\":[{\"titulo\":\"...\",\"descripcion\":\"...\",\"nivel\":\"bajo|medio|alto\"}],\"proximos_pasos\":[{\"titulo\":\"...\",\"descripcion\":\"...\"}]}\n\nReglas de calidad:\n- saludo: maximo 120 caracteres.\n- titulo_dia: maximo 120 caracteres.\n- resumen: 2 a 4 frases, maximo 900 caracteres.\n- enfoque_dia y prioridades: una accion clara cada una, maximo 260 caracteres.\n- recomendacion_principal: maximo 600 caracteres.\n- logros y riesgos: maximo 3 elementos cada uno; usa [] si no hay evidencia.\n- proximos_pasos: exactamente 3 elementos cuando sea posible.\n- No menciones que sos una IA.\n\nContexto consolidado:\n{{$json.contexto_briefing}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "3e7c7786-64a9-4e99-8e3f-3371a34cbf2c",
+      "name": "03 F5 Generar briefing con OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "openAiApi": {
+          "id": "rrbWSomfLM5Z0X0j",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const response = $json || {};\nconst source = $('02 F5 Preparar contexto').item.json || {};\n\nconst collectText = (value) => {\n  if (typeof value === 'string') return value;\n  if (Array.isArray(value)) return value.map(collectText).filter(Boolean).join('\\n');\n  if (!value || typeof value !== 'object') return '';\n  if (typeof value.text === 'string') return value.text;\n  if (typeof value.output_text === 'string') return value.output_text;\n  if (typeof value.content === 'string') return value.content;\n  if (value.content) {\n    const nested = collectText(value.content);\n    if (nested) return nested;\n  }\n  if (value.message) {\n    const nested = collectText(value.message);\n    if (nested) return nested;\n  }\n  if (value.output) {\n    const nested = collectText(value.output);\n    if (nested) return nested;\n  }\n  if (value.response) {\n    const nested = collectText(value.response);\n    if (nested) return nested;\n  }\n  return '';\n};\n\nconst raw = collectText(response).trim();\nconst cleaned = raw\n  .replace(/^```(?:json)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\nconst start = cleaned.indexOf('{');\nconst end = cleaned.lastIndexOf('}');\n\nif (start < 0 || end <= start) {\n  throw new Error('EOS_BRIEFING_AI_JSON_MISSING');\n}\n\nlet generated;\ntry {\n  generated = JSON.parse(cleaned.slice(start, end + 1));\n} catch (error) {\n  throw new Error(`EOS_BRIEFING_AI_JSON_INVALID: ${error.message}`);\n}\n\nconst text = (value, fallback = '', max = 1200) => {\n  const normalized = String(value ?? '').trim();\n  return (normalized || fallback).slice(0, max);\n};\nconst list = (value, max = 3) => Array.isArray(value)\n  ? value.slice(0, max).map((item) => ({\n      titulo: text(item?.titulo, 'Pendiente', 220),\n      descripcion: text(item?.descripcion, '', 700),\n      ...(item?.nivel ? { nivel: ['bajo', 'medio', 'alto'].includes(String(item.nivel).toLowerCase()) ? String(item.nivel).toLowerCase() : 'medio' } : {}),\n    }))\n  : [];\n\nconst objetivos = Array.isArray(source.objetivos) ? source.objetivos : [];\nconst tareas = Array.isArray(source.tareas) ? source.tareas : [];\nconst nombre = text(source.nombre, 'Usuario', 120);\nconst fallbackPrincipal = text(\n  objetivos[0]?.proximo_paso || objetivos[0]?.titulo || tareas[0]?.titulo,\n  'Definir el resultado principal del dia.',\n  600\n);\nconst score = Math.max(0, Math.min(100, Number(source.score_actual || 0)));\n\nconst payload = {\n  tipo_usuario: text(source.tipo_usuario, 'indefinido', 80),\n  saludo: text(generated.saludo, `Buen dia, ${nombre}.`, 220),\n  titulo_dia: text(generated.titulo_dia, fallbackPrincipal, 220),\n  resumen: text(generated.resumen, 'EOS organizo las prioridades disponibles para sostener tu avance.', 1800),\n  enfoque_dia: text(generated.enfoque_dia, fallbackPrincipal, 600),\n  prioridad_1: text(generated.prioridad_1, fallbackPrincipal, 600),\n  prioridad_2: text(generated.prioridad_2, tareas[0]?.titulo || 'Ordenar la informacion necesaria para ejecutar.', 600),\n  prioridad_3: text(generated.prioridad_3, 'Registrar el avance real al cerrar el dia.', 600),\n  recomendacion_principal: text(generated.recomendacion_principal, fallbackPrincipal, 1200),\n  logros: list(generated.logros, 3),\n  riesgos: list(generated.riesgos, 3),\n  proximos_pasos: list(generated.proximos_pasos, 3),\n  fuentes: {\n    ...(source.metricas && typeof source.metricas === 'object' ? source.metricas : {}),\n    generator: 'n8n-ai-v5',\n    prompt_version: source.prompt_version || 'briefing-prompt-v5',\n  },\n  score,\n};\n\nreturn {\n  json: {\n    usuario_id: source.usuario_id,\n    briefing_date: source.briefing_date,\n    payload,\n    model_version: source.model_version || 'gpt-5.4-mini',\n    prompt_version: source.prompt_version || 'briefing-prompt-v5',\n    execution_id: String($execution.id || ''),\n  },\n};"
+      },
+      "id": "333cd26d-33aa-4dff-8f26-6e4f849cfc82",
+      "name": "04 F5 Validar briefing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_daily_briefing_enrichments",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id }}"
+            },
+            {
+              "fieldId": "briefing_date",
+              "fieldValue": "={{ $json.briefing_date }}"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{ $json.payload }}"
+            },
+            {
+              "fieldId": "model_version",
+              "fieldValue": "={{ $json.model_version }}"
+            },
+            {
+              "fieldId": "prompt_version",
+              "fieldValue": "={{ $json.prompt_version }}"
+            },
+            {
+              "fieldId": "execution_id",
+              "fieldValue": "={{ $json.execution_id }}"
+            }
+          ]
+        }
+      },
+      "id": "831f5a0d-aa83-4fca-b5f2-b95c41c6acb9",
+      "name": "05 F5 Aplicar enriquecimiento",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "00 F5 Programacion diaria": {
+      "main": [
+        [
+          {
+            "node": "01 F5 Leer contexto diario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 F5 Leer contexto diario": {
+      "main": [
+        [
+          {
+            "node": "02 F5 Preparar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 F5 Preparar contexto": {
+      "main": [
+        [
+          {
+            "node": "03 F5 Generar briefing con OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 F5 Generar briefing con OpenAI": {
+      "main": [
+        [
+          {
+            "node": "04 F5 Validar briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 F5 Validar briefing": {
+      "main": [
+        [
+          {
+            "node": "05 F5 Aplicar enriquecimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:00 F5 Programacion diaria": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "a5aa01f5-b529-4317-abc4-7a05f195b246",
+  "activeVersionId": "a5aa01f5-b529-4317-abc4-7a05f195b246",
+  "versionCounter": 1,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T12:58:40.882Z",
+      "createdAt": "2026-08-11T12:58:40.882Z",
+      "role": "workflow:owner",
+      "workflowId": "bFY6PPhJyTPJ4X2P",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "updatedAt": "2026-06-05T21:16:13.176Z",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-08-11T13:00:25.641Z",
+    "createdAt": "2026-08-11T12:58:40.882Z",
+    "versionId": "a5aa01f5-b529-4317-abc4-7a05f195b246",
+    "workflowId": "bFY6PPhJyTPJ4X2P",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "15 6 * * *"
+              }
+            ]
+          }
+        },
+        "id": "cddec6cd-655b-4673-9889-5fbda4233706",
+        "name": "00 F5 Programacion diaria",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_daily_briefing_context_v5",
+          "limit": 500
+        },
+        "id": "cb91b94e-da4a-4993-bb24-863444bb0c0d",
+        "name": "01 F5 Leer contexto diario",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          224,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const source = $json || {};\n\nconst asArray = (value) => Array.isArray(value) ? value : [];\nconst trimText = (value, max = 600) => String(value ?? '').trim().slice(0, max);\n\nconst actividad = asArray(source.actividad_reciente)\n  .slice(0, 8)\n  .map((item) => ({\n    rol: trimText(item?.rol, 40),\n    texto: trimText(item?.texto, 600),\n    created_at: item?.created_at || null,\n  }));\n\nconst contexto = {\n  usuario_id: source.usuario_id,\n  briefing_date: source.briefing_date,\n  nombre: trimText(source.nombre, 120) || 'Usuario',\n  tipo_usuario: trimText(source.tipo_usuario, 80) || 'indefinido',\n  rubro: trimText(source.rubro, 160),\n  etapa_actual: trimText(source.etapa_actual, 120),\n  score_actual: Number(source.score_actual || 0),\n  prioridad_actual: trimText(source.prioridad_actual, 500),\n  resumen_actual: trimText(source.resumen_actual, 900),\n  objetivos: asArray(source.objetivos).slice(0, 6),\n  tareas: asArray(source.tareas).slice(0, 8),\n  seguimientos: asArray(source.seguimientos).slice(0, 6),\n  acciones_recientes: asArray(source.acciones_recientes).slice(0, 8),\n  memorias_relevantes: asArray(source.memorias_relevantes).slice(0, 10),\n  diagnosticos_recientes: asArray(source.diagnosticos_recientes).slice(0, 5),\n  actividad_reciente: actividad,\n  metricas: source.metricas && typeof source.metricas === 'object' ? source.metricas : {},\n};\n\nreturn {\n  json: {\n    ...source,\n    nombre: contexto.nombre,\n    tipo_usuario: contexto.tipo_usuario,\n    contexto_briefing: JSON.stringify(contexto),\n    prompt_version: 'briefing-prompt-v5',\n    model_version: 'gpt-5.4-mini',\n  },\n};"
+        },
+        "id": "22b77a70-525b-497e-8da9-ab96672b374f",
+        "name": "02 F5 Preparar contexto",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-5.4-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-5.4-MINI"
+          },
+          "responses": {
+            "values": [
+              {
+                "role": "system",
+                "content": "=Sos el motor de briefing ejecutivo diario de TransTech EOS. Genera un briefing personalizado, concreto y accionable usando UNICAMENTE el contexto recibido. No inventes hechos, cifras, compromisos ni logros. Si falta informacion, converti esa ausencia en una recomendacion prudente. Escribi en espanol natural y profesional, con voseo paraguayo moderado. Priorizá impacto, urgencia y continuidad.\n\nDevolve exclusivamente JSON valido, sin markdown ni texto adicional, con esta forma exacta:\n{\"saludo\":\"...\",\"titulo_dia\":\"...\",\"resumen\":\"...\",\"enfoque_dia\":\"...\",\"prioridad_1\":\"...\",\"prioridad_2\":\"...\",\"prioridad_3\":\"...\",\"recomendacion_principal\":\"...\",\"logros\":[{\"titulo\":\"...\",\"descripcion\":\"...\"}],\"riesgos\":[{\"titulo\":\"...\",\"descripcion\":\"...\",\"nivel\":\"bajo|medio|alto\"}],\"proximos_pasos\":[{\"titulo\":\"...\",\"descripcion\":\"...\"}]}\n\nReglas de calidad:\n- saludo: maximo 120 caracteres.\n- titulo_dia: maximo 120 caracteres.\n- resumen: 2 a 4 frases, maximo 900 caracteres.\n- enfoque_dia y prioridades: una accion clara cada una, maximo 260 caracteres.\n- recomendacion_principal: maximo 600 caracteres.\n- logros y riesgos: maximo 3 elementos cada uno; usa [] si no hay evidencia.\n- proximos_pasos: exactamente 3 elementos cuando sea posible.\n- No menciones que sos una IA.\n\nContexto consolidado:\n{{$json.contexto_briefing}}"
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "id": "3e7c7786-64a9-4e99-8e3f-3371a34cbf2c",
+        "name": "03 F5 Generar briefing con OpenAI",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 2.3,
+        "position": [
+          672,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "credentials": {
+          "openAiApi": {
+            "id": "rrbWSomfLM5Z0X0j",
+            "name": "OpenAI account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const response = $json || {};\nconst source = $('02 F5 Preparar contexto').item.json || {};\n\nconst collectText = (value) => {\n  if (typeof value === 'string') return value;\n  if (Array.isArray(value)) return value.map(collectText).filter(Boolean).join('\\n');\n  if (!value || typeof value !== 'object') return '';\n  if (typeof value.text === 'string') return value.text;\n  if (typeof value.output_text === 'string') return value.output_text;\n  if (typeof value.content === 'string') return value.content;\n  if (value.content) {\n    const nested = collectText(value.content);\n    if (nested) return nested;\n  }\n  if (value.message) {\n    const nested = collectText(value.message);\n    if (nested) return nested;\n  }\n  if (value.output) {\n    const nested = collectText(value.output);\n    if (nested) return nested;\n  }\n  if (value.response) {\n    const nested = collectText(value.response);\n    if (nested) return nested;\n  }\n  return '';\n};\n\nconst raw = collectText(response).trim();\nconst cleaned = raw\n  .replace(/^```(?:json)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\nconst start = cleaned.indexOf('{');\nconst end = cleaned.lastIndexOf('}');\n\nif (start < 0 || end <= start) {\n  throw new Error('EOS_BRIEFING_AI_JSON_MISSING');\n}\n\nlet generated;\ntry {\n  generated = JSON.parse(cleaned.slice(start, end + 1));\n} catch (error) {\n  throw new Error(`EOS_BRIEFING_AI_JSON_INVALID: ${error.message}`);\n}\n\nconst text = (value, fallback = '', max = 1200) => {\n  const normalized = String(value ?? '').trim();\n  return (normalized || fallback).slice(0, max);\n};\nconst list = (value, max = 3) => Array.isArray(value)\n  ? value.slice(0, max).map((item) => ({\n      titulo: text(item?.titulo, 'Pendiente', 220),\n      descripcion: text(item?.descripcion, '', 700),\n      ...(item?.nivel ? { nivel: ['bajo', 'medio', 'alto'].includes(String(item.nivel).toLowerCase()) ? String(item.nivel).toLowerCase() : 'medio' } : {}),\n    }))\n  : [];\n\nconst objetivos = Array.isArray(source.objetivos) ? source.objetivos : [];\nconst tareas = Array.isArray(source.tareas) ? source.tareas : [];\nconst nombre = text(source.nombre, 'Usuario', 120);\nconst fallbackPrincipal = text(\n  objetivos[0]?.proximo_paso || objetivos[0]?.titulo || tareas[0]?.titulo,\n  'Definir el resultado principal del dia.',\n  600\n);\nconst score = Math.max(0, Math.min(100, Number(source.score_actual || 0)));\n\nconst payload = {\n  tipo_usuario: text(source.tipo_usuario, 'indefinido', 80),\n  saludo: text(generated.saludo, `Buen dia, ${nombre}.`, 220),\n  titulo_dia: text(generated.titulo_dia, fallbackPrincipal, 220),\n  resumen: text(generated.resumen, 'EOS organizo las prioridades disponibles para sostener tu avance.', 1800),\n  enfoque_dia: text(generated.enfoque_dia, fallbackPrincipal, 600),\n  prioridad_1: text(generated.prioridad_1, fallbackPrincipal, 600),\n  prioridad_2: text(generated.prioridad_2, tareas[0]?.titulo || 'Ordenar la informacion necesaria para ejecutar.', 600),\n  prioridad_3: text(generated.prioridad_3, 'Registrar el avance real al cerrar el dia.', 600),\n  recomendacion_principal: text(generated.recomendacion_principal, fallbackPrincipal, 1200),\n  logros: list(generated.logros, 3),\n  riesgos: list(generated.riesgos, 3),\n  proximos_pasos: list(generated.proximos_pasos, 3),\n  fuentes: {\n    ...(source.metricas && typeof source.metricas === 'object' ? source.metricas : {}),\n    generator: 'n8n-ai-v5',\n    prompt_version: source.prompt_version || 'briefing-prompt-v5',\n  },\n  score,\n};\n\nreturn {\n  json: {\n    usuario_id: source.usuario_id,\n    briefing_date: source.briefing_date,\n    payload,\n    model_version: source.model_version || 'gpt-5.4-mini',\n    prompt_version: source.prompt_version || 'briefing-prompt-v5',\n    execution_id: String($execution.id || ''),\n  },\n};"
+        },
+        "id": "333cd26d-33aa-4dff-8f26-6e4f849cfc82",
+        "name": "04 F5 Validar briefing",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          896,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "eos_daily_briefing_enrichments",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id }}"
+              },
+              {
+                "fieldId": "briefing_date",
+                "fieldValue": "={{ $json.briefing_date }}"
+              },
+              {
+                "fieldId": "payload",
+                "fieldValue": "={{ $json.payload }}"
+              },
+              {
+                "fieldId": "model_version",
+                "fieldValue": "={{ $json.model_version }}"
+              },
+              {
+                "fieldId": "prompt_version",
+                "fieldValue": "={{ $json.prompt_version }}"
+              },
+              {
+                "fieldId": "execution_id",
+                "fieldValue": "={{ $json.execution_id }}"
+              }
+            ]
+          }
+        },
+        "id": "831f5a0d-aa83-4fca-b5f2-b95c41c6acb9",
+        "name": "05 F5 Aplicar enriquecimiento",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1120,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "00 F5 Programacion diaria": {
+        "main": [
+          [
+            {
+              "node": "01 F5 Leer contexto diario",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 F5 Leer contexto diario": {
+        "main": [
+          [
+            {
+              "node": "02 F5 Preparar contexto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 F5 Preparar contexto": {
+        "main": [
+          [
+            {
+              "node": "03 F5 Generar briefing con OpenAI",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 F5 Generar briefing con OpenAI": {
+        "main": [
+          [
+            {
+              "node": "04 F5 Validar briefing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 F5 Validar briefing": {
+        "main": [
+          [
+            {
+              "node": "05 F5 Aplicar enriquecimiento",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": "Fase 5 - Briefing personalizado diario",
+    "description": "Generacion diaria a las 06:15 America/Asuncion con contexto Supabase, enriquecimiento OpenAI, validacion estricta y respaldo atomico.",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-08-11T13:00:25.626Z",
+        "id": 530,
+        "workflowId": "bFY6PPhJyTPJ4X2P",
+        "versionId": "a5aa01f5-b529-4317-abc4-7a05f195b246",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    ]
+  }
+}

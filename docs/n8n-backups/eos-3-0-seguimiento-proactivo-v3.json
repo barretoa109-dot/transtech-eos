@@ -1,0 +1,220 @@
+{
+  "updatedAt": "2026-08-11T01:13:41.807Z",
+  "createdAt": "2026-08-11T01:13:41.807Z",
+  "id": "iIw4rN52eb5OgOMU",
+  "name": "EOS 3.0 - Seguimiento Proactivo v3",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "06f8a00f-d8e1-4466-9991-351465e4b2c0",
+      "name": "00 F3 Programación diaria",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_followup_runs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "origen",
+              "fieldValue": "n8n_schedule_v3"
+            },
+            {
+              "fieldId": "solicitado_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ { workflow: 'seguimiento-proactivo-v3', execution_id: $execution.id || '' } }}"
+            }
+          ]
+        }
+      },
+      "id": "707504ef-9083-4688-a692-f83f03988e14",
+      "name": "01 F3 Ejecutar Seguimiento Proactivo",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        288,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "00 F3 Programación diaria": {
+      "main": [
+        [
+          {
+            "node": "01 F3 Ejecutar Seguimiento Proactivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:00 F3 Programación diaria": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "ccbb3508-5bb2-4f4c-abc9-ca176c86b719",
+  "activeVersionId": "ccbb3508-5bb2-4f4c-abc9-ca176c86b719",
+  "versionCounter": 1,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T01:13:41.807Z",
+      "createdAt": "2026-08-11T01:13:41.807Z",
+      "role": "workflow:owner",
+      "workflowId": "iIw4rN52eb5OgOMU",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "updatedAt": "2026-06-05T21:16:13.176Z",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-08-11T01:14:49.780Z",
+    "createdAt": "2026-08-11T01:13:41.807Z",
+    "versionId": "ccbb3508-5bb2-4f4c-abc9-ca176c86b719",
+    "workflowId": "iIw4rN52eb5OgOMU",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 8 * * *"
+              }
+            ]
+          }
+        },
+        "id": "06f8a00f-d8e1-4466-9991-351465e4b2c0",
+        "name": "00 F3 Programación diaria",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "eos_followup_runs",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "origen",
+                "fieldValue": "n8n_schedule_v3"
+              },
+              {
+                "fieldId": "solicitado_at",
+                "fieldValue": "={{ $now.toISO() }}"
+              },
+              {
+                "fieldId": "metadata",
+                "fieldValue": "={{ { workflow: 'seguimiento-proactivo-v3', execution_id: $execution.id || '' } }}"
+              }
+            ]
+          }
+        },
+        "id": "707504ef-9083-4688-a692-f83f03988e14",
+        "name": "01 F3 Ejecutar Seguimiento Proactivo",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          288,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "00 F3 Programación diaria": {
+        "main": [
+          [
+            {
+              "node": "01 F3 Ejecutar Seguimiento Proactivo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": "Fase 3 - Seguimiento proactivo",
+    "description": "Evalúa objetivos diariamente y genera alertas deduplicadas por vencimiento, proximidad o falta de avance.",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-08-11T01:14:49.659Z",
+        "id": 527,
+        "workflowId": "iIw4rN52eb5OgOMU",
+        "versionId": "ccbb3508-5bb2-4f4c-abc9-ca176c86b719",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    ]
+  }
+}

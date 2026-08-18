@@ -1,0 +1,480 @@
+{
+  "updatedAt": "2026-07-31T03:35:16.306Z",
+  "createdAt": "2026-07-31T02:22:19.616Z",
+  "id": "fUrFN1LTuqiUlKgq",
+  "name": "EOS - Correo ESTABLE - Prueba controlada",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        1392,
+        672
+      ],
+      "id": "7b28a698-9999-421f-bbc9-c74b4789635b",
+      "name": "Gmail Trigger EOS1",
+      "settings": {},
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PRdN88LMCtBdCXMR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nconst text = (v) => String(v ?? '').trim();\n\nconst extractEmail = (value) => {\n  const raw = text(value);\n  const match =\n    raw.match(/<\\s*([^<>\\s]+@[^<>\\s]+)\\s*>/) ||\n    raw.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})/i);\n  return String(match?.[1] || '').trim().toLowerCase();\n};\n\nconst fromRaw = text(j.From || j.from || j.sender);\nconst emailCliente = extractEmail(fromRaw);\n\nif (!emailCliente) {\n  throw new Error(`No se pudo extraer el remitente desde From=\"${fromRaw}\"`);\n}\n\nconst asuntoOriginal = text(j.Subject || j.subject || 'Sin asunto');\nconst mensaje = text(j.textPlain || j.text || j.body || j.snippet || 'El correo no contiene texto visible.')\n  .replace(/\\u0000/g, '')\n  .slice(0, 12000);\n\n// En esta versión estable respondemos desde ventas.\n// Luego podremos separar soporte/contacto con etiquetas de Gmail.\nconst replyFrom = 'ventas@transtech.com.py';\n\nconst propio =\n  emailCliente === 'transtecheos@gmail.com' ||\n  emailCliente.endsWith('@transtech.com.py');\n\nconst automatico =\n  /(mailer-daemon|postmaster|no-?reply|do-?not-?reply)/i.test(fromRaw);\n\nif (propio || automatico) {\n  return [];\n}\n\nreturn [{\n  json: {\n    gmail_message_id: j.id || '',\n    gmail_thread_id: j.threadId || '',\n    remitente_original: fromRaw,\n    email_cliente: emailCliente,\n    canal: 'ventas',\n    reply_from: replyFrom,\n    asunto_original: asuntoOriginal,\n    asunto_respuesta: /^re:/i.test(asuntoOriginal) ? asuntoOriginal : `Re: ${asuntoOriginal}`,\n    mensaje\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        672
+      ],
+      "id": "96313a32-b4a4-49d0-b778-24e7fee932c0",
+      "name": "Preparar correo EOS1",
+      "settings": {}
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Eres el asistente de atención por correo de TransTech E.A.S. y del producto TransTech EOS.\n\nDebes redactar una respuesta útil, profesional, cordial y natural al correo recibido.\n\nREGLAS OBLIGATORIAS:\n- Nunca digas que eres una inteligencia artificial, bot o modelo.\n- Responde únicamente con el cuerpo del correo en HTML válido y sencillo.\n- No uses Markdown, bloques de código ni encabezados técnicos.\n- No inventes precios, promociones, fechas, pagos aprobados, funciones, garantías ni compromisos.\n- Si falta información, pide los datos mínimos necesarios.\n- Si el mensaje trata sobre reclamos graves, reembolsos, asuntos legales, seguridad, acceso comprometido, datos sensibles o decisiones que requieren aprobación humana, confirma la recepción y explica que el equipo revisará el caso; no prometas una resolución.\n- No solicites contraseñas, códigos de verificación, claves privadas, datos completos de tarjetas ni credenciales.\n- Mantén la respuesta concreta y orientada al siguiente paso.\n- No repitas innecesariamente todo lo que escribió el cliente.\n- Firma siempre exactamente así:\n\n<p>Saludos cordiales,</p>\n<p><strong>Equipo TransTech</strong><br>\n<a href=\"https://transtech.com.py\">transtech.com.py</a></p>\n\nCONTEXTO DE CANALES:\n- ventas: consultas comerciales, planes, contratación y demostraciones.\n- soporte: problemas técnicos, acceso, funcionamiento y ayuda.\n- contacto: consultas generales.\n\nDevuelve solamente el HTML del correo, sin explicación adicional."
+            },
+            {
+              "content": "=CANAL: {{ $json.canal }}\n\nREMITENTE:\n{{ $json.remitente_original }}\n\nASUNTO:\n{{ $json.asunto_original }}\n\nMENSAJE:\n{{ $json.mensaje }}\n\nRedacta la respuesta adecuada respetando todas las reglas del sistema."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1888,
+        560
+      ],
+      "id": "674a072f-8ed4-4bcb-9c4c-08258b784235",
+      "name": "Generar respuesta EOS1",
+      "settings": {},
+      "credentials": {
+        "openAiApi": {
+          "id": "rrbWSomfLM5Z0X0j",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2160,
+        672
+      ],
+      "id": "4c428eff-8d98-40da-b959-460f2f697039",
+      "name": "Unir correo y respuesta1",
+      "settings": {}
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nlet html =\n  j.output?.[0]?.content?.[0]?.text ??\n  j.output_text ??\n  j.text ??\n  j.response ??\n  '';\n\nhtml = String(html || '')\n  .replace(/^```(?:html)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nif (!html) {\n  html = '<p>Gracias por comunicarte con TransTech.</p><p>Recibimos tu mensaje y nuestro equipo lo revisará a la brevedad.</p><p>Saludos cordiales,</p><p><strong>Equipo TransTech</strong><br><a href=\"https://transtech.com.py\">transtech.com.py</a></p>';\n}\n\nconst to = String(j.email_cliente || '').trim().toLowerCase();\n\nif (!to || !to.includes('@')) {\n  throw new Error(`El Merge no entregó email_cliente. Campos recibidos: ${Object.keys(j).join(', ')}`);\n}\n\nreturn [{\n  json: {\n    to,\n    from: j.reply_from || 'ventas@transtech.com.py',\n    subject: j.asunto_respuesta || `Re: ${j.asunto_original || 'Consulta'}`,\n    html,\n    canal: j.canal || 'ventas',\n    gmail_message_id: j.gmail_message_id || '',\n    gmail_thread_id: j.gmail_thread_id || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        672
+      ],
+      "id": "76ec56ed-d548-4184-8b8c-2cce94f1a0e7",
+      "name": "Preparar envío EOS1",
+      "settings": {}
+    },
+    {
+      "parameters": {
+        "authentication": "apiKey",
+        "from": "={{ $json.from }}",
+        "to": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "additionalOptions": {}
+      },
+      "type": "n8n-nodes-resend.resend",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        672
+      ],
+      "id": "aa83a1df-d643-4240-a32c-8d8ec42a6d1f",
+      "name": "Enviar respuesta por Resend1",
+      "webhookId": "6ef84429-efc3-42a0-82ba-9a2891fe4f31",
+      "settings": {},
+      "credentials": {
+        "resendApi": {
+          "id": "iKsJlnFFTT5OoAwx",
+          "name": "Resend account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger EOS1": {
+      "main": [
+        [
+          {
+            "node": "Preparar correo EOS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar correo EOS1": {
+      "main": [
+        [
+          {
+            "node": "Generar respuesta EOS1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Unir correo y respuesta1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar respuesta EOS1": {
+      "main": [
+        [
+          {
+            "node": "Unir correo y respuesta1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Unir correo y respuesta1": {
+      "main": [
+        [
+          {
+            "node": "Preparar envío EOS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envío EOS1": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta por Resend1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Gmail Trigger": {
+      "Gmail Trigger": {
+        "lastTimeChecked": 1785468275
+      }
+    },
+    "node:Gmail Trigger EOS": {
+      "Gmail Trigger EOS": {
+        "lastTimeChecked": 1785468743
+      }
+    },
+    "node:Gmail Trigger EOS1": {
+      "Gmail Trigger EOS1": {
+        "lastTimeChecked": 1785469050
+      }
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "1b790ee7-583f-4e55-9968-5d866f155ebb",
+  "activeVersionId": "1b790ee7-583f-4e55-9968-5d866f155ebb",
+  "versionCounter": 44,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-07-31T02:22:19.616Z",
+      "createdAt": "2026-07-31T02:22:19.616Z",
+      "role": "workflow:owner",
+      "workflowId": "fUrFN1LTuqiUlKgq",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "updatedAt": "2026-06-05T21:16:13.176Z",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-07-31T03:37:30.394Z",
+    "createdAt": "2026-07-31T03:35:16.309Z",
+    "versionId": "1b790ee7-583f-4e55-9968-5d866f155ebb",
+    "workflowId": "fUrFN1LTuqiUlKgq",
+    "nodes": [
+      {
+        "parameters": {
+          "pollTimes": {
+            "item": [
+              {
+                "mode": "everyMinute"
+              }
+            ]
+          },
+          "filters": {}
+        },
+        "type": "n8n-nodes-base.gmailTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          1392,
+          672
+        ],
+        "id": "7b28a698-9999-421f-bbc9-c74b4789635b",
+        "name": "Gmail Trigger EOS1",
+        "settings": {},
+        "credentials": {
+          "gmailOAuth2": {
+            "id": "PRdN88LMCtBdCXMR",
+            "name": "Gmail account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const j = $json;\n\nconst text = (v) => String(v ?? '').trim();\n\nconst extractEmail = (value) => {\n  const raw = text(value);\n  const match =\n    raw.match(/<\\s*([^<>\\s]+@[^<>\\s]+)\\s*>/) ||\n    raw.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})/i);\n  return String(match?.[1] || '').trim().toLowerCase();\n};\n\nconst fromRaw = text(j.From || j.from || j.sender);\nconst emailCliente = extractEmail(fromRaw);\n\nif (!emailCliente) {\n  throw new Error(`No se pudo extraer el remitente desde From=\"${fromRaw}\"`);\n}\n\nconst asuntoOriginal = text(j.Subject || j.subject || 'Sin asunto');\nconst mensaje = text(j.textPlain || j.text || j.body || j.snippet || 'El correo no contiene texto visible.')\n  .replace(/\\u0000/g, '')\n  .slice(0, 12000);\n\n// En esta versión estable respondemos desde ventas.\n// Luego podremos separar soporte/contacto con etiquetas de Gmail.\nconst replyFrom = 'ventas@transtech.com.py';\n\nconst propio =\n  emailCliente === 'transtecheos@gmail.com' ||\n  emailCliente.endsWith('@transtech.com.py');\n\nconst automatico =\n  /(mailer-daemon|postmaster|no-?reply|do-?not-?reply)/i.test(fromRaw);\n\nif (propio || automatico) {\n  return [];\n}\n\nreturn [{\n  json: {\n    gmail_message_id: j.id || '',\n    gmail_thread_id: j.threadId || '',\n    remitente_original: fromRaw,\n    email_cliente: emailCliente,\n    canal: 'ventas',\n    reply_from: replyFrom,\n    asunto_original: asuntoOriginal,\n    asunto_respuesta: /^re:/i.test(asuntoOriginal) ? asuntoOriginal : `Re: ${asuntoOriginal}`,\n    mensaje\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1632,
+          672
+        ],
+        "id": "96313a32-b4a4-49d0-b778-24e7fee932c0",
+        "name": "Preparar correo EOS1",
+        "settings": {}
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-5.4-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-5.4-MINI"
+          },
+          "responses": {
+            "values": [
+              {
+                "role": "system",
+                "content": "Eres el asistente de atención por correo de TransTech E.A.S. y del producto TransTech EOS.\n\nDebes redactar una respuesta útil, profesional, cordial y natural al correo recibido.\n\nREGLAS OBLIGATORIAS:\n- Nunca digas que eres una inteligencia artificial, bot o modelo.\n- Responde únicamente con el cuerpo del correo en HTML válido y sencillo.\n- No uses Markdown, bloques de código ni encabezados técnicos.\n- No inventes precios, promociones, fechas, pagos aprobados, funciones, garantías ni compromisos.\n- Si falta información, pide los datos mínimos necesarios.\n- Si el mensaje trata sobre reclamos graves, reembolsos, asuntos legales, seguridad, acceso comprometido, datos sensibles o decisiones que requieren aprobación humana, confirma la recepción y explica que el equipo revisará el caso; no prometas una resolución.\n- No solicites contraseñas, códigos de verificación, claves privadas, datos completos de tarjetas ni credenciales.\n- Mantén la respuesta concreta y orientada al siguiente paso.\n- No repitas innecesariamente todo lo que escribió el cliente.\n- Firma siempre exactamente así:\n\n<p>Saludos cordiales,</p>\n<p><strong>Equipo TransTech</strong><br>\n<a href=\"https://transtech.com.py\">transtech.com.py</a></p>\n\nCONTEXTO DE CANALES:\n- ventas: consultas comerciales, planes, contratación y demostraciones.\n- soporte: problemas técnicos, acceso, funcionamiento y ayuda.\n- contacto: consultas generales.\n\nDevuelve solamente el HTML del correo, sin explicación adicional."
+              },
+              {
+                "content": "=CANAL: {{ $json.canal }}\n\nREMITENTE:\n{{ $json.remitente_original }}\n\nASUNTO:\n{{ $json.asunto_original }}\n\nMENSAJE:\n{{ $json.mensaje }}\n\nRedacta la respuesta adecuada respetando todas las reglas del sistema."
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 2.3,
+        "position": [
+          1888,
+          560
+        ],
+        "id": "674a072f-8ed4-4bcb-9c4c-08258b784235",
+        "name": "Generar respuesta EOS1",
+        "settings": {},
+        "credentials": {
+          "openAiApi": {
+            "id": "rrbWSomfLM5Z0X0j",
+            "name": "OpenAI account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          2160,
+          672
+        ],
+        "id": "4c428eff-8d98-40da-b959-460f2f697039",
+        "name": "Unir correo y respuesta1",
+        "settings": {}
+      },
+      {
+        "parameters": {
+          "jsCode": "const j = $json;\n\nlet html =\n  j.output?.[0]?.content?.[0]?.text ??\n  j.output_text ??\n  j.text ??\n  j.response ??\n  '';\n\nhtml = String(html || '')\n  .replace(/^```(?:html)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nif (!html) {\n  html = '<p>Gracias por comunicarte con TransTech.</p><p>Recibimos tu mensaje y nuestro equipo lo revisará a la brevedad.</p><p>Saludos cordiales,</p><p><strong>Equipo TransTech</strong><br><a href=\"https://transtech.com.py\">transtech.com.py</a></p>';\n}\n\nconst to = String(j.email_cliente || '').trim().toLowerCase();\n\nif (!to || !to.includes('@')) {\n  throw new Error(`El Merge no entregó email_cliente. Campos recibidos: ${Object.keys(j).join(', ')}`);\n}\n\nreturn [{\n  json: {\n    to,\n    from: j.reply_from || 'ventas@transtech.com.py',\n    subject: j.asunto_respuesta || `Re: ${j.asunto_original || 'Consulta'}`,\n    html,\n    canal: j.canal || 'ventas',\n    gmail_message_id: j.gmail_message_id || '',\n    gmail_thread_id: j.gmail_thread_id || ''\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2400,
+          672
+        ],
+        "id": "76ec56ed-d548-4184-8b8c-2cce94f1a0e7",
+        "name": "Preparar envío EOS1",
+        "settings": {}
+      },
+      {
+        "parameters": {
+          "authentication": "apiKey",
+          "from": "={{ $json.from }}",
+          "to": "={{ $json.to }}",
+          "subject": "={{ $json.subject }}",
+          "html": "={{ $json.html }}",
+          "additionalOptions": {}
+        },
+        "type": "n8n-nodes-resend.resend",
+        "typeVersion": 1,
+        "position": [
+          2640,
+          672
+        ],
+        "id": "aa83a1df-d643-4240-a32c-8d8ec42a6d1f",
+        "name": "Enviar respuesta por Resend1",
+        "webhookId": "6ef84429-efc3-42a0-82ba-9a2891fe4f31",
+        "settings": {},
+        "credentials": {
+          "resendApi": {
+            "id": "iKsJlnFFTT5OoAwx",
+            "name": "Resend account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Gmail Trigger EOS1": {
+        "main": [
+          [
+            {
+              "node": "Preparar correo EOS1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar correo EOS1": {
+        "main": [
+          [
+            {
+              "node": "Generar respuesta EOS1",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Unir correo y respuesta1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Generar respuesta EOS1": {
+        "main": [
+          [
+            {
+              "node": "Unir correo y respuesta1",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Unir correo y respuesta1": {
+        "main": [
+          [
+            {
+              "node": "Preparar envío EOS1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar envío EOS1": {
+        "main": [
+          [
+            {
+              "node": "Enviar respuesta por Resend1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": "Version 1b790ee7",
+    "description": "",
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-07-31T03:37:30.360Z",
+        "id": 510,
+        "workflowId": "fUrFN1LTuqiUlKgq",
+        "versionId": "1b790ee7-583f-4e55-9968-5d866f155ebb",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    ]
+  }
+}

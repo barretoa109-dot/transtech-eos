@@ -1,0 +1,3931 @@
+{
+  "updatedAt": "2026-08-11T02:01:04.904Z",
+  "createdAt": "2026-08-11T01:48:24.574Z",
+  "id": "YoF7ZFEI0ChyGNWn",
+  "name": "EOS 3.0 - Background Worker - Ejecución Confiable v3",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2736,
+        768
+      ],
+      "id": "0f604097-7a1a-4991-9161-0c616d88ff91",
+      "name": "00 WK Webhook EOS Worker",
+      "webhookId": "457becfa-c34d-481b-a407-ee9b03b1be68"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\n\nconst clean = (value) => String(value ?? '').trim();\n\nconst isUuid = (value) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    clean(value)\n  );\n\nconst usuario_id = clean(body.usuario_id);\n\nif (!isUuid(usuario_id)) {\n  throw new Error('Worker recibió usuario_id inválido.');\n}\n\nconst conversacion_id = clean(body.conversacion_id);\n\nif (!conversacion_id) {\n  throw new Error('Worker recibió conversacion_id vacío.');\n}\n\nconst mensaje = clean(body.mensaje);\n\nif (!mensaje) {\n  throw new Error('Worker recibió mensaje vacío.');\n}\n\nconst accionesPermitidas = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD',\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA',\n  'VER_DASHBOARD',\n  'VER_BRIEFING'\n]);\n\nconst acciones = Array.isArray(body.acciones)\n  ? body.acciones\n      .map((accion, index) => ({\n        id: clean(accion?.id || `accion-${index + 1}`),\n        tipo: clean(accion?.tipo).toUpperCase(),\n        datos:\n          accion?.datos &&\n          typeof accion.datos === 'object' &&\n          !Array.isArray(accion.datos)\n            ? accion.datos\n            : {}\n      }))\n      .filter((accion) => accionesPermitidas.has(accion.tipo))\n  : [];\n\nreturn [\n  {\n    json: {\n      usuario_id,\n      usuario_id_original: clean(\n        body.usuario_id_original || usuario_id\n      ),\n      usuario_key: clean(body.usuario_key || usuario_id),\n      conversacion_id,\n      request_id: isUuid(body.request_id) ? clean(body.request_id) : '',\n      operacion:\n        clean(body.operacion).toLowerCase() === 'regenerar'\n          ? 'regenerar'\n          : 'mensaje',\n      mensaje_id: isUuid(body.mensaje_id) ? clean(body.mensaje_id) : '',\n      nombre: clean(body.nombre || 'Usuario'),\n      mensaje,\n      plan: clean(body.plan || 'free'),\n      origen: clean(body.origen || 'eos-web'),\n\n      historial: Array.isArray(body.historial)\n        ? body.historial.slice(-10)\n        : [],\n\n      respuesta_gateway: clean(body.respuesta_gateway),\n\n      acciones,\n      requiere_worker:\n        body.requiere_worker === true || acciones.length > 0,\n\n      metadata:\n        body.metadata &&\n        typeof body.metadata === 'object' &&\n        !Array.isArray(body.metadata)\n          ? body.metadata\n          : {},\n\n      job_id: clean(\n        body.job_id || `${conversacion_id}-${Date.now()}`\n      ),\n\n      received_at: clean(\n        body.received_at || new Date().toISOString()\n      ),\n\n      worker_received_at: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2544,
+        768
+      ],
+      "id": "9ef2e888-8609-4dca-b4f9-63c5e2c778b0",
+      "name": "01 WK Preparar Entrada"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_profiles",
+        "limit": 1,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2368,
+        768
+      ],
+      "id": "01bfc3cc-f58f-4e47-9743-319b0d12738a",
+      "name": "60 WK Leer Perfil",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cb5f1dde-5337-4df1-95dd-3ae16a9252da",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2160,
+        768
+      ],
+      "id": "72de1e4a-a9cf-4d86-86db-1ee4295006c0",
+      "name": "60.5 WK Perfil Existe"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_profiles",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "fieldId": "tipo_usuario",
+              "fieldValue": "indefinido"
+            },
+            {
+              "fieldId": "nombre_visible",
+              "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.nombre }}"
+            },
+            {
+              "fieldId": "rubro",
+              "fieldValue": "general"
+            },
+            {
+              "fieldId": "etapa_actual",
+              "fieldValue": "inicio"
+            },
+            {
+              "fieldId": "score_general",
+              "fieldValue": "50"
+            },
+            {
+              "fieldId": "prioridad_actual",
+              "fieldValue": "media"
+            },
+            {
+              "fieldId": "resumen_actual",
+              "fieldValue": "Nuevo usuario creado automáticamente por EOS. Aún no hay suficiente información para clasificarlo."
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        880
+      ],
+      "id": "c66ecc00-8758-442b-9412-1ce72b5d1d5e",
+      "name": "60.6 WK Crear Perfil Base",
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_projects",
+        "limit": 1,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "keyName": "estado",
+              "condition": "eq",
+              "keyValue": "activo"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        768
+      ],
+      "id": "0041a3ea-058a-445b-a5c6-f22d519b4932",
+      "name": "61 WK Leer Proyecto Activo",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_memory",
+        "limit": 12,
+        "orderBy": "updated_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        768
+      ],
+      "id": "9e0fd95e-d42d-4a74-9d39-7c5585baf37c",
+      "name": "64 WK Leer Memorias",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_goals",
+        "limit": 12,
+        "orderBy": "updated_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        768
+      ],
+      "id": "449f6414-b2a0-47d6-b11f-63b630364629",
+      "name": "62 WK Leer Objetivos",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_tasks",
+        "limit": 5,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1360,
+        768
+      ],
+      "id": "31a19dd3-20d5-4aab-8543-8dfba96a9743",
+      "name": "63 WK Leer Tareas",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "conversaciones",
+        "limit": 5,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1168,
+        768
+      ],
+      "id": "4de08a67-4192-4017-a784-e92464783c52",
+      "name": "65 WK Leer Conversaciones",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('01 WK Preparar Entrada').first().json || {};\nconst decision = {};\n\nfunction rows(name) {\n  try {\n    return $(name).all().map(i => i.json || {}).filter(x => x && Object.keys(x).length > 0);\n  } catch (e) { return []; }\n}\nfunction first(name) { return rows(name)[0] || {}; }\nfunction line(v) { return String(v || '').trim(); }\n\nconst perfil = first('60 WK Leer Perfil');\nconst proyecto = first('61 WK Leer Proyecto Activo');\nconst memorias = rows('64 WK Leer Memorias');\nconst objetivos = rows('62 WK Leer Objetivos').filter(o => ['activo', 'pausado'].includes(o.estado));\nconst tareas = rows('63 WK Leer Tareas');\nconst conversaciones = rows('65 WK Leer Conversaciones');\n\nconst contexto_maestro = `\nUSUARIO\nNombre: ${base.nombre || perfil.nombre_visible || 'Usuario'}\nUsuario ID: ${base.usuario_id}\nPlan: ${base.plan || 'free'}\nOrigen: ${base.origen || 'eos-web'}\n\nPERFIL\n${perfil.id ? JSON.stringify(perfil, null, 2) : 'Perfil base sin datos avanzados todavía.'}\n\nPROYECTO ACTIVO\n${proyecto.id ? JSON.stringify(proyecto, null, 2) : 'No hay proyecto activo registrado.'}\n\nMEMORIAS RELEVANTES\n${memorias.map(m => `- [${line(m.clave || m.categoria || 'general')}] ${line(m.titulo || 'Dato')}: ${line(m.contenido || m.texto || m.memoria)}`).join('\\n') || '- Sin memorias guardadas.'}\n\nOBJETIVOS\n${objetivos.map(o => `- ID ${line(o.id)} | ${line(o.titulo || o.nombre || 'Objetivo')} | estado ${line(o.estado)} | progreso ${Number(o.progreso || 0)}% | medición ${line(o.tipo_medicion || 'porcentaje')} | actual ${line(o.valor_actual)} ${line(o.unidad)} | meta ${line(o.valor_objetivo)} ${line(o.unidad)} | próximo paso ${line(o.proximo_paso || 'sin definir')}`).join('\\n') || '- Sin objetivos activos o pausados.'}\n\nTAREAS\n${tareas.map(t => `- ${line(t.titulo || t.nombre || 'Tarea')}: ${line(t.estado || t.descripcion || '')}`).join('\\n') || '- Sin tareas registradas.'}\n\nCONVERSACIONES RECIENTES\n${conversaciones.map(c => `- ${line(c.titulo || c.resumen || c.id || 'Conversación')}`).join('\\n') || '- Sin conversaciones previas.'}\n\nMENSAJE ACTUAL\n${base.mensaje || decision.mensaje || ''}\n`.trim();\n\nreturn [{ json: { ...base, ...decision, perfil, proyecto_activo: proyecto, memorias, objetivos, tareas, conversaciones, contexto_maestro } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -912,
+        768
+      ],
+      "id": "d098374c-81ac-4fa9-8741-cd503f32c155",
+      "name": "16 WK Construir Contexto Maestro",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=Sos el motor de clasificación de acciones de EOS.\n\nAnalizá únicamente el mensaje actual y el contexto disponible. Elegí UNA acción.\n\nACCIONES PERMITIDAS:\nRESPONDER\nGENERAR_EXCEL\nGENERAR_PDF\nGENERAR_WORD\nCREAR_TAREA\nCREAR_OBJETIVO\nGUARDAR_MEMORIA\nVER_DASHBOARD\nVER_BRIEFING\n\nREGLAS:\n- RESPONDER: conversación, asesoramiento, preguntas, saludos o pedidos sin una operación secundaria concreta.\n- GENERAR_EXCEL: pide Excel, XLSX, planilla u hoja de cálculo.\n- GENERAR_PDF: pide explícitamente PDF.\n- GENERAR_WORD: pide Word o DOCX.\n- CREAR_TAREA: pide registrar/crear una tarea o recordatorio.\n- CREAR_OBJETIVO: pide registrar/crear una meta u objetivo.\n- GUARDAR_MEMORIA: pide explícitamente recordar, guardar o memorizar un dato nuevo.\n- VER_DASHBOARD: pide dashboard, métricas o indicadores.\n- VER_BRIEFING: pide briefing o resumen ejecutivo diario.\n- Preguntar qué recordás NO es GUARDAR_MEMORIA; es RESPONDER.\n- No redactes una respuesta para el usuario.\n- No uses markdown.\n\nDevolvé exclusivamente JSON válido con esta forma:\n{\"accion\":\"RESPONDER\"}\n\nContexto:\n{{$json.contexto_maestro}}\n\nMensaje actual:\n{{$json.mensaje}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -784,
+        432
+      ],
+      "id": "a52d4c54-1a1a-420a-a507-d41902a7abb5",
+      "name": "20 WK AI Decidir Acción",
+      "credentials": {
+        "openAiApi": {
+          "id": "rrbWSomfLM5Z0X0j",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\n\nconst normalizar = (valor) =>\n  String(valor ?? '')\n    .trim()\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '');\n\nconst mensaje = normalizar(i.mensaje);\nconst accionesGateway = Array.isArray(i.acciones) ? i.acciones : [];\nconst accionesObjetivo = new Set([\n  'CREAR_OBJETIVO',\n  'ACTUALIZAR_PROGRESO',\n  'REGISTRAR_EVIDENCIA',\n  'COMPLETAR_HITO',\n  'PAUSAR_OBJETIVO',\n  'REANUDAR_OBJETIVO',\n]);\n\nconst principalGateway = accionesGateway.find((item) => {\n  const tipo = String(item?.tipo || '').trim().toUpperCase();\n  return tipo && tipo !== 'GUARDAR_MEMORIA' && !accionesObjetivo.has(tipo);\n});\n\nlet accion = String(principalGateway?.tipo || '').trim().toUpperCase();\n\nif (!accion) {\n  const verboArchivo =\n    /\\b(genera|generar|crea|crear|prepara|preparar|hace|hacer|pasa|pasame|pasamelo|envia|enviame|manda|mandame|dame|descarga|descargar)\\b/;\n  const niegaArchivo =\n    /\\b(no me mandes|no mandes|no quiero archivo|sin archivo|solo responde|solo contestame|solo saludame|saludame)\\b/.test(mensaje);\n\n  if (niegaArchivo) accion = 'RESPONDER';\n  else if (verboArchivo.test(mensaje) && /\\b(excel|xlsx|planilla|hoja de calculo)\\b/.test(mensaje)) accion = 'GENERAR_EXCEL';\n  else if (verboArchivo.test(mensaje) && /\\bpdf\\b/.test(mensaje)) accion = 'GENERAR_PDF';\n  else if (verboArchivo.test(mensaje) && /\\b(word|docx|documento de word)\\b/.test(mensaje)) accion = 'GENERAR_WORD';\n  else if (/\\b(crea|crear|registra|registrar|agrega|agregar)\\b.*\\b(tarea|recordatorio|pendiente)\\b/.test(mensaje)) accion = 'CREAR_TAREA';\n  else if (/\\b(dashboard|metricas|indicadores|tablero)\\b/.test(mensaje)) accion = 'VER_DASHBOARD';\n  else if (/\\b(briefing|resumen ejecutivo|resumen diario)\\b/.test(mensaje)) accion = 'VER_BRIEFING';\n  else accion = 'RESPONDER';\n}\n\nconst esArchivo = ['GENERAR_EXCEL', 'GENERAR_PDF', 'GENERAR_WORD'].includes(accion);\n\nreturn [{\n  json: {\n    ...i,\n    accion_principal: accion,\n    accion_eos: accion,\n    accion,\n    datos_accion: principalGateway?.datos || {},\n    requiere_archivo: esArchivo,\n    archivo_tipo:\n      accion === 'GENERAR_EXCEL' ? 'excel' :\n      accion === 'GENERAR_PDF' ? 'pdf' :\n      accion === 'GENERAR_WORD' ? 'word' : '',\n    cantidad_acciones_objetivo: accionesGateway.filter((item) =>\n      accionesObjetivo.has(String(item?.tipo || '').trim().toUpperCase())\n    ).length,\n    parser_version: 'eos-router-v7-objectives-commands',\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        768
+      ],
+      "id": "63a3d07d-1c28-44d8-82ea-cdb6905aa773",
+      "name": "21 WK Parsear Decisión"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "RESPONDER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3f0cc7db-d0af-4900-9ab5-c1ea78e5bfc7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RESPONDER"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "GENERAR_EXCEL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "714c0fb5-823e-4aca-abc2-6a814b6fe005"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "GENERAR_EXCEL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "GENERAR_PDF",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8eb1feec-8eab-4443-af7c-378e3e1d18c6"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "GENERAR_PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "GENERAR_WORD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c6ea0cd7-c0ca-46c3-a524-359977959088"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "GENERAR_WORD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "CREAR_TAREA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d704f37a-2c93-4052-8af1-57748899e484"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CREAR_TAREA"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "CREAR_OBJETIVO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "457727bb-30f6-4100-9667-fdf6e77c5aa3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CREAR_OBJETIVO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "GUARDAR_MEMORIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "053d613d-dba6-452b-96b5-dee9b7c2262c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "GUARDAR_MEMORIA"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "VER_DASHBOARD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "feda2858-ce0d-41a7-a959-cb1451320ce3"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VER_DASHBOARD"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                    "rightValue": "VER_BRIEFING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "9e13926a-94b1-41c8-bf54-08544b64b2a5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "VER_BRIEFING"
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": false
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -256,
+        768
+      ],
+      "id": "b8b36819-540d-48be-92a3-3e4ab5c4b4f9",
+      "name": "22 WK Router Acción"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst datos = i.datos_accion || i.accion_datos || {};\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\nconst textoCompleto = [\n  i.mensaje,\n  datos.tema,\n  datos.tipo,\n  datos.rubro,\n  datos.negocio,\n  datos.descripcion\n]\n  .filter(Boolean)\n  .join(' ')\n  .toLowerCase();\n\nlet plantilla = 'business';\nlet rubro = datos.rubro || 'negocio_general';\n\nif (/finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(textoCompleto)) {\n  plantilla = 'personal';\n  rubro = 'persona_fisica';\n}\n\nif (/restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(textoCompleto)) {\n  plantilla = 'business';\n  rubro = 'gastronomia';\n}\n\nconst nombreBase = datos.negocio || datos.nombre || i.nombre || 'usuario';\nconst nombreArchivo = plantilla === 'personal'\n  ? `plan_financiero_eos_${normalizar(nombreBase)}`\n  : `control_negocio_eos_${normalizar(nombreBase)}`;\nconst dominio = 'https://transtech-gl3zn6y07-trans-tech.vercel.app';\nconst url = `${dominio}/descargar` +\n  `?tipo=excel` +\n  `&plantilla=${encodeURIComponent(plantilla)}` +\n  `&nombre=${encodeURIComponent(nombreArchivo)}` +\n  `&rubro=${encodeURIComponent(rubro)}` +\n  `&negocio=${encodeURIComponent(nombreBase)}` +\n  `&tema=${encodeURIComponent(datos.tema || i.mensaje || 'control general')}`;\n\nreturn [{ json: {\n  ...i,\n  ok: true,\n  tipo: 'archivo',\n  accion: 'GENERAR_EXCEL',\n  archivo_tipo: 'excel',\n  archivo_url: url,\n  respuesta: `Tu Excel ya está listo.\\n\\nDescargar archivo: ${url}`\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        160
+      ],
+      "id": "cb8a6946-d963-4b90-88e9-950812f5fd2a",
+      "name": "10 WK FILE Preparar Excel Premium"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nreturn [{ json: {\n  ...i,\n  ok: false,\n  execution_status: 'no_disponible',\n  tipo: 'texto',\n  archivo_tipo: 'pdf',\n  archivo_url: '',\n  respuesta: 'Puedo preparar la estructura del PDF, pero el generador PDF todavía debe conectarse. La solicitud quedó registrada como no disponible; no como una ejecución exitosa.'\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        320
+      ],
+      "id": "15fb4454-4c45-46e3-ab82-ecb829155f89",
+      "name": "11 WK FILE Responder PDF Pendiente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nreturn [{ json: {\n  ...i,\n  ok: false,\n  execution_status: 'no_disponible',\n  tipo: 'texto',\n  archivo_tipo: 'word',\n  archivo_url: '',\n  respuesta: 'Puedo preparar la estructura del documento Word, pero el generador DOCX todavía debe conectarse. La solicitud quedó registrada como no disponible; no como una ejecución exitosa.'\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        480
+      ],
+      "id": "bd08a467-2473-4203-b864-f66bb3962035",
+      "name": "12 WK FILE Responder Word Pendiente"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst datos = i.datos_accion || {};\nconst prioridades = { baja: 1, media: 3, alta: 4, critica: 5 };\nconst prioridadRecibida = Number(datos.prioridad ?? i.prioridad_eos);\nconst prioridadTexto = String(datos.prioridad || i.prioridad_eos || 'media').trim().toLowerCase();\nconst prioridad = Number.isFinite(prioridadRecibida)\n  ? Math.max(1, Math.min(5, Math.round(prioridadRecibida)))\n  : (prioridades[prioridadTexto] || 3);\nconst titulo = String(datos.titulo || datos.nombre || i.mensaje || 'Nueva tarea EOS').trim().slice(0, 120);\nconst descripcion = String(datos.descripcion || i.mensaje || titulo).trim().slice(0, 1200);\nreturn [{ json: {\n  ...i,\n  titulo,\n  descripcion,\n  estado: 'pendiente',\n  prioridad,\n  created_at: new Date().toISOString()\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        672
+      ],
+      "id": "98bf733a-7325-480d-bdc1-4f10de993e89",
+      "name": "20 WK TASK Preparar Tarea"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{ $json.titulo }}"
+            },
+            {
+              "fieldId": "descripcion",
+              "fieldValue": "={{ $json.descripcion }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "pendiente"
+            },
+            {
+              "fieldId": "prioridad",
+              "fieldValue": "={{ $json.prioridad }}"
+            },
+            {
+              "fieldId": "action_command_id",
+              "fieldValue": "={{ $('02 WK Preparar Orden Confiable').first().json.action_command_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        672
+      ],
+      "id": "b7986738-0ae9-41ee-9604-195c2fc76151",
+      "name": "21 WK TASK Crear Tarea EOS",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:`Listo. Registré la tarea: ${i.titulo || 'Nueva tarea EOS'}.`}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        672
+      ],
+      "id": "63cb1cfa-e2cb-4d65-b95b-38fd47ffadce",
+      "name": "22 WK TASK Respuesta Tarea"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst i=$input.first().json; const titulo=(i.mensaje||'Nuevo objetivo EOS').slice(0,120);\nreturn [{json:{...i,titulo,descripcion:i.mensaje,estado:'activo',progreso:0,created_at:new Date().toISOString()}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        832
+      ],
+      "id": "ae5aa22a-d96e-4b88-8237-d6d3c712198e",
+      "name": "30 WK GOAL Preparar Objetivo"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_goals",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{ $json.titulo }}"
+            },
+            {
+              "fieldId": "descripcion",
+              "fieldValue": "={{ $json.descripcion }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "activo"
+            },
+            {
+              "fieldId": "progreso",
+              "fieldValue": "0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        832
+      ],
+      "id": "2aa37cb3-be0e-4f3b-b171-76fabf934e55",
+      "name": "31 WK GOAL Crear Objetivo EOS",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:`Listo. Creé el objetivo: ${i.titulo || 'Nuevo objetivo EOS'}.`}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        832
+      ],
+      "id": "2b896a20-eac5-4cdd-983d-3464c20cc1d0",
+      "name": "32 WK GOAL Respuesta Objetivo"
+    },
+    {
+      "parameters": {
+        "jsCode": "const entrada = $input.first().json || {};\nconst memoria = entrada.memoria || entrada.decision?.memoria || null;\nlet contenido = '';\nlet titulo = 'Dato importante';\nlet categoria = 'general';\n\nif (typeof memoria === 'string') contenido = memoria;\nelse if (memoria && typeof memoria === 'object') {\n  contenido = memoria.contenido || memoria.texto || memoria.descripcion || '';\n  titulo = memoria.titulo || titulo;\n  categoria = memoria.categoria || categoria;\n}\nif (!contenido) contenido = String(entrada.mensaje || '').trim();\n\nreturn [{ json: { ...entrada, usuario_id: entrada.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id, categoria, titulo, contenido, importancia: 5, origen: 'decision_engine', estado: 'activo', created_at: new Date().toISOString(), updated_at: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        992
+      ],
+      "id": "2644efcb-bf0b-4427-b7e3-108243b2c38f",
+      "name": "40 WK MEM Preparar Memoria"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_memory",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "fieldId": "contenido",
+              "fieldValue": "={{ $json.contenido }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{$now}}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{$json.titulo || 'Dato importante'}}"
+            },
+            {
+              "fieldId": "importancia",
+              "fieldValue": "={{$json.importancia || 5}}"
+            },
+            {
+              "fieldId": "origen",
+              "fieldValue": "={{$json.origen || 'decision_engine'}}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "={{$json.estado || 'activo'}}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{$now}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        224,
+        992
+      ],
+      "id": "810277ce-343f-4928-a8b9-4b65e5e51efa",
+      "name": "41 WK MEM Guardar Memoria EOS",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:'Listo. Guardé esa información en la memoria de EOS para usarla como contexto cuando sea relevante.'}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        992
+      ],
+      "id": "1a50b8e8-f39d-436c-83ea-7e78fad41545",
+      "name": "42 WK MEM Respuesta Memoria"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_dashboard_metrics",
+        "limit": 10,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1152
+      ],
+      "id": "70f8064f-e28a-473f-8bef-55d6bd422b23",
+      "name": "50 WK DASH Leer Métricas",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst entrada=$('21 WK Parsear Decisión').item.json; const metricas=$input.all().map(i=>i.json).filter(x=>x && Object.keys(x).length);\nlet lineas=metricas.map(m=>`- ${m.metric_label||m.metric_key||'Métrica'}: ${m.metric_value||m.metric_number||'sin valor'}`).join('\\n');\nif(!lineas) lineas='Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{...entrada,tipo:'texto',respuesta:`Dashboard EOS:\\n${lineas}`}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1152
+      ],
+      "id": "e606a266-11a4-4cd5-bd37-b845acb383ba",
+      "name": "51 WK DASH Respuesta Dashboard"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_daily_briefings",
+        "limit": 1,
+        "orderBy": "created_at.desc",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1312
+      ],
+      "id": "1f733e7e-c10c-424f-a935-3fda3e01e7f4",
+      "name": "55 WK BRIEF Leer Briefing",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst entrada=$('21 WK Parsear Decisión').item.json; const b=$input.first().json||{};\nconst respuesta=b.resumen ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1||'Sin prioridad'}\\n2. ${b.prioridad_2||'Sin prioridad'}\\n3. ${b.prioridad_3||'Sin prioridad'}` : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{...entrada,tipo:'texto',respuesta}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1312
+      ],
+      "id": "d13954ce-ebf0-480f-b447-f7e2e27f5338",
+      "name": "56 WK BRIEF Respuesta Briefing"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst base = $('02 WK Preparar Orden Confiable').first().json || {};\nconst accion = String(base.accion_principal || i.accion_principal || i.accion_eos || i.accion || 'RESPONDER')\n  .trim()\n  .toUpperCase();\nconst esArchivo = ['GENERAR_EXCEL', 'GENERAR_PDF', 'GENERAR_WORD'].includes(accion);\nconst archivoUrl = String(i.archivo_url || i.download_url || i.url || '').trim();\nconst respuestaEspecifica = String(i.respuesta || i.output || i.text || '').trim();\nconst respuestaGateway = String(base.respuesta_gateway || i.respuesta_gateway || i.respuesta_rapida || '').trim();\nlet respuesta = respuestaEspecifica || respuestaGateway;\n\nif (esArchivo && archivoUrl) {\n  respuesta = respuestaEspecifica || 'Tu archivo ya está listo.';\n}\nif (esArchivo && !archivoUrl) {\n  respuesta = respuestaEspecifica || 'No pude completar el archivo en este momento.';\n}\nif (!esArchivo && !respuesta) respuesta = 'Decime qué necesitás y avanzamos.';\n\nconst noDisponible = i.execution_status === 'no_disponible' ||\n  (['GENERAR_PDF', 'GENERAR_WORD'].includes(accion) && !archivoUrl);\n\nreturn [{ json: {\n  ...base,\n  ...i,\n  ok: i.ok !== false && !noDisponible,\n  accion,\n  accion_principal: accion,\n  respuesta,\n  tipo: esArchivo && archivoUrl ? 'archivo' : 'texto',\n  archivo_url: esArchivo ? archivoUrl : '',\n  archivo_tipo: esArchivo ? String(i.archivo_tipo || '').trim() : '',\n  execution_status: noDisponible ? 'no_disponible' : 'completada',\n  metadata: base.metadata || i.metadata || {}\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        768
+      ],
+      "id": "5b2743ea-db6c-4332-b690-f4bcbba5e3e7",
+      "name": "90 WK Preparar Respuesta Final"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {}; return [{ json: { ...i, worker_status: 'sin_accion_secundaria' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1609defe-aa26-4c9c-b686-2d46e1f841bf",
+      "name": "23 WK Sin Acción Secundaria"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        912,
+        768
+      ],
+      "id": "6e67c54c-87b5-42e2-82ba-7b541138d856",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst acciones = Array.isArray(i.acciones) ? i.acciones : [];\nlet memorias = acciones\n  .filter((accion) => String(accion?.tipo || '').trim().toUpperCase() === 'GUARDAR_MEMORIA')\n  .slice(0, 5)\n  .map((accion) => accion?.datos || {});\n\nif (memorias.length === 0 && /\\b(recuerda|recorda|guarda esto|memoriza)\\b/i.test(String(i.mensaje || ''))) {\n  memorias = [{\n    clave: 'general.dato_importante',\n    categoria: 'general',\n    titulo: 'Dato importante',\n    contenido: i.mensaje,\n    importancia: 7,\n    confianza: 1,\n    confirmada: true,\n  }];\n}\n\nconst slug = (valor) =>\n  String(valor || '')\n    .trim()\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9._-]+/g, '_')\n    .replace(/^[_\\-.]+|[_\\-.]+$/g, '')\n    .slice(0, 120);\n\nconst hash = (valor) => {\n  let resultado = 2166136261;\n  const texto = String(valor || '');\n  for (let index = 0; index < texto.length; index += 1) {\n    resultado ^= texto.charCodeAt(index);\n    resultado = Math.imul(resultado, 16777619);\n  }\n  return (resultado >>> 0).toString(36);\n};\n\nreturn memorias.map((datos) => {\n  const categoria = slug(datos.categoria || 'general') || 'general';\n  const titulo = String(datos.titulo || datos.nombre || 'Dato importante').trim().slice(0, 160);\n  const contenido = String(datos.contenido || datos.valor || datos.descripcion || i.mensaje || '').trim();\n  const entidad = String(datos.entidad || '').trim().slice(0, 160);\n  const claveBase = slug(datos.clave || datos.key || `${categoria}.${entidad || titulo}`);\n  const clave = claveBase && !/dato_importante$/.test(claveBase)\n    ? claveBase\n    : `${categoria}.dato_${hash(contenido)}`;\n\n  return {\n    json: {\n      ...i,\n      clave,\n      categoria,\n      titulo,\n      contenido,\n      entidad,\n      valor: datos.valor && typeof datos.valor === 'object'\n        ? datos.valor\n        : { contenido },\n      importancia: Math.max(1, Math.min(10, Number(datos.importancia || 5))),\n      confianza: Math.max(0, Math.min(1, Number(datos.confianza ?? 0.8))),\n      confirmada: datos.confirmada === true,\n      origen_memoria: 'gateway_structured_extraction',\n      estado_memoria: 'activo',\n      metadata_memoria: {\n        request_id: i.request_id || '',\n        operacion: i.operacion || 'mensaje',\n        extractor_version: 'eos-memory-v1',\n      },\n    },\n  };\n}).filter((item) => item.json.contenido);"
+      },
+      "id": "91e75727-8c9c-4586-9729-4a8ba02f6a24",
+      "name": "70 WK MEM Preparar Memoria Automática",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_memory",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "fieldId": "clave",
+              "fieldValue": "={{ $json.clave }}"
+            },
+            {
+              "fieldId": "categoria",
+              "fieldValue": "={{ $json.categoria }}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{ $json.titulo }}"
+            },
+            {
+              "fieldId": "contenido",
+              "fieldValue": "={{ $json.contenido }}"
+            },
+            {
+              "fieldId": "entidad",
+              "fieldValue": "={{ $json.entidad || null }}"
+            },
+            {
+              "fieldId": "valor",
+              "fieldValue": "={{ $json.valor }}"
+            },
+            {
+              "fieldId": "importancia",
+              "fieldValue": "={{ $json.importancia }}"
+            },
+            {
+              "fieldId": "confianza",
+              "fieldValue": "={{ $json.confianza }}"
+            },
+            {
+              "fieldId": "confirmada",
+              "fieldValue": "={{ $json.confirmada }}"
+            },
+            {
+              "fieldId": "conversacion_id",
+              "fieldValue": "={{ $json.conversacion_id || null }}"
+            },
+            {
+              "fieldId": "mensaje_id",
+              "fieldValue": "={{ $json.mensaje_id || null }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ $json.metadata_memoria }}"
+            },
+            {
+              "fieldId": "origen",
+              "fieldValue": "={{ $json.origen_memoria }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "activo"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $now }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "id": "4b2dc77a-5abc-4cd3-b3d3-a7c56a620325",
+      "name": "71 WK MEM Guardar Memoria Automática",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        1136
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst acciones = Array.isArray(i.acciones) ? i.acciones : [];\nconst objetivos = Array.isArray(i.objetivos) ? i.objetivos : [];\nconst tiposPermitidos = new Set([\n  'CREAR_OBJETIVO',\n  'ACTUALIZAR_PROGRESO',\n  'REGISTRAR_EVIDENCIA',\n  'COMPLETAR_HITO',\n  'PAUSAR_OBJETIVO',\n  'REANUDAR_OBJETIVO',\n]);\n\nconst texto = (valor, maximo = 500) =>\n  String(valor ?? '').trim().slice(0, maximo);\n\nconst numero = (valor) => {\n  if (valor === null || valor === undefined || valor === '') return null;\n  const resultado = Number(valor);\n  return Number.isFinite(resultado) ? resultado : null;\n};\n\nconst fecha = (valor) => {\n  const resultado = texto(valor, 10);\n  return /^\\d{4}-\\d{2}-\\d{2}$/.test(resultado) ? resultado : null;\n};\n\nconst slug = (valor) =>\n  texto(valor, 120)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\nconst esUuid = (valor) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(texto(valor));\n\nconst hashHex = (valor) => {\n  let a = 0x811c9dc5;\n  let b = 0x9e3779b9;\n  for (const caracter of String(valor)) {\n    const codigo = caracter.charCodeAt(0);\n    a = Math.imul(a ^ codigo, 0x01000193) >>> 0;\n    b = Math.imul(b ^ (codigo + a), 0x85ebca6b) >>> 0;\n  }\n  const parte = (numeroHash) => numeroHash.toString(16).padStart(8, '0');\n  return (parte(a) + parte(b) + parte(a ^ b) + parte(Math.imul(a, b) >>> 0)).slice(0, 32);\n};\n\nconst uuidDeterminista = (semilla) => {\n  const hex = hashHex(semilla).split('');\n  hex[12] = '4';\n  hex[16] = ['8', '9', 'a', 'b'][parseInt(hex[16], 16) % 4];\n  const valor = hex.join('');\n  return `${valor.slice(0, 8)}-${valor.slice(8, 12)}-${valor.slice(12, 16)}-${valor.slice(16, 20)}-${valor.slice(20, 32)}`;\n};\n\nconst porId = new Map(objetivos.filter((o) => esUuid(o.id)).map((o) => [o.id, o]));\n\nreturn acciones\n  .map((accion, indice) => {\n    let tipo = texto(accion?.tipo, 60).toUpperCase();\n    if (!tiposPermitidos.has(tipo)) return null;\n\n    const datos = accion?.datos && typeof accion.datos === 'object' && !Array.isArray(accion.datos)\n      ? accion.datos\n      : {};\n\n    let objetivoId = esUuid(datos.objetivo_id) && porId.has(datos.objetivo_id)\n      ? datos.objetivo_id\n      : '';\n\n    if (!objetivoId && tipo !== 'CREAR_OBJETIVO') {\n      const tituloBuscado = texto(datos.objetivo_titulo, 180).toLowerCase();\n      const coincidencias = objetivos.filter((o) =>\n        texto(o.titulo, 180).toLowerCase() === tituloBuscado\n      );\n      if (coincidencias.length === 1) objetivoId = coincidencias[0].id;\n    }\n\n    if (tipo !== 'CREAR_OBJETIVO' && !objetivoId) return null;\n\n    const progreso = numero(datos.progreso);\n    const valorActual = numero(datos.valor_actual);\n\n    if (tipo === 'ACTUALIZAR_PROGRESO' && progreso === null && valorActual === null) {\n      tipo = 'REGISTRAR_EVIDENCIA';\n    }\n\n    const hitos = Array.isArray(datos.hitos)\n      ? datos.hitos.slice(0, 8).map((hito, orden) => {\n          const titulo = texto(hito?.titulo, 180);\n          return {\n            clave: slug(hito?.clave || titulo || `hito_${orden + 1}`),\n            titulo,\n            descripcion: texto(hito?.descripcion, 500) || null,\n            peso: Math.max(0.0001, numero(hito?.peso) ?? 1),\n            orden: numero(hito?.orden) ?? orden,\n            fecha_limite: fecha(hito?.fecha_limite),\n          };\n        }).filter((hito) => hito.titulo)\n      : [];\n\n    const payload = {\n      titulo: texto(datos.titulo, 180) || null,\n      descripcion: texto(datos.descripcion, 1200) || null,\n      objetivo_titulo: texto(datos.objetivo_titulo, 180) || null,\n      tipo_medicion: ['porcentaje', 'numerico', 'monetario', 'hitos'].includes(texto(datos.tipo_medicion).toLowerCase())\n        ? texto(datos.tipo_medicion).toLowerCase()\n        : null,\n      valor_inicial: numero(datos.valor_inicial),\n      valor_actual: valorActual,\n      valor_objetivo: numero(datos.valor_objetivo),\n      progreso,\n      modo_valor: texto(datos.modo_valor).toLowerCase() === 'incremento' ? 'incremento' : 'absoluto',\n      unidad: texto(datos.unidad, 80) || null,\n      prioridad: Math.max(1, Math.min(5, numero(datos.prioridad) ?? 3)),\n      criterio_exito: texto(datos.criterio_exito, 800) || null,\n      proximo_paso: texto(datos.proximo_paso, 800) || null,\n      fecha_inicio: fecha(datos.fecha_inicio),\n      fecha_limite: fecha(datos.fecha_limite),\n      estado: texto(datos.estado, 30).toLowerCase() || null,\n      hito_clave: slug(datos.hito_clave) || null,\n      hito_titulo: texto(datos.hito_titulo, 180) || null,\n      hitos,\n      evidencia: texto(datos.evidencia || i.mensaje, 1200),\n      confianza: Math.max(0, Math.min(1, numero(datos.confianza) ?? 0.8)),\n      metadata: {\n        source_request_id: i.request_id || '',\n        operacion: i.operacion || 'mensaje',\n        extractor_version: 'eos-objectives-v2',\n      },\n    };\n\n    const semilla = [\n      i.request_id || i.mensaje || 'sin-request',\n      tipo,\n      objetivoId || payload.titulo || '',\n      indice,\n    ].join('|');\n\n    return {\n      json: {\n        usuario_id: i.usuario_id,\n        request_id_comando: uuidDeterminista(semilla),\n        accion_objetivo: tipo,\n        objetivo_id: objetivoId || null,\n        payload_objetivo: payload,\n        conversacion_id: esUuid(i.conversacion_id) ? i.conversacion_id : null,\n        mensaje_id: esUuid(i.mensaje_id) ? i.mensaje_id : null,\n      },\n    };\n  })\n  .filter(Boolean);"
+      },
+      "id": "34620ae1-df16-48cf-9b63-17ee4963c05a",
+      "name": "72 WK GOAL Preparar Comandos Automáticos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_goal_commands",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id }}"
+            },
+            {
+              "fieldId": "request_id",
+              "fieldValue": "={{ $json.request_id_comando }}"
+            },
+            {
+              "fieldId": "accion",
+              "fieldValue": "={{ $json.accion_objetivo }}"
+            },
+            {
+              "fieldId": "objetivo_id",
+              "fieldValue": "={{ $json.objetivo_id || null }}"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{ $json.payload_objetivo }}"
+            },
+            {
+              "fieldId": "conversacion_id",
+              "fieldValue": "={{ $json.conversacion_id || null }}"
+            },
+            {
+              "fieldId": "mensaje_id",
+              "fieldValue": "={{ $json.mensaje_id || null }}"
+            }
+          ]
+        }
+      },
+      "id": "58fc2851-4973-4a6a-9b67-2d8b8892136d",
+      "name": "73 WK GOAL Ejecutar Comandos",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        1296
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst text = (value, max = 2000) => String(value ?? '').trim().slice(0, max);\nconst isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text(value));\nconst hashHex = (value) => {\n  let a = 0x811c9dc5;\n  let b = 0x9e3779b9;\n  for (const char of String(value)) {\n    const code = char.charCodeAt(0);\n    a = Math.imul(a ^ code, 0x01000193) >>> 0;\n    b = Math.imul(b ^ (code + a), 0x85ebca6b) >>> 0;\n  }\n  const part = (number) => (number >>> 0).toString(16).padStart(8, '0');\n  return (part(a) + part(b) + part(a ^ b) + part(Math.imul(a, b))).slice(0, 32);\n};\nconst deterministicUuid = (seed) => {\n  const hex = hashHex(seed).split('');\n  hex[12] = '4';\n  hex[16] = ['8', '9', 'a', 'b'][parseInt(hex[16], 16) % 4];\n  const value = hex.join('');\n  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20, 32)}`;\n};\nconst accion = text(i.accion_principal || i.accion || 'RESPONDER', 60).toUpperCase();\nconst requestId = isUuid(i.request_id)\n  ? text(i.request_id)\n  : deterministicUuid([i.usuario_id, i.conversacion_id, i.job_id, i.mensaje].join('|'));\nconst actionCommandId = deterministicUuid([i.usuario_id, requestId, accion].join('|'));\nconst inputFingerprint = hashHex(JSON.stringify({\n  usuario_id: i.usuario_id,\n  request_id: requestId,\n  accion,\n  mensaje: i.mensaje,\n  datos_accion: i.datos_accion || {}\n}));\n\nreturn [{ json: {\n  ...i,\n  request_id: requestId,\n  action_command_id: actionCommandId,\n  action_started_epoch_ms: Date.now(),\n  action_input_fingerprint: inputFingerprint,\n  action_payload: {\n    mensaje: text(i.mensaje),\n    operacion: i.operacion || 'mensaje',\n    datos_accion: i.datos_accion || {},\n    acciones: Array.isArray(i.acciones) ? i.acciones.slice(0, 12) : [],\n    parser_version: i.parser_version || ''\n  }\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        768
+      ],
+      "id": "7ce218c1-3ecd-4ac3-b755-e4b1a2871389",
+      "name": "02 WK Preparar Orden Confiable"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_action_commands",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.action_command_id }}"
+            },
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id }}"
+            },
+            {
+              "fieldId": "request_id",
+              "fieldValue": "={{ $json.request_id }}"
+            },
+            {
+              "fieldId": "accion",
+              "fieldValue": "={{ $json.accion_principal }}"
+            },
+            {
+              "fieldId": "conversacion_id",
+              "fieldValue": "={{ /^[0-9a-f-]{36}$/i.test($json.conversacion_id || '') ? $json.conversacion_id : null }}"
+            },
+            {
+              "fieldId": "mensaje_id",
+              "fieldValue": "={{ /^[0-9a-f-]{36}$/i.test($json.mensaje_id || '') ? $json.mensaje_id : null }}"
+            },
+            {
+              "fieldId": "origen",
+              "fieldValue": "={{ $json.origen || 'eos-worker' }}"
+            },
+            {
+              "fieldId": "payload",
+              "fieldValue": "={{ $json.action_payload }}"
+            },
+            {
+              "fieldId": "input_fingerprint",
+              "fieldValue": "={{ $json.action_input_fingerprint }}"
+            },
+            {
+              "fieldId": "max_attempts",
+              "fieldValue": "3"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        768
+      ],
+      "id": "054dde1b-1fa8-470c-a604-73801dc4db92",
+      "name": "03 WK Registrar Orden",
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $('02 WK Preparar Orden Confiable').first().json || {};\nreturn [{ json: {\n  ok: true,\n  duplicate: true,\n  accion: i.accion_principal || 'RESPONDER',\n  action_command_id: i.action_command_id,\n  request_id: i.request_id,\n  respuesta: 'Esta solicitud ya fue recibida por EOS. No se ejecutará nuevamente para evitar duplicados.',\n  tipo: 'texto',\n  archivo_url: '',\n  execution_status: 'duplicada'\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        944
+      ],
+      "id": "ec886140-76f7-485c-9c19-98e18abfeece",
+      "name": "04 WK Orden Ya Registrada"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...($('02 WK Preparar Orden Confiable').first().json || {}) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        768
+      ],
+      "id": "df483c35-7a19-4922-973b-acce4dea185a",
+      "name": "05 WK Recuperar Contexto"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $input.first().json || {};\nconst accion = String(i.accion_principal || i.accion || 'RESPONDER').trim().toUpperCase();\nconst noDisponible = i.execution_status === 'no_disponible';\nconst tipoEvento = noDisponible ? 'no_disponible' : (i.ok === false ? 'error' : 'completada');\nconst inicio = Number(i.action_started_epoch_ms || Date.now());\nconst durationMs = Math.max(0, Date.now() - inicio);\nconst detalle = {\n  accion,\n  tipo_respuesta: i.tipo || 'texto',\n  respuesta: String(i.respuesta || '').slice(0, 4000),\n  archivo_tipo: i.archivo_tipo || '',\n  archivo_url: i.archivo_url || '',\n  recurso_id: i.id || null,\n  request_id: i.request_id || null\n};\nreturn [{ json: {\n  ...i,\n  action_event_type: tipoEvento,\n  action_event_key: `terminal:${i.action_command_id}:1`,\n  action_event_detail: detalle,\n  action_error_code: noDisponible ? 'ACTION_NOT_AVAILABLE' : (tipoEvento === 'error' ? 'ACTION_EXECUTION_ERROR' : null),\n  action_error_message: noDisponible\n    ? 'El ejecutor solicitado todavía no está conectado.'\n    : (tipoEvento === 'error' ? String(i.error_message || i.respuesta || 'La ejecución terminó con error.') : null),\n  action_duration_ms: durationMs\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        768
+      ],
+      "id": "716813ae-71aa-4fa8-b5fa-f735f898efbc",
+      "name": "91 WK Preparar Evento Final"
+    },
+    {
+      "parameters": {
+        "tableId": "eos_action_events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "command_id",
+              "fieldValue": "={{ $json.action_command_id }}"
+            },
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id }}"
+            },
+            {
+              "fieldId": "tipo",
+              "fieldValue": "={{ $json.action_event_type }}"
+            },
+            {
+              "fieldId": "idempotency_key",
+              "fieldValue": "={{ $json.action_event_key }}"
+            },
+            {
+              "fieldId": "detalle",
+              "fieldValue": "={{ $json.action_event_detail }}"
+            },
+            {
+              "fieldId": "error_code",
+              "fieldValue": "={{ $json.action_error_code || null }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.action_error_message || null }}"
+            },
+            {
+              "fieldId": "duration_ms",
+              "fieldValue": "={{ $json.action_duration_ms }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        768
+      ],
+      "id": "c84a956d-e18a-453a-ae0c-ee9c2d06fa09",
+      "name": "92 WK Registrar Resultado",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('90 WK Preparar Respuesta Final').first().json || {};\nconst event = $('91 WK Preparar Evento Final').first().json || {};\nreturn [{ json: {\n  ok: response.ok === true,\n  accion: response.accion || 'RESPONDER',\n  respuesta: response.respuesta || '',\n  tipo: response.tipo || 'texto',\n  archivo_url: response.archivo_url || '',\n  archivo_tipo: response.archivo_tipo || '',\n  request_id: response.request_id || '',\n  execution: {\n    id: event.action_command_id,\n    estado: event.action_event_type,\n    duration_ms: event.action_duration_ms,\n    duplicate: false\n  }\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        768
+      ],
+      "id": "9c135b13-352f-41be-b3a3-85e0b67e37bf",
+      "name": "93 WK Recuperar Respuesta Final"
+    }
+  ],
+  "connections": {
+    "00 WK Webhook EOS Worker": {
+      "main": [
+        [
+          {
+            "node": "01 WK Preparar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 WK Preparar Entrada": {
+      "main": [
+        [
+          {
+            "node": "60 WK Leer Perfil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "60 WK Leer Perfil": {
+      "main": [
+        [
+          {
+            "node": "60.5 WK Perfil Existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "60.5 WK Perfil Existe": {
+      "main": [
+        [
+          {
+            "node": "61 WK Leer Proyecto Activo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "60.6 WK Crear Perfil Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "60.6 WK Crear Perfil Base": {
+      "main": [
+        [
+          {
+            "node": "61 WK Leer Proyecto Activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "61 WK Leer Proyecto Activo": {
+      "main": [
+        [
+          {
+            "node": "64 WK Leer Memorias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "64 WK Leer Memorias": {
+      "main": [
+        [
+          {
+            "node": "62 WK Leer Objetivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "62 WK Leer Objetivos": {
+      "main": [
+        [
+          {
+            "node": "63 WK Leer Tareas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "63 WK Leer Tareas": {
+      "main": [
+        [
+          {
+            "node": "65 WK Leer Conversaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "65 WK Leer Conversaciones": {
+      "main": [
+        [
+          {
+            "node": "16 WK Construir Contexto Maestro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 WK Construir Contexto Maestro": {
+      "main": [
+        [
+          {
+            "node": "21 WK Parsear Decisión",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "70 WK MEM Preparar Memoria Automática",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "72 WK GOAL Preparar Comandos Automáticos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 WK Parsear Decisión": {
+      "main": [
+        [
+          {
+            "node": "02 WK Preparar Orden Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 WK Router Acción": {
+      "main": [
+        [
+          {
+            "node": "23 WK Sin Acción Secundaria",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10 WK FILE Preparar Excel Premium",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "11 WK FILE Responder PDF Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12 WK FILE Responder Word Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "20 WK TASK Preparar Tarea",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "30 WK GOAL Preparar Objetivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "40 WK MEM Preparar Memoria",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "50 WK DASH Leer Métricas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "55 WK BRIEF Leer Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 WK FILE Preparar Excel Premium": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 WK FILE Responder PDF Pendiente": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 WK FILE Responder Word Pendiente": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 WK TASK Preparar Tarea": {
+      "main": [
+        [
+          {
+            "node": "21 WK TASK Crear Tarea EOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 WK TASK Crear Tarea EOS": {
+      "main": [
+        [
+          {
+            "node": "22 WK TASK Respuesta Tarea",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 WK TASK Respuesta Tarea": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30 WK GOAL Preparar Objetivo": {
+      "main": [
+        [
+          {
+            "node": "31 WK GOAL Crear Objetivo EOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "31 WK GOAL Crear Objetivo EOS": {
+      "main": [
+        [
+          {
+            "node": "32 WK GOAL Respuesta Objetivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "32 WK GOAL Respuesta Objetivo": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "40 WK MEM Preparar Memoria": {
+      "main": [
+        [
+          {
+            "node": "41 WK MEM Guardar Memoria EOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "41 WK MEM Guardar Memoria EOS": {
+      "main": [
+        [
+          {
+            "node": "42 WK MEM Respuesta Memoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "42 WK MEM Respuesta Memoria": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "50 WK DASH Leer Métricas": {
+      "main": [
+        [
+          {
+            "node": "51 WK DASH Respuesta Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "51 WK DASH Respuesta Dashboard": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "55 WK BRIEF Leer Briefing": {
+      "main": [
+        [
+          {
+            "node": "56 WK BRIEF Respuesta Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "56 WK BRIEF Respuesta Briefing": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90 WK Preparar Respuesta Final": {
+      "main": [
+        [
+          {
+            "node": "91 WK Preparar Evento Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 WK Sin Acción Secundaria": {
+      "main": [
+        [
+          {
+            "node": "90 WK Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "70 WK MEM Preparar Memoria Automática": {
+      "main": [
+        [
+          {
+            "node": "71 WK MEM Guardar Memoria Automática",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "72 WK GOAL Preparar Comandos Automáticos": {
+      "main": [
+        [
+          {
+            "node": "73 WK GOAL Ejecutar Comandos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 WK Preparar Orden Confiable": {
+      "main": [
+        [
+          {
+            "node": "03 WK Registrar Orden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 WK Registrar Orden": {
+      "main": [
+        [
+          {
+            "node": "05 WK Recuperar Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04 WK Orden Ya Registrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 WK Recuperar Contexto": {
+      "main": [
+        [
+          {
+            "node": "22 WK Router Acción",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 WK Orden Ya Registrada": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "91 WK Preparar Evento Final": {
+      "main": [
+        [
+          {
+            "node": "92 WK Registrar Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "92 WK Registrar Resultado": {
+      "main": [
+        [
+          {
+            "node": "93 WK Recuperar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "93 WK Recuperar Respuesta Final": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "8b472b38-a0a7-40ea-a273-9a65c97ecee5",
+  "activeVersionId": "8b472b38-a0a7-40ea-a273-9a65c97ecee5",
+  "versionCounter": 4,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T01:48:24.574Z",
+      "createdAt": "2026-08-11T01:48:24.574Z",
+      "role": "workflow:owner",
+      "workflowId": "YoF7ZFEI0ChyGNWn",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "updatedAt": "2026-06-05T21:16:13.176Z",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-08-11T02:02:40.967Z",
+    "createdAt": "2026-08-11T02:01:04.926Z",
+    "versionId": "8b472b38-a0a7-40ea-a273-9a65c97ecee5",
+    "workflowId": "YoF7ZFEI0ChyGNWn",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -2736,
+          768
+        ],
+        "id": "0f604097-7a1a-4991-9161-0c616d88ff91",
+        "name": "00 WK Webhook EOS Worker",
+        "webhookId": "457becfa-c34d-481b-a407-ee9b03b1be68"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\n\nconst clean = (value) => String(value ?? '').trim();\n\nconst isUuid = (value) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    clean(value)\n  );\n\nconst usuario_id = clean(body.usuario_id);\n\nif (!isUuid(usuario_id)) {\n  throw new Error('Worker recibió usuario_id inválido.');\n}\n\nconst conversacion_id = clean(body.conversacion_id);\n\nif (!conversacion_id) {\n  throw new Error('Worker recibió conversacion_id vacío.');\n}\n\nconst mensaje = clean(body.mensaje);\n\nif (!mensaje) {\n  throw new Error('Worker recibió mensaje vacío.');\n}\n\nconst accionesPermitidas = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD',\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA',\n  'VER_DASHBOARD',\n  'VER_BRIEFING'\n]);\n\nconst acciones = Array.isArray(body.acciones)\n  ? body.acciones\n      .map((accion, index) => ({\n        id: clean(accion?.id || `accion-${index + 1}`),\n        tipo: clean(accion?.tipo).toUpperCase(),\n        datos:\n          accion?.datos &&\n          typeof accion.datos === 'object' &&\n          !Array.isArray(accion.datos)\n            ? accion.datos\n            : {}\n      }))\n      .filter((accion) => accionesPermitidas.has(accion.tipo))\n  : [];\n\nreturn [\n  {\n    json: {\n      usuario_id,\n      usuario_id_original: clean(\n        body.usuario_id_original || usuario_id\n      ),\n      usuario_key: clean(body.usuario_key || usuario_id),\n      conversacion_id,\n      request_id: isUuid(body.request_id) ? clean(body.request_id) : '',\n      operacion:\n        clean(body.operacion).toLowerCase() === 'regenerar'\n          ? 'regenerar'\n          : 'mensaje',\n      mensaje_id: isUuid(body.mensaje_id) ? clean(body.mensaje_id) : '',\n      nombre: clean(body.nombre || 'Usuario'),\n      mensaje,\n      plan: clean(body.plan || 'free'),\n      origen: clean(body.origen || 'eos-web'),\n\n      historial: Array.isArray(body.historial)\n        ? body.historial.slice(-10)\n        : [],\n\n      respuesta_gateway: clean(body.respuesta_gateway),\n\n      acciones,\n      requiere_worker:\n        body.requiere_worker === true || acciones.length > 0,\n\n      metadata:\n        body.metadata &&\n        typeof body.metadata === 'object' &&\n        !Array.isArray(body.metadata)\n          ? body.metadata\n          : {},\n\n      job_id: clean(\n        body.job_id || `${conversacion_id}-${Date.now()}`\n      ),\n\n      received_at: clean(\n        body.received_at || new Date().toISOString()\n      ),\n\n      worker_received_at: new Date().toISOString()\n    }\n  }\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -2544,
+          768
+        ],
+        "id": "9ef2e888-8609-4dca-b4f9-63c5e2c778b0",
+        "name": "01 WK Preparar Entrada"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_profiles",
+          "limit": 1,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -2368,
+          768
+        ],
+        "id": "01bfc3cc-f58f-4e47-9743-319b0d12738a",
+        "name": "60 WK Leer Perfil",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "cb5f1dde-5337-4df1-95dd-3ae16a9252da",
+                "leftValue": "={{ $json.id }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -2160,
+          768
+        ],
+        "id": "72de1e4a-a9cf-4d86-86db-1ee4295006c0",
+        "name": "60.5 WK Perfil Existe"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_profiles",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "fieldId": "tipo_usuario",
+                "fieldValue": "indefinido"
+              },
+              {
+                "fieldId": "nombre_visible",
+                "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.nombre }}"
+              },
+              {
+                "fieldId": "rubro",
+                "fieldValue": "general"
+              },
+              {
+                "fieldId": "etapa_actual",
+                "fieldValue": "inicio"
+              },
+              {
+                "fieldId": "score_general",
+                "fieldValue": "50"
+              },
+              {
+                "fieldId": "prioridad_actual",
+                "fieldValue": "media"
+              },
+              {
+                "fieldId": "resumen_actual",
+                "fieldValue": "Nuevo usuario creado automáticamente por EOS. Aún no hay suficiente información para clasificarlo."
+              },
+              {
+                "fieldId": "created_at",
+                "fieldValue": "={{ $now }}"
+              },
+              {
+                "fieldId": "updated_at",
+                "fieldValue": "={{ $now }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1968,
+          880
+        ],
+        "id": "c66ecc00-8758-442b-9412-1ce72b5d1d5e",
+        "name": "60.6 WK Crear Perfil Base",
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_projects",
+          "limit": 1,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "keyName": "estado",
+                "condition": "eq",
+                "keyValue": "activo"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1968,
+          768
+        ],
+        "id": "0041a3ea-058a-445b-a5c6-f22d519b4932",
+        "name": "61 WK Leer Proyecto Activo",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_memory",
+          "limit": 12,
+          "orderBy": "updated_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1760,
+          768
+        ],
+        "id": "9e0fd95e-d42d-4a74-9d39-7c5585baf37c",
+        "name": "64 WK Leer Memorias",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_goals",
+          "limit": 12,
+          "orderBy": "updated_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1568,
+          768
+        ],
+        "id": "449f6414-b2a0-47d6-b11f-63b630364629",
+        "name": "62 WK Leer Objetivos",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_tasks",
+          "limit": 5,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1360,
+          768
+        ],
+        "id": "31a19dd3-20d5-4aab-8543-8dfba96a9743",
+        "name": "63 WK Leer Tareas",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "conversaciones",
+          "limit": 5,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1168,
+          768
+        ],
+        "id": "4de08a67-4192-4017-a784-e92464783c52",
+        "name": "65 WK Leer Conversaciones",
+        "alwaysOutputData": true,
+        "executeOnce": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const base = $('01 WK Preparar Entrada').first().json || {};\nconst decision = {};\n\nfunction rows(name) {\n  try {\n    return $(name).all().map(i => i.json || {}).filter(x => x && Object.keys(x).length > 0);\n  } catch (e) { return []; }\n}\nfunction first(name) { return rows(name)[0] || {}; }\nfunction line(v) { return String(v || '').trim(); }\n\nconst perfil = first('60 WK Leer Perfil');\nconst proyecto = first('61 WK Leer Proyecto Activo');\nconst memorias = rows('64 WK Leer Memorias');\nconst objetivos = rows('62 WK Leer Objetivos').filter(o => ['activo', 'pausado'].includes(o.estado));\nconst tareas = rows('63 WK Leer Tareas');\nconst conversaciones = rows('65 WK Leer Conversaciones');\n\nconst contexto_maestro = `\nUSUARIO\nNombre: ${base.nombre || perfil.nombre_visible || 'Usuario'}\nUsuario ID: ${base.usuario_id}\nPlan: ${base.plan || 'free'}\nOrigen: ${base.origen || 'eos-web'}\n\nPERFIL\n${perfil.id ? JSON.stringify(perfil, null, 2) : 'Perfil base sin datos avanzados todavía.'}\n\nPROYECTO ACTIVO\n${proyecto.id ? JSON.stringify(proyecto, null, 2) : 'No hay proyecto activo registrado.'}\n\nMEMORIAS RELEVANTES\n${memorias.map(m => `- [${line(m.clave || m.categoria || 'general')}] ${line(m.titulo || 'Dato')}: ${line(m.contenido || m.texto || m.memoria)}`).join('\\n') || '- Sin memorias guardadas.'}\n\nOBJETIVOS\n${objetivos.map(o => `- ID ${line(o.id)} | ${line(o.titulo || o.nombre || 'Objetivo')} | estado ${line(o.estado)} | progreso ${Number(o.progreso || 0)}% | medición ${line(o.tipo_medicion || 'porcentaje')} | actual ${line(o.valor_actual)} ${line(o.unidad)} | meta ${line(o.valor_objetivo)} ${line(o.unidad)} | próximo paso ${line(o.proximo_paso || 'sin definir')}`).join('\\n') || '- Sin objetivos activos o pausados.'}\n\nTAREAS\n${tareas.map(t => `- ${line(t.titulo || t.nombre || 'Tarea')}: ${line(t.estado || t.descripcion || '')}`).join('\\n') || '- Sin tareas registradas.'}\n\nCONVERSACIONES RECIENTES\n${conversaciones.map(c => `- ${line(c.titulo || c.resumen || c.id || 'Conversación')}`).join('\\n') || '- Sin conversaciones previas.'}\n\nMENSAJE ACTUAL\n${base.mensaje || decision.mensaje || ''}\n`.trim();\n\nreturn [{ json: { ...base, ...decision, perfil, proyecto_activo: proyecto, memorias, objetivos, tareas, conversaciones, contexto_maestro } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -912,
+          768
+        ],
+        "id": "d098374c-81ac-4fa9-8741-cd503f32c155",
+        "name": "16 WK Construir Contexto Maestro",
+        "executeOnce": true
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-5.4-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-5.4-MINI"
+          },
+          "responses": {
+            "values": [
+              {
+                "role": "system",
+                "content": "=Sos el motor de clasificación de acciones de EOS.\n\nAnalizá únicamente el mensaje actual y el contexto disponible. Elegí UNA acción.\n\nACCIONES PERMITIDAS:\nRESPONDER\nGENERAR_EXCEL\nGENERAR_PDF\nGENERAR_WORD\nCREAR_TAREA\nCREAR_OBJETIVO\nGUARDAR_MEMORIA\nVER_DASHBOARD\nVER_BRIEFING\n\nREGLAS:\n- RESPONDER: conversación, asesoramiento, preguntas, saludos o pedidos sin una operación secundaria concreta.\n- GENERAR_EXCEL: pide Excel, XLSX, planilla u hoja de cálculo.\n- GENERAR_PDF: pide explícitamente PDF.\n- GENERAR_WORD: pide Word o DOCX.\n- CREAR_TAREA: pide registrar/crear una tarea o recordatorio.\n- CREAR_OBJETIVO: pide registrar/crear una meta u objetivo.\n- GUARDAR_MEMORIA: pide explícitamente recordar, guardar o memorizar un dato nuevo.\n- VER_DASHBOARD: pide dashboard, métricas o indicadores.\n- VER_BRIEFING: pide briefing o resumen ejecutivo diario.\n- Preguntar qué recordás NO es GUARDAR_MEMORIA; es RESPONDER.\n- No redactes una respuesta para el usuario.\n- No uses markdown.\n\nDevolvé exclusivamente JSON válido con esta forma:\n{\"accion\":\"RESPONDER\"}\n\nContexto:\n{{$json.contexto_maestro}}\n\nMensaje actual:\n{{$json.mensaje}}"
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 2.3,
+        "position": [
+          -784,
+          432
+        ],
+        "id": "a52d4c54-1a1a-420a-a507-d41902a7abb5",
+        "name": "20 WK AI Decidir Acción",
+        "credentials": {
+          "openAiApi": {
+            "id": "rrbWSomfLM5Z0X0j",
+            "name": "OpenAI account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\n\nconst normalizar = (valor) =>\n  String(valor ?? '')\n    .trim()\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '');\n\nconst mensaje = normalizar(i.mensaje);\nconst accionesGateway = Array.isArray(i.acciones) ? i.acciones : [];\nconst accionesObjetivo = new Set([\n  'CREAR_OBJETIVO',\n  'ACTUALIZAR_PROGRESO',\n  'REGISTRAR_EVIDENCIA',\n  'COMPLETAR_HITO',\n  'PAUSAR_OBJETIVO',\n  'REANUDAR_OBJETIVO',\n]);\n\nconst principalGateway = accionesGateway.find((item) => {\n  const tipo = String(item?.tipo || '').trim().toUpperCase();\n  return tipo && tipo !== 'GUARDAR_MEMORIA' && !accionesObjetivo.has(tipo);\n});\n\nlet accion = String(principalGateway?.tipo || '').trim().toUpperCase();\n\nif (!accion) {\n  const verboArchivo =\n    /\\b(genera|generar|crea|crear|prepara|preparar|hace|hacer|pasa|pasame|pasamelo|envia|enviame|manda|mandame|dame|descarga|descargar)\\b/;\n  const niegaArchivo =\n    /\\b(no me mandes|no mandes|no quiero archivo|sin archivo|solo responde|solo contestame|solo saludame|saludame)\\b/.test(mensaje);\n\n  if (niegaArchivo) accion = 'RESPONDER';\n  else if (verboArchivo.test(mensaje) && /\\b(excel|xlsx|planilla|hoja de calculo)\\b/.test(mensaje)) accion = 'GENERAR_EXCEL';\n  else if (verboArchivo.test(mensaje) && /\\bpdf\\b/.test(mensaje)) accion = 'GENERAR_PDF';\n  else if (verboArchivo.test(mensaje) && /\\b(word|docx|documento de word)\\b/.test(mensaje)) accion = 'GENERAR_WORD';\n  else if (/\\b(crea|crear|registra|registrar|agrega|agregar)\\b.*\\b(tarea|recordatorio|pendiente)\\b/.test(mensaje)) accion = 'CREAR_TAREA';\n  else if (/\\b(dashboard|metricas|indicadores|tablero)\\b/.test(mensaje)) accion = 'VER_DASHBOARD';\n  else if (/\\b(briefing|resumen ejecutivo|resumen diario)\\b/.test(mensaje)) accion = 'VER_BRIEFING';\n  else accion = 'RESPONDER';\n}\n\nconst esArchivo = ['GENERAR_EXCEL', 'GENERAR_PDF', 'GENERAR_WORD'].includes(accion);\n\nreturn [{\n  json: {\n    ...i,\n    accion_principal: accion,\n    accion_eos: accion,\n    accion,\n    datos_accion: principalGateway?.datos || {},\n    requiere_archivo: esArchivo,\n    archivo_tipo:\n      accion === 'GENERAR_EXCEL' ? 'excel' :\n      accion === 'GENERAR_PDF' ? 'pdf' :\n      accion === 'GENERAR_WORD' ? 'word' : '',\n    cantidad_acciones_objetivo: accionesGateway.filter((item) =>\n      accionesObjetivo.has(String(item?.tipo || '').trim().toUpperCase())\n    ).length,\n    parser_version: 'eos-router-v7-objectives-commands',\n  },\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -496,
+          768
+        ],
+        "id": "63a3d07d-1c28-44d8-82ea-cdb6905aa773",
+        "name": "21 WK Parsear Decisión"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "RESPONDER",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "3f0cc7db-d0af-4900-9ab5-c1ea78e5bfc7"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "RESPONDER"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "GENERAR_EXCEL",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "714c0fb5-823e-4aca-abc2-6a814b6fe005"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "GENERAR_EXCEL"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "GENERAR_PDF",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "8eb1feec-8eab-4443-af7c-378e3e1d18c6"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "GENERAR_PDF"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "GENERAR_WORD",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "c6ea0cd7-c0ca-46c3-a524-359977959088"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "GENERAR_WORD"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "CREAR_TAREA",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "d704f37a-2c93-4052-8af1-57748899e484"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "CREAR_TAREA"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "CREAR_OBJETIVO",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "457727bb-30f6-4100-9667-fdf6e77c5aa3"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "CREAR_OBJETIVO"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "GUARDAR_MEMORIA",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "053d613d-dba6-452b-96b5-dee9b7c2262c"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "GUARDAR_MEMORIA"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "VER_DASHBOARD",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "feda2858-ce0d-41a7-a959-cb1451320ce3"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "VER_DASHBOARD"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ String($json.accion_principal || 'RESPONDER').trim().toUpperCase() }}",
+                      "rightValue": "VER_BRIEFING",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "9e13926a-94b1-41c8-bf54-08544b64b2a5"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "VER_BRIEFING"
+              }
+            ]
+          },
+          "options": {
+            "allMatchingOutputs": false
+          }
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          -256,
+          768
+        ],
+        "id": "b8b36819-540d-48be-92a3-3e4ab5c4b4f9",
+        "name": "22 WK Router Acción"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst datos = i.datos_accion || i.accion_datos || {};\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\nconst textoCompleto = [\n  i.mensaje,\n  datos.tema,\n  datos.tipo,\n  datos.rubro,\n  datos.negocio,\n  datos.descripcion\n]\n  .filter(Boolean)\n  .join(' ')\n  .toLowerCase();\n\nlet plantilla = 'business';\nlet rubro = datos.rubro || 'negocio_general';\n\nif (/finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(textoCompleto)) {\n  plantilla = 'personal';\n  rubro = 'persona_fisica';\n}\n\nif (/restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(textoCompleto)) {\n  plantilla = 'business';\n  rubro = 'gastronomia';\n}\n\nconst nombreBase = datos.negocio || datos.nombre || i.nombre || 'usuario';\nconst nombreArchivo = plantilla === 'personal'\n  ? `plan_financiero_eos_${normalizar(nombreBase)}`\n  : `control_negocio_eos_${normalizar(nombreBase)}`;\nconst dominio = 'https://transtech-gl3zn6y07-trans-tech.vercel.app';\nconst url = `${dominio}/descargar` +\n  `?tipo=excel` +\n  `&plantilla=${encodeURIComponent(plantilla)}` +\n  `&nombre=${encodeURIComponent(nombreArchivo)}` +\n  `&rubro=${encodeURIComponent(rubro)}` +\n  `&negocio=${encodeURIComponent(nombreBase)}` +\n  `&tema=${encodeURIComponent(datos.tema || i.mensaje || 'control general')}`;\n\nreturn [{ json: {\n  ...i,\n  ok: true,\n  tipo: 'archivo',\n  accion: 'GENERAR_EXCEL',\n  archivo_tipo: 'excel',\n  archivo_url: url,\n  respuesta: `Tu Excel ya está listo.\\n\\nDescargar archivo: ${url}`\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          160
+        ],
+        "id": "cb8a6946-d963-4b90-88e9-950812f5fd2a",
+        "name": "10 WK FILE Preparar Excel Premium"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nreturn [{ json: {\n  ...i,\n  ok: false,\n  execution_status: 'no_disponible',\n  tipo: 'texto',\n  archivo_tipo: 'pdf',\n  archivo_url: '',\n  respuesta: 'Puedo preparar la estructura del PDF, pero el generador PDF todavía debe conectarse. La solicitud quedó registrada como no disponible; no como una ejecución exitosa.'\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          320
+        ],
+        "id": "15fb4454-4c45-46e3-ab82-ecb829155f89",
+        "name": "11 WK FILE Responder PDF Pendiente"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nreturn [{ json: {\n  ...i,\n  ok: false,\n  execution_status: 'no_disponible',\n  tipo: 'texto',\n  archivo_tipo: 'word',\n  archivo_url: '',\n  respuesta: 'Puedo preparar la estructura del documento Word, pero el generador DOCX todavía debe conectarse. La solicitud quedó registrada como no disponible; no como una ejecución exitosa.'\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          480
+        ],
+        "id": "bd08a467-2473-4203-b864-f66bb3962035",
+        "name": "12 WK FILE Responder Word Pendiente"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst datos = i.datos_accion || {};\nconst prioridades = { baja: 1, media: 3, alta: 4, critica: 5 };\nconst prioridadRecibida = Number(datos.prioridad ?? i.prioridad_eos);\nconst prioridadTexto = String(datos.prioridad || i.prioridad_eos || 'media').trim().toLowerCase();\nconst prioridad = Number.isFinite(prioridadRecibida)\n  ? Math.max(1, Math.min(5, Math.round(prioridadRecibida)))\n  : (prioridades[prioridadTexto] || 3);\nconst titulo = String(datos.titulo || datos.nombre || i.mensaje || 'Nueva tarea EOS').trim().slice(0, 120);\nconst descripcion = String(datos.descripcion || i.mensaje || titulo).trim().slice(0, 1200);\nreturn [{ json: {\n  ...i,\n  titulo,\n  descripcion,\n  estado: 'pendiente',\n  prioridad,\n  created_at: new Date().toISOString()\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          672
+        ],
+        "id": "98bf733a-7325-480d-bdc1-4f10de993e89",
+        "name": "20 WK TASK Preparar Tarea"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_tasks",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "fieldId": "titulo",
+                "fieldValue": "={{ $json.titulo }}"
+              },
+              {
+                "fieldId": "descripcion",
+                "fieldValue": "={{ $json.descripcion }}"
+              },
+              {
+                "fieldId": "estado",
+                "fieldValue": "pendiente"
+              },
+              {
+                "fieldId": "prioridad",
+                "fieldValue": "={{ $json.prioridad }}"
+              },
+              {
+                "fieldId": "action_command_id",
+                "fieldValue": "={{ $('02 WK Preparar Orden Confiable').first().json.action_command_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          224,
+          672
+        ],
+        "id": "b7986738-0ae9-41ee-9604-195c2fc76151",
+        "name": "21 WK TASK Crear Tarea EOS",
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:`Listo. Registré la tarea: ${i.titulo || 'Nueva tarea EOS'}.`}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          672
+        ],
+        "id": "63cb1cfa-e2cb-4d65-b95b-38fd47ffadce",
+        "name": "22 WK TASK Respuesta Tarea"
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst i=$input.first().json; const titulo=(i.mensaje||'Nuevo objetivo EOS').slice(0,120);\nreturn [{json:{...i,titulo,descripcion:i.mensaje,estado:'activo',progreso:0,created_at:new Date().toISOString()}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          832
+        ],
+        "id": "ae5aa22a-d96e-4b88-8237-d6d3c712198e",
+        "name": "30 WK GOAL Preparar Objetivo"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_goals",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "fieldId": "titulo",
+                "fieldValue": "={{ $json.titulo }}"
+              },
+              {
+                "fieldId": "descripcion",
+                "fieldValue": "={{ $json.descripcion }}"
+              },
+              {
+                "fieldId": "estado",
+                "fieldValue": "activo"
+              },
+              {
+                "fieldId": "progreso",
+                "fieldValue": "0"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          224,
+          832
+        ],
+        "id": "2aa37cb3-be0e-4f3b-b171-76fabf934e55",
+        "name": "31 WK GOAL Crear Objetivo EOS",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:`Listo. Creé el objetivo: ${i.titulo || 'Nuevo objetivo EOS'}.`}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          832
+        ],
+        "id": "2b896a20-eac5-4cdd-983d-3464c20cc1d0",
+        "name": "32 WK GOAL Respuesta Objetivo"
+      },
+      {
+        "parameters": {
+          "jsCode": "const entrada = $input.first().json || {};\nconst memoria = entrada.memoria || entrada.decision?.memoria || null;\nlet contenido = '';\nlet titulo = 'Dato importante';\nlet categoria = 'general';\n\nif (typeof memoria === 'string') contenido = memoria;\nelse if (memoria && typeof memoria === 'object') {\n  contenido = memoria.contenido || memoria.texto || memoria.descripcion || '';\n  titulo = memoria.titulo || titulo;\n  categoria = memoria.categoria || categoria;\n}\nif (!contenido) contenido = String(entrada.mensaje || '').trim();\n\nreturn [{ json: { ...entrada, usuario_id: entrada.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id, categoria, titulo, contenido, importancia: 5, origen: 'decision_engine', estado: 'activo', created_at: new Date().toISOString(), updated_at: new Date().toISOString() } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          992
+        ],
+        "id": "2644efcb-bf0b-4427-b7e3-108243b2c38f",
+        "name": "40 WK MEM Preparar Memoria"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_memory",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "fieldId": "contenido",
+                "fieldValue": "={{ $json.contenido }}"
+              },
+              {
+                "fieldId": "created_at",
+                "fieldValue": "={{$now}}"
+              },
+              {
+                "fieldId": "titulo",
+                "fieldValue": "={{$json.titulo || 'Dato importante'}}"
+              },
+              {
+                "fieldId": "importancia",
+                "fieldValue": "={{$json.importancia || 5}}"
+              },
+              {
+                "fieldId": "origen",
+                "fieldValue": "={{$json.origen || 'decision_engine'}}"
+              },
+              {
+                "fieldId": "estado",
+                "fieldValue": "={{$json.estado || 'activo'}}"
+              },
+              {
+                "fieldId": "updated_at",
+                "fieldValue": "={{$now}}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          224,
+          992
+        ],
+        "id": "810277ce-343f-4928-a8b9-4b65e5e51efa",
+        "name": "41 WK MEM Guardar Memoria EOS",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst i=$input.first().json; return [{json:{...i,tipo:'texto',respuesta:'Listo. Guardé esa información en la memoria de EOS para usarla como contexto cuando sea relevante.'}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          448,
+          992
+        ],
+        "id": "1a50b8e8-f39d-436c-83ea-7e78fad41545",
+        "name": "42 WK MEM Respuesta Memoria"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_dashboard_metrics",
+          "limit": 10,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          0,
+          1152
+        ],
+        "id": "70f8064f-e28a-473f-8bef-55d6bd422b23",
+        "name": "50 WK DASH Leer Métricas",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst entrada=$('21 WK Parsear Decisión').item.json; const metricas=$input.all().map(i=>i.json).filter(x=>x && Object.keys(x).length);\nlet lineas=metricas.map(m=>`- ${m.metric_label||m.metric_key||'Métrica'}: ${m.metric_value||m.metric_number||'sin valor'}`).join('\\n');\nif(!lineas) lineas='Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{...entrada,tipo:'texto',respuesta:`Dashboard EOS:\\n${lineas}`}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          1152
+        ],
+        "id": "e606a266-11a4-4cd5-bd37-b845acb383ba",
+        "name": "51 WK DASH Respuesta Dashboard"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_daily_briefings",
+          "limit": 1,
+          "orderBy": "created_at.desc",
+          "matchType": "allFilters",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          0,
+          1312
+        ],
+        "id": "1f733e7e-c10c-424f-a935-3fda3e01e7f4",
+        "name": "55 WK BRIEF Leer Briefing",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "\nconst entrada=$('21 WK Parsear Decisión').item.json; const b=$input.first().json||{};\nconst respuesta=b.resumen ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1||'Sin prioridad'}\\n2. ${b.prioridad_2||'Sin prioridad'}\\n3. ${b.prioridad_3||'Sin prioridad'}` : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{...entrada,tipo:'texto',respuesta}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          1312
+        ],
+        "id": "d13954ce-ebf0-480f-b447-f7e2e27f5338",
+        "name": "56 WK BRIEF Respuesta Briefing"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst base = $('02 WK Preparar Orden Confiable').first().json || {};\nconst accion = String(base.accion_principal || i.accion_principal || i.accion_eos || i.accion || 'RESPONDER')\n  .trim()\n  .toUpperCase();\nconst esArchivo = ['GENERAR_EXCEL', 'GENERAR_PDF', 'GENERAR_WORD'].includes(accion);\nconst archivoUrl = String(i.archivo_url || i.download_url || i.url || '').trim();\nconst respuestaEspecifica = String(i.respuesta || i.output || i.text || '').trim();\nconst respuestaGateway = String(base.respuesta_gateway || i.respuesta_gateway || i.respuesta_rapida || '').trim();\nlet respuesta = respuestaEspecifica || respuestaGateway;\n\nif (esArchivo && archivoUrl) {\n  respuesta = respuestaEspecifica || 'Tu archivo ya está listo.';\n}\nif (esArchivo && !archivoUrl) {\n  respuesta = respuestaEspecifica || 'No pude completar el archivo en este momento.';\n}\nif (!esArchivo && !respuesta) respuesta = 'Decime qué necesitás y avanzamos.';\n\nconst noDisponible = i.execution_status === 'no_disponible' ||\n  (['GENERAR_PDF', 'GENERAR_WORD'].includes(accion) && !archivoUrl);\n\nreturn [{ json: {\n  ...base,\n  ...i,\n  ok: i.ok !== false && !noDisponible,\n  accion,\n  accion_principal: accion,\n  respuesta,\n  tipo: esArchivo && archivoUrl ? 'archivo' : 'texto',\n  archivo_url: esArchivo ? archivoUrl : '',\n  archivo_tipo: esArchivo ? String(i.archivo_tipo || '').trim() : '',\n  execution_status: noDisponible ? 'no_disponible' : 'completada',\n  metadata: base.metadata || i.metadata || {}\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          768
+        ],
+        "id": "5b2743ea-db6c-4332-b690-f4bcbba5e3e7",
+        "name": "90 WK Preparar Respuesta Final"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {}; return [{ json: { ...i, worker_status: 'sin_accion_secundaria' } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "id": "1609defe-aa26-4c9c-b686-2d46e1f841bf",
+        "name": "23 WK Sin Acción Secundaria"
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          912,
+          768
+        ],
+        "id": "6e67c54c-87b5-42e2-82ba-7b541138d856",
+        "name": "Respond to Webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst acciones = Array.isArray(i.acciones) ? i.acciones : [];\nlet memorias = acciones\n  .filter((accion) => String(accion?.tipo || '').trim().toUpperCase() === 'GUARDAR_MEMORIA')\n  .slice(0, 5)\n  .map((accion) => accion?.datos || {});\n\nif (memorias.length === 0 && /\\b(recuerda|recorda|guarda esto|memoriza)\\b/i.test(String(i.mensaje || ''))) {\n  memorias = [{\n    clave: 'general.dato_importante',\n    categoria: 'general',\n    titulo: 'Dato importante',\n    contenido: i.mensaje,\n    importancia: 7,\n    confianza: 1,\n    confirmada: true,\n  }];\n}\n\nconst slug = (valor) =>\n  String(valor || '')\n    .trim()\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9._-]+/g, '_')\n    .replace(/^[_\\-.]+|[_\\-.]+$/g, '')\n    .slice(0, 120);\n\nconst hash = (valor) => {\n  let resultado = 2166136261;\n  const texto = String(valor || '');\n  for (let index = 0; index < texto.length; index += 1) {\n    resultado ^= texto.charCodeAt(index);\n    resultado = Math.imul(resultado, 16777619);\n  }\n  return (resultado >>> 0).toString(36);\n};\n\nreturn memorias.map((datos) => {\n  const categoria = slug(datos.categoria || 'general') || 'general';\n  const titulo = String(datos.titulo || datos.nombre || 'Dato importante').trim().slice(0, 160);\n  const contenido = String(datos.contenido || datos.valor || datos.descripcion || i.mensaje || '').trim();\n  const entidad = String(datos.entidad || '').trim().slice(0, 160);\n  const claveBase = slug(datos.clave || datos.key || `${categoria}.${entidad || titulo}`);\n  const clave = claveBase && !/dato_importante$/.test(claveBase)\n    ? claveBase\n    : `${categoria}.dato_${hash(contenido)}`;\n\n  return {\n    json: {\n      ...i,\n      clave,\n      categoria,\n      titulo,\n      contenido,\n      entidad,\n      valor: datos.valor && typeof datos.valor === 'object'\n        ? datos.valor\n        : { contenido },\n      importancia: Math.max(1, Math.min(10, Number(datos.importancia || 5))),\n      confianza: Math.max(0, Math.min(1, Number(datos.confianza ?? 0.8))),\n      confirmada: datos.confirmada === true,\n      origen_memoria: 'gateway_structured_extraction',\n      estado_memoria: 'activo',\n      metadata_memoria: {\n        request_id: i.request_id || '',\n        operacion: i.operacion || 'mensaje',\n        extractor_version: 'eos-memory-v1',\n      },\n    },\n  };\n}).filter((item) => item.json.contenido);"
+        },
+        "id": "91e75727-8c9c-4586-9729-4a8ba02f6a24",
+        "name": "70 WK MEM Preparar Memoria Automática",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -560,
+          1136
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "eos_memory",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id || $('01 WK Preparar Entrada').first().json.usuario_id }}"
+              },
+              {
+                "fieldId": "clave",
+                "fieldValue": "={{ $json.clave }}"
+              },
+              {
+                "fieldId": "categoria",
+                "fieldValue": "={{ $json.categoria }}"
+              },
+              {
+                "fieldId": "titulo",
+                "fieldValue": "={{ $json.titulo }}"
+              },
+              {
+                "fieldId": "contenido",
+                "fieldValue": "={{ $json.contenido }}"
+              },
+              {
+                "fieldId": "entidad",
+                "fieldValue": "={{ $json.entidad || null }}"
+              },
+              {
+                "fieldId": "valor",
+                "fieldValue": "={{ $json.valor }}"
+              },
+              {
+                "fieldId": "importancia",
+                "fieldValue": "={{ $json.importancia }}"
+              },
+              {
+                "fieldId": "confianza",
+                "fieldValue": "={{ $json.confianza }}"
+              },
+              {
+                "fieldId": "confirmada",
+                "fieldValue": "={{ $json.confirmada }}"
+              },
+              {
+                "fieldId": "conversacion_id",
+                "fieldValue": "={{ $json.conversacion_id || null }}"
+              },
+              {
+                "fieldId": "mensaje_id",
+                "fieldValue": "={{ $json.mensaje_id || null }}"
+              },
+              {
+                "fieldId": "metadata",
+                "fieldValue": "={{ $json.metadata_memoria }}"
+              },
+              {
+                "fieldId": "origen",
+                "fieldValue": "={{ $json.origen_memoria }}"
+              },
+              {
+                "fieldId": "estado",
+                "fieldValue": "activo"
+              },
+              {
+                "fieldId": "created_at",
+                "fieldValue": "={{ $now }}"
+              },
+              {
+                "fieldId": "updated_at",
+                "fieldValue": "={{ $now }}"
+              }
+            ]
+          }
+        },
+        "id": "4b2dc77a-5abc-4cd3-b3d3-a7c56a620325",
+        "name": "71 WK MEM Guardar Memoria Automática",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -336,
+          1136
+        ],
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst acciones = Array.isArray(i.acciones) ? i.acciones : [];\nconst objetivos = Array.isArray(i.objetivos) ? i.objetivos : [];\nconst tiposPermitidos = new Set([\n  'CREAR_OBJETIVO',\n  'ACTUALIZAR_PROGRESO',\n  'REGISTRAR_EVIDENCIA',\n  'COMPLETAR_HITO',\n  'PAUSAR_OBJETIVO',\n  'REANUDAR_OBJETIVO',\n]);\n\nconst texto = (valor, maximo = 500) =>\n  String(valor ?? '').trim().slice(0, maximo);\n\nconst numero = (valor) => {\n  if (valor === null || valor === undefined || valor === '') return null;\n  const resultado = Number(valor);\n  return Number.isFinite(resultado) ? resultado : null;\n};\n\nconst fecha = (valor) => {\n  const resultado = texto(valor, 10);\n  return /^\\d{4}-\\d{2}-\\d{2}$/.test(resultado) ? resultado : null;\n};\n\nconst slug = (valor) =>\n  texto(valor, 120)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\nconst esUuid = (valor) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(texto(valor));\n\nconst hashHex = (valor) => {\n  let a = 0x811c9dc5;\n  let b = 0x9e3779b9;\n  for (const caracter of String(valor)) {\n    const codigo = caracter.charCodeAt(0);\n    a = Math.imul(a ^ codigo, 0x01000193) >>> 0;\n    b = Math.imul(b ^ (codigo + a), 0x85ebca6b) >>> 0;\n  }\n  const parte = (numeroHash) => numeroHash.toString(16).padStart(8, '0');\n  return (parte(a) + parte(b) + parte(a ^ b) + parte(Math.imul(a, b) >>> 0)).slice(0, 32);\n};\n\nconst uuidDeterminista = (semilla) => {\n  const hex = hashHex(semilla).split('');\n  hex[12] = '4';\n  hex[16] = ['8', '9', 'a', 'b'][parseInt(hex[16], 16) % 4];\n  const valor = hex.join('');\n  return `${valor.slice(0, 8)}-${valor.slice(8, 12)}-${valor.slice(12, 16)}-${valor.slice(16, 20)}-${valor.slice(20, 32)}`;\n};\n\nconst porId = new Map(objetivos.filter((o) => esUuid(o.id)).map((o) => [o.id, o]));\n\nreturn acciones\n  .map((accion, indice) => {\n    let tipo = texto(accion?.tipo, 60).toUpperCase();\n    if (!tiposPermitidos.has(tipo)) return null;\n\n    const datos = accion?.datos && typeof accion.datos === 'object' && !Array.isArray(accion.datos)\n      ? accion.datos\n      : {};\n\n    let objetivoId = esUuid(datos.objetivo_id) && porId.has(datos.objetivo_id)\n      ? datos.objetivo_id\n      : '';\n\n    if (!objetivoId && tipo !== 'CREAR_OBJETIVO') {\n      const tituloBuscado = texto(datos.objetivo_titulo, 180).toLowerCase();\n      const coincidencias = objetivos.filter((o) =>\n        texto(o.titulo, 180).toLowerCase() === tituloBuscado\n      );\n      if (coincidencias.length === 1) objetivoId = coincidencias[0].id;\n    }\n\n    if (tipo !== 'CREAR_OBJETIVO' && !objetivoId) return null;\n\n    const progreso = numero(datos.progreso);\n    const valorActual = numero(datos.valor_actual);\n\n    if (tipo === 'ACTUALIZAR_PROGRESO' && progreso === null && valorActual === null) {\n      tipo = 'REGISTRAR_EVIDENCIA';\n    }\n\n    const hitos = Array.isArray(datos.hitos)\n      ? datos.hitos.slice(0, 8).map((hito, orden) => {\n          const titulo = texto(hito?.titulo, 180);\n          return {\n            clave: slug(hito?.clave || titulo || `hito_${orden + 1}`),\n            titulo,\n            descripcion: texto(hito?.descripcion, 500) || null,\n            peso: Math.max(0.0001, numero(hito?.peso) ?? 1),\n            orden: numero(hito?.orden) ?? orden,\n            fecha_limite: fecha(hito?.fecha_limite),\n          };\n        }).filter((hito) => hito.titulo)\n      : [];\n\n    const payload = {\n      titulo: texto(datos.titulo, 180) || null,\n      descripcion: texto(datos.descripcion, 1200) || null,\n      objetivo_titulo: texto(datos.objetivo_titulo, 180) || null,\n      tipo_medicion: ['porcentaje', 'numerico', 'monetario', 'hitos'].includes(texto(datos.tipo_medicion).toLowerCase())\n        ? texto(datos.tipo_medicion).toLowerCase()\n        : null,\n      valor_inicial: numero(datos.valor_inicial),\n      valor_actual: valorActual,\n      valor_objetivo: numero(datos.valor_objetivo),\n      progreso,\n      modo_valor: texto(datos.modo_valor).toLowerCase() === 'incremento' ? 'incremento' : 'absoluto',\n      unidad: texto(datos.unidad, 80) || null,\n      prioridad: Math.max(1, Math.min(5, numero(datos.prioridad) ?? 3)),\n      criterio_exito: texto(datos.criterio_exito, 800) || null,\n      proximo_paso: texto(datos.proximo_paso, 800) || null,\n      fecha_inicio: fecha(datos.fecha_inicio),\n      fecha_limite: fecha(datos.fecha_limite),\n      estado: texto(datos.estado, 30).toLowerCase() || null,\n      hito_clave: slug(datos.hito_clave) || null,\n      hito_titulo: texto(datos.hito_titulo, 180) || null,\n      hitos,\n      evidencia: texto(datos.evidencia || i.mensaje, 1200),\n      confianza: Math.max(0, Math.min(1, numero(datos.confianza) ?? 0.8)),\n      metadata: {\n        source_request_id: i.request_id || '',\n        operacion: i.operacion || 'mensaje',\n        extractor_version: 'eos-objectives-v2',\n      },\n    };\n\n    const semilla = [\n      i.request_id || i.mensaje || 'sin-request',\n      tipo,\n      objetivoId || payload.titulo || '',\n      indice,\n    ].join('|');\n\n    return {\n      json: {\n        usuario_id: i.usuario_id,\n        request_id_comando: uuidDeterminista(semilla),\n        accion_objetivo: tipo,\n        objetivo_id: objetivoId || null,\n        payload_objetivo: payload,\n        conversacion_id: esUuid(i.conversacion_id) ? i.conversacion_id : null,\n        mensaje_id: esUuid(i.mensaje_id) ? i.mensaje_id : null,\n      },\n    };\n  })\n  .filter(Boolean);"
+        },
+        "id": "34620ae1-df16-48cf-9b63-17ee4963c05a",
+        "name": "72 WK GOAL Preparar Comandos Automáticos",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -560,
+          1296
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "eos_goal_commands",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id }}"
+              },
+              {
+                "fieldId": "request_id",
+                "fieldValue": "={{ $json.request_id_comando }}"
+              },
+              {
+                "fieldId": "accion",
+                "fieldValue": "={{ $json.accion_objetivo }}"
+              },
+              {
+                "fieldId": "objetivo_id",
+                "fieldValue": "={{ $json.objetivo_id || null }}"
+              },
+              {
+                "fieldId": "payload",
+                "fieldValue": "={{ $json.payload_objetivo }}"
+              },
+              {
+                "fieldId": "conversacion_id",
+                "fieldValue": "={{ $json.conversacion_id || null }}"
+              },
+              {
+                "fieldId": "mensaje_id",
+                "fieldValue": "={{ $json.mensaje_id || null }}"
+              }
+            ]
+          }
+        },
+        "id": "58fc2851-4973-4a6a-9b67-2d8b8892136d",
+        "name": "73 WK GOAL Ejecutar Comandos",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -336,
+          1296
+        ],
+        "alwaysOutputData": true,
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst text = (value, max = 2000) => String(value ?? '').trim().slice(0, max);\nconst isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text(value));\nconst hashHex = (value) => {\n  let a = 0x811c9dc5;\n  let b = 0x9e3779b9;\n  for (const char of String(value)) {\n    const code = char.charCodeAt(0);\n    a = Math.imul(a ^ code, 0x01000193) >>> 0;\n    b = Math.imul(b ^ (code + a), 0x85ebca6b) >>> 0;\n  }\n  const part = (number) => (number >>> 0).toString(16).padStart(8, '0');\n  return (part(a) + part(b) + part(a ^ b) + part(Math.imul(a, b))).slice(0, 32);\n};\nconst deterministicUuid = (seed) => {\n  const hex = hashHex(seed).split('');\n  hex[12] = '4';\n  hex[16] = ['8', '9', 'a', 'b'][parseInt(hex[16], 16) % 4];\n  const value = hex.join('');\n  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20, 32)}`;\n};\nconst accion = text(i.accion_principal || i.accion || 'RESPONDER', 60).toUpperCase();\nconst requestId = isUuid(i.request_id)\n  ? text(i.request_id)\n  : deterministicUuid([i.usuario_id, i.conversacion_id, i.job_id, i.mensaje].join('|'));\nconst actionCommandId = deterministicUuid([i.usuario_id, requestId, accion].join('|'));\nconst inputFingerprint = hashHex(JSON.stringify({\n  usuario_id: i.usuario_id,\n  request_id: requestId,\n  accion,\n  mensaje: i.mensaje,\n  datos_accion: i.datos_accion || {}\n}));\n\nreturn [{ json: {\n  ...i,\n  request_id: requestId,\n  action_command_id: actionCommandId,\n  action_started_epoch_ms: Date.now(),\n  action_input_fingerprint: inputFingerprint,\n  action_payload: {\n    mensaje: text(i.mensaje),\n    operacion: i.operacion || 'mensaje',\n    datos_accion: i.datos_accion || {},\n    acciones: Array.isArray(i.acciones) ? i.acciones.slice(0, 12) : [],\n    parser_version: i.parser_version || ''\n  }\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -448,
+          768
+        ],
+        "id": "7ce218c1-3ecd-4ac3-b755-e4b1a2871389",
+        "name": "02 WK Preparar Orden Confiable"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_action_commands",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "id",
+                "fieldValue": "={{ $json.action_command_id }}"
+              },
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id }}"
+              },
+              {
+                "fieldId": "request_id",
+                "fieldValue": "={{ $json.request_id }}"
+              },
+              {
+                "fieldId": "accion",
+                "fieldValue": "={{ $json.accion_principal }}"
+              },
+              {
+                "fieldId": "conversacion_id",
+                "fieldValue": "={{ /^[0-9a-f-]{36}$/i.test($json.conversacion_id || '') ? $json.conversacion_id : null }}"
+              },
+              {
+                "fieldId": "mensaje_id",
+                "fieldValue": "={{ /^[0-9a-f-]{36}$/i.test($json.mensaje_id || '') ? $json.mensaje_id : null }}"
+              },
+              {
+                "fieldId": "origen",
+                "fieldValue": "={{ $json.origen || 'eos-worker' }}"
+              },
+              {
+                "fieldId": "payload",
+                "fieldValue": "={{ $json.action_payload }}"
+              },
+              {
+                "fieldId": "input_fingerprint",
+                "fieldValue": "={{ $json.action_input_fingerprint }}"
+              },
+              {
+                "fieldId": "max_attempts",
+                "fieldValue": "3"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -240,
+          768
+        ],
+        "id": "054dde1b-1fa8-470c-a604-73801dc4db92",
+        "name": "03 WK Registrar Orden",
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $('02 WK Preparar Orden Confiable').first().json || {};\nreturn [{ json: {\n  ok: true,\n  duplicate: true,\n  accion: i.accion_principal || 'RESPONDER',\n  action_command_id: i.action_command_id,\n  request_id: i.request_id,\n  respuesta: 'Esta solicitud ya fue recibida por EOS. No se ejecutará nuevamente para evitar duplicados.',\n  tipo: 'texto',\n  archivo_url: '',\n  execution_status: 'duplicada'\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -16,
+          944
+        ],
+        "id": "ec886140-76f7-485c-9c19-98e18abfeece",
+        "name": "04 WK Orden Ya Registrada"
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { ...($('02 WK Preparar Orden Confiable').first().json || {}) } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -16,
+          768
+        ],
+        "id": "df483c35-7a19-4922-973b-acce4dea185a",
+        "name": "05 WK Recuperar Contexto"
+      },
+      {
+        "parameters": {
+          "jsCode": "const i = $input.first().json || {};\nconst accion = String(i.accion_principal || i.accion || 'RESPONDER').trim().toUpperCase();\nconst noDisponible = i.execution_status === 'no_disponible';\nconst tipoEvento = noDisponible ? 'no_disponible' : (i.ok === false ? 'error' : 'completada');\nconst inicio = Number(i.action_started_epoch_ms || Date.now());\nconst durationMs = Math.max(0, Date.now() - inicio);\nconst detalle = {\n  accion,\n  tipo_respuesta: i.tipo || 'texto',\n  respuesta: String(i.respuesta || '').slice(0, 4000),\n  archivo_tipo: i.archivo_tipo || '',\n  archivo_url: i.archivo_url || '',\n  recurso_id: i.id || null,\n  request_id: i.request_id || null\n};\nreturn [{ json: {\n  ...i,\n  action_event_type: tipoEvento,\n  action_event_key: `terminal:${i.action_command_id}:1`,\n  action_event_detail: detalle,\n  action_error_code: noDisponible ? 'ACTION_NOT_AVAILABLE' : (tipoEvento === 'error' ? 'ACTION_EXECUTION_ERROR' : null),\n  action_error_message: noDisponible\n    ? 'El ejecutor solicitado todavía no está conectado.'\n    : (tipoEvento === 'error' ? String(i.error_message || i.respuesta || 'La ejecución terminó con error.') : null),\n  action_duration_ms: durationMs\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1456,
+          768
+        ],
+        "id": "716813ae-71aa-4fa8-b5fa-f735f898efbc",
+        "name": "91 WK Preparar Evento Final"
+      },
+      {
+        "parameters": {
+          "tableId": "eos_action_events",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "command_id",
+                "fieldValue": "={{ $json.action_command_id }}"
+              },
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id }}"
+              },
+              {
+                "fieldId": "tipo",
+                "fieldValue": "={{ $json.action_event_type }}"
+              },
+              {
+                "fieldId": "idempotency_key",
+                "fieldValue": "={{ $json.action_event_key }}"
+              },
+              {
+                "fieldId": "detalle",
+                "fieldValue": "={{ $json.action_event_detail }}"
+              },
+              {
+                "fieldId": "error_code",
+                "fieldValue": "={{ $json.action_error_code || null }}"
+              },
+              {
+                "fieldId": "error_message",
+                "fieldValue": "={{ $json.action_error_message || null }}"
+              },
+              {
+                "fieldId": "duration_ms",
+                "fieldValue": "={{ $json.action_duration_ms }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1664,
+          768
+        ],
+        "id": "c84a956d-e18a-453a-ae0c-ee9c2d06fa09",
+        "name": "92 WK Registrar Resultado",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1000,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const response = $('90 WK Preparar Respuesta Final').first().json || {};\nconst event = $('91 WK Preparar Evento Final').first().json || {};\nreturn [{ json: {\n  ok: response.ok === true,\n  accion: response.accion || 'RESPONDER',\n  respuesta: response.respuesta || '',\n  tipo: response.tipo || 'texto',\n  archivo_url: response.archivo_url || '',\n  archivo_tipo: response.archivo_tipo || '',\n  request_id: response.request_id || '',\n  execution: {\n    id: event.action_command_id,\n    estado: event.action_event_type,\n    duration_ms: event.action_duration_ms,\n    duplicate: false\n  }\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1872,
+          768
+        ],
+        "id": "9c135b13-352f-41be-b3a3-85e0b67e37bf",
+        "name": "93 WK Recuperar Respuesta Final"
+      }
+    ],
+    "connections": {
+      "00 WK Webhook EOS Worker": {
+        "main": [
+          [
+            {
+              "node": "01 WK Preparar Entrada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 WK Preparar Entrada": {
+        "main": [
+          [
+            {
+              "node": "60 WK Leer Perfil",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "60 WK Leer Perfil": {
+        "main": [
+          [
+            {
+              "node": "60.5 WK Perfil Existe",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "60.5 WK Perfil Existe": {
+        "main": [
+          [
+            {
+              "node": "61 WK Leer Proyecto Activo",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "60.6 WK Crear Perfil Base",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "60.6 WK Crear Perfil Base": {
+        "main": [
+          [
+            {
+              "node": "61 WK Leer Proyecto Activo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "61 WK Leer Proyecto Activo": {
+        "main": [
+          [
+            {
+              "node": "64 WK Leer Memorias",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "64 WK Leer Memorias": {
+        "main": [
+          [
+            {
+              "node": "62 WK Leer Objetivos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "62 WK Leer Objetivos": {
+        "main": [
+          [
+            {
+              "node": "63 WK Leer Tareas",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "63 WK Leer Tareas": {
+        "main": [
+          [
+            {
+              "node": "65 WK Leer Conversaciones",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "65 WK Leer Conversaciones": {
+        "main": [
+          [
+            {
+              "node": "16 WK Construir Contexto Maestro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "16 WK Construir Contexto Maestro": {
+        "main": [
+          [
+            {
+              "node": "21 WK Parsear Decisión",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "70 WK MEM Preparar Memoria Automática",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "72 WK GOAL Preparar Comandos Automáticos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "21 WK Parsear Decisión": {
+        "main": [
+          [
+            {
+              "node": "02 WK Preparar Orden Confiable",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "22 WK Router Acción": {
+        "main": [
+          [
+            {
+              "node": "23 WK Sin Acción Secundaria",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "10 WK FILE Preparar Excel Premium",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "11 WK FILE Responder PDF Pendiente",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "12 WK FILE Responder Word Pendiente",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "20 WK TASK Preparar Tarea",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "30 WK GOAL Preparar Objetivo",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "40 WK MEM Preparar Memoria",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "50 WK DASH Leer Métricas",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "55 WK BRIEF Leer Briefing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "10 WK FILE Preparar Excel Premium": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "11 WK FILE Responder PDF Pendiente": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "12 WK FILE Responder Word Pendiente": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "20 WK TASK Preparar Tarea": {
+        "main": [
+          [
+            {
+              "node": "21 WK TASK Crear Tarea EOS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "21 WK TASK Crear Tarea EOS": {
+        "main": [
+          [
+            {
+              "node": "22 WK TASK Respuesta Tarea",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "22 WK TASK Respuesta Tarea": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "30 WK GOAL Preparar Objetivo": {
+        "main": [
+          [
+            {
+              "node": "31 WK GOAL Crear Objetivo EOS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "31 WK GOAL Crear Objetivo EOS": {
+        "main": [
+          [
+            {
+              "node": "32 WK GOAL Respuesta Objetivo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "32 WK GOAL Respuesta Objetivo": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "40 WK MEM Preparar Memoria": {
+        "main": [
+          [
+            {
+              "node": "41 WK MEM Guardar Memoria EOS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "41 WK MEM Guardar Memoria EOS": {
+        "main": [
+          [
+            {
+              "node": "42 WK MEM Respuesta Memoria",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "42 WK MEM Respuesta Memoria": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "50 WK DASH Leer Métricas": {
+        "main": [
+          [
+            {
+              "node": "51 WK DASH Respuesta Dashboard",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "51 WK DASH Respuesta Dashboard": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "55 WK BRIEF Leer Briefing": {
+        "main": [
+          [
+            {
+              "node": "56 WK BRIEF Respuesta Briefing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "56 WK BRIEF Respuesta Briefing": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "90 WK Preparar Respuesta Final": {
+        "main": [
+          [
+            {
+              "node": "91 WK Preparar Evento Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "23 WK Sin Acción Secundaria": {
+        "main": [
+          [
+            {
+              "node": "90 WK Preparar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "70 WK MEM Preparar Memoria Automática": {
+        "main": [
+          [
+            {
+              "node": "71 WK MEM Guardar Memoria Automática",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "72 WK GOAL Preparar Comandos Automáticos": {
+        "main": [
+          [
+            {
+              "node": "73 WK GOAL Ejecutar Comandos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 WK Preparar Orden Confiable": {
+        "main": [
+          [
+            {
+              "node": "03 WK Registrar Orden",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 WK Registrar Orden": {
+        "main": [
+          [
+            {
+              "node": "05 WK Recuperar Contexto",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "04 WK Orden Ya Registrada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "05 WK Recuperar Contexto": {
+        "main": [
+          [
+            {
+              "node": "22 WK Router Acción",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 WK Orden Ya Registrada": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "91 WK Preparar Evento Final": {
+        "main": [
+          [
+            {
+              "node": "92 WK Registrar Resultado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "92 WK Registrar Resultado": {
+        "main": [
+          [
+            {
+              "node": "93 WK Recuperar Respuesta Final",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "93 WK Recuperar Respuesta Final": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": "Fase 4 - Acciones y ejecución confiables",
+    "description": "Órdenes idempotentes, bitácora de resultados, watchdog de errores, tareas sin duplicados y respuesta técnica segura.",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-08-11T02:02:40.953Z",
+        "id": 529,
+        "workflowId": "YoF7ZFEI0ChyGNWn",
+        "versionId": "8b472b38-a0a7-40ea-a273-9a65c97ecee5",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    ]
+  }
+}

@@ -1,0 +1,463 @@
+{
+  "updatedAt": "2026-08-11T15:27:40.137Z",
+  "createdAt": "2026-08-11T15:27:40.137Z",
+  "id": "xwFkncvx2T7DYAm8",
+  "name": "EOS 3.0 - Registro de Decisiones y Resultados v6",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-decision-capture",
+        "options": {}
+      },
+      "id": "53350e78-12f1-4b3d-8bdc-dc3855f5f5a6",
+      "name": "00 F6 Recibir conversacion",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "e7296805-d23d-48ee-b858-944370c93d48"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body || $json;\nconst userText = String(body.mensaje || '').trim();\nconst eosText = String(body.respuesta || '').trim();\nconst userId = String(body.usuario_id || '').trim();\nif (!userId || !userText || !eosText) return [];\nconst decisionPattern = /\\b(decid|eleg|aprobad|confirm|vamos a|voy a|haremos|implement|cambiar|contratar|invertir|lanzar|cancelar|priorizar|acordamos)\\w*/i;\nif (!decisionPattern.test(userText + ' ' + eosText)) return [];\nreturn { json: { usuario_id: userId, conversacion_id: body.conversacion_id || null, mensaje: userText.slice(0, 4000), respuesta: eosText.slice(0, 5000), request_id: body.request_id || null } };"
+      },
+      "id": "fab5f57c-7345-4331-8af3-fd47e25bffc6",
+      "name": "01 F6 Detectar candidato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=Analiza la conversacion de TransTech EOS y determina si contiene una decision empresarial concreta ya tomada por el usuario. No registres preguntas, ideas tentativas, recomendaciones de EOS ni simples intenciones ambiguas. Devuelve exclusivamente JSON valido sin markdown: {\"es_decision\":true|false,\"titulo\":\"...\",\"decision\":\"...\",\"contexto\":\"...\",\"razon\":\"...\",\"resultado_esperado\":\"...\",\"confianza\":0.0}. Si no hay decision, usa es_decision false y cadenas vacias. No inventes datos.\n\nUsuario: {{$json.mensaje}}\nEOS: {{$json.respuesta}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "b94ef9a1-089b-46cc-ba54-b735af7c8865",
+      "name": "02 F6 Extraer decision con OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "openAiApi": {
+          "id": "rrbWSomfLM5Z0X0j",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('01 F6 Detectar candidato').item.json;\nconst collect = (v) => typeof v === 'string' ? v : Array.isArray(v) ? v.map(collect).filter(Boolean).join('\\n') : v && typeof v === 'object' ? collect(v.text || v.output_text || v.content || v.message || v.output || v.response || '') : '';\nconst raw = collect($json).replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim();\nconst start = raw.indexOf('{'); const end = raw.lastIndexOf('}');\nif (start < 0 || end <= start) return [];\nlet parsed; try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return []; }\nconst confidence = Math.max(0, Math.min(1, Number(parsed.confianza || 0)));\nconst text = (v, max) => String(v || '').trim().slice(0, max);\nconst title = text(parsed.titulo, 180); const decision = text(parsed.decision, 3000);\nif (parsed.es_decision !== true || confidence < 0.72 || !title || !decision) return [];\nreturn { json: { usuario_id: source.usuario_id, conversacion_id: source.conversacion_id, request_id: source.request_id, titulo: title, decision, contexto: text(parsed.contexto, 4000) || null, razon: text(parsed.razon, 4000) || null, resultado_esperado: text(parsed.resultado_esperado, 3000) || null, confianza: confidence, fuente: 'n8n-conversation-v6', metadata: { prompt_version: 'decision-capture-v6', execution_id: String($execution.id || '') } } };"
+      },
+      "id": "37968493-bc5b-47e7-87aa-055b7046dc9f",
+      "name": "03 F6 Validar decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "eos_decisions",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "usuario_id",
+              "fieldValue": "={{ $json.usuario_id }}"
+            },
+            {
+              "fieldId": "conversacion_id",
+              "fieldValue": "={{ $json.conversacion_id }}"
+            },
+            {
+              "fieldId": "request_id",
+              "fieldValue": "={{ $json.request_id }}"
+            },
+            {
+              "fieldId": "titulo",
+              "fieldValue": "={{ $json.titulo }}"
+            },
+            {
+              "fieldId": "decision",
+              "fieldValue": "={{ $json.decision }}"
+            },
+            {
+              "fieldId": "contexto",
+              "fieldValue": "={{ $json.contexto }}"
+            },
+            {
+              "fieldId": "razon",
+              "fieldValue": "={{ $json.razon }}"
+            },
+            {
+              "fieldId": "resultado_esperado",
+              "fieldValue": "={{ $json.resultado_esperado }}"
+            },
+            {
+              "fieldId": "confianza",
+              "fieldValue": "={{ $json.confianza }}"
+            },
+            {
+              "fieldId": "fuente",
+              "fieldValue": "={{ $json.fuente }}"
+            },
+            {
+              "fieldId": "metadata",
+              "fieldValue": "={{ $json.metadata }}"
+            }
+          ]
+        }
+      },
+      "id": "02e7bb79-6c03-4c38-9bba-7cbb46f7d832",
+      "name": "04 F6 Registrar decision",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        896,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "00 F6 Recibir conversacion": {
+      "main": [
+        [
+          {
+            "node": "01 F6 Detectar candidato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 F6 Detectar candidato": {
+      "main": [
+        [
+          {
+            "node": "02 F6 Extraer decision con OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 F6 Extraer decision con OpenAI": {
+      "main": [
+        [
+          {
+            "node": "03 F6 Validar decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 F6 Validar decision": {
+      "main": [
+        [
+          {
+            "node": "04 F6 Registrar decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "d10a01b3-f40e-45bf-89b9-e6e36bbdb62e",
+  "activeVersionId": "d10a01b3-f40e-45bf-89b9-e6e36bbdb62e",
+  "versionCounter": 1,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-08-11T15:27:40.137Z",
+      "createdAt": "2026-08-11T15:27:40.137Z",
+      "role": "workflow:owner",
+      "workflowId": "xwFkncvx2T7DYAm8",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "updatedAt": "2026-06-05T21:16:13.176Z",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-08-11T15:27:49.060Z",
+    "createdAt": "2026-08-11T15:27:40.137Z",
+    "versionId": "d10a01b3-f40e-45bf-89b9-e6e36bbdb62e",
+    "workflowId": "xwFkncvx2T7DYAm8",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-decision-capture",
+          "options": {}
+        },
+        "id": "53350e78-12f1-4b3d-8bdc-dc3855f5f5a6",
+        "name": "00 F6 Recibir conversacion",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "e7296805-d23d-48ee-b858-944370c93d48"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const body = $json.body || $json;\nconst userText = String(body.mensaje || '').trim();\nconst eosText = String(body.respuesta || '').trim();\nconst userId = String(body.usuario_id || '').trim();\nif (!userId || !userText || !eosText) return [];\nconst decisionPattern = /\\b(decid|eleg|aprobad|confirm|vamos a|voy a|haremos|implement|cambiar|contratar|invertir|lanzar|cancelar|priorizar|acordamos)\\w*/i;\nif (!decisionPattern.test(userText + ' ' + eosText)) return [];\nreturn { json: { usuario_id: userId, conversacion_id: body.conversacion_id || null, mensaje: userText.slice(0, 4000), respuesta: eosText.slice(0, 5000), request_id: body.request_id || null } };"
+        },
+        "id": "fab5f57c-7345-4331-8af3-fd47e25bffc6",
+        "name": "01 F6 Detectar candidato",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-5.4-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-5.4-MINI"
+          },
+          "responses": {
+            "values": [
+              {
+                "role": "system",
+                "content": "=Analiza la conversacion de TransTech EOS y determina si contiene una decision empresarial concreta ya tomada por el usuario. No registres preguntas, ideas tentativas, recomendaciones de EOS ni simples intenciones ambiguas. Devuelve exclusivamente JSON valido sin markdown: {\"es_decision\":true|false,\"titulo\":\"...\",\"decision\":\"...\",\"contexto\":\"...\",\"razon\":\"...\",\"resultado_esperado\":\"...\",\"confianza\":0.0}. Si no hay decision, usa es_decision false y cadenas vacias. No inventes datos.\n\nUsuario: {{$json.mensaje}}\nEOS: {{$json.respuesta}}"
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "id": "b94ef9a1-089b-46cc-ba54-b735af7c8865",
+        "name": "02 F6 Extraer decision con OpenAI",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 2.3,
+        "position": [
+          448,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 1500,
+        "credentials": {
+          "openAiApi": {
+            "id": "rrbWSomfLM5Z0X0j",
+            "name": "OpenAI account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const source = $('01 F6 Detectar candidato').item.json;\nconst collect = (v) => typeof v === 'string' ? v : Array.isArray(v) ? v.map(collect).filter(Boolean).join('\\n') : v && typeof v === 'object' ? collect(v.text || v.output_text || v.content || v.message || v.output || v.response || '') : '';\nconst raw = collect($json).replace(/^```(?:json)?\\s*/i, '').replace(/\\s*```$/i, '').trim();\nconst start = raw.indexOf('{'); const end = raw.lastIndexOf('}');\nif (start < 0 || end <= start) return [];\nlet parsed; try { parsed = JSON.parse(raw.slice(start, end + 1)); } catch { return []; }\nconst confidence = Math.max(0, Math.min(1, Number(parsed.confianza || 0)));\nconst text = (v, max) => String(v || '').trim().slice(0, max);\nconst title = text(parsed.titulo, 180); const decision = text(parsed.decision, 3000);\nif (parsed.es_decision !== true || confidence < 0.72 || !title || !decision) return [];\nreturn { json: { usuario_id: source.usuario_id, conversacion_id: source.conversacion_id, request_id: source.request_id, titulo: title, decision, contexto: text(parsed.contexto, 4000) || null, razon: text(parsed.razon, 4000) || null, resultado_esperado: text(parsed.resultado_esperado, 3000) || null, confianza: confidence, fuente: 'n8n-conversation-v6', metadata: { prompt_version: 'decision-capture-v6', execution_id: String($execution.id || '') } } };"
+        },
+        "id": "37968493-bc5b-47e7-87aa-055b7046dc9f",
+        "name": "03 F6 Validar decision",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          672,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "eos_decisions",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "usuario_id",
+                "fieldValue": "={{ $json.usuario_id }}"
+              },
+              {
+                "fieldId": "conversacion_id",
+                "fieldValue": "={{ $json.conversacion_id }}"
+              },
+              {
+                "fieldId": "request_id",
+                "fieldValue": "={{ $json.request_id }}"
+              },
+              {
+                "fieldId": "titulo",
+                "fieldValue": "={{ $json.titulo }}"
+              },
+              {
+                "fieldId": "decision",
+                "fieldValue": "={{ $json.decision }}"
+              },
+              {
+                "fieldId": "contexto",
+                "fieldValue": "={{ $json.contexto }}"
+              },
+              {
+                "fieldId": "razon",
+                "fieldValue": "={{ $json.razon }}"
+              },
+              {
+                "fieldId": "resultado_esperado",
+                "fieldValue": "={{ $json.resultado_esperado }}"
+              },
+              {
+                "fieldId": "confianza",
+                "fieldValue": "={{ $json.confianza }}"
+              },
+              {
+                "fieldId": "fuente",
+                "fieldValue": "={{ $json.fuente }}"
+              },
+              {
+                "fieldId": "metadata",
+                "fieldValue": "={{ $json.metadata }}"
+              }
+            ]
+          }
+        },
+        "id": "02e7bb79-6c03-4c38-9bba-7cbb46f7d832",
+        "name": "04 F6 Registrar decision",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          896,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 1500,
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "00 F6 Recibir conversacion": {
+        "main": [
+          [
+            {
+              "node": "01 F6 Detectar candidato",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 F6 Detectar candidato": {
+        "main": [
+          [
+            {
+              "node": "02 F6 Extraer decision con OpenAI",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 F6 Extraer decision con OpenAI": {
+        "main": [
+          [
+            {
+              "node": "03 F6 Validar decision",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 F6 Validar decision": {
+        "main": [
+          [
+            {
+              "node": "04 F6 Registrar decision",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": "Version d10a01b3",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-08-11T15:27:49.045Z",
+        "id": 531,
+        "workflowId": "xwFkncvx2T7DYAm8",
+        "versionId": "d10a01b3-f40e-45bf-89b9-e6e36bbdb62e",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+      }
+    ]
+  }
+}
