@@ -81,7 +81,7 @@ export default function EOSPage() {
     nuevaConversacion,
     abrirConversacion,
     actualizarTituloSiHaceFalta,
-  } = useConversations(nombre);
+  } = useConversations();
 
   const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje } = useChat({
     usuarioId,
@@ -120,7 +120,7 @@ export default function EOSPage() {
     setUsuarioCargado(true);
 
     await cargarBriefing(user.id);
-    await cargarConversaciones(user.id, nombreUsuario);
+    await cargarConversaciones(user.id);
   }
 
   useEffect(() => {

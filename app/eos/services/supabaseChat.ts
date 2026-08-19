@@ -39,13 +39,14 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
     .order("created_at", { ascending: true });
 
   if (error) {
-    console.log("Error cargando mensajes:", error);
+    console.error("Error cargando mensajes de la conversación", conversacionId, ":", error);
     return [];
   }
 
-  return (data || []).map((m: any) => ({
+  return (data || []).map((m: Record<string, unknown>) => ({
+    id: typeof m.id === "string" ? m.id : undefined,
     rol: m.remitente === "usuario" || m.rol === "usuario" ? "usuario" : "eos",
-    texto: m.mensaje || m.texto || "",
+    texto: (m.mensaje as string) || (m.texto as string) || "",
   }));
 }
 

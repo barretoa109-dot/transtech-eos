@@ -9,31 +9,25 @@ import {
   obtenerMensajes,
 } from "../services/supabaseChat";
 
-export function useConversations(nombre: string) {
+export function useConversations() {
   const [conversacionId, setConversacionId] = useState("");
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
 
-  async function cargarConversaciones(
-  usuarioId: string,
-  nombreUsuario?: string
-) {
+  async function cargarConversaciones(usuarioId: string) {
     const conversacionesData = await obtenerConversaciones(usuarioId);
 
     if (conversacionesData.length === 0) {
-  await nuevaConversacion(usuarioId, nombreUsuario);
-  return;
-}
+      await nuevaConversacion(usuarioId);
+      return;
+    }
 
     setConversaciones(conversacionesData);
     setConversacionId(conversacionesData[0].id);
     await abrirConversacion(conversacionesData[0].id);
   }
 
-  async function nuevaConversacion(
-  usuarioId: string,
-  nombreUsuario?: string
-) {
+  async function nuevaConversacion(usuarioId: string) {
     const nueva = await crearConversacion(usuarioId);
 
     if (!nueva) return null;
@@ -41,12 +35,9 @@ export function useConversations(nombre: string) {
     setConversacionId(nueva.id);
     setConversaciones((prev) => [nueva, ...prev]);
 
-    setHistorial([
-      {
-        rol: "eos",
-        texto: `Hola ${nombreUsuario || nombre}. Soy EOS.\n\nEste es un nuevo chat. Contame qué querés trabajar hoy: finanzas, negocio, documentos, objetivos, tareas o decisiones importantes.`,
-      },
-    ]);
+    // Leave historial empty so the animated hero greeting shows (matching
+    // the mockup) instead of skipping straight to the chat-bubble layout.
+    setHistorial([]);
 
     return nueva.id;
   }

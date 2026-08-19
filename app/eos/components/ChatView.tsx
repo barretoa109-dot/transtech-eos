@@ -147,7 +147,9 @@ export default function ChatView({
         <div className="chat-wrap">
           <div className="messages" ref={chatRef}>
             {historial.map((m, i) => (
-              <MessageBubble key={m.id ?? i} rol={m.rol} texto={m.texto} nombre={nombre} />
+              <div className="msg-col" key={m.id ?? i}>
+                <MessageBubble rol={m.rol} texto={m.texto} nombre={nombre} />
+              </div>
             ))}
             {cargando && (
               <div className="msg-row assistant">

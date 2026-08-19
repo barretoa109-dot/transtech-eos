@@ -241,6 +241,25 @@
   padding: 14px 10px 6px;
   letter-spacing: 0.2px;
 }
+/* Independently scrollable conversation list, so a long real history
+   doesn't overflow past the fixed header/footer of the sidebar. */
+.eos-app .conv-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(22, 86, 189, 0.25) transparent;
+}
+.eos-app .conv-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.eos-app .conv-scroll::-webkit-scrollbar-thumb {
+  background: rgba(22, 86, 189, 0.22);
+  border-radius: 999px;
+}
+.eos-sidebar.collapsed .conv-scroll {
+  overflow: visible;
+}
 .eos-app .conv {
   padding: 8px 10px;
   border-radius: 9px;
@@ -728,6 +747,15 @@
   margin: 0 auto;
   display: flex;
   gap: 14px;
+}
+
+/* MessageBubble.tsx renders its own message-row/message-column layout
+   (self-contained styled-jsx, not aware of this shell's centered column),
+   so wrap each one to match the mockup's centered 720px reading column. */
+.eos-app .msg-col {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
 }
 .eos-app .msg-row.user {
   justify-content: flex-end;

@@ -103,25 +103,27 @@ export default function Sidebar({
         </button>
       ))}
 
-      <div className="section-label">Conversaciones</div>
+      <div className="conv-scroll">
+        <div className="section-label">Conversaciones</div>
 
-      {conversacionesFiltradas.length === 0 ? (
-        <div className="conv" style={{ color: "var(--muted)", cursor: "default" }}>
-          {busqueda ? "Sin resultados" : "Todavía no hay conversaciones"}
-        </div>
-      ) : (
-        conversacionesFiltradas.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`conv ${vista === "chat" && c.id === conversacionId ? "active" : ""}`}
-            onClick={() => onAbrirConversacion(c.id)}
-          >
-            {c.titulo || "Nuevo chat"}
-            <span className="d">{formatearFecha(c.created_at)}</span>
-          </button>
-        ))
-      )}
+        {conversacionesFiltradas.length === 0 ? (
+          <div className="conv" style={{ color: "var(--muted)", cursor: "default" }}>
+            {busqueda ? "Sin resultados" : "Todavía no hay conversaciones"}
+          </div>
+        ) : (
+          conversacionesFiltradas.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`conv ${vista === "chat" && c.id === conversacionId ? "active" : ""}`}
+              onClick={() => onAbrirConversacion(c.id)}
+            >
+              {c.titulo || "Nuevo chat"}
+              <span className="d">{formatearFecha(c.created_at)}</span>
+            </button>
+          ))
+        )}
+      </div>
 
       <div className="side-bottom">
         <button type="button" className="profile-row" onClick={() => onVistaChange("perfil")}>
