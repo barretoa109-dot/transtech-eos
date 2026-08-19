@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import FinanzasSetup from "./FinanzasSetup";
+import FinanzasCandidatos from "./FinanzasCandidatos";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -90,6 +91,9 @@ export default function FinanzasPanel() {
   const copy = COPY[data.estado];
 
   return (
+    <>
+    <FinanzasCandidatos onImportado={() => void cargar()} />
+
     <div className="card fin-card">
       <div className="fin-head">
         <span className={`fin-badge fin-badge-${data.estado}`}>
@@ -184,6 +188,7 @@ export default function FinanzasPanel() {
         </>
       )}
     </div>
+    </>
   );
 }
 
