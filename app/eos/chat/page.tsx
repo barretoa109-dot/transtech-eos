@@ -247,10 +247,7 @@ export default function EOSPage() {
             isStale={briefingIsStale}
             historyCount={briefingHistory.length}
             onRefresh={refreshBriefing}
-            onOpenChat={(prompt) => {
-              setMensaje(prompt);
-              setVista("chat");
-            }}
+            onGoToDecisions={() => setVista("decisions")}
           />
         )}
 

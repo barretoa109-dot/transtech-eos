@@ -1,7 +1,15 @@
 "use client";
 
-import { AlertTriangle, Award, MessageCircleMore, RefreshCw, Target } from "lucide-react";
-import type { Briefing, BriefingItem } from "../types/briefing";
+import { useEffect, useState } from "react";
+import { RefreshCw, Target } from "lucide-react";
+import type { Briefing } from "../types/briefing";
+
+type DecisionSummary = {
+  id: string;
+  titulo: string;
+  estado: string;
+  result_count: number;
+};
 
 type BriefingViewProps = {
   briefing: Briefing;
@@ -11,7 +19,7 @@ type BriefingViewProps = {
   isStale?: boolean;
   historyCount?: number;
   onRefresh?: () => void;
-  onOpenChat?: (prompt: string) => void;
+  onGoToDecisions?: () => void;
 };
 
 export default function BriefingView({
@@ -22,14 +30,31 @@ export default function BriefingView({
   isStale = false,
   historyCount = 0,
   onRefresh,
-  onOpenChat,
+  onGoToDecisions,
 }: BriefingViewProps) {
   const briefingDate = formatBriefingDate(briefing.briefing_date);
-  const logros = normalizeItems(briefing.logros);
-  const riesgos = normalizeItems(briefing.riesgos);
-  const pasos = normalizeItems(briefing.proximos_pasos).slice(0, 4);
-  const prioridades = [briefing.prioridad_1, briefing.prioridad_2, briefing.prioridad_3].filter(
-    (p): p is string => Boolean(p && p.trim()),
+
+  const [decisiones, setDecisiones] = useState<DecisionSummary[] | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+
+    fetch("/api/decisions", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((payload) => {
+        if (activo) setDecisiones(payload.decisions ?? []);
+      })
+      .catch(() => {
+        if (activo) setDecisiones([]);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  const pendientes = (decisiones ?? []).filter(
+    (d) => d.result_count === 0 && d.estado !== "cerrada" && d.estado !== "cancelada",
   );
 
   return (
@@ -47,7 +72,13 @@ export default function BriefingView({
 
         {onRefresh && (
           <div className="chip-row">
-            <button type="button" className="chip" onClick={onRefresh} disabled={refreshing} style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: refreshing ? "wait" : "pointer" }}>
+            <button
+              type="button"
+              className="chip"
+              onClick={onRefresh}
+              disabled={refreshing}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: refreshing ? "wait" : "pointer" }}
+            >
               <RefreshCw size={12} className={refreshing ? "spin" : ""} />
               {refreshing ? "Actualizando..." : "Actualizar briefing"}
             </button>
@@ -71,95 +102,39 @@ export default function BriefingView({
           )}
         </div>
 
-        {prioridades.length > 0 && (
-          <div className="card">
-            <div className="card-title">Prioridades detectadas</div>
-            <div className="card-sub">{prioridades.length} para hoy</div>
-            <div className="priority-list">
-              {prioridades.map((texto, i) => (
-                <div className="priority-item" key={i}>
-                  <div className="p-check" style={{ cursor: "default" }} />
-                  <div className="p-text">{texto}</div>
-                  <div className={`p-tag ${i === 0 ? "alta" : i === 1 ? "media" : "baja"}`}>
-                    {i === 0 ? "Alta" : i === 1 ? "Media" : "Normal"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {(logros.length > 0 || riesgos.length > 0) && (
-          <div className="card">
-            <div className="card-title">Avances y riesgos</div>
-            {logros.map((item, i) => (
-              <div className="reco" key={`logro-${i}`}>
-                <div className="ric" style={{ background: "var(--green-light)", color: "var(--green)" }}>
-                  <Award size={16} />
-                </div>
-                <div>
-                  <div className="rt">{item.titulo}</div>
-                  {item.descripcion && <div className="rs">{item.descripcion}</div>}
-                </div>
-              </div>
-            ))}
-            {riesgos.map((item, i) => (
-              <div className="reco" key={`riesgo-${i}`}>
-                <div className="ric" style={{ background: "var(--amber-light)", color: "var(--amber)" }}>
-                  <AlertTriangle size={16} />
-                </div>
-                <div>
-                  <div className="rt">{item.titulo}</div>
-                  {item.descripcion && <div className="rs">{item.descripcion}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="card">
-          <div className="card-title">Recomendación principal</div>
-          <div className="prose">{briefing.recomendacion_principal}</div>
-          {onOpenChat && (
-            <button
-              type="button"
-              className="reco-btn"
-              style={{ marginTop: 12 }}
-              onClick={() =>
-                onOpenChat(
-                  `Quiero trabajar sobre esta recomendación de mi briefing: ${briefing.recomendacion_principal || "ayudame a definir la mejor acción para hoy"}`,
-                )
-              }
-            >
-              <MessageCircleMore size={12} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />
-              Trabajar esto con EOS
-            </button>
+          <div className="card-title">Decisiones pendientes</div>
+          {decisiones === null ? (
+            <p className="empty-note">Cargando decisiones…</p>
+          ) : pendientes.length === 0 ? (
+            <p className="prose">No tenés decisiones pendientes de resultado en este momento.</p>
+          ) : (
+            <p className="prose">
+              {pendientes.length === 1
+                ? "1 decisión espera su resultado: "
+                : `${pendientes.length} decisiones esperan su resultado: `}
+              {pendientes
+                .slice(0, 3)
+                .map((d) => `"${d.titulo}"`)
+                .join(", ")}
+              {pendientes.length > 3 ? ` y ${pendientes.length - 3} más` : ""}.{" "}
+              {onGoToDecisions ? (
+                <button
+                  type="button"
+                  onClick={onGoToDecisions}
+                  style={{ color: "var(--blue)", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  Revisalas en la sección Decisiones.
+                </button>
+              ) : (
+                "Revisalas en la sección Decisiones."
+              )}
+            </p>
           )}
         </div>
-
-        {pasos.length > 0 && (
-          <div className="card">
-            <div className="card-title">Próximos pasos</div>
-            <div className="priority-list">
-              {pasos.map((paso, i) => (
-                <div className="priority-item" key={i}>
-                  <div className="p-check" style={{ cursor: "default" }} />
-                  <div className="p-text">
-                    <strong>{paso.titulo}</strong>
-                    {paso.descripcion && <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{paso.descripcion}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
-}
-
-function normalizeItems(value?: BriefingItem[]) {
-  return Array.isArray(value) ? value.filter((item) => item?.titulo?.trim()) : [];
 }
 
 function formatBriefingDate(value?: string | null) {
