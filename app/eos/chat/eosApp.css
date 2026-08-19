@@ -1667,3 +1667,137 @@
     padding: 8px 18px 60px;
   }
 }
+
+/* ============================================================
+   Panel financiero "¿Estoy bien?" (FinanzasPanel.tsx)
+   Diseñado según la doctrina EOS Finanzas: primero responde una sola
+   pregunta, el disponible real es la métrica central, y el detalle es
+   opt-in para no inducir ansiedad.
+   ============================================================ */
+.eos-app .fin-card {
+  margin-bottom: 16px;
+}
+.eos-app .fin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eos-app .fin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.eos-app .fin-badge-seguro {
+  background: var(--green-light);
+  color: var(--green);
+}
+.eos-app .fin-badge-atencion {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .fin-badge-accion {
+  background: var(--red-light);
+  color: var(--red);
+}
+.eos-app .fin-badge-neutral {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+.eos-app .fin-sub {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.eos-app .fin-main {
+  margin-top: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .fin-main-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .fin-main-value {
+  margin-top: 6px;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1.05;
+}
+.eos-app .fin-main-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.eos-app .fin-rows {
+  margin-top: 6px;
+}
+.eos-app .fin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.eos-app .fin-row:last-child {
+  border-bottom: none;
+}
+.eos-app .fin-row-label {
+  color: var(--muted);
+}
+.eos-app .fin-row-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.eos-app .fin-row-value.is-ok {
+  color: var(--green);
+}
+.eos-app .fin-row-value.is-bad {
+  color: var(--amber);
+}
+
+.eos-app .fin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.eos-app .fin-toggle:hover {
+  background: var(--blue-light);
+  border-color: var(--blue);
+}
+.eos-app .fin-chevron-open {
+  transform: rotate(180deg);
+}
+.eos-app .fin-detalles {
+  margin-top: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft);
+  animation: eosRise 0.3s var(--ease) forwards;
+}

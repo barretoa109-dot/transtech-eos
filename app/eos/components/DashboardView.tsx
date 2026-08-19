@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
+import FinanzasPanel from "./FinanzasPanel";
 import type { Briefing } from "../types/briefing";
 
 type DashboardViewProps = {
@@ -63,6 +64,10 @@ export default function DashboardView({
           <div className="page-title">Centro de control</div>
           <div className="page-sub">Métricas, prioridades y recomendaciones en un solo lugar.</div>
         </div>
+
+        {/* Doctrina EOS Finanzas: primero responder "¿Estoy bien?", el detalle
+            es opt-in. Por eso va arriba de todo, antes de cualquier métrica. */}
+        <FinanzasPanel />
 
         <div className="chip-row">
           {PERIODOS.map((p) => (
