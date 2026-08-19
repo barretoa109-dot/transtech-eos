@@ -129,7 +129,7 @@ export default function RegisterForm({ onLogin }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-slate-700 bg-slate-900 p-8 shadow-2xl sm:p-10">
+    <div className="rounded-3xl border border-white/10 bg-[#060c1c]/90 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
       <h2 className="text-4xl font-black">Crear cuenta</h2>
 
       <p className="mt-3 text-slate-400">
@@ -141,7 +141,7 @@ export default function RegisterForm({ onLogin }: Props) {
           type="text"
           autoComplete="name"
           required
-          className="mt-8 w-full rounded-xl border border-slate-700 bg-slate-800 p-4 text-white outline-none focus:border-blue-500"
+          className="mt-8 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Nombre completo"
           value={nombre}
           onChange={(event) => setNombre(event.target.value)}
@@ -151,7 +151,7 @@ export default function RegisterForm({ onLogin }: Props) {
           type="email"
           autoComplete="email"
           required
-          className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-800 p-4 text-white outline-none focus:border-blue-500"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Correo electrónico"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -160,7 +160,7 @@ export default function RegisterForm({ onLogin }: Props) {
         <input
           type="tel"
           autoComplete="tel"
-          className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-800 p-4 text-white outline-none focus:border-blue-500"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="WhatsApp (opcional)"
           value={whatsapp}
           onChange={(event) => setWhatsapp(event.target.value)}
@@ -171,7 +171,7 @@ export default function RegisterForm({ onLogin }: Props) {
           autoComplete="new-password"
           required
           minLength={6}
-          className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-800 p-4 text-white outline-none focus:border-blue-500"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Contraseña"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -192,7 +192,7 @@ export default function RegisterForm({ onLogin }: Props) {
         <button
           type="submit"
           disabled={loading}
-          className="mt-8 w-full rounded-xl bg-blue-600 p-4 font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-8 w-full rounded-xl bg-gradient-to-br from-[#2f72d6] to-[#113f8c] p-4 font-bold text-white shadow-[0_8px_22px_rgba(22,86,189,.35)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
         >
           {loading ? "Creando cuenta..." : "Crear cuenta"}
         </button>
@@ -204,7 +204,7 @@ export default function RegisterForm({ onLogin }: Props) {
         <button
           type="button"
           onClick={onLogin}
-          className="ml-2 font-bold text-blue-400"
+          className="ml-2 font-bold text-[#6fa3e8] transition hover:text-[#a9c6ee]"
         >
           Iniciar sesión
         </button>

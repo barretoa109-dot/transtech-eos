@@ -1,0 +1,121 @@
+/* Shared design tokens for the TransTech EOS redesign (2026-08).
+   Namespaced with --eos- to avoid colliding with existing --background/--foreground tokens. */
+
+:root {
+  --eos-bg: #ffffff;
+  --eos-bg-2: #f1f5fb;
+  --eos-surface: #f6f8fc;
+  --eos-surface-hover: #eef3fb;
+  --eos-border: #e5e9f0;
+  --eos-border-hover: rgba(22, 86, 189, 0.5);
+  --eos-text: #07132a;
+  --eos-muted: #6b7280;
+  --eos-blue: #1656bd;
+  --eos-blue-dark: #113f8c;
+  --eos-blue-bright: #2f72d6;
+  --eos-blue-soft: #1656bd;
+  --eos-blue-light: #e9f0fb;
+  --eos-green: #10a37f;
+  --eos-green-light: #e6f7f1;
+  --eos-amber: #d97706;
+  --eos-amber-light: #fffbeb;
+  --eos-red: #dc2626;
+  --eos-red-light: #fef2f2;
+  --eos-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-eos-theme="dark"] {
+  --eos-bg: #020817;
+  --eos-bg-2: #060c1c;
+  --eos-surface: rgba(255, 255, 255, 0.035);
+  --eos-surface-hover: rgba(255, 255, 255, 0.06);
+  --eos-border: rgba(255, 255, 255, 0.09);
+  --eos-border-hover: rgba(22, 86, 189, 0.55);
+  --eos-text: #f8fafc;
+  --eos-muted: #8b96a8;
+  --eos-blue-soft: #6fa3e8;
+  --eos-blue-light: rgba(22, 86, 189, 0.14);
+}
+
+/* Ambient background: aurora blobs + grid veil + three.js canvas, shared by AmbientBackground.tsx */
+.eos-tech-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.3s ease 0.2s;
+}
+.eos-tech-canvas.ready {
+  opacity: 1;
+}
+
+.eos-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.eos-aurora span {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.14;
+  background: radial-gradient(circle at 30% 30%, var(--eos-blue-bright), var(--eos-blue-dark) 70%);
+  animation: eos-drift 25s ease-in-out infinite;
+}
+[data-eos-theme="dark"] .eos-aurora span {
+  opacity: 0.26;
+}
+.eos-aurora span:nth-child(1) {
+  width: 580px;
+  height: 580px;
+  top: -200px;
+  left: -160px;
+}
+.eos-aurora span:nth-child(2) {
+  width: 480px;
+  height: 480px;
+  top: 15%;
+  right: -180px;
+  animation-duration: 29s;
+  animation-delay: -8s;
+  background: radial-gradient(circle at 30% 30%, #6fa3e8, var(--eos-blue) 70%);
+}
+.eos-aurora span:nth-child(3) {
+  width: 380px;
+  height: 380px;
+  bottom: -160px;
+  left: 30%;
+  animation-duration: 21s;
+  animation-delay: -13s;
+  opacity: 0.09;
+}
+@keyframes eos-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(50px, -40px) scale(1.1);
+  }
+}
+
+.eos-grid-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(22, 86, 189, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22, 86, 189, 0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+[data-eos-theme="dark"] .eos-grid-veil {
+  background-image: linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(ellipse 65% 60% at 30% 40%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(ellipse 65% 60% at 30% 40%, #000 20%, transparent 78%);
+}

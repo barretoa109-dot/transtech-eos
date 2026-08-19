@@ -317,7 +317,7 @@ export default function BriefingView({
               #eef5ff 100%
             );
           color: #071226;
-          font-family: Inter, Arial, Helvetica, sans-serif;
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
           scrollbar-width: thin;
           scrollbar-color: rgba(37, 99, 235, 0.28) transparent;
         }
@@ -399,7 +399,7 @@ export default function BriefingView({
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 11px;
           font-weight: 900;
           letter-spacing: 0.17em;
@@ -436,7 +436,7 @@ export default function BriefingView({
           width: 7px;
           height: 7px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           box-shadow: 0 0 12px rgba(37, 99, 235, 0.55);
         }
 
@@ -475,10 +475,10 @@ export default function BriefingView({
           align-items: center;
           gap: 8px;
           padding: 0 14px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.9);
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 850;
           box-shadow: 0 9px 24px rgba(37, 99, 235, 0.08);
@@ -551,7 +551,7 @@ export default function BriefingView({
           display: grid;
           place-items: center;
           border-radius: 18px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           box-shadow: 0 15px 30px rgba(37, 99, 235, 0.2);
         }
@@ -563,14 +563,14 @@ export default function BriefingView({
         }
 
         .section-label {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.16em;
         }
 
         .section-label-light {
-          color: #bfdbfe;
+          color: #a9c6ee;
         }
 
         .summary-copy h2,
@@ -598,10 +598,10 @@ export default function BriefingView({
           width: fit-content;
           margin-top: 16px;
           padding: 10px 12px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 13px;
-          background: #eff6ff;
-          color: #1d4ed8;
+          background: #eef3fb;
+          color: #113f8c;
           font-size: 11px;
           line-height: 1.5;
         }
@@ -620,10 +620,10 @@ export default function BriefingView({
 
         .section-count {
           padding: 8px 12px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 999px;
           background: #ffffff;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 850;
           box-shadow: 0 8px 24px rgba(37, 99, 235, 0.06);
@@ -690,7 +690,7 @@ export default function BriefingView({
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.08);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .recommendation-header h2 {
@@ -703,7 +703,7 @@ export default function BriefingView({
         .recommendation-text {
           position: relative;
           margin: 26px 0 0;
-          color: #dbeafe;
+          color: #e9f0fb;
           font-size: 18px;
           font-weight: 650;
           line-height: 1.65;
@@ -730,7 +730,7 @@ export default function BriefingView({
           margin-top: 20px;
           padding: 0 16px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-size: 10px;
           font-weight: 850;
@@ -740,14 +740,14 @@ export default function BriefingView({
 
         .recommendation-action:hover {
           transform: translateY(-2px);
-          background: #1d4ed8;
+          background: #113f8c;
         }
 
         .recommendation-dot {
           width: 6px;
           height: 6px;
           border-radius: 999px;
-          background: #60a5fa;
+          background: #2f72d6;
           box-shadow: 0 0 12px rgba(96, 165, 250, 0.65);
         }
 
@@ -773,8 +773,8 @@ export default function BriefingView({
           display: grid;
           place-items: center;
           border-radius: 14px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .steps-list {
@@ -898,7 +898,7 @@ function SignalCard({
       <style jsx>{`
         .signal-card {
           padding: 25px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 26px;
           background: rgba(255, 255, 255, 0.92);
           box-shadow: 0 18px 50px rgba(15, 23, 42, 0.065);
@@ -1060,8 +1060,8 @@ function ScoreCard({
         .score-status {
           padding: 6px 9px;
           border-radius: 999px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-size: 8px;
           letter-spacing: 0;
         }
@@ -1082,7 +1082,7 @@ function ScoreCard({
         }
 
         .score-value-row span {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 21px;
           font-weight: 900;
         }
@@ -1100,8 +1100,8 @@ function ScoreCard({
           border-radius: inherit;
           background: linear-gradient(
             90deg,
-            #2563eb,
-            #60a5fa
+            #1656bd,
+            #2f72d6
           );
           box-shadow: 0 0 18px rgba(37, 99, 235, 0.3);
           transition: width 700ms ease;
@@ -1203,7 +1203,7 @@ function PriorityCard({
             linear-gradient(
               145deg,
               #ffffff,
-              #eff6ff
+              #eef3fb
             );
         }
 
@@ -1220,8 +1220,8 @@ function PriorityCard({
           display: grid;
           place-items: center;
           border-radius: 14px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .priority-number {
@@ -1243,8 +1243,8 @@ function PriorityCard({
         }
 
         .priority-level-featured {
-          background: #dbeafe;
-          color: #2563eb;
+          background: #e9f0fb;
+          color: #1656bd;
         }
 
         .priority-card h3 {
@@ -1269,7 +1269,7 @@ function PriorityCard({
           gap: 10px;
           margin-top: auto;
           padding-top: 22px;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 9px;
           font-weight: 800;
         }
@@ -1316,7 +1316,7 @@ function Step({
           display: grid;
           place-items: center;
           border-radius: 11px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-size: 10px;
           font-weight: 900;

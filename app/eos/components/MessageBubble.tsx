@@ -282,7 +282,7 @@ export default function MessageBubble({
         .message-user {
           border: 1px solid rgba(37, 99, 235, 0.14);
           border-top-right-radius: 6px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           box-shadow: none;
         }
@@ -327,7 +327,7 @@ export default function MessageBubble({
         }
 
         .message-content :global(.message-inline-link) {
-          color: #2563eb;
+          color: #1656bd;
           font-weight: 750;
           text-decoration: underline;
           text-underline-offset: 3px;
@@ -398,7 +398,7 @@ export default function MessageBubble({
           margin-top: 1px;
           border-radius: 8px;
           background: rgba(37, 99, 235, 0.1);
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
         }
@@ -420,7 +420,7 @@ export default function MessageBubble({
           padding: 12px;
           border: 1px solid rgba(37, 99, 235, 0.16);
           border-radius: 15px;
-          background: #eff6ff;
+          background: #eef3fb;
           color: #071226;
           text-decoration: none;
           transition:
@@ -440,7 +440,7 @@ export default function MessageBubble({
           display: grid;
           place-items: center;
           border-radius: 12px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
         }
 
@@ -491,9 +491,9 @@ export default function MessageBubble({
         }
 
         .message-action:hover {
-          border-color: #dbeafe;
-          background: #eff6ff;
-          color: #2563eb;
+          border-color: #e9f0fb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .message-action:disabled {

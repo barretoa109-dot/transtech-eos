@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import AmbientBackground from "@/components/effects/AmbientBackground";
 
 type PlanRow = {
   id: string;
@@ -255,10 +256,8 @@ export default function PlanesPage() {
   }
 
   return (
-    <main className="plans-page">
-      <div className="plans-grid" />
-      <div className="plans-glow plans-glow-one" />
-      <div className="plans-glow plans-glow-two" />
+    <main className="plans-page" data-eos-theme="light">
+      <AmbientBackground spanCount={2} />
 
       <div className="plans-container">
         <header className="plans-topbar">
@@ -656,42 +655,7 @@ export default function PlanesPage() {
           background:
             linear-gradient(180deg, #ffffff 0%, #f5f9ff 52%, #edf4ff 100%);
           color: #071226;
-          font-family: Inter, Arial, Helvetica, sans-serif;
-        }
-
-        .plans-grid {
-          position: fixed;
-          inset: 0;
-          opacity: 0.35;
-          pointer-events: none;
-          background-image:
-            linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
-          background-size: 44px 44px;
-          mask-image: linear-gradient(to bottom, black, transparent 90%);
-        }
-
-        .plans-glow {
-          position: fixed;
-          border-radius: 999px;
-          pointer-events: none;
-          filter: blur(120px);
-        }
-
-        .plans-glow-one {
-          top: 100px;
-          right: -120px;
-          width: 560px;
-          height: 560px;
-          background: rgba(37, 99, 235, 0.13);
-        }
-
-        .plans-glow-two {
-          bottom: -220px;
-          left: 10%;
-          width: 620px;
-          height: 620px;
-          background: rgba(96, 165, 250, 0.12);
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
         }
 
         .plans-container {
@@ -730,8 +694,8 @@ export default function PlanesPage() {
 
         .dashboard-button {
           justify-self: end;
-          border-color: #bfdbfe;
-          color: #2563eb;
+          border-color: #a9c6ee;
+          color: #1656bd;
         }
 
         .brand-lockup {
@@ -740,7 +704,7 @@ export default function PlanesPage() {
         }
 
         .brand-lockup span {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 9px;
           font-weight: 950;
           letter-spacing: 0.22em;
@@ -765,7 +729,7 @@ export default function PlanesPage() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 950;
           letter-spacing: 0.17em;
@@ -823,8 +787,8 @@ export default function PlanesPage() {
         .billing-toggle button span {
           padding: 4px 7px;
           border-radius: 999px;
-          background: #dbeafe;
-          color: #2563eb;
+          background: #e9f0fb;
+          color: #1656bd;
           font-size: 8px;
         }
 
@@ -862,7 +826,7 @@ export default function PlanesPage() {
           padding: 0 17px;
           border: 0;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-family: inherit;
           font-weight: 800;
@@ -926,7 +890,7 @@ export default function PlanesPage() {
           transform: translateX(-50%);
           padding: 0 12px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-size: 8px;
           font-weight: 950;
@@ -948,25 +912,25 @@ export default function PlanesPage() {
           display: grid;
           place-items: center;
           border-radius: 15px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .featured .plan-icon {
           border: 1px solid rgba(255, 255, 255, 0.13);
           background: rgba(255, 255, 255, 0.08);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .plan-code {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 8px;
           font-weight: 950;
           letter-spacing: 0.14em;
         }
 
         .featured .plan-code {
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .plan-card h2 {
@@ -990,7 +954,7 @@ export default function PlanesPage() {
         }
 
         .featured .plan-description {
-          color: #bfdbfe;
+          color: #a9c6ee;
         }
 
         .plan-price {
@@ -1027,10 +991,10 @@ export default function PlanesPage() {
           justify-content: center;
           gap: 8px;
           margin-top: 16px;
-          border: 1px solid #bfdbfe;
+          border: 1px solid #a9c6ee;
           border-radius: 14px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-family: inherit;
           font-size: 10px;
           font-weight: 900;
@@ -1042,12 +1006,12 @@ export default function PlanesPage() {
 
         .select-button:hover:not(:disabled) {
           transform: translateY(-2px);
-          background: #dbeafe;
+          background: #e9f0fb;
         }
 
         .select-button.primary {
-          border-color: #2563eb;
-          background: #2563eb;
+          border-color: #1656bd;
+          background: #1656bd;
           color: white;
           box-shadow: 0 13px 28px rgba(37, 99, 235, 0.24);
         }
@@ -1101,7 +1065,7 @@ export default function PlanesPage() {
         }
 
         .featured li {
-          color: #dbeafe;
+          color: #e9f0fb;
         }
 
         .plan-card li > span {
@@ -1112,13 +1076,13 @@ export default function PlanesPage() {
           place-items: center;
           margin-top: -2px;
           border-radius: 7px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .featured li > span {
           background: rgba(255, 255, 255, 0.09);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .plans-guarantee {
@@ -1142,11 +1106,11 @@ export default function PlanesPage() {
           border: 1px solid rgba(255, 255, 255, 0.13);
           border-radius: 17px;
           background: rgba(255, 255, 255, 0.08);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .plans-section-label {
-          color: #93c5fd;
+          color: #6fa3e8;
           font-size: 9px;
           font-weight: 950;
           letter-spacing: 0.14em;
@@ -1161,7 +1125,7 @@ export default function PlanesPage() {
 
         .plans-guarantee p {
           margin: 11px 0 0;
-          color: #bfdbfe;
+          color: #a9c6ee;
           font-size: 12px;
           line-height: 1.65;
         }
@@ -1239,8 +1203,8 @@ export default function PlanesPage() {
           display: grid;
           place-items: center;
           border-radius: 16px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .contact-heading h2,
@@ -1311,7 +1275,7 @@ export default function PlanesPage() {
 
         .contact-form input:focus,
         .contact-form textarea:focus {
-          border-color: #60a5fa;
+          border-color: #2f72d6;
           background: #ffffff;
           box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
         }
@@ -1350,7 +1314,7 @@ export default function PlanesPage() {
           padding: 0 20px;
           border: 0;
           border-radius: 14px;
-          background: #2563eb;
+          background: #1656bd;
           color: #ffffff;
           font-family: inherit;
           font-size: 11px;

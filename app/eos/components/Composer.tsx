@@ -296,7 +296,7 @@ export default function Composer({
         }
 
         .tt-memory-label {
-          color: #2563eb;
+          color: #1656bd;
         }
 
         .tt-send-button {

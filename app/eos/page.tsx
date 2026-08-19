@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import AmbientBackground from "@/components/effects/AmbientBackground";
 import {
   ArrowRight,
   BarChart3,
@@ -173,7 +174,14 @@ export default function EOSLandingPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white text-[#071226]">
+    <main
+      data-eos-theme="light"
+      className="relative min-h-screen overflow-x-hidden bg-white text-[#071226]"
+      style={{ fontFamily: "var(--font-inter)" }}
+    >
+      <AmbientBackground spanCount={3} />
+
+      <div className="relative z-10">
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-2xl">
         <div className="mx-auto flex min-h-[76px] max-w-7xl items-center justify-between px-5 md:px-8">
           <Link
@@ -198,9 +206,9 @@ export default function EOSLandingPage() {
               </p>
 
               <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.7)]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#1656bd] shadow-[0_0_10px_rgba(37,99,235,0.7)]" />
 
-                <p className="text-[9px] font-black tracking-[0.24em] text-blue-600">
+                <p className="text-[9px] font-black tracking-[0.24em] text-[#1656bd]">
                   EOS
                 </p>
               </div>
@@ -210,28 +218,28 @@ export default function EOSLandingPage() {
           <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
             <a
               href="#que-es"
-              className="transition hover:text-blue-600"
+              className="transition hover:text-[#1656bd]"
             >
               Qué es
             </a>
 
             <a
               href="#funciona"
-              className="transition hover:text-blue-600"
+              className="transition hover:text-[#1656bd]"
             >
               Cómo funciona
             </a>
 
             <a
               href="#capacidades"
-              className="transition hover:text-blue-600"
+              className="transition hover:text-[#1656bd]"
             >
               Capacidades
             </a>
 
             <a
               href="#comparacion"
-              className="transition hover:text-blue-600"
+              className="transition hover:text-[#1656bd]"
             >
               Diferencias
             </a>
@@ -240,14 +248,14 @@ export default function EOSLandingPage() {
           <div className="hidden items-center gap-3 sm:flex">
             <Link
               href="/"
-              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:text-blue-600"
+              className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-800 shadow-sm transition hover:border-[#a9c6ee] hover:text-[#1656bd]"
             >
               TRANSTECH
             </Link>
 
             <Link
               href="/login"
-              className="group inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-700"
+              className="group inline-flex items-center gap-2 rounded-full bg-[#1656bd] px-5 py-3 text-sm font-black text-white shadow-lg shadow-[#2f72d6]/20 transition hover:-translate-y-0.5 hover:bg-[#113f8c]"
             >
               Probar EOS
               <ArrowRight
@@ -297,7 +305,7 @@ export default function EOSLandingPage() {
               <Link
                 href="/login"
                 onClick={cerrarMenu}
-                className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 font-black text-white"
+                className="mt-3 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#1656bd] px-5 font-black text-white"
               >
                 Probar EOS
                 <ArrowRight size={17} />
@@ -307,24 +315,24 @@ export default function EOSLandingPage() {
         ) : null}
       </header>
 
-      <section className="relative overflow-hidden border-b border-slate-200 bg-[#f6f9fe]">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-transparent">
         <BackgroundGrid />
 
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-56 bottom-[-250px] h-[650px] w-[650px] rounded-full bg-blue-500/20 blur-[130px]" />
-          <div className="absolute -right-48 top-[-230px] h-[680px] w-[680px] rounded-full bg-cyan-300/20 blur-[140px]" />
+          <div className="absolute -left-56 bottom-[-250px] h-[650px] w-[650px] rounded-full bg-[#2f72d6]/20 blur-[130px]" />
+          <div className="absolute -right-48 top-[-230px] h-[680px] w-[680px] rounded-full bg-[#6fa3e8]/20 blur-[140px]" />
         </div>
 
         <div className="relative mx-auto grid min-h-[760px] max-w-7xl items-center gap-16 px-6 py-20 md:px-8 md:py-24 lg:grid-cols-[0.94fr_1.06fr]">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/85 px-4 py-2 text-[11px] font-black tracking-[0.15em] text-blue-700 shadow-sm backdrop-blur-xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#a9c6ee] bg-white/85 px-4 py-2 text-[11px] font-black tracking-[0.15em] text-[#113f8c] shadow-sm backdrop-blur-xl">
               <Sparkles size={14} />
               PRODUCTO ESTRELLA DE TRANSTECH
             </div>
 
-            <h1 className="mt-8 max-w-3xl text-5xl font-black leading-[0.96] tracking-[-0.06em] text-slate-950 md:text-7xl">
+            <h1 className="mt-8 max-w-3xl break-words text-4xl font-black leading-[0.96] tracking-[-0.06em] text-slate-950 sm:text-5xl md:text-7xl">
               Un sistema que entiende, decide y{" "}
-              <span className="bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-[#113f8c] via-[#1656bd] to-[#113f8c] bg-clip-text text-transparent">
                 ejecuta.
               </span>
             </h1>
@@ -339,7 +347,7 @@ export default function EOSLandingPage() {
             <div className="mt-9 flex flex-wrap gap-4">
               <Link
                 href="/login"
-                className="group inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
+                className="group inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#1656bd] px-8 font-black text-white shadow-xl shadow-[#2f72d6]/25 transition hover:-translate-y-0.5 hover:bg-[#113f8c]"
               >
                 Probar EOS
                 <ArrowRight
@@ -350,7 +358,7 @@ export default function EOSLandingPage() {
 
               <a
                 href="#funciona"
-                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:text-blue-600"
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-8 font-black text-slate-900 shadow-sm transition hover:border-[#6fa3e8] hover:text-[#1656bd]"
               >
                 Ver cómo funciona
                 <ChevronRight size={18} />
@@ -444,7 +452,7 @@ export default function EOSLandingPage() {
           />
 
           <div className="relative mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            <div className="pointer-events-none absolute left-[12%] right-[12%] top-9 hidden h-px bg-gradient-to-r from-transparent via-blue-300 to-transparent lg:block" />
+            <div className="pointer-events-none absolute left-[12%] right-[12%] top-9 hidden h-px bg-gradient-to-r from-transparent via-[#6fa3e8] to-transparent lg:block" />
 
             {funcionamiento.map((item) => {
               const Icono = item.icono;
@@ -452,14 +460,14 @@ export default function EOSLandingPage() {
               return (
                 <article
                   key={item.numero}
-                  className="group relative rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-950/5"
+                  className="group relative rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-[#a9c6ee] hover:shadow-xl hover:shadow-blue-950/5"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-[#dbe7f9] bg-[#eef3fb] text-[#1656bd] transition group-hover:bg-[#1656bd] group-hover:text-white">
                       <Icono size={25} />
                     </div>
 
-                    <span className="text-sm font-black text-blue-600">
+                    <span className="text-sm font-black text-[#1656bd]">
                       {item.numero}
                     </span>
                   </div>
@@ -483,8 +491,8 @@ export default function EOSLandingPage() {
         className="relative scroll-mt-24 overflow-hidden bg-[#071226] py-24 text-white md:py-32"
       >
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-60 top-0 h-[550px] w-[550px] rounded-full bg-blue-600/15 blur-[130px]" />
-          <div className="absolute -right-52 bottom-[-160px] h-[600px] w-[600px] rounded-full bg-cyan-500/10 blur-[140px]" />
+          <div className="absolute -left-60 top-0 h-[550px] w-[550px] rounded-full bg-[#1656bd]/15 blur-[130px]" />
+          <div className="absolute -right-52 bottom-[-160px] h-[600px] w-[600px] rounded-full bg-[#113f8c]/10 blur-[140px]" />
         </div>
 
         <div className="relative mx-auto max-w-7xl px-6 md:px-8">
@@ -502,16 +510,16 @@ export default function EOSLandingPage() {
               return (
                 <article
                   key={item.numero}
-                  className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-blue-300/30 hover:bg-white/[0.08]"
+                  className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.055] p-7 backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#6fa3e8]/30 hover:bg-white/[0.08]"
                 >
-                  <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl transition group-hover:bg-blue-500/20" />
+                  <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#2f72d6]/10 blur-3xl transition group-hover:bg-[#2f72d6]/20" />
 
                   <div className="relative flex items-center justify-between">
-                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-blue-300/15 bg-blue-500/10 text-blue-300">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-[#6fa3e8]/15 bg-[#2f72d6]/10 text-[#6fa3e8]">
                       <Icono size={25} />
                     </div>
 
-                    <span className="text-sm font-black text-blue-300">
+                    <span className="text-sm font-black text-[#6fa3e8]">
                       {item.numero}
                     </span>
                   </div>
@@ -542,10 +550,10 @@ export default function EOSLandingPage() {
             {ejemplos.map((item, index) => (
               <article
                 key={item.pedido}
-                className="group flex min-h-[390px] flex-col rounded-[2rem] border border-slate-200 bg-[#f8fbff] p-7 transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl hover:shadow-slate-900/5"
+                className="group flex min-h-[390px] flex-col rounded-[2rem] border border-slate-200 bg-[#f8fbff] p-7 transition duration-300 hover:-translate-y-1 hover:border-[#a9c6ee] hover:shadow-xl hover:shadow-slate-900/5"
               >
                 <div className="flex items-center justify-between">
-                  <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.1em] text-blue-600">
+                  <span className="rounded-full border border-[#dbe7f9] bg-[#eef3fb] px-3 py-1 text-[10px] font-black tracking-[0.1em] text-[#1656bd]">
                     {item.tipo.toUpperCase()}
                   </span>
 
@@ -555,12 +563,12 @@ export default function EOSLandingPage() {
                 </div>
 
                 <div className="mt-8 flex items-start gap-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1656bd] text-white">
                     <MessageSquareText size={17} />
                   </div>
 
                   <div>
-                    <p className="text-[10px] font-black tracking-[0.13em] text-blue-600">
+                    <p className="text-[10px] font-black tracking-[0.13em] text-[#1656bd]">
                       USUARIO
                     </p>
 
@@ -574,7 +582,7 @@ export default function EOSLandingPage() {
 
                 <div className="mt-auto rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="flex items-center gap-2">
-                    <Sparkles size={15} className="text-blue-600" />
+                    <Sparkles size={15} className="text-[#1656bd]" />
 
                     <p className="text-[10px] font-black tracking-[0.13em] text-slate-400">
                       RESPUESTA EOS
@@ -611,7 +619,7 @@ export default function EOSLandingPage() {
                 Asistente
               </span>
 
-              <span className="text-center text-blue-300">
+              <span className="text-center text-[#6fa3e8]">
                 EOS
               </span>
             </div>
@@ -637,15 +645,15 @@ export default function EOSLandingPage() {
       <section className="bg-white py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6 md:px-8">
           <div className="relative overflow-hidden rounded-[2.7rem] bg-[#071226] px-7 py-16 text-center text-white shadow-2xl md:px-14 md:py-20">
-            <div className="absolute -left-20 bottom-[-120px] h-72 w-72 rounded-full bg-blue-500/25 blur-3xl" />
-            <div className="absolute -right-20 top-[-120px] h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+            <div className="absolute -left-20 bottom-[-120px] h-72 w-72 rounded-full bg-[#2f72d6]/25 blur-3xl" />
+            <div className="absolute -right-20 top-[-120px] h-72 w-72 rounded-full bg-[#2f72d6]/20 blur-3xl" />
 
             <div className="relative">
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-blue-300/20 bg-blue-500/10 text-blue-300">
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-[#6fa3e8]/20 bg-[#2f72d6]/10 text-[#6fa3e8]">
                 <Sparkles size={29} />
               </div>
 
-              <p className="mt-7 text-sm font-black tracking-[0.16em] text-blue-300">
+              <p className="mt-7 text-sm font-black tracking-[0.16em] text-[#6fa3e8]">
                 EMPEZÁ CON EOS
               </p>
 
@@ -660,7 +668,7 @@ export default function EOSLandingPage() {
 
               <Link
                 href="/login"
-                className="group mt-9 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-9 font-black text-white shadow-xl shadow-blue-500/25 transition hover:-translate-y-0.5 hover:bg-blue-700"
+                className="group mt-9 inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#1656bd] px-9 font-black text-white shadow-xl shadow-[#2f72d6]/25 transition hover:-translate-y-0.5 hover:bg-[#113f8c]"
               >
                 Probar EOS
                 <ArrowRight
@@ -706,27 +714,28 @@ export default function EOSLandingPage() {
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-500">
             <Link
               href="/"
-              className="font-bold transition hover:text-blue-600"
+              className="font-bold transition hover:text-[#1656bd]"
             >
               TRANSTECH
             </Link>
 
             <Link
               href="/login"
-              className="font-bold transition hover:text-blue-600"
+              className="font-bold transition hover:text-[#1656bd]"
             >
               Iniciar sesión
             </Link>
 
             <a
               href="#que-es"
-              className="font-bold transition hover:text-blue-600"
+              className="font-bold transition hover:text-[#1656bd]"
             >
               Producto
             </a>
           </div>
         </div>
       </footer>
+      </div>
     </main>
   );
 }
@@ -734,18 +743,18 @@ export default function EOSLandingPage() {
 function DemoEOS() {
   return (
     <div className="relative">
-      <div className="absolute inset-0 translate-x-8 translate-y-10 rounded-[2.7rem] bg-blue-500/20 blur-3xl" />
+      <div className="absolute inset-0 translate-x-8 translate-y-10 rounded-[2.7rem] bg-[#2f72d6]/20 blur-3xl" />
 
       <div className="relative overflow-hidden rounded-[2.6rem] border border-white/90 bg-white/75 p-3 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl md:p-4">
         <div className="overflow-hidden rounded-[2.1rem] bg-[#071226] text-white">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-5 md:px-7">
             <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-blue-300/20 bg-blue-500/10 text-blue-300">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl border border-[#6fa3e8]/20 bg-[#2f72d6]/10 text-[#6fa3e8]">
                 <BrainCircuit size={23} />
               </div>
 
               <div>
-                <p className="text-[10px] font-black tracking-[0.15em] text-blue-300">
+                <p className="text-[10px] font-black tracking-[0.15em] text-[#6fa3e8]">
                   TRANSTECH EOS
                 </p>
 
@@ -762,10 +771,10 @@ function DemoEOS() {
           </div>
 
           <div className="relative p-5 md:p-7">
-            <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-[#2f72d6]/10 blur-3xl" />
 
             <div className="relative space-y-4">
-              <div className="ml-auto max-w-[86%] rounded-2xl rounded-br-md bg-blue-600 p-4 text-sm leading-6 shadow-lg shadow-blue-950/20">
+              <div className="ml-auto max-w-[86%] rounded-2xl rounded-br-md bg-[#1656bd] p-4 text-sm leading-6 shadow-lg shadow-blue-950/20">
                 Generame un Excel para controlar los ingresos y gastos de
                 mi negocio.
               </div>
@@ -775,9 +784,9 @@ function DemoEOS() {
                 ingresos, gastos, resultado y estructura de control.
               </div>
 
-              <div className="max-w-[94%] overflow-hidden rounded-2xl border border-blue-400/25 bg-blue-500/10">
-                <div className="border-b border-blue-300/10 px-4 py-3">
-                  <div className="flex items-center gap-2 text-[10px] font-black tracking-[0.12em] text-blue-300">
+              <div className="max-w-[94%] overflow-hidden rounded-2xl border border-blue-400/25 bg-[#2f72d6]/10">
+                <div className="border-b border-[#6fa3e8]/10 px-4 py-3">
+                  <div className="flex items-center gap-2 text-[10px] font-black tracking-[0.12em] text-[#6fa3e8]">
                     <CircleCheck size={14} />
                     ARCHIVO GENERADO
                   </div>
@@ -800,7 +809,7 @@ function DemoEOS() {
                     </div>
                   </div>
 
-                  <span className="shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-[10px] font-black">
+                  <span className="shrink-0 rounded-xl bg-[#1656bd] px-4 py-2 text-[10px] font-black">
                     Descargar
                   </span>
                 </div>
@@ -844,7 +853,7 @@ function DemoStatus({
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-      <div className="flex items-center gap-1.5 text-blue-300">
+      <div className="flex items-center gap-1.5 text-[#6fa3e8]">
         {icono}
 
         <span className="text-[9px] font-black uppercase tracking-[0.08em]">
@@ -869,8 +878,8 @@ function Mini({
   texto: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-[#f8fbff] p-5 transition hover:border-blue-200 hover:bg-blue-50/40">
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-600">
+    <div className="rounded-2xl border border-slate-200 bg-[#f8fbff] p-5 transition hover:border-[#a9c6ee] hover:bg-[#eef3fb]/40">
+      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#eef3fb] text-[#1656bd]">
         {icono}
       </div>
 
@@ -889,8 +898,8 @@ function SectionLabel({
   children: React.ReactNode;
 }) {
   return (
-    <p className="inline-flex items-center gap-2 text-sm font-black tracking-[0.16em] text-blue-600">
-      <span className="h-2 w-2 rounded-full bg-blue-600" />
+    <p className="inline-flex items-center gap-2 text-sm font-black tracking-[0.16em] text-[#1656bd]">
+      <span className="h-2 w-2 rounded-full bg-[#1656bd]" />
       {children}
     </p>
   );
@@ -919,7 +928,7 @@ function SectionHeading({
     >
       <p
         className={`text-sm font-black tracking-[0.16em] ${
-          dark ? "text-blue-300" : "text-blue-600"
+          dark ? "text-[#6fa3e8]" : "text-[#1656bd]"
         }`}
       >
         {label}
@@ -960,7 +969,7 @@ function ComparisonValue({
           className={`grid h-8 w-8 place-items-center rounded-full ${
             muted
               ? "bg-slate-100 text-slate-400"
-              : "bg-blue-50 text-blue-600"
+              : "bg-[#eef3fb] text-[#1656bd]"
           }`}
         >
           <Check size={17} strokeWidth={3} />
@@ -994,7 +1003,7 @@ function MobileLink({
     <a
       href={href}
       onClick={onClick}
-      className="flex min-h-12 items-center justify-between rounded-2xl px-4 font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+      className="flex min-h-12 items-center justify-between rounded-2xl px-4 font-bold text-slate-700 transition hover:bg-[#eef3fb] hover:text-[#1656bd]"
     >
       {label}
       <ChevronRight size={17} />

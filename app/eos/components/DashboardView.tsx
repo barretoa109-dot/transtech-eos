@@ -402,7 +402,7 @@ export default function DashboardView({
               #eef5ff 100%
             );
           color: #071226;
-          font-family: Inter, Arial, Helvetica, sans-serif;
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
           scrollbar-width: thin;
           scrollbar-color: rgba(37, 99, 235, 0.28) transparent;
         }
@@ -516,7 +516,7 @@ export default function DashboardView({
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 11px;
           font-weight: 900;
           letter-spacing: 0.17em;
@@ -526,7 +526,7 @@ export default function DashboardView({
           width: 7px;
           height: 7px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           box-shadow: 0 0 12px rgba(37, 99, 235, 0.55);
         }
 
@@ -564,7 +564,7 @@ export default function DashboardView({
           padding: 0 20px;
           border: 0;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-family: inherit;
           font-size: 12px;
@@ -578,7 +578,7 @@ export default function DashboardView({
 
         .dashboard-primary-button:hover {
           transform: translateY(-2px);
-          background: #1d4ed8;
+          background: #113f8c;
         }
 
         .dashboard-plan-pill,
@@ -587,10 +587,10 @@ export default function DashboardView({
           align-items: center;
           gap: 7px;
           padding: 10px 13px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.88);
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 850;
         }
@@ -609,14 +609,14 @@ export default function DashboardView({
 
         .dashboard-section-label,
         .dashboard-light-label {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.16em;
         }
 
         .dashboard-light-label {
-          color: #bfdbfe;
+          color: #a9c6ee;
         }
 
         .dashboard-section-header h2,
@@ -685,8 +685,8 @@ export default function DashboardView({
           display: grid;
           place-items: center;
           border-radius: 15px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .dashboard-insights-list {
@@ -713,7 +713,7 @@ export default function DashboardView({
         }
 
         .dashboard-progress-summary strong {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 21px;
           font-weight: 900;
         }
@@ -732,8 +732,8 @@ export default function DashboardView({
           background:
             linear-gradient(
               90deg,
-              #2563eb,
-              #60a5fa
+              #1656bd,
+              #2f72d6
             );
           box-shadow: 0 0 18px rgba(37, 99, 235, 0.28);
           transition: width 700ms ease;
@@ -794,7 +794,7 @@ export default function DashboardView({
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.08);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .dashboard-recommendation h2 {
@@ -807,7 +807,7 @@ export default function DashboardView({
         .dashboard-recommendation > p {
           position: relative;
           margin: 25px 0 0;
-          color: #dbeafe;
+          color: #e9f0fb;
           font-size: 17px;
           font-weight: 650;
           line-height: 1.65;
@@ -924,8 +924,8 @@ function ScoreRing({
         className="score-ring"
         style={{
           background: `conic-gradient(
-            #2563eb 0deg,
-            #60a5fa ${grados}deg,
+            #1656bd 0deg,
+            #2f72d6 ${grados}deg,
             #e5edf8 ${grados}deg,
             #e5edf8 360deg
           )`,
@@ -1034,8 +1034,8 @@ function MetricCard({
           display: grid;
           place-items: center;
           border-radius: 16px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .metric-copy {
@@ -1100,8 +1100,8 @@ function InsightRow({
           display: grid;
           place-items: center;
           border-radius: 13px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .insight-green .insight-icon {

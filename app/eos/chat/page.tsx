@@ -411,7 +411,7 @@ export default function EOSPage() {
           overflow: hidden;
           background: #f7faff;
           color: #071226;
-          font-family: Inter, Arial, Helvetica, sans-serif;
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
         }
 
         .eos-desktop-sidebar {
@@ -431,7 +431,7 @@ export default function EOSPage() {
           background:
             radial-gradient(
               circle at 85% 10%,
-              rgba(14, 165, 233, 0.07),
+              rgba(47, 114, 214, 0.07),
               transparent 26%
             ),
             linear-gradient(
@@ -453,7 +453,7 @@ export default function EOSPage() {
 
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: #1d4ed8 transparent;
+  scrollbar-color: #113f8c transparent;
 }
 
         .eos-mobile-sidebar,
@@ -482,7 +482,7 @@ export default function EOSPage() {
           margin: 0 auto;
           padding: 11px 14px;
           box-sizing: border-box;
-          border: 1px solid rgba(37, 99, 235, 0.18);
+          border: 1px solid rgba(22, 86, 189, 0.18);
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.96);
           box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
@@ -504,8 +504,8 @@ export default function EOSPage() {
           display: grid;
           place-items: center;
           border-radius: 11px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-size: 9px;
           font-weight: 900;
         }

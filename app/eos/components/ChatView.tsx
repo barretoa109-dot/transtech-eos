@@ -440,7 +440,7 @@ export default function ChatView({
 
         .eos-brand-label {
           margin: 17px 0 0;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 11px;
           font-weight: 900;
           letter-spacing: 0.18em;
@@ -457,7 +457,7 @@ export default function ChatView({
         }
 
         .eos-welcome-title span {
-          color: #2563eb;
+          color: #1656bd;
         }
 
         .eos-welcome-description {
@@ -517,8 +517,8 @@ export default function ChatView({
           display: grid;
           place-items: center;
           border-radius: 14px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .eos-suggestion-arrow {
@@ -530,7 +530,7 @@ export default function ChatView({
 
         .eos-suggestion-card:hover
           .eos-suggestion-arrow {
-          color: #2563eb;
+          color: #1656bd;
           transform: translate(2px, -2px);
         }
 
@@ -571,7 +571,7 @@ export default function ChatView({
           width: 5px;
           height: 5px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
         }
 
         .eos-messages {
@@ -590,7 +590,7 @@ export default function ChatView({
 
         .eos-conversation-header p {
           margin: 0;
-          color: #2563eb;
+          color: #1656bd;
           font-size: 9px;
           font-weight: 900;
           letter-spacing: 0.15em;
@@ -632,8 +632,8 @@ export default function ChatView({
           place-items: center;
           border: 1px solid rgba(37, 99, 235, 0.16);
           border-radius: 12px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           box-shadow: 0 8px 22px rgba(37, 99, 235, 0.1);
         }
 
@@ -662,7 +662,7 @@ export default function ChatView({
           width: 5px;
           height: 5px;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           animation: eos-thinking-pulse 1.15s infinite ease-in-out;
         }
 
@@ -702,7 +702,7 @@ export default function ChatView({
           padding: 13px;
           border: 1px solid rgba(37, 99, 235, 0.18);
           border-radius: 17px;
-          background: #eff6ff;
+          background: #eef3fb;
           color: #071226;
           text-decoration: none;
           transition:
@@ -722,7 +722,7 @@ export default function ChatView({
           display: grid;
           place-items: center;
           border-radius: 13px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
         }
 

@@ -195,7 +195,7 @@ export default function ProfileView({
           box-sizing: border-box;
           background: linear-gradient(180deg, #ffffff 0%, #f7faff 46%, #eef5ff 100%);
           color: #071226;
-          font-family: Inter, Arial, Helvetica, sans-serif;
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior-y: contain;
         }
@@ -254,12 +254,12 @@ export default function ProfileView({
           width: 7px;
           height: 7px;
           border-radius: 999px;
-          background: #3b82f6;
+          background: #2f72d6;
           box-shadow: 0 0 11px rgba(34, 211, 238, 0.8);
         }
 
         .eyebrow {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.18em;
@@ -350,7 +350,7 @@ export default function ProfileView({
           align-items: center;
           justify-content: center;
           border-radius: 25px;
-          background: linear-gradient(135deg, #2563eb 0%, #2563eb 52%, #1d4ed8 100%);
+          background: linear-gradient(135deg, #1656bd 0%, #1656bd 52%, #113f8c 100%);
           color: #fff;
           font-size: 32px;
           font-weight: 950;
@@ -409,9 +409,9 @@ export default function ProfileView({
         }
 
         .plan-tag {
-          border: 1px solid #bfdbfe;
-          background: #eff6ff;
-          color: #2563eb;
+          border: 1px solid #a9c6ee;
+          background: #eef3fb;
+          color: #1656bd;
         }
 
         .connected-tag {
@@ -454,10 +454,10 @@ export default function ProfileView({
         .user-id-header button {
           flex: 0 0 auto;
           padding: 7px 11px;
-          border: 1px solid #bfdbfe;
+          border: 1px solid #a9c6ee;
           border-radius: 9px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-family: inherit;
           font-size: 9px;
           font-weight: 850;
@@ -515,7 +515,7 @@ export default function ProfileView({
         }
 
         .section-header span {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 8px;
           font-weight: 900;
           letter-spacing: 0.14em;
@@ -533,14 +533,14 @@ export default function ProfileView({
           flex: 0 0 auto;
           padding: 6px 9px;
           border-radius: 999px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-size: 8px;
           font-weight: 850;
         }
 
         .section-header em {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 21px;
           font-style: normal;
         }
@@ -559,9 +559,9 @@ export default function ProfileView({
           gap: 11px;
           margin-top: 17px;
           padding: 14px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 13px;
-          background: #eff6ff;
+          background: #eef3fb;
         }
 
         .security-notice > span {
@@ -571,8 +571,8 @@ export default function ProfileView({
           display: grid;
           place-items: center;
           border-radius: 8px;
-          background: #dbeafe;
-          color: #2563eb;
+          background: #e9f0fb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
         }
@@ -783,10 +783,10 @@ function MetricCard({
           flex: 0 0 auto;
           display: grid;
           place-items: center;
-          border: 1px solid #bfdbfe;
+          border: 1px solid #a9c6ee;
           border-radius: 14px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-size: 18px;
           font-weight: 900;
         }
@@ -850,8 +850,8 @@ function Feature({ title, description }: { title: string; description: string })
           display: grid;
           place-items: center;
           border-radius: 8px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
         }

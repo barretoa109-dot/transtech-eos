@@ -87,7 +87,7 @@ export default function TopBar() {
 
         .tt-pill {
           padding: 11px 22px;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 999px;
           background: #ffffff;
           color: #334155;
@@ -103,7 +103,7 @@ export default function TopBar() {
 
         .tt-pill:hover {
           transform: translateY(-2px);
-          border-color: #3b82f6;
+          border-color: #2f72d6;
           box-shadow: 0 14px 30px rgba(37, 99, 235, 0.12);
         }
 

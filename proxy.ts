@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request,
   });
@@ -38,13 +38,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const next = request.nextUrl.searchParams.get("next");
 
   if (
     pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
     pathname === "/dashboard-eos" ||
-    pathname.startsWith("/dashboard-eos/")
+    pathname.startsWith("/dashboard-eos/") ||
+    pathname === "/mobile" ||
+    pathname.startsWith("/mobile/")
   ) {
     const eosUrl = request.nextUrl.clone();
     eosUrl.pathname = "/eos/chat";
@@ -53,8 +54,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(eosUrl);
   }
 
-  const rutaProtegida =
-    pathname.startsWith("/eos/chat") || pathname.startsWith("/mobile");
+  const rutaProtegida = pathname.startsWith("/eos/chat");
 
   if (rutaProtegida && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -67,10 +67,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" && user) {
-    const destino = next === "/mobile" ? "/mobile" : "/eos/chat";
     const destinoUrl = request.nextUrl.clone();
 
-    destinoUrl.pathname = destino;
+    destinoUrl.pathname = "/eos/chat";
     destinoUrl.search = "";
 
     return NextResponse.redirect(destinoUrl);

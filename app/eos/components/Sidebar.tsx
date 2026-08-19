@@ -302,7 +302,7 @@ export default function Sidebar({
     border-right: 1px solid #e2e8f0;
     background: #ffffff;
     color: #071226;
-    font-family: Inter, Arial, Helvetica, sans-serif;
+    font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
     box-shadow: 14px 0 45px rgba(15, 23, 42, 0.055);
   }
 
@@ -378,12 +378,12 @@ export default function Sidebar({
     gap: 12px;
     margin-top: 23px;
     padding: 10px 12px;
-    border: 1px solid #2563eb;
+    border: 1px solid #1656bd;
     border-radius: 17px;
     background: linear-gradient(
       135deg,
-      #2563eb,
-      #1d4ed8
+      #1656bd,
+      #113f8c
     );
     color: #ffffff;
     font-family: inherit;
@@ -400,8 +400,8 @@ export default function Sidebar({
     transform: translateY(-2px);
     background: linear-gradient(
       135deg,
-      #1d4ed8,
-      #1e40af
+      #113f8c,
+      #113f8c
     );
     box-shadow: 0 18px 38px rgba(37, 99, 235, 0.26);
   }
@@ -432,12 +432,12 @@ export default function Sidebar({
   }
 
   .new-chat-copy small {
-    color: #dbeafe;
+    color: #e9f0fb;
     font-size: 10px;
   }
 
   .new-chat-chevron {
-    color: #dbeafe;
+    color: #e9f0fb;
     transition: transform 180ms ease;
   }
 
@@ -482,7 +482,7 @@ export default function Sidebar({
   }
 
   .search-input:focus {
-    border-color: #60a5fa;
+    border-color: #2f72d6;
     background: #ffffff;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
   }
@@ -504,8 +504,8 @@ export default function Sidebar({
   }
 
   .clear-search:hover {
-    background: #eff6ff;
-    color: #2563eb;
+    background: #eef3fb;
+    color: #1656bd;
   }
 
   .navigation {
@@ -572,10 +572,10 @@ export default function Sidebar({
     display: grid;
     place-items: center;
     padding: 0 6px;
-    border: 1px solid #dbeafe;
+    border: 1px solid #e9f0fb;
     border-radius: 999px;
-    background: #eff6ff;
-    color: #2563eb;
+    background: #eef3fb;
+    color: #1656bd;
     font-size: 9px;
     font-weight: 850;
   }
@@ -609,16 +609,16 @@ export default function Sidebar({
 
   .conversation-button:hover {
     transform: translateX(2px);
-    border-color: #dbeafe;
+    border-color: #e9f0fb;
     background: #f8fbff;
     color: #071226;
   }
 
   .conversation-button-active {
-    border-color: #bfdbfe;
+    border-color: #a9c6ee;
     background: linear-gradient(
       90deg,
-      #eff6ff,
+      #eef3fb,
       #f8fbff
     );
     color: #071226;
@@ -637,8 +637,8 @@ export default function Sidebar({
   }
 
   .conversation-button-active .conversation-icon {
-    background: #dbeafe;
-    color: #2563eb;
+    background: #e9f0fb;
+    color: #1656bd;
   }
 
   .conversation-copy {
@@ -676,7 +676,7 @@ export default function Sidebar({
     height: 6px;
     flex-shrink: 0;
     border-radius: 999px;
-    background: #2563eb;
+    background: #1656bd;
     box-shadow: 0 0 12px rgba(37, 99, 235, 0.55);
   }
 
@@ -693,10 +693,10 @@ export default function Sidebar({
     height: 42px;
     display: grid;
     place-items: center;
-    border: 1px solid #dbeafe;
+    border: 1px solid #e9f0fb;
     border-radius: 14px;
-    background: #eff6ff;
-    color: #2563eb;
+    background: #eef3fb;
+    color: #1656bd;
   }
 
   .empty-state strong {
@@ -743,8 +743,8 @@ export default function Sidebar({
   .profile-button:hover,
   .profile-button-active {
     transform: translateY(-1px);
-    border-color: #bfdbfe;
-    background: #eff6ff;
+    border-color: #a9c6ee;
+    background: #eef3fb;
   }
 
   .profile-avatar {
@@ -754,14 +754,14 @@ export default function Sidebar({
     flex-shrink: 0;
     display: grid;
     place-items: center;
-    border: 1px solid #bfdbfe;
+    border: 1px solid #a9c6ee;
     border-radius: 13px;
     background: linear-gradient(
       135deg,
-      #dbeafe,
-      #eff6ff
+      #e9f0fb,
+      #eef3fb
     );
-    color: #2563eb;
+    color: #1656bd;
     font-size: 10px;
     font-weight: 900;
   }
@@ -908,7 +908,7 @@ function NavButton({
 
         .nav-button-active .nav-icon {
           background: rgba(37, 99, 235, 0.2);
-          color: #93c5fd;
+          color: #6fa3e8;
         }
 
         .nav-copy {
@@ -933,7 +933,7 @@ function NavButton({
           width: 6px;
           height: 6px;
           border-radius: 999px;
-          background: #3b82f6;
+          background: #2f72d6;
           box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
         }
 

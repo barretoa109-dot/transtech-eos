@@ -216,7 +216,7 @@ export default function PlanUsageCard() {
         }
 
         .plan-eyebrow {
-          color: #2563eb;
+          color: #1656bd;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.16em;
@@ -273,10 +273,10 @@ export default function PlanUsageCard() {
           height: 38px;
           display: grid;
           place-items: center;
-          border: 1px solid #dbeafe;
+          border: 1px solid #e9f0fb;
           border-radius: 12px;
-          background: #eff6ff;
-          color: #2563eb;
+          background: #eef3fb;
+          color: #1656bd;
           cursor: pointer;
         }
 
@@ -334,7 +334,7 @@ export default function PlanUsageCard() {
           padding: 0 17px;
           border: 0;
           border-radius: 999px;
-          background: #2563eb;
+          background: #1656bd;
           color: white;
           font-family: inherit;
           font-size: 11px;
@@ -432,7 +432,7 @@ function UsageBar({ item, loading }: { item: UsageItem; loading: boolean }) {
         .usage-value {
           height: 100%;
           border-radius: inherit;
-          background: linear-gradient(90deg, #2563eb, #60a5fa);
+          background: linear-gradient(90deg, #1656bd, #2f72d6);
           transition: width 600ms ease;
         }
       `}</style>
