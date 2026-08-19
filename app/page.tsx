@@ -1274,6 +1274,12 @@ export default function Home() {
           .nav-links {
             display: none;
           }
+          .nav-brand span {
+            display: none;
+          }
+          .nav-actions :global(.ghost) {
+            display: none;
+          }
           .hero-title {
             font-size: 38px;
           }
