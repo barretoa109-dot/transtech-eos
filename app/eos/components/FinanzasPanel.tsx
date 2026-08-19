@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle, Check, ChevronDown, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import FinanzasSetup from "./FinanzasSetup";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -40,23 +41,30 @@ export default function FinanzasPanel() {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
   const [detalles, setDetalles] = useState(false);
+  const [configurando, setConfigurando] = useState(false);
+
+  const cargar = useCallback(() => {
+    return fetch("/api/finanzas/estado", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
+      .then((payload) => setData(payload))
+      .catch(() => setError(true));
+  }, []);
 
   useEffect(() => {
-    let activo = true;
+    void cargar();
+  }, [cargar]);
 
-    fetch("/api/finanzas/estado", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
-      .then((payload) => {
-        if (activo) setData(payload);
-      })
-      .catch(() => {
-        if (activo) setError(true);
-      });
-
-    return () => {
-      activo = false;
-    };
-  }, []);
+  if (configurando) {
+    return (
+      <FinanzasSetup
+        onListo={() => {
+          setConfigurando(false);
+          void cargar();
+        }}
+        onCancelar={data?.configurado ? () => setConfigurando(false) : undefined}
+      />
+    );
+  }
 
   if (error || data === null) return null;
 
@@ -68,9 +76,12 @@ export default function FinanzasPanel() {
           <span className="fin-badge fin-badge-neutral">FINANZAS — SIN CONFIGURAR</span>
         </div>
         <p className="prose" style={{ marginTop: 10 }}>
-          EOS todavía no conoce tu situación financiera. Cuando definas tu reserva mínima y tus reglas, va a calcular
+          EOS todavía no conoce tu situación financiera. Definí tus reglas una sola vez y a partir de ahí va a calcular
           tu disponible real y avisarte solo cuando haga falta.
         </p>
+        <button type="button" className="reco-btn" style={{ marginTop: 12 }} onClick={() => setConfigurando(true)}>
+          Configurar mis finanzas
+        </button>
       </div>
     );
   }
@@ -85,6 +96,15 @@ export default function FinanzasPanel() {
           {data.estado === "seguro" ? <ShieldCheck size={14} /> : <AlertTriangle size={14} />}
           {copy.titulo}
         </span>
+        <button
+          type="button"
+          className="fin-editar"
+          onClick={() => setConfigurando(true)}
+          aria-label="Editar mi política financiera"
+          title="Editar mi política financiera"
+        >
+          <SlidersHorizontal size={14} />
+        </button>
       </div>
       <div className="fin-sub">{copy.sub}</div>
 
