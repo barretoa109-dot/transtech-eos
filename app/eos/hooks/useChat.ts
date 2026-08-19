@@ -148,6 +148,7 @@ export function useChat({
         if (guardarUsuario) {
           await guardarMensaje(
             conversacionActiva,
+            usuarioId,
             "usuario",
             textoUsuario,
           );
@@ -194,6 +195,7 @@ export function useChat({
 
         await guardarMensaje(
           conversacionActiva,
+          usuarioId,
           "eos",
           textoEOS,
         );
@@ -237,6 +239,7 @@ export function useChat({
         try {
           await guardarMensaje(
             conversacionActiva,
+            usuarioId,
             "eos",
             respuestaError,
           );

@@ -45,35 +45,37 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
 
   return (data || []).map((m: Record<string, unknown>) => ({
     id: typeof m.id === "string" ? m.id : undefined,
-    rol: m.remitente === "usuario" || m.rol === "usuario" ? "usuario" : "eos",
-    texto: (m.mensaje as string) || (m.texto as string) || "",
+    rol: m.rol === "usuario" ? "usuario" : "eos",
+    texto: (m.texto as string) || "",
   }));
 }
 
+/**
+ * The `mensajes` table's RLS policies (select/insert/delete) all require
+ * `usuario_id = auth.uid()`, and the column has no default or trigger — so an
+ * insert without it is rejected, and any row already stored with a NULL
+ * usuario_id is invisible to the owner. It must always be written explicitly.
+ */
 export async function guardarMensaje(
   conversacionId: string,
-  remitente: "usuario" | "eos",
+  usuarioId: string,
+  rol: "usuario" | "eos",
   texto: string
 ) {
-  if (!conversacionId || !texto.trim()) return;
+  if (!conversacionId || !usuarioId || !texto.trim()) return;
 
   const { error } = await supabase.from("mensajes").insert([
     {
       conversacion_id: conversacionId,
-      remitente,
-      mensaje: texto,
-    },
-  ]);
-
-  if (!error) return;
-
-  await supabase.from("mensajes").insert([
-    {
-      conversacion_id: conversacionId,
-      rol: remitente,
+      usuario_id: usuarioId,
+      rol,
       texto,
     },
   ]);
+
+  if (error) {
+    console.error("No se pudo guardar el mensaje:", error);
+  }
 }
 
 export async function actualizarTituloConversacion(
