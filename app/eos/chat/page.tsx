@@ -1,13 +1,14 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+
+import "./eosApp.css";
 
 import Sidebar from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 import ChatView from "../components/ChatView";
-import Composer from "../components/Composer";
 import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
 import ProfileView from "../components/ProfileView";
@@ -21,15 +22,11 @@ import { useChat } from "../hooks/useChat";
 import { convertirArchivoABase64 } from "../services/uploads";
 import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
 
-
 function formatearTamanio(bytes?: number): string {
   if (!bytes || bytes <= 0) return "";
 
   const unidades = ["B", "KB", "MB", "GB"];
-  const indice = Math.min(
-    Math.floor(Math.log(bytes) / Math.log(1024)),
-    unidades.length - 1,
-  );
+  const indice = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), unidades.length - 1);
 
   const valor = bytes / 1024 ** indice;
   const decimales = indice === 0 || valor >= 10 ? 0 : 1;
@@ -39,23 +36,12 @@ function formatearTamanio(bytes?: number): string {
 
 function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
   const tipo = archivo.tipo.toLowerCase();
-  const extension =
-    archivo.extension ||
-    archivo.nombre.split(".").pop()?.toLowerCase() ||
-    "";
+  const extension = archivo.extension || archivo.nombre.split(".").pop()?.toLowerCase() || "";
 
   if (tipo.startsWith("image/")) return "IMAGEN";
   if (tipo === "application/pdf" || extension === "pdf") return "PDF";
-  if (tipo.includes("word") || ["doc", "docx"].includes(extension)) {
-    return "WORD";
-  }
-  if (
-    tipo.includes("excel") ||
-    tipo.includes("spreadsheet") ||
-    ["xls", "xlsx"].includes(extension)
-  ) {
-    return "EXCEL";
-  }
+  if (tipo.includes("word") || ["doc", "docx"].includes(extension)) return "WORD";
+  if (tipo.includes("excel") || tipo.includes("spreadsheet") || ["xls", "xlsx"].includes(extension)) return "EXCEL";
   if (tipo === "text/csv" || extension === "csv") return "CSV";
   if (tipo === "text/plain" || extension === "txt") return "TXT";
 
@@ -70,7 +56,7 @@ export default function EOSPage() {
   const [vista, setVista] = useState<VistaEOS>("chat");
   const [busqueda, setBusqueda] = useState("");
 
-  // Solo se utiliza en móviles.
+  const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -97,14 +83,7 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
   } = useConversations(nombre);
 
-  const {
-    mensaje,
-    setMensaje,
-    cargando,
-    archivoAdjunto,
-    setArchivoAdjunto,
-    enviarMensaje,
-  } = useChat({
+  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -129,17 +108,9 @@ export default function EOSPage() {
       return;
     }
 
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("nombre, plan")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: usuario } = await supabase.from("usuarios").select("nombre, plan").eq("id", user.id).maybeSingle();
 
-    const nombreUsuario =
-      usuario?.nombre ??
-      user.user_metadata?.nombre ??
-      user.email?.split("@")[0] ??
-      "Usuario";
+    const nombreUsuario = usuario?.nombre ?? user.user_metadata?.nombre ?? user.email?.split("@")[0] ?? "Usuario";
 
     const planUsuario = usuario?.plan ?? "free";
 
@@ -160,18 +131,12 @@ export default function EOSPage() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      chatRef.current?.scrollTo({
-        top: chatRef.current.scrollHeight,
-        behavior: "smooth",
-      });
+      chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
     }, 100);
 
-    return () => {
-      window.clearTimeout(timeout);
-    };
+    return () => window.clearTimeout(timeout);
   }, [historial]);
 
-  // Evita que el fondo se desplace cuando el menú móvil está abierto.
   useEffect(() => {
     if (!menuMovilAbierto) {
       document.body.style.overflow = "";
@@ -179,7 +144,6 @@ export default function EOSPage() {
     }
 
     document.body.style.overflow = "hidden";
-
     return () => {
       document.body.style.overflow = "";
     };
@@ -196,24 +160,15 @@ export default function EOSPage() {
   async function manejarArchivo(file: File) {
     try {
       const archivo = await convertirArchivoABase64(file);
-
       setArchivoAdjunto(archivo);
 
       if (!mensaje.trim()) {
-        const instruccion = archivo.tipo.startsWith("image/")
-          ? "Analizá esta imagen"
-          : "Analizá este archivo";
-
+        const instruccion = archivo.tipo.startsWith("image/") ? "Analizá esta imagen" : "Analizá este archivo";
         setMensaje(`${instruccion}: ${archivo.nombre}`);
       }
     } catch (error) {
       console.error("No se pudo cargar el archivo:", error);
-
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cargar el archivo.",
-      );
+      window.alert(error instanceof Error ? error.message : "No se pudo cargar el archivo.");
     }
   }
 
@@ -231,10 +186,7 @@ export default function EOSPage() {
   function quitarArchivoAdjunto() {
     setArchivoAdjunto(null);
 
-    if (
-      mensaje.startsWith("Analizá esta imagen:") ||
-      mensaje.startsWith("Analizá este archivo:")
-    ) {
+    if (mensaje.startsWith("Analizá esta imagen:") || mensaje.startsWith("Analizá este archivo:")) {
       setMensaje("");
     }
   }
@@ -246,6 +198,8 @@ export default function EOSPage() {
     busqueda,
     conversacionId,
     conversaciones,
+    colapsado: sidebarColapsado,
+    onToggleColapsado: () => setSidebarColapsado((v) => !v),
     onVistaChange: manejarCambioVista,
     onBusquedaChange: setBusqueda,
     onNuevoChat: manejarNuevoChat,
@@ -253,397 +207,79 @@ export default function EOSPage() {
   };
 
   return (
-    <main className="eos-page">
-      {/* Sidebar normal de escritorio. */}
-      <div className="eos-desktop-sidebar">
+    <div className="eos-app">
+      <div className={`eos-sidebar ${sidebarColapsado ? "collapsed" : ""} ${menuMovilAbierto ? "mobile-open" : ""}`}>
         <Sidebar {...sidebarProps} />
       </div>
 
-      {/* Menú lateral móvil. */}
-      <div
-        className={`eos-mobile-overlay ${
-          menuMovilAbierto ? "eos-mobile-overlay-open" : ""
-        }`}
-        onClick={() => setMenuMovilAbierto(false)}
-        aria-hidden={!menuMovilAbierto}
-      />
+      <div className={`mobile-overlay ${menuMovilAbierto ? "open" : ""}`} onClick={() => setMenuMovilAbierto(false)} aria-hidden />
 
-      <aside
-        className={`eos-mobile-sidebar ${
-          menuMovilAbierto ? "eos-mobile-sidebar-open" : ""
-        }`}
-      >
-        <button
-          type="button"
-          className="eos-mobile-close"
-          onClick={() => setMenuMovilAbierto(false)}
-          aria-label="Cerrar menú"
-        >
-          <X size={21} />
-        </button>
+      <button type="button" className="mobile-menu-button" onClick={() => setMenuMovilAbierto(true)} aria-label="Abrir menú">
+        <Menu size={20} />
+      </button>
 
-        <Sidebar {...sidebarProps} />
-      </aside>
-
-      <section className="eos-content">
+      <div className="main">
         <TopBar />
 
-        {/* Botón visible solamente en celular. */}
-        <button
-          type="button"
-          className="eos-mobile-menu-button"
-          onClick={() => setMenuMovilAbierto(true)}
-          aria-label="Abrir menú"
-        >
-          <Menu size={21} />
-        </button>
+        {vista === "chat" && (
+          <ChatView
+            historial={historial}
+            nombre={nombre}
+            mensaje={mensaje}
+            cargando={cargando}
+            archivoAdjunto={archivoAdjunto}
+            chatRef={chatRef}
+            onMensajeChange={setMensaje}
+            onEnviar={(texto) => enviarMensaje(texto)}
+            onArchivoSeleccionado={manejarArchivo}
+            onQuitarArchivo={quitarArchivoAdjunto}
+            obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
+            formatearTamanio={formatearTamanio}
+          />
+        )}
 
-        <div
-          className="eos-view-container"
-          style={{
-            overflowY: vista === "chat" ? "hidden" : "auto",
-          }}
-        >
-          {vista === "chat" && (
-            <>
-              <ChatView
-                historial={historial}
-                nombre={nombre}
-                chatRef={chatRef}
-                onEnviarSugerencia={(texto) => enviarMensaje(texto)}
-              />
+        {vista === "briefing" && (
+          <BriefingView
+            briefing={briefingVisible}
+            loading={briefingLoading}
+            refreshing={briefingRefreshing}
+            error={briefingError}
+            isStale={briefingIsStale}
+            historyCount={briefingHistory.length}
+            onRefresh={refreshBriefing}
+            onOpenChat={(prompt) => {
+              setMensaje(prompt);
+              setVista("chat");
+            }}
+          />
+        )}
 
-              {archivoAdjunto && (
-                <div className="eos-file-preview-wrapper">
-                  <div className="eos-file-preview">
-                    <div className="eos-file-preview-info">
-                      <span className="eos-file-icon">
-                        {obtenerEtiquetaArchivo(archivoAdjunto)}
-                      </span>
+        {vista === "dashboard" && usuarioCargado && (
+          <DashboardView
+            key={`${usuarioId}-${nombre}`}
+            briefing={briefingVisible}
+            briefingHistory={briefingHistory}
+            plan={plan}
+            totalConversations={conversaciones.length}
+            totalMessages={historial.length}
+            onOpenChat={() => setVista("chat")}
+          />
+        )}
 
-                      <span className="eos-file-text">
-                        <small>
-                          {obtenerEtiquetaArchivo(archivoAdjunto)} ADJUNTO
-                          {archivoAdjunto.tamanio
-                            ? ` · ${formatearTamanio(archivoAdjunto.tamanio)}`
-                            : ""}
-                        </small>
-                        <strong>{archivoAdjunto.nombre}</strong>
-                      </span>
-                    </div>
+        {vista === "decisions" && usuarioCargado && <DecisionsView />}
 
-                    <button
-                      type="button"
-                      onClick={quitarArchivoAdjunto}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                </div>
-              )}
+        {vista === "learnings" && usuarioCargado && <LearningsView />}
 
-              <Composer
-                mensaje={mensaje}
-                cargando={cargando}
-                onMensajeChange={setMensaje}
-                onEnviar={() => enviarMensaje()}
-                onArchivoSeleccionado={manejarArchivo}
-              />
-            </>
-          )}
-
-          {vista === "briefing" && (
-            <BriefingView
-              briefing={briefingVisible}
-              loading={briefingLoading}
-              refreshing={briefingRefreshing}
-              error={briefingError}
-              isStale={briefingIsStale}
-              historyCount={briefingHistory.length}
-              onRefresh={refreshBriefing}
-              onOpenChat={(prompt) => {
-                setMensaje(prompt);
-                setVista("chat");
-              }}
-            />
-          )}
-
-          {vista === "dashboard" && usuarioCargado && (
-  <DashboardView
-    key={`${usuarioId}-${nombre}`}
-    userName={nombre}
-    plan={plan}
-    totalConversations={conversaciones.length}
-    totalMessages={historial.length}
-    eosScore={briefingVisible.score || 0}
-    onOpenChat={() => setVista("chat")}
-  />
-)}
-
-          {vista === "decisions" && usuarioCargado && (
-            <DecisionsView />
-          )}
-
-          {vista === "learnings" && usuarioCargado && (
-            <LearningsView />
-          )}
-
-          {vista === "perfil" && (
-            <ProfileView
-              nombre={nombre}
-              plan={plan}
-              usuarioId={usuarioId}
-              conversaciones={conversaciones.length}
-              mensajes={historial.length}
-            />
-          )}
-        </div>
-      </section>
-
-      <style jsx>{`
-        .eos-page {
-          width: 100vw;
-          height: 100dvh;
-          display: grid;
-          grid-template-columns:
-            minmax(260px, 280px)
-            minmax(0, 1fr);
-          overflow: hidden;
-          background: #f7faff;
-          color: #071226;
-          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
-        }
-
-        .eos-desktop-sidebar {
-          min-width: 0;
-          height: 100dvh;
-        }
-
-        .eos-content {
-    position: relative;
-    min-width: 0;
-
-    display: flex;
-    flex-direction: column;
-
-    min-height: 0;
-    height: 100%;
-          background:
-            radial-gradient(
-              circle at 85% 10%,
-              rgba(47, 114, 214, 0.07),
-              transparent 26%
-            ),
-            linear-gradient(
-              180deg,
-              #07101d 0%,
-              #091524 52%,
-              #07111f 100%
-            );
-        }
-
-        .eos-view-container {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-
-  display: flex;
-  flex-direction: column;
-
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #113f8c transparent;
-}
-
-        .eos-mobile-sidebar,
-        .eos-mobile-overlay,
-        .eos-mobile-menu-button {
-          display: none;
-        }
-
-        .eos-file-preview-wrapper {
-          position: fixed;
-          left: 280px;
-          right: 0;
-          bottom: 116px;
-          z-index: 45;
-          padding: 0 24px;
-          pointer-events: none;
-        }
-
-        .eos-file-preview {
-          width: min(100%, 900px);
-          min-height: 62px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-          margin: 0 auto;
-          padding: 11px 14px;
-          box-sizing: border-box;
-          border: 1px solid rgba(22, 86, 189, 0.18);
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.96);
-          box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
-          backdrop-filter: blur(18px);
-          pointer-events: auto;
-        }
-
-        .eos-file-preview-info {
-          min-width: 0;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .eos-file-icon {
-          width: 38px;
-          height: 38px;
-          flex-shrink: 0;
-          display: grid;
-          place-items: center;
-          border-radius: 11px;
-          background: #eef3fb;
-          color: #1656bd;
-          font-size: 9px;
-          font-weight: 900;
-        }
-
-        .eos-file-text {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-        }
-
-        .eos-file-text small {
-          color: #64748b;
-          font-size: 8px;
-          font-weight: 900;
-          letter-spacing: 0.13em;
-        }
-
-        .eos-file-text strong {
-          overflow: hidden;
-          color: #071226;
-          font-size: 11px;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .eos-file-preview button {
-          flex-shrink: 0;
-          padding: 8px 12px;
-          border: 1px solid rgba(239, 68, 68, 0.2);
-          border-radius: 10px;
-          background: #fef2f2;
-          color: #dc2626;
-          font-family: inherit;
-          font-size: 9px;
-          font-weight: 850;
-          cursor: pointer;
-        }
-
-        @media (max-width: 760px) {
-          .eos-page {
-            display: block;
-            height: 100dvh;
-          }
-
-          .eos-desktop-sidebar {
-            display: none;
-          }
-
-          .eos-content {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-          .eos-mobile-menu-button {
-            position: fixed;
-            top: calc(14px + env(safe-area-inset-top));
-            left: 14px;
-            z-index: 65;
-            width: 43px;
-            height: 43px;
-            display: grid;
-            place-items: center;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.95);
-            color: #071226;
-            box-shadow: 0 8px 25px rgba(15, 23, 42, 0.1);
-            backdrop-filter: blur(18px);
-            cursor: pointer;
-          }
-
-          .eos-mobile-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 79;
-            display: block;
-            visibility: hidden;
-            background: rgba(7, 18, 38, 0.48);
-            opacity: 0;
-            backdrop-filter: blur(4px);
-            transition:
-              opacity 220ms ease,
-              visibility 220ms ease;
-          }
-
-          .eos-mobile-overlay-open {
-            visibility: visible;
-            opacity: 1;
-          }
-
-          .eos-mobile-sidebar {
-            position: fixed;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            z-index: 80;
-            width: min(88vw, 330px);
-            display: block;
-            transform: translateX(-105%);
-            background: #ffffff;
-            box-shadow: 24px 0 70px rgba(7, 18, 38, 0.28);
-            transition: transform 240ms ease;
-          }
-
-          .eos-mobile-sidebar-open {
-            transform: translateX(0);
-          }
-
-          .eos-mobile-close {
-            position: absolute;
-            top: calc(12px + env(safe-area-inset-top));
-            right: 12px;
-            z-index: 100;
-            width: 39px;
-            height: 39px;
-            display: grid;
-            place-items: center;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.96);
-            color: #071226;
-            box-shadow: 0 7px 20px rgba(15, 23, 42, 0.08);
-            cursor: pointer;
-          }
-
-          .eos-file-preview-wrapper {
-            left: 0;
-            bottom: calc(105px + env(safe-area-inset-bottom));
-            padding: 0 12px;
-          }
-
-          .eos-file-preview {
-            border-radius: 14px;
-          }
-        }
-      `}</style>
-    </main>
+        {vista === "perfil" && (
+          <ProfileView
+            nombre={nombre}
+            plan={plan}
+            usuarioId={usuarioId}
+            conversaciones={conversaciones.length}
+            mensajes={historial.length}
+          />
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,103 +1,216 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import Link from "next/link";
 import AmbientBackground from "@/components/effects/AmbientBackground";
+import AnimatedTitle from "@/components/effects/AnimatedTitle";
+import Reveal from "@/components/effects/Reveal";
+import { homeTechCanvas } from "@/components/effects/techCanvasPresets";
+import { useNavScrolled } from "@/components/effects/useNavScrolled";
+import { supabase } from "../lib/supabase";
 
-const servicios = [
+const transtechIntelligence = [
   {
-    numero: "01",
-    titulo: "Inteligencia Artificial",
-    descripcion:
-      "Diseñamos soluciones inteligentes que analizan información, acompañan decisiones y convierten datos en acciones concretas.",
+    title: "Decisiones basadas en contexto",
+    text: "Información interpretada antes de ejecutar.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" />
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      </svg>
+    ),
   },
   {
-    numero: "02",
-    titulo: "Automatización",
-    descripcion:
-      "Conectamos procesos, sistemas y canales para reducir tareas manuales, errores operativos y tiempos de respuesta.",
+    title: "Automatización inteligente",
+    text: "Menos tareas repetitivas y mayor productividad.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
   },
   {
-    numero: "03",
-    titulo: "Gestión empresarial",
-    descripcion:
-      "Creamos herramientas para organizar objetivos, tareas, finanzas, clientes, documentos y seguimiento.",
+    title: "Documentos en segundos",
+    text: "Archivos profesionales listos para utilizar.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+    ),
   },
   {
-    numero: "04",
-    titulo: "Transformación digital",
-    descripcion:
-      "Ayudamos a empresas y profesionales a modernizar su operación con tecnología práctica, escalable y medible.",
+    title: "Información centralizada",
+    text: "Datos organizados, medibles y disponibles.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+      </svg>
+    ),
   },
 ];
 
-const capacidadesEOS = [
-  "Conversación ejecutiva y contextual",
-  "Generación de documentos y archivos",
-  "Memoria y continuidad entre conversaciones",
-  "Objetivos, tareas y seguimiento",
-  "Dashboard y métricas de progreso",
-  "Automatización de procesos empresariales",
+const queHacemos = [
+  {
+    title: "Inteligencia artificial",
+    text: "Diseñamos soluciones inteligentes que analizan información, acompañan decisiones y convierten datos en acciones concretas.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <rect x="4" y="4" width="16" height="16" rx="3" />
+        <rect x="9" y="9" width="6" height="6" />
+        <line x1="9" y1="1" x2="9" y2="4" />
+        <line x1="15" y1="1" x2="15" y2="4" />
+        <line x1="9" y1="20" x2="9" y2="23" />
+        <line x1="15" y1="20" x2="15" y2="23" />
+        <line x1="20" y1="9" x2="23" y2="9" />
+        <line x1="20" y1="14" x2="23" y2="14" />
+        <line x1="1" y1="9" x2="4" y2="9" />
+        <line x1="1" y1="14" x2="4" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    title: "Automatización",
+    text: "Conectamos procesos, sistemas y canales para reducir tareas manuales, errores operativos y tiempos de respuesta.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polyline points="17 1 21 5 17 9" />
+        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+        <polyline points="7 23 3 19 7 15" />
+        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+      </svg>
+    ),
+  },
+  {
+    title: "Gestión empresarial",
+    text: "Creamos herramientas para organizar objetivos, tareas, finanzas, clientes, documentos y seguimiento.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <rect x="2" y="7" width="20" height="14" rx="2" />
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      </svg>
+    ),
+  },
+  {
+    title: "Transformación digital",
+    text: "Ayudamos a empresas y profesionales a modernizar su operación con tecnología práctica, escalable y medible.",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+      </svg>
+    ),
+  },
+];
+
+const eosFeatures = [
+  {
+    text: "Conversación ejecutiva y contextual",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M21 11.5a8.38 8.38 0 0 1-9 8.38 8.5 8.5 0 0 1-7.6-4.7L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z" />
+      </svg>
+    ),
+  },
+  {
+    text: "Generación de documentos y archivos",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    ),
+  },
+  {
+    text: "Memoria y continuidad entre conversaciones",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+      </svg>
+    ),
+  },
+  {
+    text: "Objetivos, tareas y seguimiento",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polyline points="9 11 12 14 22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    text: "Dashboard y métricas de progreso",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    text: "Automatización de procesos empresariales",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
+  },
 ];
 
 const metodologia = [
   {
-    paso: "01",
-    titulo: "Diagnóstico",
-    texto: "Identificamos el problema real, las prioridades y las oportunidades.",
+    title: "Diagnóstico",
+    text: "Identificamos el problema real, las prioridades y las oportunidades.",
+    icon: (
+      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19 }}>
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+    ),
   },
   {
-    paso: "02",
-    titulo: "Estrategia",
-    texto: "Diseñamos una solución clara, viable y alineada con los objetivos.",
+    title: "Estrategia",
+    text: "Diseñamos una solución clara, viable y alineada con los objetivos.",
+    icon: (
+      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19 }}>
+        <circle cx="12" cy="12" r="9" />
+        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+      </svg>
+    ),
   },
   {
-    paso: "03",
-    titulo: "Implementación",
-    texto: "Construimos, conectamos y ponemos en funcionamiento la tecnología.",
+    title: "Implementación",
+    text: "Construimos, conectamos y ponemos en funcionamiento la tecnología.",
+    icon: (
+      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19 }}>
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z" />
+      </svg>
+    ),
   },
   {
-    paso: "04",
-    titulo: "Seguimiento",
-    texto: "Medimos resultados, detectamos mejoras y acompañamos la evolución.",
+    title: "Seguimiento",
+    text: "Medimos resultados, detectamos mejoras y acompañamos la evolución.",
+    icon: (
+      <svg viewBox="0 0 24 24" style={{ width: 19, height: 19 }}>
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+      </svg>
+    ),
   },
 ];
 
-const sectores = [
-  "Personas",
-  "Emprendedores",
-  "Profesionales",
-  "Comercios",
-  "Pymes",
-  "Empresas",
-];
-
-const ventajasIntelligence = [
-  {
-    numero: "01",
-    titulo: "Decisiones basadas en contexto",
-    texto: "Información interpretada antes de ejecutar.",
-  },
-  {
-    numero: "02",
-    titulo: "Automatización inteligente",
-    texto: "Menos tareas repetitivas y mayor productividad.",
-  },
-  {
-    numero: "03",
-    titulo: "Documentos en segundos",
-    texto: "Archivos profesionales listos para utilizar.",
-  },
-  {
-    numero: "04",
-    titulo: "Información centralizada",
-    texto: "Datos organizados, medibles y disponibles.",
-  },
-];
+const audiencias = ["Personas", "Emprendedores", "Profesionales", "Comercios", "Pymes", "Empresas"];
 
 export default function Home() {
+  const scrolled = useNavScrolled();
+
   const [nombre, setNombre] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [empresa, setEmpresa] = useState("");
@@ -139,666 +252,1040 @@ export default function Home() {
   }
 
   return (
-    <main
-      data-eos-theme="light"
-      className="relative min-h-screen overflow-x-hidden bg-[#F7FAFC] text-[#071226]"
-      style={{ fontFamily: "var(--font-inter)" }}
-    >
-      <AmbientBackground spanCount={3} />
+    <main className="home-page" data-eos-theme="light">
+      <AmbientBackground techConfig={homeTechCanvas} spanCount={3} />
 
-      <div className="relative z-10">
-      {/* HEADER */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-          <Link href="/" className="flex items-center gap-4">
-  <div className="relative h-14 w-16 shrink-0">
-    <Image
-      src="/transtech-logo.png"
-      alt="Logo oficial de TRANSTECH"
-      fill
-      priority
-      sizes="64px"
-      className="object-contain object-center mix-blend-multiply"
-    />
-  </div>
-
-  <p className="text-[24px] font-black leading-none tracking-[-0.035em] text-[#071226]">
-    TRANSTECH
-  </p>
-</Link>
-
-          <nav className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
-            <a href="#empresa" className="transition hover:text-[#1656bd]">
-              Empresa
-            </a>
-            <a href="#servicios" className="transition hover:text-[#1656bd]">
-              Servicios
-            </a>
-            <a href="#eos" className="transition hover:text-[#1656bd]">
-              EOS
-            </a>
-            <a href="#metodologia" className="transition hover:text-[#1656bd]">
-              Metodología
-            </a>
-            <a href="#contacto" className="transition hover:text-[#1656bd]">
-              Contacto
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <a
-              href="/login"
-              className="hidden rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-sm transition hover:border-[#6fa3e8] sm:inline-flex"
-            >
-              Ingresar
-            </a>
-
-            <a
-              href="/eos"
-              className="rounded-full bg-[#071226] px-5 py-3 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800"
-            >
-              Probar EOS
-            </a>
+      <nav className={scrolled ? "scrolled" : ""}>
+        <div className="wrap nav-inner">
+          <div className="nav-brand">
+            <img src="/transtech-logo.png" alt="TransTech" />
+            <span>TRANSTECH</span>
           </div>
+          <div className="nav-links">
+            <a href="#empresa">Empresa</a>
+            <a href="#servicios">Servicios</a>
+            <a href="#eos">EOS</a>
+            <a href="#metodologia">Metodología</a>
+            <a href="#contacto">Contacto</a>
+          </div>
+          <div className="nav-actions">
+            <Link className="ghost" href="/login">
+              Ingresar
+            </Link>
+            <Link className="btn btn-primary" href="/login">
+              Probar EOS
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <header className="hero wrap">
+        <div className="eyebrow">
+          <span className="dot" /> Tecnología &amp; inteligencia · Asunción, Paraguay
+        </div>
+        <h1 className="hero-title">
+          <AnimatedTitle
+            text="Tecnología inteligente para transformar la forma de trabajar"
+            accentWords={["transformar", "la", "forma", "de", "trabajar"]}
+          />
+        </h1>
+        <p className="hero-sub">
+          En TRANSTECH desarrollamos soluciones de inteligencia artificial, automatización y gestión para ayudar a
+          personas y empresas a tomar mejores decisiones, optimizar procesos y crecer con mayor control.
+        </p>
+        <div className="hero-ctas">
+          <a className="btn btn-outline btn-lg" href="#empresa">
+            Conocer TRANSTECH
+          </a>
+          <Link className="btn btn-primary btn-lg" href="/login">
+            Probar EOS →
+          </Link>
         </div>
       </header>
 
-      {/* HERO */}
-<section className="relative overflow-hidden border-b border-slate-200 bg-transparent">
-  {/* Iluminación azul del fondo */}
-  <div className="pointer-events-none absolute inset-0">
-    <div className="absolute -left-40 bottom-[-180px] h-[650px] w-[650px] rounded-full bg-[#2f72d6]/25 blur-[110px]" />
-
-    <div className="absolute -right-40 top-[-170px] h-[620px] w-[620px] rounded-full bg-[#6fa3e8]/25 blur-[120px]" />
-
-    <div className="absolute left-[38%] top-[20%] h-[480px] w-[480px] rounded-full bg-[#dbe7f9]/25 blur-[130px]" />
-  </div>
-
-  {/* Logo gigante decorativo de fondo */}
-  <div className="pointer-events-none absolute bottom-[70px] left-[-40px] hidden h-[520px] w-[570px] opacity-[0.055] lg:block">
-    <Image
-      src="/transtech-logo.png"
-      alt=""
-      fill
-      priority
-      sizes="570px"
-      className="object-contain object-left mix-blend-multiply"
-    />
-  </div>
-
-  <div className="relative mx-auto flex min-h-[740px] max-w-7xl items-center justify-center px-6 py-24 md:px-8 lg:min-h-[760px]">
-    <div className="mx-auto flex w-full max-w-[930px] flex-col items-center text-center">
-      <div className="inline-flex items-center rounded-full border border-[#6fa3e8] bg-white/85 px-5 py-2 text-xs font-black tracking-[0.16em] text-[#1656bd] shadow-sm backdrop-blur">
-        EMPRESA PARAGUAYA DE TECNOLOGÍA
-      </div>
-
-      <h1 className="mt-9 text-[48px] font-black leading-[0.99] tracking-[-0.055em] text-[#071226] sm:text-6xl md:text-7xl lg:text-[74px]">
-        Tecnología inteligente
-        <br />
-        para transformar
-        <br />
-        la forma de trabajar.
-      </h1>
-
-      <div className="mt-8 h-1 w-14 rounded-full bg-[#1656bd]" />
-
-      <p className="mt-7 max-w-[760px] text-lg leading-8 text-slate-600 md:text-[20px] md:leading-9">
-        En{" "}
-        <strong className="font-black text-slate-700">
-          TRANSTECH
-        </strong>{" "}
-        desarrollamos soluciones de inteligencia artificial, automatización y
-        gestión para ayudar a personas y empresas a tomar mejores decisiones,
-        optimizar procesos y crecer con mayor control.
-      </p>
-
-      <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-        <a
-          href="#empresa"
-          className="inline-flex min-w-[245px] items-center justify-center rounded-full bg-[#1656bd] px-8 py-4 font-black text-white shadow-[0_16px_35px_rgba(37,99,235,0.28)] transition duration-200 hover:-translate-y-1 hover:bg-[#113f8c]"
-        >
-          Conocer TRANSTECH
-        </a>
-
-        <a
-          href="/eos"
-          className="inline-flex min-w-[190px] items-center justify-center rounded-full border border-slate-200 bg-white px-8 py-4 font-black text-[#071226] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition duration-200 hover:-translate-y-1 hover:border-[#6fa3e8]"
-        >
-          Probar EOS
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-      {/* TRANSTECH INTELLIGENCE */}
-      <section className="bg-white py-24 md:py-32">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="relative overflow-hidden rounded-[2.8rem] border border-[#dbe7f9] bg-gradient-to-br from-white via-[#F3F7FF] to-[#DCEAFF] shadow-[0_30px_80px_rgba(37,99,235,0.13)]">
-            <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#2f72d6]/20 blur-3xl" />
-            <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-[#a9c6ee]/30 blur-3xl" />
-
-            <div className="relative grid gap-12 p-8 md:p-14 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-              <div>
-                <div className="relative h-24 w-36 overflow-hidden md:h-28 md:w-44">
-                  <Image
-                    src="/transtech-logo.png"
-                    alt="Logo de TRANSTECH Intelligence"
-                    fill
-                    className="object-contain object-left mix-blend-multiply"
-                  />
-                </div>
-
-                <div className="mt-7 inline-flex items-center gap-3 rounded-full border border-[#a9c6ee] bg-white/80 px-4 py-2 shadow-sm backdrop-blur">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#1656bd] shadow-[0_0_12px_rgba(37,99,235,0.8)]" />
-
-                  <p className="text-xs font-black tracking-[0.18em] text-[#1656bd]">
-                    TRANSTECH INTELLIGENCE
-                  </p>
-                </div>
-
-                <h2 className="mt-6 max-w-xl text-4xl font-black leading-[0.98] tracking-[-0.05em] text-slate-950 md:text-6xl">
-                  Tecnología que entiende, ejecuta y mejora.
-                </h2>
-
-                <p className="mt-7 max-w-xl text-lg leading-8 text-slate-600">
-                  Un ecosistema tecnológico diseñado para interpretar
-                  necesidades, automatizar operaciones y convertir información
-                  en decisiones concretas.
-                </p>
-
-                <div className="mt-8 flex items-center gap-4">
-                  <div className="h-px w-16 bg-[#2f72d6]" />
-
-                  <p className="text-sm font-black uppercase tracking-[0.12em] text-[#113f8c]">
-                    Inteligencia aplicada
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {ventajasIntelligence.map((item) => (
-                    <article
-                      key={item.numero}
-                      className="group rounded-[1.7rem] border border-white/80 bg-white/85 p-6 shadow-[0_12px_30px_rgba(15,23,42,0.07)] backdrop-blur transition hover:-translate-y-1 hover:border-[#6fa3e8] hover:shadow-xl"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#dbe7f9] font-black text-[#1656bd]">
-                          ✓
-                        </span>
-
-                        <span className="text-xs font-black tracking-widest text-slate-300">
-                          {item.numero}
-                        </span>
-                      </div>
-
-                      <h3 className="mt-6 text-lg font-black leading-6 text-slate-950">
-                        {item.titulo}
-                      </h3>
-
-                      <p className="mt-3 text-sm leading-6 text-slate-500">
-                        {item.texto}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="relative mt-5 overflow-hidden rounded-[1.7rem] bg-gradient-to-r from-[#1656bd] to-[#113f8c] p-6 text-white shadow-xl shadow-[#2f72d6]/20">
-                  <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full border border-white/20" />
-
-                  <p className="relative text-lg font-black leading-7">
-                    No desarrollamos tecnología para impresionar.
-                  </p>
-
-                  <p className="relative mt-2 leading-7 text-[#dbe7f9]">
-                    La desarrollamos para resolver problemas reales, producir
-                    resultados y mejorar continuamente.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* EMPRESA */}
-      <section id="empresa" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr]">
-          <div>
-            <p className="text-sm font-black tracking-[0.16em] text-[#1656bd]">
-              SOBRE NOSOTROS
-            </p>
-
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-              Construimos tecnología con propósito empresarial.
-            </h2>
-          </div>
-
-          <div className="space-y-6 text-lg leading-8 text-slate-600">
-            <p>
-              TRANSTECH es una empresa paraguaya enfocada en inteligencia
-              artificial, automatización, gestión y transformación digital.
-            </p>
-
-            <p>
-              Creamos soluciones que ayudan a ordenar información, reducir
-              tareas manuales, generar documentos, controlar procesos y
-              convertir objetivos en acciones medibles.
-            </p>
-
-            <p>
-              Nuestra visión es acercar tecnología de alto nivel a personas,
-              profesionales, emprendimientos y empresas de Paraguay,
-              Latinoamérica y mercados internacionales.
-            </p>
-
-            <div className="grid gap-4 pt-4 sm:grid-cols-2">
-              <Valor
-                titulo="Visión"
-                texto="Tecnología útil, accesible y escalable."
-              />
-              <Valor
-                titulo="Enfoque"
-                texto="Resultados, control y ejecución."
-              />
-              <Valor
-                titulo="Origen"
-                texto="Empresa constituida en Paraguay."
-              />
-              <Valor titulo="Alcance" texto="Personas, pymes y empresas." />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SERVICIOS */}
-      <section
-        id="servicios"
-        className="border-y border-slate-200 bg-[#F7FAFC] py-24 md:py-32"
-      >
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="max-w-4xl">
-            <p className="text-sm font-black tracking-[0.16em] text-[#1656bd]">
-              QUÉ HACEMOS
-            </p>
-
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-              Soluciones para trabajar mejor, decidir antes y crecer con
-              control.
-            </h2>
-          </div>
-
-          <div className="mt-14 grid gap-5 md:grid-cols-2">
-            {servicios.map((servicio) => (
-              <article
-                key={servicio.numero}
-                className="group rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:border-[#6fa3e8] hover:shadow-xl md:p-9"
-              >
-                <div className="flex items-start justify-between gap-6">
-                  <span className="text-sm font-black text-[#1656bd]">
-                    {servicio.numero}
-                  </span>
-
-                  <span className="text-2xl text-slate-300 transition group-hover:text-[#1656bd]">
-                    ↗
-                  </span>
-                </div>
-
-                <h3 className="mt-12 text-3xl font-black tracking-tight text-slate-950">
-                  {servicio.titulo}
-                </h3>
-
-                <p className="mt-4 max-w-xl leading-7 text-slate-600">
-                  {servicio.descripcion}
-                </p>
-              </article>
+      {/* TransTech Intelligence */}
+      <section id="servicios">
+        <div className="wrap">
+          <Reveal className="section-head">
+            <div className="section-eyebrow">TransTech Intelligence</div>
+            <div className="section-title">Tecnología que entiende, ejecuta y mejora</div>
+          </Reveal>
+          <div className="grid-4">
+            {transtechIntelligence.map((item, i) => (
+              <Reveal key={item.title} delay={0.02 + i * 0.06} className="card">
+                <div className="card-ic">{item.icon}</div>
+                <div className="card-title">{item.title}</div>
+                <div className="card-text">{item.text}</div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* EOS */}
-      <section id="eos" className="bg-[#071226] py-24 text-white md:py-32">
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-6 md:px-8 lg:grid-cols-2">
-          <div>
-            <div className="inline-flex rounded-full border border-[#2f72d6]/30 bg-[#2f72d6]/10 px-4 py-2 text-xs font-black tracking-[0.16em] text-[#6fa3e8]">
-              PRODUCTO ESTRELLA
-            </div>
-
-            <h2 className="mt-7 text-5xl font-black tracking-[-0.05em] md:text-7xl">
-              EOS
-            </h2>
-
-            <p className="mt-3 text-xl font-black text-[#6fa3e8]">
-              El sistema operativo ejecutivo de TRANSTECH.
+      {/* About */}
+      <section id="empresa">
+        <div className="wrap">
+          <Reveal className="section-head">
+            <div className="section-eyebrow">Sobre nosotros</div>
+            <div className="section-title">Construimos tecnología con propósito empresarial</div>
+          </Reveal>
+          <Reveal className="about-copy">
+            <p>
+              TRANSTECH es una empresa paraguaya enfocada en inteligencia artificial, automatización, gestión y
+              transformación digital. Creamos soluciones que ayudan a ordenar información, reducir tareas manuales,
+              generar documentos, controlar procesos y convertir objetivos en acciones medibles.
             </p>
-
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-              EOS combina conversación, inteligencia artificial, documentos,
-              memoria, tareas, objetivos, seguimiento y dashboards dentro de
-              una sola experiencia.
-            </p>
-
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              No es solamente un chat. Es una plataforma diseñada para
-              acompañar decisiones y ejecutar acciones concretas.
-            </p>
-
-            <div className="mt-9 flex flex-wrap gap-4">
-              <a
-                href="/eos"
-                className="rounded-full bg-[#1656bd] px-8 py-4 font-black text-white transition hover:bg-[#113f8c]"
-              >
-                Abrir EOS
-              </a>
-
-              <a
-                href="/login"
-                className="rounded-full border border-white/15 px-8 py-4 font-black text-white transition hover:border-[#2f72d6]"
-              >
-                Iniciar sesión
-              </a>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {capacidadesEOS.map((capacidad, index) => (
-              <div
-                key={capacidad}
-                className="rounded-[1.7rem] border border-white/10 bg-white/5 p-6"
-              >
-                <span className="text-sm font-black text-[#6fa3e8]">
-                  0{index + 1}
-                </span>
-
-                <p className="mt-8 text-lg font-black leading-7">
-                  {capacidad}
-                </p>
-              </div>
+          </Reveal>
+          <div className="attr-row">
+            {[
+              { label: "Visión", value: "Tecnología útil, accesible y escalable" },
+              { label: "Enfoque", value: "Resultados, control y ejecución" },
+              { label: "Origen", value: "Empresa paraguaya" },
+              { label: "Alcance", value: "Personas, pymes y empresas" },
+            ].map((attr, i) => (
+              <Reveal key={attr.label} delay={0.02 + i * 0.06} className="attr">
+                <div className="attr-label">{attr.label}</div>
+                <div className="attr-value">{attr.value}</div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* METODOLOGÍA */}
-      <section id="metodologia" className="bg-white py-24 md:py-32">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="text-sm font-black tracking-[0.16em] text-[#1656bd]">
-              CÓMO TRABAJAMOS
-            </p>
-
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-              De un problema real a una solución medible.
-            </h2>
-          </div>
-
-          <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {metodologia.map((item) => (
-              <div
-                key={item.paso}
-                className="rounded-[2rem] border border-slate-200 bg-[#F8FBFF] p-7"
-              >
-                <span className="text-sm font-black text-[#1656bd]">
-                  {item.paso}
-                </span>
-
-                <h3 className="mt-10 text-2xl font-black text-slate-950">
-                  {item.titulo}
-                </h3>
-
-                <p className="mt-4 leading-7 text-slate-600">{item.texto}</p>
-              </div>
+      {/* Qué hacemos */}
+      <section>
+        <div className="wrap">
+          <Reveal className="section-head">
+            <div className="section-eyebrow">Qué hacemos</div>
+            <div className="section-title">Soluciones para trabajar mejor, decidir antes y crecer con control</div>
+          </Reveal>
+          <div className="grid-4">
+            {queHacemos.map((item, i) => (
+              <Reveal key={item.title} delay={0.02 + i * 0.06} className="card">
+                <div className="card-ic">{item.icon}</div>
+                <div className="card-title">{item.title}</div>
+                <div className="card-text">{item.text}</div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* SECTORES */}
-      <section className="border-y border-slate-200 bg-[#F7FAFC] py-24">
-        <div className="mx-auto max-w-7xl px-6 md:px-8">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
+      {/* EOS spotlight */}
+      <section id="eos">
+        <Reveal className="eos-section">
+          <div className="eos-grid">
             <div>
-              <p className="text-sm font-black tracking-[0.16em] text-[#1656bd]">
-                PARA QUIÉNES
-              </p>
-
-              <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-                Tecnología adaptable a distintas etapas y necesidades.
-              </h2>
-
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-                TRANSTECH desarrolla soluciones tanto para quien necesita
-                organizar sus finanzas personales como para empresas que buscan
-                automatizar procesos completos.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {sectores.map((sector) => (
-                <div
-                  key={sector}
-                  className="flex min-h-28 items-center justify-center rounded-[1.7rem] border border-slate-200 bg-white p-5 text-center font-black text-slate-900 shadow-sm"
-                >
-                  {sector}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CONTACTO */}
-      <section id="contacto" className="bg-white py-24 md:py-32">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 md:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <p className="text-sm font-black tracking-[0.16em] text-[#1656bd]">
-              CONTACTO
-            </p>
-
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.04em] text-slate-950 md:text-6xl">
-              Contanos qué querés mejorar.
-            </h2>
-
-            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Analizaremos tu situación y te indicaremos qué solución de
-              TRANSTECH o EOS puede generar mayor impacto.
-            </p>
-
-            <div className="mt-10 rounded-[2rem] border border-[#dbe7f9] bg-gradient-to-br from-[#F8FBFF] to-[#EAF2FF] p-7 shadow-[0_18px_50px_rgba(37,99,235,0.10)]">
-              <div className="flex items-center gap-4">
-                <div className="relative h-14 w-16 shrink-0">
-                  <Image
-                    src="/transtech-logo.png"
-                    alt="Logo de TRANSTECH"
-                    fill
-                    sizes="64px"
-                    className="object-contain"
-                  />
-                </div>
-
-                <div>
-                  <p className="text-xl font-black tracking-tight text-[#071226]">
-                    TRANSTECH
-                  </p>
-                  <p className="mt-1 text-xs font-black tracking-[0.15em] text-[#1656bd]">
-                    TECNOLOGÍA E INTELIGENCIA
-                  </p>
-                </div>
+              <div className="eos-eyebrow">Producto insignia</div>
+              <div className="eos-title">EOS</div>
+              <div className="eos-desc">
+                El sistema operativo ejecutivo de TRANSTECH. EOS combina conversación, inteligencia artificial,
+                documentos, memoria, tareas, objetivos, seguimiento y dashboards dentro de una sola experiencia.
               </div>
-
-              <p className="mt-5 leading-7 text-slate-600">
-                Inteligencia artificial, automatización y gestión para personas
-                y empresas.
-              </p>
+              <div className="eos-highlight">
+                No es solamente un chat: está diseñado para acompañar decisiones y ejecutar acciones concretas.
+              </div>
+              <div className="eos-features">
+                {eosFeatures.map((f) => (
+                  <div key={f.text} className="eos-feat">
+                    <span className="fic">{f.icon}</span>
+                    {f.text}
+                  </div>
+                ))}
+              </div>
+              <div className="eos-ctas">
+                <Link className="btn btn-primary btn-lg" href="/login">
+                  Abrir EOS →
+                </Link>
+                <Link className="btn btn-outline btn-lg" href="/login">
+                  Iniciar sesión
+                </Link>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-[2.4rem] border border-slate-200 bg-[#F8FBFF] p-7 shadow-xl shadow-slate-900/5 md:p-10">
-            <div className="grid gap-4">
-              <Campo
-                placeholder="Nombre y apellido"
-                value={nombre}
-                onChange={setNombre}
-                autoComplete="name"
-              />
-
-              <Campo
-                placeholder="WhatsApp"
-                value={whatsapp}
-                onChange={setWhatsapp}
-                type="tel"
-                autoComplete="tel"
-              />
-
-              <Campo
-                placeholder="Empresa, negocio o profesión"
-                value={empresa}
-                onChange={setEmpresa}
-              />
-
-              <textarea
-                className="min-h-36 rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2f72d6] focus:ring-4 focus:ring-[#dbe7f9]"
-                placeholder="¿Cuál es tu principal problema o qué querés mejorar?"
-                value={problema}
-                onChange={(event) => setProblema(event.target.value)}
-              />
-
-              <button
-                type="button"
-                onClick={enviarLead}
-                disabled={enviando}
-                className="rounded-2xl bg-[#1656bd] px-6 py-4 font-black text-white shadow-lg shadow-[#2f72d6]/20 transition hover:bg-[#113f8c] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {enviando
-                  ? "Enviando solicitud..."
-                  : "Solicitar diagnóstico"}
-              </button>
-
-              {enviado && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-bold text-emerald-700">
-                  Solicitud registrada correctamente. TRANSTECH se pondrá en
-                  contacto contigo.
+            <div className="mock">
+              <div className="mock-bar">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="mock-body">
+                <div className="mock-line" style={{ width: "40%", height: 12, marginBottom: 18 }} />
+                <div className="mock-bubble">
+                  <div className="mock-line l1" />
+                  <div className="mock-line l2" />
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="bg-[#071226] px-6 py-14 text-white">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-12 border-b border-white/10 pb-12 md:grid-cols-[1.5fr_1fr_1fr]">
-            <div>
-              <div className="flex items-center gap-5">
-                <div className="flex h-16 w-20 items-center justify-center rounded-xl bg-white p-2">
-                  <div className="relative h-full w-full">
-                    <Image
-                      src="/transtech-logo.png"
-                      alt="Logo de TRANSTECH"
-                      fill
-                      className="object-contain"
-                    />
+                <div className="mock-input">
+                  <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Escribile a EOS</span>
+                  <span className="mock-cursor" />
+                  <div className="mock-send">
+                    <svg viewBox="0 0 24 24">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
                   </div>
                 </div>
-
-                <div>
-                  <p className="text-2xl font-black tracking-tight">
-                    TRANSTECH
-                  </p>
-
-                  <p className="mt-1 text-xs font-bold tracking-[0.15em] text-[#6fa3e8]">
-                    INTELLIGENT TECHNOLOGY
-                  </p>
-                </div>
-              </div>
-
-              <p className="mt-5 max-w-md leading-7 text-slate-400">
-                Tecnología, inteligencia artificial y automatización para
-                transformar la forma en que personas y empresas trabajan.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-black text-[#6fa3e8]">Empresa</p>
-
-              <div className="mt-4 grid gap-3 text-slate-400">
-                <a href="#empresa" className="transition hover:text-white">
-                  Sobre nosotros
-                </a>
-                <a href="#servicios" className="transition hover:text-white">
-                  Servicios
-                </a>
-                <a href="#metodologia" className="transition hover:text-white">
-                  Metodología
-                </a>
-                <a href="#contacto" className="transition hover:text-white">
-                  Contacto
-                </a>
-              </div>
-            </div>
-
-            <div>
-              <p className="font-black text-[#6fa3e8]">Productos</p>
-
-              <div className="mt-4 grid gap-3 text-slate-400">
-                <a href="#eos" className="transition hover:text-white">
-                  EOS
-                </a>
-                <a href="/eos" className="transition hover:text-white">
-                  Abrir EOS
-                </a>
-                <a href="/login" className="transition hover:text-white">
-                  Iniciar sesión
-                </a>
               </div>
             </div>
           </div>
+        </Reveal>
+      </section>
 
-          <div className="flex flex-col gap-3 pt-8 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
-            <p>© 2026 TRANSTECH. Todos los derechos reservados.</p>
-            <p>Asunción, Paraguay</p>
+      {/* Methodology */}
+      <section id="metodologia">
+        <div className="wrap">
+          <Reveal className="section-head">
+            <div className="section-eyebrow">Metodología</div>
+            <div className="section-title">De un problema real a una solución medible</div>
+          </Reveal>
+          <div className="steps">
+            {metodologia.map((step, i) => (
+              <Reveal key={step.title} delay={0.02 + i * 0.08} className="step">
+                <div className="step-num">{step.icon}</div>
+                <div className="step-title">{step.title}</div>
+                <div className="step-text">{step.text}</div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Audiences */}
+      <section>
+        <div className="wrap">
+          <Reveal className="section-head">
+            <div className="section-eyebrow">Para quién</div>
+            <div className="section-title">Tecnología adaptable a distintas etapas y necesidades</div>
+          </Reveal>
+          <Reveal className="chip-cloud">
+            {audiencias.map((a) => (
+              <div key={a} className="audience-chip">
+                {a}
+              </div>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section id="contacto">
+        <div className="wrap">
+          <Reveal className="contact-card">
+            <div className="section-title">Contanos qué querés mejorar</div>
+            <p>
+              Analizaremos tu situación y te indicaremos qué solución de TRANSTECH o EOS puede generar mayor
+              impacto.
+            </p>
+
+            <div className="contact-form">
+              <input
+                placeholder="Nombre y apellido"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                autoComplete="name"
+              />
+              <input
+                placeholder="WhatsApp"
+                type="tel"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                autoComplete="tel"
+              />
+              <input
+                placeholder="Empresa, negocio o profesión"
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+              />
+              <textarea
+                placeholder="¿Cuál es tu principal problema o qué querés mejorar?"
+                value={problema}
+                onChange={(e) => setProblema(e.target.value)}
+              />
+            </div>
+
+            <button type="button" className="btn btn-primary btn-lg" onClick={enviarLead} disabled={enviando}>
+              {enviando ? "Enviando solicitud..." : "Solicitar diagnóstico"}
+            </button>
+
+            {enviado && <div className="contact-success">Solicitud registrada correctamente. TRANSTECH se pondrá en contacto contigo.</div>}
+          </Reveal>
+        </div>
+      </section>
+
+      <footer>
+        <div className="wrap">
+          <div className="footer-top">
+            <div>
+              <div className="footer-brand-row">
+                <img src="/transtech-logo.png" alt="TransTech" />
+                <div className="footer-brand">TRANSTECH</div>
+              </div>
+              <div className="footer-tag">TECNOLOGÍA E INTELIGENCIA</div>
+            </div>
+            <div className="footer-cols">
+              <div className="footer-col">
+                <h4>Empresa</h4>
+                <a href="#empresa">Sobre nosotros</a>
+                <a href="#servicios">Servicios</a>
+                <a href="#metodologia">Metodología</a>
+                <a href="#contacto">Contacto</a>
+              </div>
+              <div className="footer-col">
+                <h4>EOS</h4>
+                <Link href="/eos">Conocer EOS</Link>
+                <Link href="/planes">Planes</Link>
+                <Link href="/login">Abrir EOS</Link>
+                <Link href="/login">Iniciar sesión</Link>
+              </div>
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <span>© 2026 TRANSTECH. Todos los derechos reservados.</span>
+            <span>Asunción, Paraguay</span>
           </div>
         </div>
       </footer>
-      </div>
+
+      <style jsx>{`
+        .home-page {
+          --bg: #ffffff;
+          --bg-2: #f1f5fb;
+          --surface: #f6f8fc;
+          --surface-hover: #eef3fb;
+          --border: #e5e9f0;
+          --border-hover: rgba(22, 86, 189, 0.5);
+          --text: #07132a;
+          --muted: #6b7280;
+          --blue: #1656bd;
+          --blue-dark: #113f8c;
+          --blue-bright: #2f72d6;
+          --blue-soft: #1656bd;
+          --blue-light: #e9f0fb;
+          --green: #10a37f;
+          --ease: cubic-bezier(0.22, 1, 0.36, 1);
+          position: relative;
+          font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
+          background: var(--bg);
+          color: var(--text);
+          overflow-x: hidden;
+        }
+        .home-page :global(svg) {
+          width: 18px;
+          height: 18px;
+          stroke: currentColor;
+          stroke-width: 1.8;
+          fill: none;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          display: block;
+        }
+        .home-page a {
+          color: inherit;
+          text-decoration: none;
+        }
+        .home-page button {
+          font-family: inherit;
+        }
+
+        .wrap {
+          max-width: 1180px;
+          margin: 0 auto;
+          padding: 0 32px;
+          position: relative;
+          z-index: 1;
+        }
+
+        nav {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          padding: 18px 0;
+          transition: background 0.25s, border-color 0.25s, backdrop-filter 0.25s, padding 0.25s;
+          border-bottom: 1px solid transparent;
+        }
+        nav.scrolled {
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(14px);
+          border-color: var(--border);
+          padding: 13px 0;
+        }
+        .nav-inner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .nav-brand {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+        }
+        .nav-brand img {
+          height: 24px;
+          width: auto;
+          display: block;
+        }
+        .nav-brand span {
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: -0.3px;
+          background: linear-gradient(90deg, #113f8c, #1656bd 55%, #2f72d6);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        .nav-links {
+          display: flex;
+          align-items: center;
+          gap: 34px;
+        }
+        .nav-links a {
+          font-size: 13.5px;
+          font-weight: 500;
+          color: var(--muted);
+          transition: color 0.15s;
+          position: relative;
+        }
+        .nav-links a::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          bottom: -6px;
+          width: 0;
+          height: 1.5px;
+          background: var(--blue-soft);
+          transition: width 0.2s var(--ease);
+        }
+        .nav-links a:hover {
+          color: var(--text);
+        }
+        .nav-links a:hover::after {
+          width: 100%;
+        }
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .nav-actions :global(.ghost) {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--muted);
+          transition: color 0.15s;
+        }
+        .nav-actions :global(.ghost:hover) {
+          color: var(--text);
+        }
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 20px;
+          border-radius: 10px;
+          font-size: 13.5px;
+          font-weight: 700;
+          cursor: pointer;
+          border: none;
+          transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+        }
+        .btn-primary {
+          background: linear-gradient(135deg, var(--blue-bright), var(--blue-dark));
+          color: #fff;
+          box-shadow: 0 6px 20px rgba(22, 86, 189, 0.35);
+          position: relative;
+          overflow: hidden;
+        }
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 28px rgba(22, 86, 189, 0.48);
+        }
+        .btn-primary:active {
+          transform: translateY(0) scale(0.97);
+        }
+        .btn-primary:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+          transform: none;
+        }
+        .btn-outline {
+          background: transparent;
+          color: var(--text);
+          border: 1px solid var(--border);
+        }
+        .btn-outline:hover {
+          border-color: var(--border-hover);
+          background: var(--surface);
+          transform: translateY(-2px);
+        }
+        .btn-lg {
+          padding: 14px 26px;
+          font-size: 14.5px;
+          border-radius: 12px;
+        }
+
+        .hero {
+          padding: 100px 0 90px;
+          text-align: center;
+          position: relative;
+        }
+        .eyebrow {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--blue-soft);
+          background: var(--blue-light);
+          border: 1px solid rgba(22, 86, 189, 0.3);
+          padding: 7px 16px;
+          border-radius: 999px;
+          margin-bottom: 26px;
+        }
+        .eyebrow .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--green);
+          display: inline-block;
+        }
+        .hero-title {
+          font-size: 56px;
+          font-weight: 800;
+          letter-spacing: -1.8px;
+          line-height: 1.08;
+          max-width: 840px;
+          margin: 0 auto 24px;
+          perspective: 1000px;
+        }
+        .hero-title :global(.word) {
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(30px) rotateX(-65deg);
+          transform-origin: 50% 100%;
+          animation: wordIn 0.75s var(--ease) forwards;
+        }
+        @keyframes wordIn {
+          to {
+            opacity: 1;
+            transform: translateY(0) rotateX(0);
+          }
+        }
+        .hero-title :global(.accent) {
+          background: linear-gradient(90deg, #113f8c, #1656bd 50%, #2f72d6);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          background-size: 200% auto;
+          animation-name: wordIn, sheen;
+          animation-duration: 0.75s, 6s;
+          animation-timing-function: var(--ease), linear;
+          animation-iteration-count: 1, infinite;
+          animation-delay: inherit, 1.6s;
+          animation-fill-mode: forwards, none;
+        }
+        @keyframes sheen {
+          to {
+            background-position: 200% center;
+          }
+        }
+        .hero-sub {
+          font-size: 16.5px;
+          line-height: 1.7;
+          color: var(--muted);
+          max-width: 620px;
+          margin: 0 auto 38px;
+        }
+        .hero-ctas {
+          display: flex;
+          gap: 14px;
+          justify-content: center;
+          margin-bottom: 70px;
+        }
+
+        section {
+          padding: 90px 0;
+          position: relative;
+        }
+        .section-head {
+          max-width: 640px;
+          margin: 0 auto 48px;
+          text-align: center;
+        }
+        .section-eyebrow {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--blue-soft);
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 12px;
+        }
+        .section-title {
+          font-size: 34px;
+          font-weight: 800;
+          letter-spacing: -0.8px;
+          line-height: 1.2;
+        }
+
+        .grid-4 {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+
+        .home-page :global(.card) {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          padding: 26px 24px;
+          transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+          backdrop-filter: blur(6px);
+        }
+        .home-page :global(.card:hover) {
+          border-color: var(--border-hover);
+          background: var(--surface-hover);
+          transform: translateY(-4px);
+          box-shadow: 0 16px 36px rgba(22, 86, 189, 0.14);
+        }
+        .card-ic {
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+          background: var(--blue-light);
+          color: var(--blue-soft);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 18px;
+        }
+        .card-title {
+          font-size: 15.5px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        .card-text {
+          font-size: 13.5px;
+          color: var(--muted);
+          line-height: 1.6;
+        }
+
+        .attr-row {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-top: 44px;
+        }
+        .home-page :global(.attr) {
+          text-align: center;
+          padding: 22px 14px;
+          border-top: 1px solid var(--border);
+        }
+        .attr-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--blue-soft);
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          margin-bottom: 8px;
+        }
+        .attr-value {
+          font-size: 14.5px;
+          font-weight: 600;
+          line-height: 1.4;
+        }
+        .about-copy :global(p) {
+          max-width: 720px;
+          margin: 0 auto;
+          text-align: center;
+          font-size: 15.5px;
+          line-height: 1.75;
+          color: var(--muted);
+        }
+
+        .home-page :global(.eos-section) {
+          border-radius: 32px;
+          margin: 0 32px;
+          padding: 80px 56px;
+          background: linear-gradient(160deg, rgba(22, 86, 189, 0.14), rgba(2, 8, 23, 0) 60%), var(--bg-2);
+          border: 1px solid var(--border);
+          position: relative;
+          overflow: hidden;
+        }
+        .eos-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 56px;
+          align-items: center;
+        }
+        .eos-eyebrow {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--blue-soft);
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 14px;
+        }
+        .eos-title {
+          font-size: 38px;
+          font-weight: 800;
+          letter-spacing: -1px;
+          margin-bottom: 18px;
+        }
+        .eos-desc {
+          font-size: 15px;
+          color: var(--muted);
+          line-height: 1.7;
+          margin-bottom: 10px;
+        }
+        .eos-highlight {
+          font-size: 15.5px;
+          font-weight: 700;
+          color: var(--text);
+          margin: 18px 0 26px;
+        }
+        .eos-features {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px 18px;
+          margin-bottom: 32px;
+        }
+        .eos-feat {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13.5px;
+          color: var(--text);
+        }
+        .eos-feat .fic {
+          width: 26px;
+          height: 26px;
+          border-radius: 8px;
+          background: var(--blue-light);
+          color: var(--blue-soft);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .eos-feat .fic :global(svg) {
+          width: 13px;
+          height: 13px;
+        }
+        .eos-ctas {
+          display: flex;
+          gap: 14px;
+        }
+
+        .mock {
+          border-radius: 18px;
+          border: 1px solid var(--border);
+          background: #ffffff;
+          box-shadow: 0 30px 70px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(22, 86, 189, 0.1);
+          overflow: hidden;
+          backdrop-filter: blur(10px);
+          transform: perspective(1200px) rotateY(-6deg) rotateX(2deg);
+          transition: transform 0.4s var(--ease);
+        }
+        .eos-grid:hover .mock {
+          transform: perspective(1200px) rotateY(-2deg) rotateX(1deg);
+        }
+        .mock-bar {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 12px 14px;
+          border-bottom: 1px solid var(--border);
+        }
+        .mock-bar span {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: rgba(15, 23, 42, 0.14);
+        }
+        .mock-body {
+          padding: 22px;
+        }
+        .mock-line {
+          height: 9px;
+          border-radius: 5px;
+          background: rgba(15, 23, 42, 0.08);
+          margin-bottom: 10px;
+        }
+        .mock-bubble {
+          max-width: 76%;
+          background: var(--blue-light);
+          border: 1px solid rgba(22, 86, 189, 0.25);
+          border-radius: 12px 12px 12px 3px;
+          padding: 12px 14px;
+          margin-bottom: 16px;
+        }
+        .mock-bubble .l1 {
+          width: 90%;
+        }
+        .mock-bubble .l2 {
+          width: 60%;
+          margin-bottom: 0;
+        }
+        .mock-input {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          padding: 10px 16px;
+          margin-top: 6px;
+          background: #fafbfd;
+        }
+        .mock-cursor {
+          width: 2px;
+          height: 14px;
+          background: var(--blue-soft);
+          animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+          50% {
+            opacity: 0;
+          }
+        }
+        .mock-send {
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          background: var(--blue);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-left: auto;
+          flex-shrink: 0;
+        }
+        .mock-send :global(svg) {
+          width: 12px;
+          height: 12px;
+          stroke: #fff;
+        }
+
+        .steps {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0;
+          position: relative;
+          margin-top: 20px;
+        }
+        .steps::before {
+          content: "";
+          position: absolute;
+          top: 23px;
+          left: 12.5%;
+          right: 12.5%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, var(--border) 10%, var(--border) 90%, transparent);
+        }
+        .home-page :global(.step) {
+          text-align: center;
+          padding: 0 14px;
+          position: relative;
+        }
+        .step-num {
+          width: 46px;
+          height: 46px;
+          border-radius: 50%;
+          margin: 0 auto 20px;
+          position: relative;
+          z-index: 1;
+          background: var(--bg-2);
+          border: 1.5px solid var(--border);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--blue-soft);
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .home-page :global(.step:hover) .step-num {
+          border-color: var(--blue);
+          box-shadow: 0 0 0 5px rgba(22, 86, 189, 0.12);
+        }
+        .step-title {
+          font-size: 14.5px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        .step-text {
+          font-size: 12.8px;
+          color: var(--muted);
+          line-height: 1.6;
+        }
+
+        .chip-cloud {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          justify-content: center;
+          margin-top: 36px;
+        }
+        .audience-chip {
+          padding: 12px 24px;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          font-size: 14px;
+          font-weight: 600;
+          background: var(--surface);
+          transition: all 0.2s ease;
+          cursor: default;
+        }
+        .audience-chip:hover {
+          border-color: var(--border-hover);
+          background: var(--blue-light);
+          color: var(--blue-soft);
+          transform: translateY(-2px);
+        }
+
+        .home-page :global(.contact-card) {
+          max-width: 680px;
+          margin: 0 auto;
+          text-align: center;
+          padding: 56px 48px;
+          border-radius: 24px;
+          border: 1px solid var(--border);
+          background: radial-gradient(ellipse at 50% 0%, rgba(22, 86, 189, 0.16), transparent 60%), var(--surface);
+        }
+        .home-page :global(.contact-card .section-title) {
+          margin-bottom: 14px;
+        }
+        .home-page :global(.contact-card p) {
+          font-size: 15px;
+          color: var(--muted);
+          line-height: 1.7;
+          margin-bottom: 30px;
+        }
+        .contact-form {
+          display: grid;
+          gap: 12px;
+          text-align: left;
+          margin-bottom: 26px;
+        }
+        .contact-form input,
+        .contact-form textarea {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: #ffffff;
+          color: var(--text);
+          font-family: inherit;
+          font-size: 14px;
+          padding: 12px 16px;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .contact-form textarea {
+          min-height: 100px;
+          resize: vertical;
+          line-height: 1.6;
+        }
+        .contact-form input:focus,
+        .contact-form textarea:focus {
+          border-color: var(--blue);
+          box-shadow: 0 0 0 4px rgba(22, 86, 189, 0.12);
+        }
+        .contact-success {
+          margin-top: 18px;
+          padding: 14px 18px;
+          border-radius: 12px;
+          background: #e6f7f1;
+          color: #0d7d5f;
+          font-size: 13.5px;
+          font-weight: 600;
+        }
+
+        footer {
+          border-top: 1px solid var(--border);
+          padding: 50px 0 34px;
+        }
+        .footer-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 34px;
+          flex-wrap: wrap;
+          gap: 24px;
+        }
+        .footer-brand-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .footer-brand-row img {
+          height: 20px;
+          width: auto;
+          display: block;
+        }
+        .footer-brand {
+          font-size: 16px;
+          font-weight: 800;
+        }
+        .footer-tag {
+          font-size: 12px;
+          color: var(--muted);
+          margin-top: 4px;
+          letter-spacing: 0.4px;
+        }
+        .footer-cols {
+          display: flex;
+          gap: 56px;
+        }
+        .footer-col h4 {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 14px;
+        }
+        .footer-col :global(a) {
+          display: block;
+          font-size: 13.5px;
+          color: var(--text);
+          opacity: 0.75;
+          margin-bottom: 10px;
+          transition: opacity 0.15s, color 0.15s;
+        }
+        .footer-col :global(a:hover) {
+          opacity: 1;
+          color: var(--blue-soft);
+        }
+        .footer-bottom {
+          display: flex;
+          justify-content: space-between;
+          padding-top: 26px;
+          border-top: 1px solid var(--border);
+          font-size: 12.5px;
+          color: var(--muted);
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        @media (max-width: 900px) {
+          .grid-4,
+          .eos-features {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          .eos-grid,
+          .attr-row {
+            grid-template-columns: 1fr;
+          }
+          .nav-links {
+            display: none;
+          }
+          .hero-title {
+            font-size: 38px;
+          }
+          .steps {
+            grid-template-columns: 1fr;
+            gap: 28px;
+          }
+          .steps::before {
+            display: none;
+          }
+        }
+      `}</style>
     </main>
-  );
-}
-
-function Campo({
-  placeholder,
-  value,
-  onChange,
-  type = "text",
-  autoComplete,
-}: {
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: "text" | "tel";
-  autoComplete?: string;
-}) {
-  return (
-    <input
-      type={type}
-      autoComplete={autoComplete}
-      className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#2f72d6] focus:ring-4 focus:ring-[#dbe7f9]"
-      placeholder={placeholder}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
-}
-
-
-function Valor({ titulo, texto }: { titulo: string; texto: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-[#F8FBFF] p-5">
-      <p className="font-black text-slate-950">{titulo}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{texto}</p>
-    </div>
   );
 }

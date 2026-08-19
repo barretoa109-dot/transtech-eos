@@ -1,0 +1,1590 @@
+/* Full port of the app.html mockup's stylesheet, namespaced under .eos-app
+   so it only applies within the logged-in EOS shell. This lives as a plain
+   (non-styled-jsx) stylesheet because the shell is composed from many child
+   components (Sidebar, ChatView, DashboardView, ...) and styled-jsx scoping
+   only reaches elements authored in the same component's own JSX tree. */
+
+.eos-app {
+  --blue: #1656bd;
+  --blue-dark: #113f8c;
+  --blue-light: #e9f0fb;
+  --ink: #07132a;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --line-soft: #f0f1f3;
+  --panel: #ffffff;
+  --bg-sidebar: #f9f9fb;
+  --green: #10a37f;
+  --green-light: #ecfdf5;
+  --amber: #d97706;
+  --amber-light: #fffbeb;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+  font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.eos-app * {
+  box-sizing: border-box;
+}
+.eos-app svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+}
+.eos-app button {
+  font-family: inherit;
+}
+.eos-app a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ============ ambient tech background ============ */
+.eos-app .eos-aurora span {
+  filter: blur(60px);
+  opacity: 0.12;
+  background: radial-gradient(circle at 30% 30%, #6fa3e8, #1656bd 70%);
+  animation-duration: 22s;
+}
+.eos-app .eos-aurora span:nth-child(2) {
+  background: radial-gradient(circle at 30% 30%, #a9c6ee, #113f8c 70%);
+}
+
+/* ============ Sidebar ============ */
+.eos-sidebar {
+  width: 272px;
+  min-width: 272px;
+  height: 100%;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  position: relative;
+  z-index: 2;
+  transition: width 0.28s var(--ease), min-width 0.28s var(--ease), padding 0.28s var(--ease);
+}
+.eos-sidebar.collapsed {
+  width: 72px;
+  min-width: 72px;
+  padding: 12px 8px;
+}
+.eos-sidebar.collapsed .brand-word {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.eos-sidebar.collapsed .brand-sub,
+.eos-sidebar.collapsed .row-item span.label,
+.eos-sidebar.collapsed .search-row,
+.eos-sidebar.collapsed .section-label,
+.eos-sidebar.collapsed .conv,
+.eos-sidebar.collapsed .pname,
+.eos-sidebar.collapsed .plan {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+.eos-sidebar.collapsed .side-top {
+  justify-content: center;
+}
+.eos-sidebar.collapsed .row-item {
+  justify-content: center;
+}
+.eos-sidebar.collapsed .profile-row {
+  justify-content: center;
+}
+
+.eos-app .side-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 14px;
+}
+.eos-app .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.eos-app .brand-logo {
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+}
+.eos-app .brand-word {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+  background: linear-gradient(90deg, #113f8c, #1656bd 55%, #2f72d6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.eos-app .brand-sub {
+  font-size: 10.5px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-top: -1px;
+  white-space: nowrap;
+}
+.eos-app .sidebar-toggle {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.2s;
+  border: none;
+  background: transparent;
+}
+.eos-app .sidebar-toggle:hover {
+  background: var(--line-soft);
+}
+.eos-app .sidebar-toggle:active {
+  transform: scale(0.9);
+}
+.eos-app .sidebar-toggle svg {
+  transition: transform 0.3s var(--ease);
+}
+.eos-sidebar.collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+.eos-app .row-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease, transform 0.12s ease;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.eos-app .row-item:hover {
+  background: var(--line-soft);
+}
+.eos-app .row-item:active {
+  transform: scale(0.98);
+}
+.eos-app .row-item .ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.eos-app .row-item.new .ic {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.eos-app .row-item.new {
+  font-weight: 600;
+}
+
+.eos-app .search-row {
+  margin: 4px 0 10px;
+  position: relative;
+}
+.eos-app .search-row input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eos-app .search-row input::placeholder {
+  color: var(--muted);
+}
+.eos-app .search-row input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(22, 86, 189, 0.12);
+}
+
+.eos-app .section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 14px 10px 6px;
+  letter-spacing: 0.2px;
+}
+.eos-app .conv {
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 13.3px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: background 0.15s ease;
+  border-left: 2px solid transparent;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.eos-app .conv:hover {
+  background: var(--line-soft);
+}
+.eos-app .conv .d {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.eos-app .conv.active {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-weight: 600;
+  border-left: 2px solid var(--blue);
+}
+.eos-app .nav-item.active-view {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+}
+.eos-app .nav-item.active-view .ic {
+  background: #fff;
+  color: var(--blue);
+}
+
+.eos-app .side-bottom {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.eos-app .profile-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.eos-app .profile-row:hover {
+  background: var(--line-soft);
+}
+.eos-app .avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1656bd, #113f8c);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+}
+.eos-app .plan {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.eos-app .pname {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ============ mobile sidebar drawer (addition, not in the desktop-only mockup) ============ */
+.eos-app .mobile-menu-button,
+.eos-app .mobile-overlay {
+  display: none;
+}
+@media (max-width: 860px) {
+  .eos-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 80;
+    width: min(85vw, 300px);
+    min-width: 0;
+    transform: translateX(-105%);
+    transition: transform 0.24s var(--ease);
+    box-shadow: 24px 0 70px rgba(7, 18, 38, 0.28);
+  }
+  .eos-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .eos-app .mobile-menu-button {
+    display: flex;
+    position: fixed;
+    top: calc(14px + env(safe-area-inset-top));
+    left: 14px;
+    z-index: 65;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--ink);
+    box-shadow: 0 8px 25px rgba(15, 23, 42, 0.1);
+    backdrop-filter: blur(18px);
+    cursor: pointer;
+  }
+  .eos-app .mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 75;
+    visibility: hidden;
+    opacity: 0;
+    background: rgba(7, 18, 38, 0.48);
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+  }
+  .eos-app .mobile-overlay.open {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+/* ============ Main ============ */
+.eos-app .main {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.eos-app .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 14px 28px;
+  border-bottom: 1px solid transparent;
+  position: relative;
+  z-index: 3;
+  transition: border-color 0.25s, background 0.25s, backdrop-filter 0.25s;
+}
+.eos-app .topbar.scrolled {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(10px);
+}
+.eos-app .status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.eos-app .status .dot-wrap {
+  position: relative;
+  width: 6px;
+  height: 6px;
+}
+.eos-app .status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  position: relative;
+  z-index: 1;
+}
+.eos-app .status .dot-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--green);
+  animation: eosPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes eosPing {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  75%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+.eos-app .status.mem {
+  color: var(--blue-dark);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.eos-app .status.mem:hover {
+  transform: translateY(-1px);
+}
+.eos-app .status.mem svg {
+  animation: eosTwinkle 2.6s ease-in-out infinite;
+}
+@keyframes eosTwinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
+
+/* ---- hero (empty state) ---- */
+.eos-app .hero-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  overflow-y: auto;
+  transition: opacity 0.35s var(--ease);
+}
+.eos-app .greet-stage {
+  perspective: 900px;
+  margin-bottom: 6px;
+}
+.eos-app .greet {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 12px;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease-out;
+}
+.eos-app .greet .word {
+  display: inline-block;
+  background: linear-gradient(90deg, #113f8c, #1656bd 45%, #6fa3e8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 220% auto;
+  opacity: 0;
+  transform: translateY(26px) rotateX(-70deg);
+  transform-origin: 50% 100%;
+  animation: eosWordIn 0.7s var(--ease) forwards, eosSheen 7s linear 1.4s infinite;
+}
+@keyframes eosWordIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0);
+  }
+}
+@keyframes eosSheen {
+  to {
+    background-position: 220% center;
+  }
+}
+.eos-app .greet-sub {
+  font-size: 15px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 34px;
+  opacity: 0;
+  animation: eosRise 0.55s var(--ease) 0.5s forwards;
+}
+@keyframes eosRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.eos-app .prompts {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 720px;
+  width: 100%;
+  margin-bottom: 34px;
+}
+.eos-app .prompt-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: eosRise 0.5s var(--ease) forwards;
+  text-align: left;
+}
+.eos-app .prompt-card:nth-child(1) {
+  animation-delay: 0.62s;
+}
+.eos-app .prompt-card:nth-child(2) {
+  animation-delay: 0.68s;
+}
+.eos-app .prompt-card:nth-child(3) {
+  animation-delay: 0.74s;
+}
+.eos-app .prompt-card:nth-child(4) {
+  animation-delay: 0.8s;
+}
+.eos-app .prompt-card:hover {
+  border-color: var(--blue);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(22, 86, 189, 0.12);
+}
+.eos-app .prompt-card:hover .ic {
+  transform: rotate(-6deg) scale(1.1);
+}
+.eos-app .prompt-card:active {
+  transform: translateY(-1px) scale(0.98);
+}
+.eos-app .prompt-card .ic {
+  color: var(--blue);
+  margin-bottom: 10px;
+  transition: transform 0.2s var(--ease);
+}
+.eos-app .prompt-card .t {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.eos-app .prompt-card .s {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.eos-app .composer-wrap {
+  width: 100%;
+  max-width: 720px;
+  padding-bottom: 10px;
+  opacity: 0;
+  animation: eosRise 0.5s var(--ease) 0.86s forwards;
+}
+.eos-app .composer-wrap.docked {
+  max-width: none;
+  padding: 14px 28px 20px;
+  margin: 0;
+  opacity: 1;
+  animation: none;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 30%);
+}
+.eos-app .composer-wrap.docked .composer {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.eos-app .composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  padding: 10px 10px 10px 18px;
+  box-shadow: 0 6px 20px rgba(17, 24, 39, 0.06);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  background: #fff;
+}
+.eos-app .composer.focused {
+  border-color: var(--blue);
+  box-shadow: 0 8px 26px rgba(22, 86, 189, 0.18);
+}
+.eos-app .composer input,
+.eos-app .composer textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--ink);
+  background: transparent;
+  resize: none;
+}
+.eos-app .composer input::placeholder,
+.eos-app .composer textarea::placeholder {
+  color: var(--muted);
+}
+.eos-app .icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.12s;
+  border: none;
+  background: transparent;
+}
+.eos-app .icon-btn:hover {
+  background: var(--line-soft);
+}
+.eos-app .icon-btn:active {
+  transform: scale(0.9);
+}
+.eos-app .send-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #d1d5db;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s, transform 0.15s;
+  border: none;
+}
+.eos-app .send-btn.ready {
+  background: var(--blue);
+}
+.eos-app .send-btn.ready:hover {
+  background: var(--blue-dark);
+  transform: scale(1.06);
+}
+.eos-app .send-btn:active {
+  transform: scale(0.88);
+}
+.eos-app .send-btn:disabled {
+  cursor: not-allowed;
+}
+.eos-app .hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* ---- chat state ---- */
+.eos-app .chat-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.eos-app .messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 26px 28px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.eos-app .msg-row {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  gap: 14px;
+}
+.eos-app .msg-row.user {
+  justify-content: flex-end;
+}
+.eos-app .msg-row.user .bubble {
+  background: var(--blue-light);
+  color: var(--ink);
+  border-radius: 18px 18px 4px 18px;
+  padding: 11px 16px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  max-width: 70%;
+  white-space: pre-wrap;
+}
+.eos-app .msg-row.assistant {
+  align-items: flex-start;
+}
+.eos-app .assistant-content {
+  flex: 1;
+  min-width: 0;
+}
+.eos-app .assistant-name {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--blue-dark);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.eos-app .assistant-name .think-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: eosBreathe 1.1s ease-in-out infinite;
+}
+@keyframes eosBreathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+.eos-app .assistant-text {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.eos-app .assistant-text b {
+  font-weight: 700;
+}
+
+.eos-app .typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+  padding-top: 4px;
+}
+.eos-app .typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: eosBounce 1.2s infinite ease-in-out;
+}
+.eos-app .typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.eos-app .typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes eosBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+.eos-app .msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.eos-app .msg-row.assistant:hover .msg-actions {
+  opacity: 1;
+}
+.eos-app .msg-actions .a {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border: none;
+  background: transparent;
+}
+.eos-app .msg-actions .a:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.eos-app .msg-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
+.eos-app .messages::-webkit-scrollbar,
+.eos-app .view::-webkit-scrollbar,
+.eos-app .hero-wrap::-webkit-scrollbar {
+  width: 8px;
+}
+.eos-app .messages::-webkit-scrollbar-thumb,
+.eos-app .view::-webkit-scrollbar-thumb,
+.eos-app .hero-wrap::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+
+.eos-app .file-preview {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(22, 86, 189, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+}
+.eos-app .file-preview-info {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.eos-app .file-preview-ic {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--blue-light);
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 900;
+}
+.eos-app .file-preview-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.eos-app .file-preview-text small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+}
+.eos-app .file-preview-text strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .file-preview button {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  background: var(--red-light);
+  color: var(--red);
+  font-size: 9px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+/* ============================================================
+   Shared "page view" chrome — Dashboard / Briefing / Decisiones /
+   Aprendizajes / Perfil all use this scaffolding.
+   ============================================================ */
+.eos-app .view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.eos-app .page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 8px 32px 60px;
+}
+.eos-app .page-in {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: eosRise 0.45s var(--ease) forwards;
+}
+.eos-app .page-header {
+  margin-bottom: 26px;
+}
+.eos-app .page-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.eos-app .page-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+.eos-app .page-sub {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.eos-app .chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.eos-app .chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: default;
+  transition: all 0.15s ease;
+  background: #fff;
+}
+.eos-app .chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.eos-app .card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  padding: 20px 22px;
+}
+.eos-app .card + .card {
+  margin-top: 14px;
+}
+.eos-app .card-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.eos-app .card-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ---- KPI cards ---- */
+.eos-app .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.eos-app .kpi-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: #fff;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: eosRise 0.4s var(--ease) forwards;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.eos-app .kpi-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px rgba(22, 86, 189, 0.08);
+  transform: translateY(-2px);
+}
+.eos-app .kpi-card .l {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .kpi-card .v {
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 6px;
+  letter-spacing: -0.3px;
+}
+.eos-app .kpi-card .d {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.eos-app .kpi-card .d.up {
+  color: var(--green);
+}
+.eos-app .kpi-card .d.down {
+  color: var(--red);
+}
+.eos-app .kpi-card .d.warn {
+  color: var(--amber);
+}
+
+/* ---- chart card ---- */
+.eos-app .chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.eos-app .chart-legend {
+  font-size: 11.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.eos-app .chart-legend .sw {
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--blue);
+  display: inline-block;
+}
+.eos-app .chart-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.eos-app .chart-svg .grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.eos-app .chart-svg .axis-label {
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+.eos-app .chart-svg .area-fill {
+  fill: url(#eosAreaGrad);
+  stroke: none;
+}
+.eos-app .chart-svg .line-path {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.eos-app .chart-svg .dot {
+  fill: #fff;
+  stroke: var(--blue);
+  stroke-width: 2.5;
+}
+.eos-app .chart-svg .dot.last {
+  fill: var(--blue);
+}
+.eos-app .chart-svg .val-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--blue-dark);
+}
+.eos-app .chart-empty {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 30px 0;
+}
+
+/* ---- priority list ---- */
+.eos-app .priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eos-app .priority-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .priority-item:last-child {
+  border-bottom: none;
+}
+.eos-app .p-check {
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+}
+.eos-app .p-check:hover {
+  border-color: var(--blue);
+}
+.eos-app .p-check.done {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.eos-app .p-text {
+  flex: 1;
+  font-size: 13.5px;
+}
+.eos-app .p-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.eos-app .p-tag.alta {
+  background: var(--red-light);
+  color: var(--red);
+}
+.eos-app .p-tag.media {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .p-tag.baja {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+
+/* ---- recommendation cards ---- */
+.eos-app .reco {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .reco:last-child {
+  border-bottom: none;
+}
+.eos-app .reco .ric {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--blue-light);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.eos-app .reco .rt {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.eos-app .reco .rs {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.eos-app .reco-btn {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-light);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.eos-app .reco-btn:hover {
+  background: #dbe6ff;
+}
+
+/* ---- progress bars (briefing objectives) ---- */
+.eos-app .obj-row {
+  margin-bottom: 14px;
+}
+.eos-app .obj-row:last-child {
+  margin-bottom: 0;
+}
+.eos-app .obj-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.eos-app .obj-name {
+  font-weight: 600;
+}
+.eos-app .obj-pct {
+  color: var(--muted);
+  font-weight: 600;
+}
+.eos-app .obj-bar {
+  height: 7px;
+  border-radius: 99px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.eos-app .obj-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6fa3e8, var(--blue));
+}
+.eos-app .obj-fill.done {
+  background: linear-gradient(90deg, #34d399, var(--green));
+}
+
+.eos-app .prose {
+  font-size: 13.8px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.eos-app .prose + .prose {
+  margin-top: 10px;
+}
+.eos-app .empty-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ---- decision timeline ---- */
+.eos-app .timeline {
+  position: relative;
+  padding-left: 22px;
+}
+.eos-app .timeline::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 1.5px;
+  background: var(--line);
+}
+.eos-app .tl-item {
+  position: relative;
+  padding-bottom: 22px;
+}
+.eos-app .tl-item:last-child {
+  padding-bottom: 0;
+}
+.eos-app .tl-dot {
+  position: absolute;
+  left: -22px;
+  top: 4px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--blue);
+}
+.eos-app .tl-dot.done {
+  background: var(--green);
+  border-color: var(--green);
+}
+.eos-app .tl-dot.pending {
+  background: #fff;
+  border-color: var(--line);
+}
+.eos-app .tl-dot.progress {
+  border-color: var(--amber);
+}
+.eos-app .tl-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 15px 18px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eos-app .tl-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px rgba(22, 86, 189, 0.07);
+}
+.eos-app .tl-date {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.eos-app .tl-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.eos-app .tl-outcome {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.eos-app .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.eos-app .badge.done {
+  background: var(--green-light);
+  color: var(--green);
+}
+.eos-app .badge.progress {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .badge.pending {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+.eos-app .tag-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.eos-app .tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--line-soft);
+  padding: 3px 9px;
+  border-radius: 7px;
+}
+
+/* ---- pattern / learnings cards ---- */
+.eos-app .pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.eos-app .pattern-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.eos-app .pattern-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 10px 24px rgba(22, 86, 189, 0.09);
+  transform: translateY(-2px);
+}
+.eos-app .pattern-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--blue-light);
+  color: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.eos-app .pattern-title {
+  font-size: 13.8px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.eos-app .conf-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.eos-app .conf-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.eos-app .conf-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.eos-app .conf-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--blue);
+}
+.eos-app .pattern-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ---- perfil ---- */
+.eos-app .profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.eos-app .profile-avatar-lg {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1656bd, #113f8c);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 19px;
+}
+.eos-app .profile-name {
+  font-size: 18px;
+  font-weight: 800;
+}
+.eos-app .profile-hero .plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+.eos-app .ghost-btn {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--blue);
+  background: #fff;
+  border: 1px solid var(--blue);
+  padding: 8px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.eos-app .ghost-btn:hover {
+  background: var(--blue-light);
+}
+
+.eos-app .field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.eos-app .field-row:last-child {
+  border-bottom: none;
+}
+.eos-app .field-label {
+  color: var(--muted);
+}
+.eos-app .field-value {
+  font-weight: 600;
+}
+
+.eos-app .toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .toggle-row:last-child {
+  border-bottom: none;
+}
+.eos-app .toggle-text .tt {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.eos-app .toggle-text .ts {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.eos-app .usage-bar {
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line-soft);
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.eos-app .usage-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6fa3e8, var(--blue));
+}
+.eos-app .usage-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@keyframes eosFillBar {
+  from {
+    width: 0;
+  }
+}
+.eos-app .obj-fill,
+.eos-app .conf-fill,
+.eos-app .usage-fill {
+  animation: eosFillBar 1s var(--ease) forwards;
+  animation-delay: 0.2s;
+}
+
+@media (max-width: 700px) {
+  .eos-app .kpi-grid,
+  .eos-app .prompts {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .eos-app .pattern-grid {
+    grid-template-columns: 1fr;
+  }
+  .eos-app .page {
+    padding: 8px 18px 60px;
+  }
+}

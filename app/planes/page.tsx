@@ -2,24 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
-  ArrowLeft,
-  ArrowRight,
   Building2,
   Check,
   Crown,
   Loader2,
   Mail,
   Send,
-  ShieldCheck,
   Sparkles,
   UserRound,
   UsersRound,
   X,
-  Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import AmbientBackground from "@/components/effects/AmbientBackground";
+import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
+import { useNavScrolled } from "@/components/effects/useNavScrolled";
 
 type PlanRow = {
   id: string;
@@ -49,23 +48,16 @@ type EstadoComercial = {
   estado_suscripcion?: string | null;
 };
 
-const CODIGOS_PUBLICOS = [
-  "free",
-  "personal",
-  "pro",
-  "business",
-  "enterprise",
-];
+const CODIGOS_PUBLICOS = ["free", "personal", "pro", "business", "enterprise"];
 
 export default function PlanesPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const scrolled = useNavScrolled();
 
   const [planes, setPlanes] = useState<PlanRow[]>([]);
   const [planActual, setPlanActual] = useState("free");
-  const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">(
-    "mensual",
-  );
+  const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">("mensual");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [seleccionando, setSeleccionando] = useState("");
@@ -104,14 +96,8 @@ export default function PlanesPage() {
         if (planesError) throw planesError;
 
         const planesValidos = (planesData || [])
-          .filter((plan: PlanRow) =>
-            CODIGOS_PUBLICOS.includes(normalizarCodigo(plan.codigo)),
-          )
-          .sort(
-            (a: PlanRow, b: PlanRow) =>
-              (a.orden ?? a.prioridad ?? 999) -
-              (b.orden ?? b.prioridad ?? 999),
-          );
+          .filter((plan: PlanRow) => CODIGOS_PUBLICOS.includes(normalizarCodigo(plan.codigo)))
+          .sort((a: PlanRow, b: PlanRow) => (a.orden ?? a.prioridad ?? 999) - (b.orden ?? b.prioridad ?? 999));
 
         if (activo) setPlanes(planesValidos);
 
@@ -119,36 +105,24 @@ export default function PlanesPage() {
           if (activo) {
             setContacto((actual) => ({
               ...actual,
-              nombre:
-                actual.nombre ||
-                user.user_metadata?.nombre ||
-                user.user_metadata?.name ||
-                "",
+              nombre: actual.nombre || user.user_metadata?.nombre || user.user_metadata?.name || "",
               email: actual.email || user.email || "",
             }));
           }
 
-          const { data: estadoData } = await supabase.rpc(
-            "obtener_estado_comercial_eos",
-            {
-              p_usuario_id: user.id,
-            },
-          );
+          const { data: estadoData } = await supabase.rpc("obtener_estado_comercial_eos", {
+            p_usuario_id: user.id,
+          });
 
           const estado = normalizarEstado(estadoData);
-          const codigoActual =
-            normalizarCodigo(estado?.plan_codigo) ||
-            normalizarCodigo(estado?.plan_nombre) ||
-            "free";
+          const codigoActual = normalizarCodigo(estado?.plan_codigo) || normalizarCodigo(estado?.plan_nombre) || "free";
 
           if (activo) setPlanActual(codigoActual);
         }
       } catch (err) {
         console.error("No se pudieron cargar los planes:", err);
         if (activo) {
-          setError(
-            "No pudimos cargar los planes en este momento. Volvé a intentarlo.",
-          );
+          setError("No pudimos cargar los planes en este momento. Volvé a intentarlo.");
         }
       } finally {
         if (activo) setCargando(false);
@@ -201,9 +175,7 @@ export default function PlanesPage() {
     }
   }
 
-  async function enviarSolicitudEnterprise(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function enviarSolicitudEnterprise(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!contacto.nombre.trim() || !contacto.email.trim()) {
@@ -230,9 +202,7 @@ export default function PlanesPage() {
       const resultado = await respuesta.json().catch(() => null);
 
       if (!respuesta.ok) {
-        throw new Error(
-          resultado?.error || "No se pudo enviar la solicitud.",
-        );
+        throw new Error(resultado?.error || "No se pudo enviar la solicitud.");
       }
 
       setContactoEnviado(true);
@@ -245,228 +215,160 @@ export default function PlanesPage() {
       }));
     } catch (err) {
       console.error("No se pudo enviar el contacto comercial:", err);
-      setErrorContacto(
-        err instanceof Error
-          ? err.message
-          : "No se pudo enviar la solicitud. Intentá nuevamente.",
-      );
+      setErrorContacto(err instanceof Error ? err.message : "No se pudo enviar la solicitud. Intentá nuevamente.");
     } finally {
       setEnviandoContacto(false);
     }
   }
 
   return (
-    <main className="plans-page" data-eos-theme="light">
-      <AmbientBackground spanCount={2} />
+    <main className="planes-page" data-eos-theme="light">
+      <AmbientBackground techConfig={planesTechCanvas} spanCount={2} />
 
-      <div className="plans-container">
-        <header className="plans-topbar">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="back-button"
-          >
-            <ArrowLeft size={17} />
-            Volver
-          </button>
-
-          <div className="brand-lockup">
+      <nav className={scrolled ? "scrolled" : ""}>
+        <div className="wrap nav-inner">
+          <div className="nav-brand">
+            <img src="/transtech-logo.png" alt="TransTech" />
             <span>TRANSTECH</span>
-            <strong>EOS</strong>
           </div>
-
-          <button
-            type="button"
-            onClick={() => router.push("/eos/chat")}
-            className="dashboard-button"
-          >
-            Ir a EOS
-            <ArrowRight size={16} />
-          </button>
-        </header>
-
-        <section className="plans-hero">
-          <div className="eyebrow">
-            <Sparkles size={15} />
-            PLANES TRANSTECH EOS
+          <div className="nav-actions">
+            <Link className="btn btn-outline" href="/eos">
+              Volver a EOS
+            </Link>
           </div>
+        </div>
+      </nav>
 
-          <h1>Elegí el nivel de EOS que acompaña tu crecimiento.</h1>
-
-          <p>
-            Empezá gratis y ampliá tus capacidades cuando lo necesites.
-            Tu plan, tus límites y tu facturación se actualizan
-            automáticamente desde tu cuenta.
-          </p>
-
-          <div className="billing-toggle">
+      <div className="head wrap">
+        <h1 className="head-title">Elegí el nivel de EOS que acompaña tu crecimiento.</h1>
+        <p className="head-sub">
+          Empezá gratis y ampliá tus capacidades cuando lo necesites. Tu plan, tus límites y tu facturación se
+          actualizan automáticamente desde tu cuenta.
+        </p>
+        <div className="toggle-wrap">
+          <div className="toggle">
             <button
               type="button"
-              onClick={() => setPeriodicidad("mensual")}
               className={periodicidad === "mensual" ? "active" : ""}
+              onClick={() => setPeriodicidad("mensual")}
             >
               Mensual
             </button>
-
             <button
               type="button"
-              onClick={() => setPeriodicidad("anual")}
               className={periodicidad === "anual" ? "active" : ""}
+              onClick={() => setPeriodicidad("anual")}
             >
-              Anual
-              <span>Mejor valor</span>
+              Anual <span className="badge">Mejor valor</span>
             </button>
           </div>
-        </section>
+        </div>
+      </div>
 
+      <div className="wrap">
         {cargando ? (
-          <section className="loading-card">
+          <div className="state-card">
             <Loader2 className="spin" size={24} />
             Cargando planes...
-          </section>
+          </div>
         ) : error ? (
-          <section className="error-card">
+          <div className="state-card">
             <strong>No se pudieron cargar los planes</strong>
             <p>{error}</p>
             <button type="button" onClick={() => window.location.reload()}>
               Reintentar
             </button>
-          </section>
+          </div>
         ) : (
-          <section className="plans-grid-cards">
+          <div className="plans">
             {planes.map((plan) => {
               const codigo = normalizarCodigo(plan.codigo);
               const esActual = codigo === planActual;
-              const esDestacado = codigo === "pro";
+              const esPremium = codigo === "pro";
+              const esExecutive = codigo === "enterprise";
               const precio = obtenerPrecio(plan, periodicidad);
               const caracteristicas = obtenerCaracteristicas(plan);
 
               return (
-                <article
+                <div
                   key={plan.id}
-                  className={`plan-card ${
-                    esDestacado ? "featured" : ""
-                  } ${esActual ? "current" : ""}`}
+                  className={`plan ${esPremium ? "premium" : ""} ${esExecutive ? "executive" : ""}`}
                 >
-                  {esDestacado && (
-                    <div className="featured-label">
-                      <Crown size={13} />
+                  {esPremium && (
+                    <div className="plan-badge">
+                      <Sparkles size={12} />
                       MÁS ELEGIDO
                     </div>
                   )}
 
-                  <div className="plan-card-top">
-                    <span className="plan-icon">
-                      {obtenerIcono(codigo)}
-                    </span>
-
-                    <div>
-                      <span className="plan-code">
-                        {codigo.toUpperCase()}
-                      </span>
-                      <h2>{plan.nombre || `EOS ${capitalizar(codigo)}`}</h2>
-                    </div>
+                  <div className="plan-ic">{obtenerIcono(codigo)}</div>
+                  <div className="plan-tag">{codigo.toUpperCase()}</div>
+                  <div className="plan-name">{plan.nombre || `EOS ${capitalizar(codigo)}`}</div>
+                  <div className="plan-desc">
+                    {plan.descripcion || "Capacidades de TransTech EOS adaptadas a este nivel."}
                   </div>
-
-                  <p className="plan-description">
-                    {plan.descripcion ||
-                      "Capacidades de TransTech EOS adaptadas a este nivel."}
-                  </p>
 
                   <div className="plan-price">
-                    <strong>{precio.principal}</strong>
-                    {precio.detalle && <span>{precio.detalle}</span>}
+                    <span className="amount">{precio.principal}</span>{" "}
+                    {precio.detalle && <span className="per">{precio.detalle}</span>}
                   </div>
+                  <div className="plan-price-sub">{periodicidad === "anual" && !esActual ? "facturado anualmente" : ""}</div>
 
                   <button
                     type="button"
                     disabled={esActual || seleccionando === codigo}
                     onClick={() => seleccionarPlan(plan)}
-                    className={`select-button ${
-                      esDestacado ? "primary" : ""
-                    }`}
+                    className={`plan-btn ${esPremium ? "primary" : ""} ${esActual ? "current" : ""}`}
                   >
                     {seleccionando === codigo ? (
                       <>
-                        <Loader2 className="spin" size={16} />
+                        <Loader2 className="spin" size={13} />
                         Preparando...
                       </>
                     ) : esActual ? (
                       <>
-                        <ShieldCheck size={16} />
+                        <Check size={13} />
                         Plan actual
                       </>
-                    ) : codigo === "enterprise" ? (
-                      <>
-                        Hablar con ventas
-                        <ArrowRight size={16} />
-                      </>
+                    ) : esExecutive ? (
+                      "Hablar con ventas →"
                     ) : (
-                      <>
-                        Elegir plan
-                        <ArrowRight size={16} />
-                      </>
+                      "Elegir plan →"
                     )}
                   </button>
 
-                  <div className="divider" />
-
-                  <span className="includes-label">ESTE PLAN INCLUYE</span>
-
-                  <ul>
-                    {caracteristicas.map((item) => (
-                      <li key={item}>
-                        <span>
-                          <Check size={13} />
-                        </span>
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
+                  <div className="plan-includes-label">Este plan incluye</div>
+                  {caracteristicas.map((item) => (
+                    <div key={item} className="plan-feat">
+                      <Check size={14} />
+                      {item}
+                    </div>
+                  ))}
+                </div>
               );
             })}
-          </section>
+          </div>
         )}
 
-        <section className="plans-guarantee">
-          <span className="guarantee-icon">
-            <Zap size={22} />
-          </span>
-
-          <div>
-            <span className="plans-section-label">ACTUALIZACIÓN AUTOMÁTICA</span>
-            <h2>Tu acceso cambia en cuanto el pago es confirmado.</h2>
-            <p>
-              No necesitás esperar una aprobación manual. La confirmación
-              segura del proveedor de pago actualizará el plan, los límites
-              y las funciones disponibles en EOS.
-            </p>
-          </div>
-        </section>
-
-        <footer className="plans-footer">
-          <span />
-          Precios y capacidades obtenidos directamente desde TransTech EOS.
-        </footer>
+        <p className="note">Precios y capacidades obtenidos directamente desde TransTech EOS.</p>
       </div>
+
+      <footer className="support-footer">
+        <div className="wrap">
+          ¿Necesitás ayuda? Contactá a nuestro equipo de soporte:{" "}
+          <a href="mailto:soporte@transtech.com.py">soporte@transtech.com.py</a>
+        </div>
+      </footer>
 
       {mostrarContacto && (
         <div
           className="contact-overlay"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setMostrarContacto(false);
-            }
+            if (event.target === event.currentTarget) setMostrarContacto(false);
           }}
         >
-          <section
-            className="contact-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="contact-title"
-          >
+          <section className="contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-title">
             <button
               type="button"
               className="contact-close"
@@ -481,15 +383,12 @@ export default function PlanesPage() {
                 <span className="contact-success-icon">
                   <Check size={25} />
                 </span>
-                <span className="plans-section-label">SOLICITUD ENVIADA</span>
+                <span className="section-label">SOLICITUD ENVIADA</span>
                 <h2 id="contact-title">Ventas ya recibió tu consulta.</h2>
                 <p>
                   Te responderemos al correo <strong>{contacto.email}</strong>.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setMostrarContacto(false)}
-                >
+                <button type="button" onClick={() => setMostrarContacto(false)}>
                   Volver a los planes
                 </button>
               </div>
@@ -499,35 +398,23 @@ export default function PlanesPage() {
                   <span className="contact-heading-icon">
                     <Mail size={22} />
                   </span>
-
                   <div>
-                    <span className="plans-section-label">
-                      EOS ENTERPRISE
-                    </span>
+                    <span className="section-label">EOS ENTERPRISE</span>
                     <h2 id="contact-title">Hablemos de tu organización.</h2>
                   </div>
                 </div>
 
                 <p className="contact-intro">
-                  Completá tus datos y TransTech enviará automáticamente la
-                  solicitud a ventas@transtech.com.py.
+                  Completá tus datos y TransTech enviará automáticamente la solicitud a ventas@transtech.com.py.
                 </p>
 
-                <form
-                  className="contact-form"
-                  onSubmit={enviarSolicitudEnterprise}
-                >
+                <form className="contact-form" onSubmit={enviarSolicitudEnterprise}>
                   <div className="contact-fields">
                     <label>
                       <span>Nombre *</span>
                       <input
                         value={contacto.nombre}
-                        onChange={(event) =>
-                          setContacto((actual) => ({
-                            ...actual,
-                            nombre: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => setContacto((actual) => ({ ...actual, nombre: event.target.value }))}
                         required
                         maxLength={120}
                         autoComplete="name"
@@ -539,12 +426,7 @@ export default function PlanesPage() {
                       <input
                         type="email"
                         value={contacto.email}
-                        onChange={(event) =>
-                          setContacto((actual) => ({
-                            ...actual,
-                            email: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => setContacto((actual) => ({ ...actual, email: event.target.value }))}
                         required
                         maxLength={180}
                         autoComplete="email"
@@ -555,12 +437,7 @@ export default function PlanesPage() {
                       <span>Empresa</span>
                       <input
                         value={contacto.empresa}
-                        onChange={(event) =>
-                          setContacto((actual) => ({
-                            ...actual,
-                            empresa: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => setContacto((actual) => ({ ...actual, empresa: event.target.value }))}
                         maxLength={160}
                         autoComplete="organization"
                       />
@@ -570,12 +447,7 @@ export default function PlanesPage() {
                       <span>Teléfono</span>
                       <input
                         value={contacto.telefono}
-                        onChange={(event) =>
-                          setContacto((actual) => ({
-                            ...actual,
-                            telefono: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => setContacto((actual) => ({ ...actual, telefono: event.target.value }))}
                         maxLength={50}
                         autoComplete="tel"
                       />
@@ -586,12 +458,7 @@ export default function PlanesPage() {
                     <span>¿Qué necesita tu organización?</span>
                     <textarea
                       value={contacto.mensaje}
-                      onChange={(event) =>
-                        setContacto((actual) => ({
-                          ...actual,
-                          mensaje: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => setContacto((actual) => ({ ...actual, mensaje: event.target.value }))}
                       maxLength={2000}
                       rows={5}
                       placeholder="Contanos brevemente sobre tu empresa, cantidad de usuarios y procesos que querés automatizar."
@@ -604,24 +471,13 @@ export default function PlanesPage() {
                       tabIndex={-1}
                       autoComplete="off"
                       value={contacto.website}
-                      onChange={(event) =>
-                        setContacto((actual) => ({
-                          ...actual,
-                          website: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => setContacto((actual) => ({ ...actual, website: event.target.value }))}
                     />
                   </label>
 
-                  {errorContacto && (
-                    <p className="contact-error">{errorContacto}</p>
-                  )}
+                  {errorContacto && <p className="contact-error">{errorContacto}</p>}
 
-                  <button
-                    type="submit"
-                    className="contact-submit"
-                    disabled={enviandoContacto}
-                  >
+                  <button type="submit" className="contact-submit" disabled={enviandoContacto}>
                     {enviandoContacto ? (
                       <>
                         <Loader2 className="spin" size={17} />
@@ -635,10 +491,7 @@ export default function PlanesPage() {
                     )}
                   </button>
 
-                  <p className="contact-privacy">
-                    Tus datos se utilizarán únicamente para responder esta
-                    consulta comercial.
-                  </p>
+                  <p className="contact-privacy">Tus datos se utilizarán únicamente para responder esta consulta comercial.</p>
                 </form>
               </>
             )}
@@ -647,153 +500,173 @@ export default function PlanesPage() {
       )}
 
       <style jsx>{`
-        .plans-page {
+        .planes-page {
+          --bg: #ffffff;
+          --bg-2: #f1f5fb;
+          --surface: #f6f8fc;
+          --surface-hover: #eef3fb;
+          --border: #e5e9f0;
+          --border-hover: rgba(22, 86, 189, 0.5);
+          --text: #07132a;
+          --muted: #6b7280;
+          --blue: #1656bd;
+          --blue-dark: #113f8c;
+          --blue-bright: #2f72d6;
+          --blue-light: #e9f0fb;
+          --green: #10a37f;
+          --green-light: #e6f7f1;
+          --ease: cubic-bezier(0.22, 1, 0.36, 1);
           position: relative;
-          min-height: 100vh;
-          overflow: hidden;
-          padding: 26px 28px 72px;
-          background:
-            linear-gradient(180deg, #ffffff 0%, #f5f9ff 52%, #edf4ff 100%);
-          color: #071226;
           font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
+          background: var(--bg);
+          color: var(--text);
+          overflow-x: hidden;
+          min-height: 100vh;
+        }
+        .planes-page :global(svg) {
+          width: 16px;
+          height: 16px;
+          stroke: currentColor;
+          stroke-width: 1.8;
+          fill: none;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          display: block;
+        }
+        .planes-page a {
+          color: inherit;
+          text-decoration: none;
+        }
+        .planes-page button {
+          font-family: inherit;
+          cursor: pointer;
         }
 
-        .plans-container {
+        .wrap {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 0 32px;
           position: relative;
           z-index: 1;
-          width: 100%;
-          max-width: 1460px;
-          margin: 0 auto;
         }
 
-        .plans-topbar {
-          display: grid;
-          grid-template-columns: 1fr auto 1fr;
-          align-items: center;
-          gap: 20px;
+        nav {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          padding: 18px 0;
+          transition: background 0.25s, border-color 0.25s, padding 0.25s;
+          border-bottom: 1px solid transparent;
         }
-
-        .back-button,
-        .dashboard-button {
-          min-height: 43px;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          width: fit-content;
-          padding: 0 15px;
-          border: 1px solid #dbe5f2;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.9);
-          color: #334155;
-          font-family: inherit;
-          font-size: 11px;
-          font-weight: 850;
-          cursor: pointer;
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        nav.scrolled {
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(14px);
+          border-color: var(--border);
+          padding: 13px 0;
         }
-
-        .dashboard-button {
-          justify-self: end;
-          border-color: #a9c6ee;
-          color: #1656bd;
-        }
-
-        .brand-lockup {
-          display: grid;
-          text-align: center;
-        }
-
-        .brand-lockup span {
-          color: #1656bd;
-          font-size: 9px;
-          font-weight: 950;
-          letter-spacing: 0.22em;
-        }
-
-        .brand-lockup strong {
-          margin-top: 2px;
-          color: #071226;
-          font-size: 24px;
-          font-weight: 950;
-          line-height: 1;
-          letter-spacing: -0.05em;
-        }
-
-        .plans-hero {
-          max-width: 900px;
-          margin: 76px auto 0;
-          text-align: center;
-        }
-
-        .eyebrow {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          color: #1656bd;
-          font-size: 10px;
-          font-weight: 950;
-          letter-spacing: 0.17em;
-        }
-
-        .plans-hero h1 {
-          margin: 20px 0 0;
-          font-size: clamp(44px, 6.7vw, 82px);
-          font-weight: 950;
-          line-height: 0.98;
-          letter-spacing: -0.062em;
-        }
-
-        .plans-hero p {
-          max-width: 720px;
-          margin: 25px auto 0;
-          color: #64748b;
-          font-size: 15px;
-          line-height: 1.75;
-        }
-
-        .billing-toggle {
-          width: fit-content;
+        .nav-inner {
           display: flex;
-          gap: 5px;
-          margin: 30px auto 0;
-          padding: 5px;
-          border: 1px solid #dbe5f2;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.9);
-          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07);
+          align-items: center;
+          justify-content: space-between;
         }
-
-        .billing-toggle button {
-          min-height: 39px;
+        .nav-brand {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+        }
+        .nav-brand img {
+          height: 24px;
+          width: auto;
+          display: block;
+        }
+        .nav-brand span {
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: -0.3px;
+        }
+        .btn {
           display: inline-flex;
           align-items: center;
-          gap: 7px;
-          padding: 0 16px;
-          border: 0;
-          border-radius: 999px;
-          background: transparent;
-          color: #64748b;
-          font-family: inherit;
-          font-size: 10px;
-          font-weight: 850;
+          gap: 8px;
+          padding: 10px 20px;
+          border-radius: 10px;
+          font-size: 13.5px;
+          font-weight: 700;
           cursor: pointer;
+          border: none;
+          transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+        }
+        .btn-outline {
+          background: #fff;
+          color: var(--text);
+          border: 1px solid var(--border);
+        }
+        .btn-outline:hover {
+          border-color: var(--border-hover);
+          background: var(--surface);
+          transform: translateY(-2px);
         }
 
-        .billing-toggle button.active {
-          background: #071226;
-          color: white;
+        .head {
+          padding: 70px 0 20px;
+          text-align: center;
+        }
+        .head-title {
+          font-size: 44px;
+          font-weight: 800;
+          letter-spacing: -1.2px;
+          line-height: 1.2;
+          max-width: 760px;
+          margin: 0 auto 18px;
+        }
+        .head-sub {
+          font-size: 15.5px;
+          color: var(--muted);
+          max-width: 560px;
+          margin: 0 auto 36px;
+          line-height: 1.65;
         }
 
-        .billing-toggle button span {
-          padding: 4px 7px;
+        .toggle-wrap {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 60px;
+        }
+        .toggle {
+          display: inline-flex;
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 999px;
-          background: #e9f0fb;
-          color: #1656bd;
-          font-size: 8px;
+          padding: 4px;
+          gap: 2px;
+        }
+        .toggle button {
+          padding: 9px 20px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 700;
+          background: transparent;
+          color: var(--muted);
+          border: none;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.2s, color 0.2s;
+        }
+        .toggle button.active {
+          background: var(--text);
+          color: #fff;
+        }
+        .toggle .badge {
+          font-size: 10px;
+          font-weight: 700;
+          background: var(--blue-light);
+          color: var(--blue);
+          padding: 2px 8px;
+          border-radius: 999px;
         }
 
-        .loading-card,
-        .error-card {
+        .state-card {
           max-width: 620px;
           min-height: 180px;
           display: grid;
@@ -801,354 +674,239 @@ export default function PlanesPage() {
           gap: 12px;
           margin: 55px auto 0;
           padding: 30px;
-          border: 1px solid #dbe5f2;
+          border: 1px solid var(--border);
           border-radius: 28px;
           background: rgba(255, 255, 255, 0.92);
-          color: #64748b;
+          color: var(--muted);
           text-align: center;
           box-shadow: 0 20px 60px rgba(15, 23, 42, 0.07);
         }
-
-        .error-card strong {
-          color: #071226;
+        .state-card strong {
+          color: var(--text);
           font-size: 20px;
         }
-
-        .error-card p {
-          margin: 0;
-          font-size: 12px;
-        }
-
-        .error-card button {
+        .state-card button {
           width: fit-content;
           min-height: 40px;
           margin: 4px auto 0;
           padding: 0 17px;
           border: 0;
           border-radius: 999px;
-          background: #1656bd;
-          color: white;
-          font-family: inherit;
+          background: var(--blue);
+          color: #fff;
           font-weight: 800;
-          cursor: pointer;
         }
 
-        .plans-grid-cards {
+        .plans {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(3, 1fr);
+          gap: 22px;
+          padding-bottom: 60px;
           align-items: stretch;
-          gap: 14px;
-          margin-top: 56px;
         }
-
-        .plan-card {
-          position: relative;
-          min-width: 0;
+        .planes-page :global(.plan) {
+          border: 1px solid var(--border);
+          border-radius: 22px;
+          padding: 34px 30px;
+          background: #fff;
           display: flex;
           flex-direction: column;
-          padding: 25px 21px 23px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          border-radius: 27px;
-          background: rgba(255, 255, 255, 0.93);
-          box-shadow:
-            0 20px 60px rgba(15, 23, 42, 0.07),
-            inset 0 1px 0 rgba(255, 255, 255, 0.96);
-          transition:
-            transform 180ms ease,
-            border-color 180ms ease,
-            box-shadow 180ms ease;
+          transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.2s;
+          position: relative;
         }
-
-        .plan-card:hover {
+        .planes-page :global(.plan:hover) {
           transform: translateY(-5px);
-          border-color: rgba(37, 99, 235, 0.27);
-          box-shadow: 0 26px 68px rgba(37, 99, 235, 0.11);
+          box-shadow: 0 22px 44px rgba(15, 23, 42, 0.08);
+          border-color: var(--border-hover);
         }
-
-        .plan-card.featured {
-          border-color: rgba(37, 99, 235, 0.5);
-          background:
-            linear-gradient(180deg, #071226 0%, #0b1a35 100%);
-          color: white;
-          box-shadow: 0 27px 80px rgba(7, 18, 38, 0.24);
+        .planes-page :global(.plan.premium) {
+          border-color: var(--blue);
+          box-shadow: 0 20px 44px rgba(22, 86, 189, 0.12);
         }
-
-        .plan-card.current {
-          box-shadow:
-            0 0 0 2px rgba(34, 197, 94, 0.2),
-            0 20px 60px rgba(15, 23, 42, 0.07);
+        .planes-page :global(.plan.premium:hover) {
+          transform: translateY(-8px);
         }
-
-        .featured-label {
+        .planes-page :global(.plan.executive) {
+          background: linear-gradient(165deg, #0d1f42, #07132a);
+          color: #fff;
+          border-color: #0d1f42;
+        }
+        .plan-badge {
           position: absolute;
           top: -14px;
           left: 50%;
-          min-height: 28px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
           transform: translateX(-50%);
-          padding: 0 12px;
+          background: linear-gradient(135deg, #2f72d6, #1656bd);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 7px 16px;
           border-radius: 999px;
-          background: #1656bd;
-          color: white;
-          font-size: 8px;
-          font-weight: 950;
-          letter-spacing: 0.1em;
-          white-space: nowrap;
-          box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
-        }
-
-        .plan-card-top {
           display: flex;
           align-items: center;
-          gap: 12px;
-        }
-
-        .plan-icon {
-          width: 45px;
-          height: 45px;
-          flex-shrink: 0;
-          display: grid;
-          place-items: center;
-          border-radius: 15px;
-          background: #eef3fb;
-          color: #1656bd;
-        }
-
-        .featured .plan-icon {
-          border: 1px solid rgba(255, 255, 255, 0.13);
-          background: rgba(255, 255, 255, 0.08);
-          color: #6fa3e8;
-        }
-
-        .plan-code {
-          color: #1656bd;
-          font-size: 8px;
-          font-weight: 950;
-          letter-spacing: 0.14em;
-        }
-
-        .featured .plan-code {
-          color: #6fa3e8;
-        }
-
-        .plan-card h2 {
-          margin: 4px 0 0;
-          color: #071226;
-          font-size: 20px;
-          font-weight: 900;
-          letter-spacing: -0.035em;
-        }
-
-        .featured h2 {
-          color: white;
-        }
-
-        .plan-description {
-          min-height: 66px;
-          margin: 20px 0 0;
-          color: #64748b;
-          font-size: 11px;
-          line-height: 1.65;
-        }
-
-        .featured .plan-description {
-          color: #a9c6ee;
-        }
-
-        .plan-price {
-          min-height: 68px;
-          display: flex;
-          align-items: flex-end;
-          flex-wrap: wrap;
           gap: 5px;
-          margin-top: 15px;
+          box-shadow: 0 8px 18px rgba(22, 86, 189, 0.4);
+          white-space: nowrap;
         }
-
-        .plan-price strong {
-          color: #071226;
-          font-size: 25px;
-          font-weight: 950;
-          letter-spacing: -0.05em;
-        }
-
-        .featured .plan-price strong {
-          color: white;
-        }
-
-        .plan-price span {
-          padding-bottom: 4px;
-          color: #94a3b8;
-          font-size: 9px;
-          font-weight: 750;
-        }
-
-        .select-button {
-          min-height: 44px;
-          display: inline-flex;
+        .plan-ic {
+          width: 44px;
+          height: 44px;
+          border-radius: 13px;
+          background: var(--blue-light);
+          color: var(--blue);
+          display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          margin-top: 16px;
-          border: 1px solid #a9c6ee;
-          border-radius: 14px;
-          background: #eef3fb;
-          color: #1656bd;
-          font-family: inherit;
-          font-size: 10px;
-          font-weight: 900;
-          cursor: pointer;
-          transition:
-            transform 180ms ease,
-            background 180ms ease;
+          margin-bottom: 20px;
         }
-
-        .select-button:hover:not(:disabled) {
+        .planes-page :global(.plan.executive) .plan-ic {
+          background: rgba(255, 255, 255, 0.1);
+          color: #facc15;
+        }
+        .plan-tag {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.7px;
+          color: var(--muted);
+          text-transform: uppercase;
+          margin-bottom: 6px;
+        }
+        .planes-page :global(.plan.executive) .plan-tag {
+          color: #6fa3e8;
+        }
+        .plan-name {
+          font-size: 21px;
+          font-weight: 800;
+          margin-bottom: 10px;
+        }
+        .plan-desc {
+          font-size: 13px;
+          color: var(--muted);
+          line-height: 1.6;
+          margin-bottom: 26px;
+          min-height: 60px;
+        }
+        .planes-page :global(.plan.executive) .plan-desc {
+          color: #a9b6cc;
+        }
+        .plan-price {
+          font-size: 30px;
+          font-weight: 800;
+          letter-spacing: -0.6px;
+          margin-bottom: 2px;
+        }
+        .plan-price .per {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--muted);
+        }
+        .planes-page :global(.plan.executive) .plan-price .per {
+          color: #8b96a8;
+        }
+        .plan-price-sub {
+          font-size: 11.5px;
+          color: var(--muted);
+          margin-bottom: 22px;
+          min-height: 16px;
+        }
+        .planes-page :global(.plan.executive) .plan-price-sub {
+          color: #8b96a8;
+        }
+        .plan-btn {
+          width: 100%;
+          padding: 12px;
+          border-radius: 11px;
+          font-size: 13.5px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          margin-bottom: 28px;
+          border: 1px solid var(--border);
+          background: #fff;
+          color: var(--text);
+          transition: transform 0.15s, background 0.2s;
+        }
+        .plan-btn:hover:not(:disabled) {
           transform: translateY(-2px);
-          background: #e9f0fb;
         }
-
-        .select-button.primary {
-          border-color: #1656bd;
-          background: #1656bd;
-          color: white;
-          box-shadow: 0 13px 28px rgba(37, 99, 235, 0.24);
-        }
-
-        .select-button:disabled {
-          border-color: #bbf7d0;
-          background: #f0fdf4;
-          color: #15803d;
+        .plan-btn.current {
+          background: var(--green-light);
+          color: var(--green);
+          border-color: transparent;
           cursor: default;
         }
-
-        .featured .select-button:disabled {
-          border-color: rgba(74, 222, 128, 0.25);
-          background: rgba(34, 197, 94, 0.12);
-          color: #86efac;
+        .plan-btn.current:hover {
+          transform: none;
         }
-
-        .divider {
-          height: 1px;
-          margin: 22px 0 18px;
-          background: #e2e8f0;
+        .plan-btn.primary {
+          background: linear-gradient(135deg, var(--blue-bright), var(--blue-dark));
+          color: #fff;
+          border: none;
+          box-shadow: 0 8px 20px rgba(22, 86, 189, 0.35);
         }
-
-        .featured .divider {
-          background: rgba(255, 255, 255, 0.11);
+        .planes-page :global(.plan.executive) .plan-btn:not(.primary) {
+          background: rgba(255, 255, 255, 0.06);
+          border-color: rgba(255, 255, 255, 0.14);
+          color: #fff;
         }
-
-        .includes-label {
-          color: #94a3b8;
-          font-size: 8px;
-          font-weight: 950;
-          letter-spacing: 0.13em;
+        .plan-includes-label {
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 0.6px;
+          color: var(--muted);
+          text-transform: uppercase;
+          margin-bottom: 14px;
         }
-
-        .plan-card ul {
-          display: grid;
-          gap: 11px;
-          margin: 16px 0 0;
-          padding: 0;
-          list-style: none;
+        .planes-page :global(.plan.executive) .plan-includes-label {
+          color: #8b96a8;
         }
-
-        .plan-card li {
+        .plan-feat {
           display: flex;
           align-items: flex-start;
-          gap: 8px;
-          color: #475569;
-          font-size: 9px;
-          font-weight: 700;
+          gap: 9px;
+          font-size: 13px;
+          margin-bottom: 12px;
           line-height: 1.45;
         }
-
-        .featured li {
-          color: #e9f0fb;
-        }
-
-        .plan-card li > span {
-          width: 19px;
-          height: 19px;
+        .plan-feat :global(svg) {
           flex-shrink: 0;
-          display: grid;
-          place-items: center;
-          margin-top: -2px;
-          border-radius: 7px;
-          background: #eef3fb;
-          color: #1656bd;
+          margin-top: 1px;
+          color: var(--blue);
+        }
+        .planes-page :global(.plan.executive) .plan-feat :global(svg) {
+          color: #4ade80;
         }
 
-        .featured li > span {
-          background: rgba(255, 255, 255, 0.09);
-          color: #6fa3e8;
-        }
-
-        .plans-guarantee {
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr);
-          gap: 18px;
-          max-width: 900px;
-          margin: 54px auto 0;
-          padding: 28px;
-          border-radius: 28px;
-          background: #071226;
-          color: white;
-          box-shadow: 0 25px 75px rgba(7, 18, 38, 0.2);
-        }
-
-        .guarantee-icon {
-          width: 52px;
-          height: 52px;
-          display: grid;
-          place-items: center;
-          border: 1px solid rgba(255, 255, 255, 0.13);
-          border-radius: 17px;
-          background: rgba(255, 255, 255, 0.08);
-          color: #6fa3e8;
-        }
-
-        .plans-section-label {
-          color: #6fa3e8;
-          font-size: 9px;
-          font-weight: 950;
-          letter-spacing: 0.14em;
-        }
-
-        .plans-guarantee h2 {
-          margin: 8px 0 0;
-          font-size: 25px;
-          font-weight: 900;
-          letter-spacing: -0.035em;
-        }
-
-        .plans-guarantee p {
-          margin: 11px 0 0;
-          color: #a9c6ee;
-          font-size: 12px;
-          line-height: 1.65;
-        }
-
-        .plans-footer {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-          margin-top: 28px;
-          color: #94a3b8;
-          font-size: 9px;
+        .note {
+          max-width: 680px;
+          margin: 0 auto 50px;
           text-align: center;
+          font-size: 13px;
+          color: var(--muted);
+          line-height: 1.7;
+        }
+        .support-footer {
+          border-top: 1px solid var(--border);
+          padding: 26px 0 40px;
+          text-align: center;
+          font-size: 13px;
+          color: var(--muted);
+        }
+        .support-footer a {
+          color: var(--blue);
+          font-weight: 600;
         }
 
-        .plans-footer span {
-          width: 6px;
-          height: 6px;
-          border-radius: 999px;
-          background: #22c55e;
-          box-shadow: 0 0 9px rgba(34, 197, 94, 0.5);
+        .spin {
+          animation: spin 800ms linear infinite;
         }
-
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
 
         .contact-overlay {
           position: fixed;
@@ -1160,19 +918,17 @@ export default function PlanesPage() {
           background: rgba(7, 18, 38, 0.58);
           backdrop-filter: blur(12px);
         }
-
         .contact-modal {
           position: relative;
           width: min(680px, 100%);
           max-height: calc(100vh - 44px);
           overflow-y: auto;
           padding: 31px;
-          border: 1px solid rgba(191, 219, 254, 0.75);
+          border: 1px solid rgba(22, 86, 189, 0.2);
           border-radius: 30px;
           background: #ffffff;
           box-shadow: 0 34px 100px rgba(7, 18, 38, 0.3);
         }
-
         .contact-close {
           position: absolute;
           top: 18px;
@@ -1181,20 +937,17 @@ export default function PlanesPage() {
           height: 40px;
           display: grid;
           place-items: center;
-          border: 1px solid #dbe5f2;
+          border: 1px solid var(--border);
           border-radius: 13px;
-          background: #f8fafc;
-          color: #64748b;
-          cursor: pointer;
+          background: var(--surface);
+          color: var(--muted);
         }
-
         .contact-heading {
           display: flex;
           align-items: flex-start;
           gap: 14px;
           padding-right: 48px;
         }
-
         .contact-heading-icon,
         .contact-success-icon {
           width: 49px;
@@ -1203,87 +956,72 @@ export default function PlanesPage() {
           display: grid;
           place-items: center;
           border-radius: 16px;
-          background: #eef3fb;
-          color: #1656bd;
+          background: var(--blue-light);
+          color: var(--blue);
         }
-
-        .contact-heading h2,
-        .contact-success h2 {
+        .contact-heading :global(h2),
+        .contact-success :global(h2) {
           margin: 8px 0 0;
-          color: #071226;
+          color: var(--text);
           font-size: 29px;
-          font-weight: 930;
+          font-weight: 900;
           letter-spacing: -0.04em;
         }
-
         .contact-intro {
           margin: 18px 0 0;
-          color: #64748b;
+          color: var(--muted);
           font-size: 12px;
           line-height: 1.7;
         }
-
         .contact-form {
           margin-top: 23px;
         }
-
         .contact-fields {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 13px;
         }
-
-        .contact-form label {
+        .contact-form :global(label) {
           display: grid;
           gap: 7px;
         }
-
-        .contact-form label > span {
-          color: #334155;
+        .contact-form :global(label > span) {
+          color: var(--text);
           font-size: 9px;
           font-weight: 850;
         }
-
-        .contact-form input,
-        .contact-form textarea {
+        .contact-form :global(input),
+        .contact-form :global(textarea) {
           width: 100%;
           box-sizing: border-box;
-          border: 1px solid #dbe5f2;
+          border: 1px solid var(--border);
           border-radius: 13px;
-          background: #f8fafc;
-          color: #071226;
+          background: var(--surface);
+          color: var(--text);
           font-family: inherit;
           font-size: 12px;
           outline: none;
-          transition:
-            border-color 160ms ease,
-            box-shadow 160ms ease,
-            background 160ms ease;
+          transition: border-color 0.16s, box-shadow 0.16s, background 0.16s;
         }
-
-        .contact-form input {
+        .contact-form :global(input) {
           min-height: 45px;
           padding: 0 13px;
         }
-
-        .contact-form textarea {
+        .contact-form :global(textarea) {
           resize: vertical;
           min-height: 112px;
           padding: 12px 13px;
           line-height: 1.6;
         }
-
-        .contact-form input:focus,
-        .contact-form textarea:focus {
-          border-color: #2f72d6;
-          background: #ffffff;
-          box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
+        .contact-form :global(input:focus),
+        .contact-form :global(textarea:focus) {
+          border-color: var(--blue);
+          background: #fff;
+          box-shadow: 0 0 0 4px rgba(22, 86, 189, 0.1);
         }
-
         .contact-message {
           margin-top: 14px;
         }
-
         .contact-honeypot {
           position: absolute !important;
           left: -10000px !important;
@@ -1291,7 +1029,6 @@ export default function PlanesPage() {
           height: 1px !important;
           overflow: hidden !important;
         }
-
         .contact-error {
           margin: 13px 0 0;
           padding: 11px 13px;
@@ -1302,9 +1039,8 @@ export default function PlanesPage() {
           font-size: 10px;
           font-weight: 700;
         }
-
         .contact-submit,
-        .contact-success button {
+        .contact-success :global(button) {
           min-height: 47px;
           display: inline-flex;
           align-items: center;
@@ -1314,121 +1050,53 @@ export default function PlanesPage() {
           padding: 0 20px;
           border: 0;
           border-radius: 14px;
-          background: #1656bd;
+          background: linear-gradient(135deg, var(--blue-bright), var(--blue-dark));
           color: #ffffff;
-          font-family: inherit;
           font-size: 11px;
           font-weight: 900;
-          cursor: pointer;
-          box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
+          box-shadow: 0 14px 30px rgba(22, 86, 189, 0.22);
         }
-
         .contact-submit {
           width: 100%;
         }
-
         .contact-submit:disabled {
           opacity: 0.65;
           cursor: wait;
         }
-
         .contact-privacy {
           margin: 11px 0 0;
-          color: #94a3b8;
+          color: var(--muted);
           font-size: 8px;
           line-height: 1.55;
           text-align: center;
         }
-
         .contact-success {
           display: grid;
           justify-items: center;
           padding: 22px 10px 10px;
           text-align: center;
         }
-
         .contact-success-icon {
           margin-bottom: 17px;
           background: #f0fdf4;
           color: #16a34a;
         }
-
-        .contact-success p {
+        .contact-success :global(p) {
           margin: 14px 0 0;
-          color: #64748b;
+          color: var(--muted);
           font-size: 12px;
           line-height: 1.65;
         }
-
-        .spin {
-          animation: spin 800ms linear infinite;
+        .section-label {
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          color: var(--blue);
         }
 
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        @media (max-width: 1260px) {
-          .plans-grid-cards {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 850px) {
-          .plans-grid-cards {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 620px) {
-          .plans-page {
-            padding: 18px 14px 50px;
-          }
-
-          .plans-topbar {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .brand-lockup {
-            display: none;
-          }
-
-          .plans-hero {
-            margin-top: 58px;
-          }
-
-          .plans-hero h1 {
-            font-size: clamp(42px, 14vw, 62px);
-          }
-
-          .plans-grid-cards {
+        @media (max-width: 900px) {
+          .plans {
             grid-template-columns: 1fr;
-            gap: 20px;
-          }
-
-          .plans-guarantee {
-            grid-template-columns: 1fr;
-          }
-
-          .contact-overlay {
-            padding: 10px;
-          }
-
-          .contact-modal {
-            max-height: calc(100vh - 20px);
-            padding: 24px 17px;
-            border-radius: 23px;
-          }
-
-          .contact-fields {
-            grid-template-columns: 1fr;
-          }
-
-          .contact-heading h2,
-          .contact-success h2 {
-            font-size: 25px;
           }
         }
       `}</style>
@@ -1451,10 +1119,7 @@ function normalizarEstado(data: unknown): EstadoComercial | null {
 }
 
 function normalizarCodigo(value?: string | null) {
-  const codigo = (value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/^eos\s+/, "");
+  const codigo = (value || "").trim().toLowerCase().replace(/^eos\s+/, "");
 
   if (codigo === "inicial") return "personal";
   return codigo;
@@ -1472,10 +1137,7 @@ function formatearGs(valor?: number | null) {
   }).format(valor);
 }
 
-function obtenerPrecio(
-  plan: PlanRow,
-  periodicidad: "mensual" | "anual",
-) {
+function obtenerPrecio(plan: PlanRow, periodicidad: "mensual" | "anual") {
   const codigo = normalizarCodigo(plan.codigo);
 
   if (codigo === "free") {
@@ -1486,10 +1148,7 @@ function obtenerPrecio(
     return { principal: "Personalizado", detalle: "según alcance" };
   }
 
-  const valor =
-    periodicidad === "anual"
-      ? plan.precio_anual_pyg
-      : plan.precio_mensual_pyg;
+  const valor = periodicidad === "anual" ? plan.precio_anual_pyg : plan.precio_mensual_pyg;
 
   if (valor !== null && valor !== undefined) {
     return {
@@ -1504,17 +1163,11 @@ function obtenerPrecio(
   };
 }
 
-function limiteVisible(
-  valor: number | null | undefined,
-  singular: string,
-  plural: string,
-) {
+function limiteVisible(valor: number | null | undefined, singular: string, plural: string) {
   if (valor === null || valor === undefined) return null;
   if (valor < 0) return `${plural} ilimitados`;
   if (valor === 0) return `Sin ${plural.toLowerCase()}`;
-  return `${valor.toLocaleString("es-PY")} ${
-    valor === 1 ? singular : plural
-  }`;
+  return `${valor.toLocaleString("es-PY")} ${valor === 1 ? singular : plural}`;
 }
 
 function obtenerCaracteristicas(plan: PlanRow) {
@@ -1524,19 +1177,13 @@ function obtenerCaracteristicas(plan: PlanRow) {
     limiteVisible(plan.limite_mensajes, "mensaje", "mensajes"),
     limiteVisible(plan.limite_excel, "Excel", "Excel"),
     limiteVisible(plan.limite_pdf, "PDF", "PDF"),
-    limiteVisible(
-      plan.limite_automatizaciones,
-      "automatización",
-      "automatizaciones",
-    ),
+    limiteVisible(plan.limite_automatizaciones, "automatización", "automatizaciones"),
     plan.memoria_dias === -1
       ? "Memoria contextual ilimitada"
       : plan.memoria_dias
         ? `${plan.memoria_dias} días de memoria contextual`
         : null,
-    plan.limite_usuarios && plan.limite_usuarios > 1
-      ? `Hasta ${plan.limite_usuarios} usuarios`
-      : null,
+    plan.limite_usuarios && plan.limite_usuarios > 1 ? `Hasta ${plan.limite_usuarios} usuarios` : null,
   ].filter(Boolean) as string[];
 
   if (codigo === "free") {
