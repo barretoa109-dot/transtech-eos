@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Respaldos de datos reales de usuarios: NUNCA subir a un repo publico
+docs/backups/
