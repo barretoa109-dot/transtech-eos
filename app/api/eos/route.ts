@@ -11,6 +11,9 @@ const SYNC_EXTRACTABLE_TYPES = new Set([
   "application/json",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  // PDF con capa de texto: extraído con unpdf en /api/documents/ingest.
+  // Los escaneados quedan marcados como pendientes de OCR y no rompen nada.
+  "application/pdf",
 ]);
 
 const N8N_EOS_URL =

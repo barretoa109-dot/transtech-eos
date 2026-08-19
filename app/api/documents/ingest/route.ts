@@ -209,6 +209,67 @@ async function extractXlsx(bytes: Uint8Array): Promise<ExtractionResult> {
   };
 }
 
+/**
+ * Extrae la capa de texto de un PDF con `unpdf` (build de pdf.js pensado
+ * para serverless: sin binarios nativos, funciona en Vercel).
+ *
+ * Importante: un PDF escaneado (foto dentro del PDF) no tiene capa de texto
+ * y devuelve prácticamente nada. Ese caso se marca explícitamente como
+ * pendiente de OCR en vez de guardarlo como "listo" con texto vacío, que
+ * haría creer que el documento se procesó bien.
+ */
+async function extractPdf(bytes: Uint8Array): Promise<ExtractionResult> {
+  try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
+
+    const pdf = await getDocumentProxy(bytes);
+    const { totalPages, text } = await extractText(pdf, { mergePages: true });
+
+    const contenido = Array.isArray(text) ? text.join("\n") : text;
+    const clipped = clipText(contenido ?? "");
+
+    // Umbral bajo a propósito: con menos de esto no hay nada útil que
+    // analizar y casi siempre significa que el PDF es una imagen escaneada.
+    if (clipped.text.replace(/\s/g, "").length < 20) {
+      return {
+        text: "",
+        status: "unsupported",
+        language: null,
+        metadata: {
+          extractor: "unpdf-v1",
+          page_count: totalPages,
+          reason:
+            "El PDF no tiene capa de texto (probablemente escaneado). Queda guardado a la espera de OCR.",
+          needs_ocr: true,
+        },
+      };
+    }
+
+    return {
+      text: clipped.text,
+      status: clipped.clipped ? "partial" : "ready",
+      language: null,
+      metadata: {
+        extractor: "unpdf-v1",
+        page_count: totalPages,
+        clipped: clipped.clipped,
+      },
+    };
+  } catch (error) {
+    console.error("No se pudo extraer el texto del PDF:", error);
+
+    return {
+      text: "",
+      status: "error",
+      language: null,
+      metadata: {
+        extractor: "unpdf-v1",
+        reason: "No se pudo leer el PDF (puede estar dañado o protegido con contraseña).",
+      },
+    };
+  }
+}
+
 async function extract(
   bytes: Uint8Array,
   mimeType: string,
@@ -219,6 +280,10 @@ async function extract(
 
   if (mimeType === XLSX_MIME_TYPE) {
     return extractXlsx(bytes);
+  }
+
+  if (mimeType === "application/pdf") {
+    return extractPdf(bytes);
   }
 
   if (mimeType === XLS_MIME_TYPE) {
@@ -234,16 +299,15 @@ async function extract(
     };
   }
 
+  // Solo llegan imágenes: requieren OCR, todavía no implementado.
   return {
     text: "",
     status: "unsupported",
     language: null,
     metadata: {
       extractor: "deferred",
-      reason:
-        mimeType === "application/pdf"
-          ? "PDF guardado para extracción documental posterior."
-          : "Imagen guardada para análisis visual posterior.",
+      reason: "Imagen guardada a la espera de OCR.",
+      needs_ocr: true,
     },
   };
 }
