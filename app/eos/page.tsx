@@ -674,6 +674,12 @@ export default function EOSLandingPage() {
           .nav-links {
             display: none;
           }
+          .nav-brand-txt {
+            display: none;
+          }
+          .nav-actions :global(.btn-outline) {
+            display: none;
+          }
           .hero-title {
             font-size: 36px;
           }
