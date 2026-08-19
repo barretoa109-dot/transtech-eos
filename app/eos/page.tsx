@@ -300,7 +300,7 @@ export default function EOSLandingPage() {
           align-items: center;
           gap: 14px;
         }
-        .btn {
+        :global(.btn) {
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -312,31 +312,31 @@ export default function EOSLandingPage() {
           border: none;
           transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
         }
-        .btn-primary {
+        :global(.btn-primary) {
           background: linear-gradient(135deg, var(--blue-bright), var(--blue-dark));
           color: #fff;
           box-shadow: 0 6px 20px rgba(22, 86, 189, 0.3);
           position: relative;
           overflow: hidden;
         }
-        .btn-primary:hover {
+        :global(.btn-primary:hover) {
           transform: translateY(-2px);
           box-shadow: 0 10px 28px rgba(22, 86, 189, 0.42);
         }
-        .btn-primary:active {
+        :global(.btn-primary:active) {
           transform: translateY(0) scale(0.97);
         }
-        .btn-outline {
+        :global(.btn-outline) {
           background: #fff;
           color: var(--text);
           border: 1px solid var(--border);
         }
-        .btn-outline:hover {
+        :global(.btn-outline:hover) {
           border-color: var(--border-hover);
           background: #f6f8fc;
           transform: translateY(-2px);
         }
-        .btn-lg {
+        :global(.btn-lg) {
           padding: 14px 26px;
           font-size: 14.5px;
           border-radius: 12px;

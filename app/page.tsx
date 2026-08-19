@@ -675,7 +675,7 @@ export default function Home() {
         .nav-actions :global(.ghost:hover) {
           color: var(--text);
         }
-        .btn {
+        :global(.btn) {
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -687,36 +687,36 @@ export default function Home() {
           border: none;
           transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
         }
-        .btn-primary {
+        :global(.btn-primary) {
           background: linear-gradient(135deg, var(--blue-bright), var(--blue-dark));
           color: #fff;
           box-shadow: 0 6px 20px rgba(22, 86, 189, 0.35);
           position: relative;
           overflow: hidden;
         }
-        .btn-primary:hover {
+        :global(.btn-primary:hover) {
           transform: translateY(-2px);
           box-shadow: 0 10px 28px rgba(22, 86, 189, 0.48);
         }
-        .btn-primary:active {
+        :global(.btn-primary:active) {
           transform: translateY(0) scale(0.97);
         }
-        .btn-primary:disabled {
+        :global(.btn-primary:disabled) {
           opacity: 0.65;
           cursor: not-allowed;
           transform: none;
         }
-        .btn-outline {
+        :global(.btn-outline) {
           background: transparent;
           color: var(--text);
           border: 1px solid var(--border);
         }
-        .btn-outline:hover {
+        :global(.btn-outline:hover) {
           border-color: var(--border-hover);
           background: var(--surface);
           transform: translateY(-2px);
         }
-        .btn-lg {
+        :global(.btn-lg) {
           padding: 14px 26px;
           font-size: 14.5px;
           border-radius: 12px;
@@ -805,7 +805,7 @@ export default function Home() {
           padding: 90px 0;
           position: relative;
         }
-        .section-head {
+        .home-page :global(.section-head) {
           max-width: 640px;
           margin: 0 auto 48px;
           text-align: center;
@@ -891,7 +891,7 @@ export default function Home() {
           font-weight: 600;
           line-height: 1.4;
         }
-        .about-copy :global(p) {
+        .home-page :global(.about-copy) p {
           max-width: 720px;
           margin: 0 auto;
           text-align: center;
@@ -1113,7 +1113,7 @@ export default function Home() {
           line-height: 1.6;
         }
 
-        .chip-cloud {
+        .home-page :global(.chip-cloud) {
           display: flex;
           flex-wrap: wrap;
           gap: 12px;

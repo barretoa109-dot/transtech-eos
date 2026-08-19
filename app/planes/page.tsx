@@ -584,7 +584,7 @@ export default function PlanesPage() {
           font-weight: 800;
           letter-spacing: -0.3px;
         }
-        .btn {
+        :global(.btn) {
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -596,12 +596,12 @@ export default function PlanesPage() {
           border: none;
           transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
         }
-        .btn-outline {
+        :global(.btn-outline) {
           background: #fff;
           color: var(--text);
           border: 1px solid var(--border);
         }
-        .btn-outline:hover {
+        :global(.btn-outline:hover) {
           border-color: var(--border-hover);
           background: var(--surface);
           transform: translateY(-2px);
