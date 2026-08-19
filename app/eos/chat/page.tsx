@@ -54,6 +54,7 @@ function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
+  const [email, setEmail] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
   const [usuarioCargado, setUsuarioCargado] = useState(false);
   const [vista, setVista] = useState<VistaEOS>("chat");
@@ -111,7 +112,11 @@ export default function EOSPage() {
       return;
     }
 
-    const { data: usuario } = await supabase.from("usuarios").select("nombre, plan").eq("id", user.id).maybeSingle();
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select("nombre, plan, email")
+      .eq("id", user.id)
+      .maybeSingle();
 
     const nombreUsuario = usuario?.nombre ?? user.user_metadata?.nombre ?? user.email?.split("@")[0] ?? "Usuario";
 
@@ -120,6 +125,7 @@ export default function EOSPage() {
     setUsuarioId(user.id);
     setNombre(nombreUsuario);
     setPlan(planUsuario);
+    setEmail(usuario?.email ?? user.email ?? "");
     setUsuarioCargado(true);
 
     await cargarBriefing(user.id);
@@ -276,6 +282,7 @@ export default function EOSPage() {
           <ProfileView
             nombre={nombre}
             plan={plan}
+            email={email}
             usuarioId={usuarioId}
             conversaciones={conversaciones.length}
             mensajes={historial.length}

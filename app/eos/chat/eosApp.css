@@ -1586,11 +1586,24 @@
 .eos-app .field-row:last-child {
   border-bottom: none;
 }
+.eos-app .field-row {
+  gap: 18px;
+}
 .eos-app .field-label {
   color: var(--muted);
 }
+/* Sub-texto explicativo debajo de la etiqueta (tarjeta "Memoria y contexto"),
+   equivalente al .ts de los toggle-row de la maqueta. */
+.eos-app .field-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.75;
+}
 .eos-app .field-value {
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .eos-app .toggle-row {

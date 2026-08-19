@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
 import type { Briefing } from "../types/briefing";
 
 type DashboardViewProps = {
@@ -12,6 +12,16 @@ type DashboardViewProps = {
   totalMessages: number;
   onOpenChat: () => void;
 };
+
+type PeriodoKey = "mes" | "trimestre" | "anio";
+
+/** Equivalente real a los chips "Este mes / Último trimestre / Año" de la maqueta:
+ *  acotan la ventana del histórico de briefings que se grafica. */
+const PERIODOS: { key: PeriodoKey; label: string; dias: number }[] = [
+  { key: "mes", label: "Este mes", dias: 30 },
+  { key: "trimestre", label: "Último trimestre", dias: 90 },
+  { key: "anio", label: "Año", dias: 365 },
+];
 
 export default function DashboardView({
   briefing,
@@ -26,18 +36,24 @@ export default function DashboardView({
     (p): p is string => Boolean(p && p.trim()),
   );
 
+  // La maqueta muestra varias recomendaciones; acá las adicionales salen de
+  // los riesgos reales que detectó el briefing, no de texto inventado.
+  const riesgos = (briefing.riesgos ?? []).filter((r) => r?.titulo?.trim()).slice(0, 2);
+
   const [completadas, setCompletadas] = useState<Record<number, boolean>>({});
+  const [periodo, setPeriodo] = useState<PeriodoKey>("mes");
 
   const puntosGrafico = useMemo(() => {
-    const historicos = [...briefingHistory]
-      .filter((b) => typeof b.score === "number" && b.briefing_date)
-      .sort((a, b) => (a.briefing_date! < b.briefing_date! ? -1 : 1));
+    const dias = PERIODOS.find((p) => p.key === periodo)?.dias ?? 30;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - dias);
 
-    return historicos.map((b) => ({
-      fecha: b.briefing_date!,
-      score: b.score ?? 0,
-    }));
-  }, [briefingHistory]);
+    return [...briefingHistory]
+      .filter((b) => typeof b.score === "number" && b.briefing_date)
+      .filter((b) => new Date(`${b.briefing_date}T12:00:00-03:00`) >= desde)
+      .sort((a, b) => (a.briefing_date! < b.briefing_date! ? -1 : 1))
+      .map((b) => ({ fecha: b.briefing_date!, score: b.score ?? 0 }));
+  }, [briefingHistory, periodo]);
 
   return (
     <div className="view" id="view-dashboard">
@@ -49,7 +65,16 @@ export default function DashboardView({
         </div>
 
         <div className="chip-row">
-          <div className="chip active">Estado actual</div>
+          {PERIODOS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              className={`chip ${periodo === p.key ? "active" : ""}`}
+              onClick={() => setPeriodo(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
 
         <div className="kpi-grid">
@@ -117,6 +142,9 @@ export default function DashboardView({
                     {completadas[i] && <Check size={12} />}
                   </button>
                   <div className="p-text">{texto}</div>
+                  <div className={`p-tag ${i === 0 ? "alta" : i === 1 ? "media" : "baja"}`}>
+                    {i === 0 ? "Alta" : i === 1 ? "Media" : "Normal"}
+                  </div>
                 </div>
               ))}
             </div>
@@ -124,8 +152,9 @@ export default function DashboardView({
         </div>
 
         <div className="card">
-          <div className="card-title">Recomendación de EOS</div>
-          <div className="card-sub">Basada en tu actividad reciente</div>
+          <div className="card-title">Recomendaciones de EOS</div>
+          <div className="card-sub">Basadas en tu actividad reciente</div>
+
           <div className="reco">
             <div className="ric">
               <Lightbulb size={16} />
@@ -141,6 +170,18 @@ export default function DashboardView({
               </button>
             </div>
           </div>
+
+          {riesgos.map((riesgo, i) => (
+            <div className="reco" key={`riesgo-${i}`}>
+              <div className="ric" style={{ background: "var(--amber-light)", color: "var(--amber)" }}>
+                <AlertTriangle size={16} />
+              </div>
+              <div>
+                <div className="rt">{riesgo.titulo}</div>
+                {riesgo.descripcion && <div className="rs">{riesgo.descripcion}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

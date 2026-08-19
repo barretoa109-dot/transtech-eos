@@ -26,11 +26,23 @@ const emptyDecision = {
   fecha_revision: "",
 };
 
-function badgeInfo(item: Decision): { cls: string; label: string; dot: string } {
-  if (item.estado === "cerrada") return { cls: "done", label: "Implementada ✓", dot: "done" };
-  if (item.estado === "cancelada") return { cls: "pending", label: "Cancelada", dot: "pending" };
-  if (item.result_count > 0) return { cls: "progress", label: "En curso", dot: "progress" };
-  return { cls: "pending", label: "Pendiente de resultado", dot: "" };
+type Filtro = "todas" | "implementadas" | "curso" | "pendientes";
+
+const FILTROS: { key: Filtro; label: string }[] = [
+  { key: "todas", label: "Todas" },
+  { key: "implementadas", label: "Implementadas" },
+  { key: "curso", label: "En curso" },
+  { key: "pendientes", label: "Pendientes" },
+];
+
+/** Mapea los 5 estados reales de `eos_decisions` a los 3 badges de la maqueta. */
+function badgeInfo(item: Decision): { cls: string; label: string; dot: string; filtro: Filtro } {
+  if (item.estado === "cerrada")
+    return { cls: "done", label: "Implementada ✓", dot: "done", filtro: "implementadas" };
+  if (item.estado === "cancelada")
+    return { cls: "pending", label: "Cancelada", dot: "pending", filtro: "pendientes" };
+  if (item.result_count > 0) return { cls: "progress", label: "En curso", dot: "progress", filtro: "curso" };
+  return { cls: "pending", label: "Pendiente de resultado", dot: "", filtro: "pendientes" };
 }
 
 export default function DecisionsView() {
@@ -42,6 +54,7 @@ export default function DecisionsView() {
   const [resultFor, setResultFor] = useState<string | null>(null);
   const [result, setResult] = useState({ tipo: "observacion", resumen: "", aprendizaje: "" });
   const [error, setError] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todas");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,6 +120,9 @@ export default function DecisionsView() {
     }
   }
 
+  const decisionesVisibles =
+    filtro === "todas" ? decisions : decisions.filter((item) => badgeInfo(item).filtro === filtro);
+
   return (
     <div className="view" id="view-decisiones">
       <div className="page page-in">
@@ -117,11 +133,24 @@ export default function DecisionsView() {
         </div>
 
         <div className="chip-row">
+          {FILTROS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`chip ${filtro === f.key ? "active" : ""}`}
+              onClick={() => setFiltro(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="chip-row">
           <button type="button" className="chip" onClick={() => void load()} disabled={loading} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <RefreshCw size={12} className={loading ? "spin" : ""} />
             Actualizar
           </button>
-          <button type="button" className="chip active" onClick={() => setShowForm((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <button type="button" className="chip" onClick={() => setShowForm((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Plus size={12} />
             Nueva decisión
           </button>
@@ -193,9 +222,13 @@ export default function DecisionsView() {
               Creá la primera para comenzar a medir resultados reales.
             </p>
           </div>
+        ) : decisionesVisibles.length === 0 ? (
+          <div className="card" style={{ textAlign: "center" }}>
+            <p className="empty-note">No hay decisiones en esta categoría.</p>
+          </div>
         ) : (
           <div className="timeline">
-            {decisions.map((item) => {
+            {decisionesVisibles.map((item) => {
               const badge = badgeInfo(item);
               return (
                 <div className="tl-item" key={item.id}>
