@@ -19,6 +19,9 @@ import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
 
+import AmbientBackground from "@/components/effects/AmbientBackground";
+import { appTechCanvas } from "@/components/effects/techCanvasPresets";
+
 import { convertirArchivoABase64 } from "../services/uploads";
 import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
 
@@ -207,7 +210,9 @@ export default function EOSPage() {
   };
 
   return (
-    <div className="eos-app">
+    <div className="eos-app" data-eos-theme="light">
+      <AmbientBackground techConfig={appTechCanvas} spanCount={3} />
+
       <div className={`eos-sidebar ${sidebarColapsado ? "collapsed" : ""} ${menuMovilAbierto ? "mobile-open" : ""}`}>
         <Sidebar {...sidebarProps} />
       </div>

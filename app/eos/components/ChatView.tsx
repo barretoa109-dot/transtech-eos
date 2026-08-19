@@ -146,20 +146,22 @@ export default function ChatView({
             ))}
           </div>
 
-          <Composer
-            mensaje={mensaje}
-            cargando={cargando}
-            archivoAdjunto={archivoAdjunto}
-            focused={focused}
-            setFocused={setFocused}
-            onMensajeChange={onMensajeChange}
-            onKeyDown={manejarTecla}
-            onEnviar={() => enviar()}
-            onArchivoClick={() => fileInputRef.current?.click()}
-            onQuitarArchivo={onQuitarArchivo}
-            obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
-            formatearTamanio={formatearTamanio}
-          />
+          <div className="composer-wrap">
+            <Composer
+              mensaje={mensaje}
+              cargando={cargando}
+              archivoAdjunto={archivoAdjunto}
+              focused={focused}
+              setFocused={setFocused}
+              onMensajeChange={onMensajeChange}
+              onKeyDown={manejarTecla}
+              onEnviar={() => enviar()}
+              onArchivoClick={() => fileInputRef.current?.click()}
+              onQuitarArchivo={onQuitarArchivo}
+              obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
+              formatearTamanio={formatearTamanio}
+            />
+          </div>
         </div>
       )}
 
