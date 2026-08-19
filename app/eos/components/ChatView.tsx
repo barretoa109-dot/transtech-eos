@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CreditCard, FileText, Mic, Paperclip, Send, Target, TrendingUp } from "lucide-react";
+import { Mic, Paperclip, Send } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 
@@ -16,28 +16,48 @@ type PromptCard = {
 const PROMPTS: PromptCard[] = [
   {
     key: "finanzas",
-    icon: <CreditCard size={20} />,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+    ),
     title: "Finanzas",
     subtitle: "Analizá el flujo de caja del mes",
     prompt: "Analizá el flujo de caja del mes",
   },
   {
     key: "negocio",
-    icon: <TrendingUp size={20} />,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M3 3v18h18" />
+        <path d="M18 17V9M13 17V5M8 17v-3" />
+      </svg>
+    ),
     title: "Negocio",
     subtitle: "Resumen de objetivos del Q3",
     prompt: "Dame un resumen de mis objetivos actuales",
   },
   {
     key: "documentos",
-    icon: <FileText size={20} />,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    ),
     title: "Documentos",
     subtitle: "Buscá en tus documentos",
     prompt: "Buscá en mis documentos",
   },
   {
     key: "tareas",
-    icon: <Target size={20} />,
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polyline points="9 11 12 14 22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
     title: "Tareas",
     subtitle: "¿Qué tengo pendiente hoy?",
     prompt: "¿Qué tengo pendiente hoy?",
