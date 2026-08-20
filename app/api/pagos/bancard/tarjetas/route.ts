@@ -79,7 +79,7 @@ export async function GET() {
  * el front levanta el iframe de Bancard (Bancard.Cards.createForm).
  * El número de tarjeta nunca pasa por nuestro servidor.
  */
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -89,6 +89,18 @@ export async function POST() {
     if (!user) {
       return NextResponse.json({ error: "Debés iniciar sesión." }, { status: 401 });
     }
+
+    const body = (await request.json().catch(() => null)) as
+      | { telefono?: string; plan?: string; periodicidad?: string }
+      | null;
+
+    const planRetorno = String(body?.plan || "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 20);
+
+    const periodicidadRetorno =
+      body?.periodicidad === "anual" ? "anual" : body?.periodicidad === "mensual" ? "mensual" : "";
 
     const admin: any = createAdminClient();
 
@@ -103,6 +115,39 @@ export async function POST() {
         { error: "No encontramos tu cuenta de TransTech EOS." },
         { status: 409 },
       );
+    }
+
+    /*
+     * Bancard exige user_cell_phone y user_mail para catastrar. El
+     * WhatsApp es opcional al registrarse, así que si falta hay que
+     * pedirlo acá en vez de mandar un dato inventado a la pasarela.
+     */
+    const telefono = String(body?.telefono || perfil.whatsapp || "")
+      .replace(/[^\d+]/g, "")
+      .slice(0, 255);
+
+    const correo = String(perfil.email || user.email || "").slice(0, 255);
+
+    if (!telefono) {
+      return NextResponse.json(
+        {
+          error: "Necesitamos tu número de teléfono para registrar la tarjeta.",
+          code: "telefono_requerido",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!correo) {
+      return NextResponse.json(
+        { error: "Tu cuenta no tiene un correo asociado." },
+        { status: 409 },
+      );
+    }
+
+    // Se guarda para no volver a pedirlo en el próximo catastro.
+    if (!perfil.whatsapp && telefono) {
+      await admin.from("usuarios").update({ whatsapp: telefono }).eq("id", user.id);
     }
 
     const { data: preparado, error: prepararError } = await admin.rpc(
@@ -156,9 +201,16 @@ export async function POST() {
         ),
         card_id: reserva.bancard_card_id,
         user_id: reserva.bancard_user_id,
-        user_cell_phone: String(perfil.whatsapp || "").slice(0, 255),
-        user_mail: String(perfil.email || user.email || "").slice(0, 255),
-        return_url: `${baseUrlApp()}/pago/tarjeta?tarjeta=${reserva.tarjeta_id}`,
+        user_cell_phone: telefono,
+        user_mail: correo,
+        /*
+         * Se conservan plan y periodicidad porque Bancard redirige acá
+         * al terminar el catastro y, sin eso, se perdería la compra que
+         * el usuario venía haciendo.
+         */
+        return_url: `${baseUrlApp()}/pago/tarjeta?tarjeta=${reserva.tarjeta_id}${
+          planRetorno ? `&plan=${encodeURIComponent(planRetorno)}` : ""
+        }${periodicidadRetorno ? `&periodicidad=${periodicidadRetorno}` : ""}`,
       },
     });
 

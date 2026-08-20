@@ -169,7 +169,11 @@ export default function PlanesPage() {
         }),
       );
 
-      router.push(`/pago?plan=${codigo}&periodicidad=${periodicidad}`);
+      /*
+       * El pago con tarjeta es el camino principal; el checkout de
+       * tarjeta ofrece transferencia como alternativa.
+       */
+      router.push(`/pago/tarjeta?plan=${codigo}&periodicidad=${periodicidad}`);
     } finally {
       window.setTimeout(() => setSeleccionando(""), 500);
     }
