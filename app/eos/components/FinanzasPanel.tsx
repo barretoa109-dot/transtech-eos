@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasCandidatos from "./FinanzasCandidatos";
+import FinanzasBuzon from "./FinanzasBuzon";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -102,6 +103,7 @@ export default function FinanzasPanel() {
 
   return (
     <>
+    <FinanzasBuzon />
     <FinanzasCandidatos onImportado={() => void cargar()} />
 
     <div className="card fin-card">
