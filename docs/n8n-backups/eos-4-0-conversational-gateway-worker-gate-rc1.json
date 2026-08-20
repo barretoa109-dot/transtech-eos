@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-18T00:57:31.359Z",
+  "updatedAt": "2026-08-20T21:52:26.646Z",
   "createdAt": "2026-08-17T11:52:53.773Z",
   "id": "JRgzUkoHBKgGpyPA",
   "name": "EOS 4.0 - Conversational Gateway WORKER GATE RC1",
@@ -94,7 +94,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const i = $('05 GW Preparar Respuesta').first().json || {};\n\nconst paths = {\n  RESPONDER: 'eos-worker-rc1-respond',\n  CREAR_TAREA: 'eos-worker-rc1-internal',\n  CREAR_OBJETIVO: 'eos-worker-rc1-internal',\n  GUARDAR_MEMORIA: 'eos-worker-rc1-internal',\n  GENERAR_EXCEL: 'eos-worker-rc1-file',\n  GENERAR_PDF: 'eos-worker-rc1-file',\n  GENERAR_WORD: 'eos-worker-rc1-file',\n  VER_DASHBOARD: 'eos-worker-rc1-dashboard',\n  VER_BRIEFING: 'eos-worker-rc1-briefing'\n};\n\nconst acciones =\n  Array.isArray(i.acciones) && i.acciones.length\n    ? i.acciones\n    : [{ tipo: 'RESPONDER', datos: {} }];\n\n\n/* =========================================================\n   HELPERS DETERMINÍSTICOS\n========================================================= */\n\nfunction texto(...valores) {\n  for (const valor of valores) {\n    if (\n      typeof valor === 'string' &&\n      valor.trim()\n    ) {\n      return valor.trim();\n    }\n\n    if (\n      typeof valor === 'number' &&\n      Number.isFinite(valor)\n    ) {\n      return String(valor);\n    }\n  }\n\n  return '';\n}\n\n\nfunction prioridad(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 3;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      5,\n      Math.round(n)\n    )\n  );\n}\n\n\nfunction importancia(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 5;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      10,\n      Math.round(n)\n    )\n  );\n}\n\n\n/* =========================================================\n   NORMALIZACIÓN CANÓNICA DE DATOS\n========================================================= */\n\n/*\n  OBJETIVO:\n\n  OpenAI puede expresar el mismo concepto usando\n  diferentes nombres de campos.\n\n  Ejemplo:\n\n  nombre = titulo = name = asunto\n\n  Para exact-once necesitamos convertir todos esos alias\n  al MISMO contrato antes de enviar el payload al Worker.\n\n  De esta manera el fingerprint durable depende de la\n  intención real y no de pequeñas variaciones del modelo.\n*/\n\nfunction normalizarDatos(tipo, entrada) {\n  const d =\n    entrada &&\n    typeof entrada === 'object' &&\n    !Array.isArray(entrada)\n      ? entrada\n      : {};\n\n\n  /* =======================================================\n     CREAR_TAREA\n  ======================================================= */\n\n  if (tipo === 'CREAR_TAREA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name,\n        d.asunto,\n        d.tarea\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      ),\n\n      prioridad: prioridad(\n        d.prioridad ??\n        d.priority\n      ),\n\n      fecha_limite: texto(\n        d.fecha_limite,\n        d.fecha,\n        d.deadline,\n        d.due_date,\n        d.vencimiento\n      )\n    };\n  }\n\n\n  /* =======================================================\n     GUARDAR_MEMORIA\n  ======================================================= */\n\n  if (tipo === 'GUARDAR_MEMORIA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name\n      ),\n\n      categoria: texto(\n        d.categoria,\n        d.category\n      ),\n\n      contenido: texto(\n        d.contenido,\n        d.texto,\n        d.descripcion,\n        d.memoria,\n        d.valor\n      ),\n\n      importancia: importancia(\n        d.importancia ??\n        d.importance\n      )\n    };\n  }\n\n\n  /* =======================================================\n     ARCHIVOS\n     GENERAR_EXCEL / GENERAR_PDF / GENERAR_WORD\n  ======================================================= */\n\n  if (\n    tipo === 'GENERAR_EXCEL' ||\n    tipo === 'GENERAR_PDF' ||\n    tipo === 'GENERAR_WORD'\n  ) {\n    return {\n      tema: texto(\n        d.tema,\n        d.asunto,\n        d.objetivo,\n        d.titulo,\n        d.topic\n      ),\n\n      tipo: texto(\n        d.tipo,\n        d.type,\n        d.plantilla,\n        d.template\n      ),\n\n      rubro: texto(\n        d.rubro,\n        d.sector,\n        d.categoria,\n        d.industry\n      ),\n\n      negocio: texto(\n        d.negocio,\n        d.empresa,\n        d.nombre_negocio,\n        d.nombre_empresa,\n        d.business,\n        d.nombre\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      )\n    };\n  }\n\n\n  /* =======================================================\n     CREAR_OBJETIVO\n\n     Todavía conservamos los datos originales.\n     Su contrato será validado independientemente.\n  ======================================================= */\n\n  if (tipo === 'CREAR_OBJETIVO') {\n    return d;\n  }\n\n\n  /* =======================================================\n     LECTURAS\n  ======================================================= */\n\n  if (\n    tipo === 'VER_DASHBOARD' ||\n    tipo === 'VER_BRIEFING'\n  ) {\n    return {};\n  }\n\n\n  /* =======================================================\n     RESPONDER\n  ======================================================= */\n\n  if (tipo === 'RESPONDER') {\n    return {};\n  }\n\n\n  /* =======================================================\n     FALLBACK\n  ======================================================= */\n\n  return d;\n}\n\n\n/* =========================================================\n   METADATA ESTABLE PARA EXACT-ONCE\n========================================================= */\n\n/*\n  MUY IMPORTANTE:\n\n  Nunca incluimos aquí información variable producida\n  por una ejecución concreta de OpenAI como:\n\n  - openai_response_id\n  - openai_status\n  - openai_model\n  - timestamps de inferencia\n\n  Esos datos pueden cambiar entre replays y causarían\n  falsos EOS_COMMAND_PAYLOAD_MISMATCH.\n\n  El payload durable debe representar la entrada y la\n  intención del usuario.\n*/\n\nconst metadataEstable = {\n  plan: String(\n    i.plan || 'free'\n  ),\n\n  origen: String(\n    i.origen || 'eos-web'\n  ),\n\n  tiene_archivo:\n    i.metadata?.tiene_archivo === true,\n\n  archivo_entrada_nombre:\n    String(\n      i.metadata?.archivo_entrada_nombre ||\n      ''\n    ),\n\n  archivo_entrada_tipo:\n    String(\n      i.metadata?.archivo_entrada_tipo ||\n      ''\n    ),\n\n  imagen_analizada:\n    i.metadata?.imagen_analizada === true\n};\n\n\n/* =========================================================\n   CREAR JOBS PARA EL WORKER\n========================================================= */\n\nreturn acciones.map((accion, index) => {\n\n  const tipo = String(\n    accion?.tipo || 'RESPONDER'\n  )\n    .trim()\n    .toUpperCase();\n\n\n  /* =======================================================\n     VALIDAR ACCIÓN\n  ======================================================= */\n\n  const worker_path =\n    paths[tipo];\n\n  if (!worker_path) {\n    throw new Error(\n      `Acción Worker no permitida: ${tipo}`\n    );\n  }\n\n\n  /* =======================================================\n     CANONICALIZAR DATOS\n  ======================================================= */\n\n  const datos =\n    normalizarDatos(\n      tipo,\n      accion?.datos\n    );\n\n\n  /* =======================================================\n     JOB FINAL\n  ======================================================= */\n\n  return {\n    json: {\n\n      /* ---------------------------------------------------\n         IDENTIDAD DE REQUEST\n      --------------------------------------------------- */\n\n      request_id:\n        i.request_id,\n\n      usuario_id:\n        i.usuario_id,\n\n      usuario_id_original:\n        i.usuario_id_original ||\n        i.usuario_id,\n\n      usuario_key:\n        i.usuario_key ||\n        i.usuario_id,\n\n      conversacion_id:\n        i.conversacion_id,\n\n\n      /* ---------------------------------------------------\n         CONTEXTO DEL USUARIO\n      --------------------------------------------------- */\n\n      nombre:\n        i.nombre ||\n        'Usuario',\n\n      plan:\n        i.plan ||\n        'free',\n\n      origen:\n        i.origen ||\n        'eos-web',\n\n\n      /* ---------------------------------------------------\n         ENTRADA ORIGINAL\n\n         Debe mantenerse estable entre replays.\n      --------------------------------------------------- */\n\n      mensaje:\n        i.mensaje ||\n        '',\n\n\n      /* ---------------------------------------------------\n         RESPUESTA CONVERSACIONAL\n\n         Puede variar entre llamadas a OpenAI.\n\n         El Worker Gate no debe utilizar este campo\n         como parte del fingerprint durable.\n      --------------------------------------------------- */\n\n      respuesta_gateway:\n        i.respuesta ||\n        '',\n\n\n      /* ---------------------------------------------------\n         ACCIÓN CANÓNICA\n      --------------------------------------------------- */\n\n      accion: {\n        tipo,\n        datos\n      },\n\n\n      /* ---------------------------------------------------\n         CONTROL DE MÚLTIPLES ACCIONES\n      --------------------------------------------------- */\n\n      action_index:\n        index,\n\n      action_count:\n        acciones.length,\n\n\n      /* ---------------------------------------------------\n         DESTINO DEL WORKER\n      --------------------------------------------------- */\n\n      worker_path,\n\n\n      /* ---------------------------------------------------\n         HISTORIAL\n\n         Se conserva para contexto pero no debería\n         formar parte del fingerprint durable del comando.\n      --------------------------------------------------- */\n\n      historial:\n        Array.isArray(i.historial)\n          ? i.historial\n          : [],\n\n\n      /* ---------------------------------------------------\n         METADATA DETERMINÍSTICA\n      --------------------------------------------------- */\n\n      metadata:\n        metadataEstable,\n\n\n      /* ---------------------------------------------------\n         OBSERVABILIDAD\n\n         received_at puede servir para tracing,\n         pero tampoco debe formar parte del fingerprint\n         durable del Worker Gate.\n      --------------------------------------------------- */\n\n      received_at:\n        i.received_at ||\n        new Date().toISOString()\n    }\n  };\n});"
+        "jsCode": "const i = $('05 GW Preparar Respuesta').first().json || {};\n\nconst paths = {\n  RESPONDER: 'eos-worker-rc1-respond',\n  CREAR_TAREA: 'eos-worker-rc1-internal',\n  CREAR_OBJETIVO: 'eos-worker-rc1-internal',\n  GUARDAR_MEMORIA: 'eos-worker-rc1-internal',\n  GENERAR_EXCEL: 'eos-worker-rc1-file',\n  GENERAR_PDF: 'eos-worker-rc1-file',\n  GENERAR_WORD: 'eos-worker-rc1-file',\n  VER_DASHBOARD: 'eos-worker-rc1-dashboard',\n  VER_BRIEFING: 'eos-worker-rc1-briefing'\n};\n\nconst acciones =\n  Array.isArray(i.acciones) && i.acciones.length\n    ? i.acciones\n    : [{ tipo: 'RESPONDER', datos: {} }];\n\n\n/* =========================================================\n   CONVERSACIÓN PURA\n\n   Cuando el modelo no pide ninguna acción, arriba se fabrica\n   un job RESPONDER solo para no romper el flujo.\n\n   Ese job no produce ningún efecto durable: la rama RESPONDER\n   del Worker únicamente hace un health ping y devuelve el mismo\n   texto que ya tenemos acá, y el nodo 08 lo descarta igual.\n\n   Marcamos el caso para poder saltear esa vuelta completa\n   (0,7s a 5,6s medidos en producción) en el escenario más\n   frecuente de todos.\n========================================================= */\n\nconst sinAcciones =\n  !Array.isArray(i.acciones) ||\n  i.acciones.length === 0;\n\n\n/* =========================================================\n   HELPERS DETERMINÍSTICOS\n========================================================= */\n\nfunction texto(...valores) {\n  for (const valor of valores) {\n    if (\n      typeof valor === 'string' &&\n      valor.trim()\n    ) {\n      return valor.trim();\n    }\n\n    if (\n      typeof valor === 'number' &&\n      Number.isFinite(valor)\n    ) {\n      return String(valor);\n    }\n  }\n\n  return '';\n}\n\n\nfunction prioridad(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 3;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      5,\n      Math.round(n)\n    )\n  );\n}\n\n\nfunction importancia(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 5;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      10,\n      Math.round(n)\n    )\n  );\n}\n\n\n/* =========================================================\n   NORMALIZACIÓN CANÓNICA DE DATOS\n========================================================= */\n\n/*\n  OBJETIVO:\n\n  OpenAI puede expresar el mismo concepto usando\n  diferentes nombres de campos.\n\n  Ejemplo:\n\n  nombre = titulo = name = asunto\n\n  Para exact-once necesitamos convertir todos esos alias\n  al MISMO contrato antes de enviar el payload al Worker.\n\n  De esta manera el fingerprint durable depende de la\n  intención real y no de pequeñas variaciones del modelo.\n*/\n\nfunction normalizarDatos(tipo, entrada) {\n  const d =\n    entrada &&\n    typeof entrada === 'object' &&\n    !Array.isArray(entrada)\n      ? entrada\n      : {};\n\n\n  /* =======================================================\n     CREAR_TAREA\n  ======================================================= */\n\n  if (tipo === 'CREAR_TAREA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name,\n        d.asunto,\n        d.tarea\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      ),\n\n      prioridad: prioridad(\n        d.prioridad ??\n        d.priority\n      ),\n\n      fecha_limite: texto(\n        d.fecha_limite,\n        d.fecha,\n        d.deadline,\n        d.due_date,\n        d.vencimiento\n      )\n    };\n  }\n\n\n  /* =======================================================\n     GUARDAR_MEMORIA\n  ======================================================= */\n\n  if (tipo === 'GUARDAR_MEMORIA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name\n      ),\n\n      categoria: texto(\n        d.categoria,\n        d.category\n      ),\n\n      contenido: texto(\n        d.contenido,\n        d.texto,\n        d.descripcion,\n        d.memoria,\n        d.valor\n      ),\n\n      importancia: importancia(\n        d.importancia ??\n        d.importance\n      )\n    };\n  }\n\n\n  /* =======================================================\n     ARCHIVOS\n     GENERAR_EXCEL / GENERAR_PDF / GENERAR_WORD\n  ======================================================= */\n\n  if (\n    tipo === 'GENERAR_EXCEL' ||\n    tipo === 'GENERAR_PDF' ||\n    tipo === 'GENERAR_WORD'\n  ) {\n    return {\n      tema: texto(\n        d.tema,\n        d.asunto,\n        d.objetivo,\n        d.titulo,\n        d.topic\n      ),\n\n      tipo: texto(\n        d.tipo,\n        d.type,\n        d.plantilla,\n        d.template\n      ),\n\n      rubro: texto(\n        d.rubro,\n        d.sector,\n        d.categoria,\n        d.industry\n      ),\n\n      negocio: texto(\n        d.negocio,\n        d.empresa,\n        d.nombre_negocio,\n        d.nombre_empresa,\n        d.business,\n        d.nombre\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      )\n    };\n  }\n\n\n  /* =======================================================\n     CREAR_OBJETIVO\n\n     Todavía conservamos los datos originales.\n     Su contrato será validado independientemente.\n  ======================================================= */\n\n  if (tipo === 'CREAR_OBJETIVO') {\n    return d;\n  }\n\n\n  /* =======================================================\n     LECTURAS\n  ======================================================= */\n\n  if (\n    tipo === 'VER_DASHBOARD' ||\n    tipo === 'VER_BRIEFING'\n  ) {\n    return {};\n  }\n\n\n  /* =======================================================\n     RESPONDER\n  ======================================================= */\n\n  if (tipo === 'RESPONDER') {\n    return {};\n  }\n\n\n  /* =======================================================\n     FALLBACK\n  ======================================================= */\n\n  return d;\n}\n\n\n/* =========================================================\n   METADATA ESTABLE PARA EXACT-ONCE\n========================================================= */\n\n/*\n  MUY IMPORTANTE:\n\n  Nunca incluimos aquí información variable producida\n  por una ejecución concreta de OpenAI como:\n\n  - openai_response_id\n  - openai_status\n  - openai_model\n  - timestamps de inferencia\n\n  Esos datos pueden cambiar entre replays y causarían\n  falsos EOS_COMMAND_PAYLOAD_MISMATCH.\n\n  El payload durable debe representar la entrada y la\n  intención del usuario.\n*/\n\nconst metadataEstable = {\n  plan: String(\n    i.plan || 'free'\n  ),\n\n  origen: String(\n    i.origen || 'eos-web'\n  ),\n\n  tiene_archivo:\n    i.metadata?.tiene_archivo === true,\n\n  archivo_entrada_nombre:\n    String(\n      i.metadata?.archivo_entrada_nombre ||\n      ''\n    ),\n\n  archivo_entrada_tipo:\n    String(\n      i.metadata?.archivo_entrada_tipo ||\n      ''\n    ),\n\n  imagen_analizada:\n    i.metadata?.imagen_analizada === true\n};\n\n\n/* =========================================================\n   CREAR JOBS PARA EL WORKER\n========================================================= */\n\nreturn acciones.map((accion, index) => {\n\n  const tipo = String(\n    accion?.tipo || 'RESPONDER'\n  )\n    .trim()\n    .toUpperCase();\n\n\n  /* =======================================================\n     VALIDAR ACCIÓN\n  ======================================================= */\n\n  const worker_path =\n    paths[tipo];\n\n  if (!worker_path) {\n    throw new Error(\n      `Acción Worker no permitida: ${tipo}`\n    );\n  }\n\n\n  /* =======================================================\n     CANONICALIZAR DATOS\n  ======================================================= */\n\n  const datos =\n    normalizarDatos(\n      tipo,\n      accion?.datos\n    );\n\n\n  /* =======================================================\n     JOB FINAL\n  ======================================================= */\n\n  return {\n    json: {\n\n      /* ---------------------------------------------------\n         IDENTIDAD DE REQUEST\n      --------------------------------------------------- */\n\n      request_id:\n        i.request_id,\n\n      usuario_id:\n        i.usuario_id,\n\n      usuario_id_original:\n        i.usuario_id_original ||\n        i.usuario_id,\n\n      usuario_key:\n        i.usuario_key ||\n        i.usuario_id,\n\n      conversacion_id:\n        i.conversacion_id,\n\n\n      /* ---------------------------------------------------\n         CONTEXTO DEL USUARIO\n      --------------------------------------------------- */\n\n      nombre:\n        i.nombre ||\n        'Usuario',\n\n      plan:\n        i.plan ||\n        'free',\n\n      origen:\n        i.origen ||\n        'eos-web',\n\n\n      /* ---------------------------------------------------\n         ENTRADA ORIGINAL\n\n         Debe mantenerse estable entre replays.\n      --------------------------------------------------- */\n\n      mensaje:\n        i.mensaje ||\n        '',\n\n\n      /* ---------------------------------------------------\n         RESPUESTA CONVERSACIONAL\n\n         Puede variar entre llamadas a OpenAI.\n\n         El Worker Gate no debe utilizar este campo\n         como parte del fingerprint durable.\n      --------------------------------------------------- */\n\n      respuesta_gateway:\n        i.respuesta ||\n        '',\n\n\n      /* ---------------------------------------------------\n         ACCIÓN CANÓNICA\n      --------------------------------------------------- */\n\n      accion: {\n        tipo,\n        datos\n      },\n\n\n      /* ---------------------------------------------------\n         CONTROL DE MÚLTIPLES ACCIONES\n      --------------------------------------------------- */\n\n      action_index:\n        index,\n\n      action_count:\n        acciones.length,\n\n\n      /* ---------------------------------------------------\n         DESTINO DEL WORKER\n      --------------------------------------------------- */\n\n      worker_path,\n\n\n      sin_acciones:\n        sinAcciones,\n\n\n      /* ---------------------------------------------------\n         HISTORIAL\n\n         Se conserva para contexto pero no debería\n         formar parte del fingerprint durable del comando.\n      --------------------------------------------------- */\n\n      historial:\n        Array.isArray(i.historial)\n          ? i.historial\n          : [],\n\n\n      /* ---------------------------------------------------\n         METADATA DETERMINÍSTICA\n      --------------------------------------------------- */\n\n      metadata:\n        metadataEstable,\n\n\n      /* ---------------------------------------------------\n         OBSERVABILIDAD\n\n         received_at puede servir para tracing,\n         pero tampoco debe formar parte del fingerprint\n         durable del Worker Gate.\n      --------------------------------------------------- */\n\n      received_at:\n        i.received_at ||\n        new Date().toISOString()\n    }\n  };\n});"
       },
       "id": "38606b92-9c6d-4b41-809c-a2f991d9a3a0",
       "name": "06 GW Preparar Jobs Worker",
@@ -136,8 +136,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1808,
-        0
+        1952,
+        128
       ],
       "retryOnFail": true,
       "maxTries": 2,
@@ -155,7 +155,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2048,
+        2176,
         0
       ]
     },
@@ -179,7 +179,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2288,
+        2400,
         0
       ],
       "id": "a02fa159-ba3b-4650-b09d-00a2a1ee798c",
@@ -243,6 +243,53 @@
       ],
       "notesInFlow": true,
       "notes": "Fail-closed antes de OpenAI: usuario_id + request_id deben coincidir con una reserva vigente creada por /api/eos."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+              "leftValue": "={{ $json.sin_acciones }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+      "name": "06.5 GW ¿Conversación Pura?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n  Conversación pura: el modelo no pidió ninguna acción.\n\n  Devolvemos exactamente la misma forma que devolvía la rama\n  RESPONDER del Background Worker, para que el nodo 08 se\n  comporte igual que siempre — pero sin la vuelta completa\n  (n8n -> worker -> Vercel health ping -> vuelta) que solo\n  servía para que su resultado terminara descartado.\n*/\n\nconst base = $('05 GW Preparar Respuesta').first().json || {};\nconst job = $input.first().json || {};\n\nreturn [{\n  json: {\n    ok: true,\n    executed: false,\n    request_id: job.request_id,\n    accion: 'RESPONDER',\n    respuesta: base.respuesta || '',\n    tipo: 'texto'\n  }\n}];"
+      },
+      "id": "b2d0a3e5-8c4f-4b62-8d79-3a5e9f7c1b24",
+      "name": "06.6 GW Resultado Directo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -128
+      ]
     }
   ],
   "connections": {
@@ -327,7 +374,7 @@
       "main": [
         [
           {
-            "node": "07 GW Ejecutar Worker Gobernado",
+            "node": "06.5 GW ¿Conversación Pura?",
             "type": "main",
             "index": 0
           }
@@ -355,6 +402,35 @@
           }
         ]
       ]
+    },
+    "06.5 GW ¿Conversación Pura?": {
+      "main": [
+        [
+          {
+            "node": "06.6 GW Resultado Directo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 GW Ejecutar Worker Gobernado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06.6 GW Resultado Directo": {
+      "main": [
+        [
+          {
+            "node": "08 GW Agregar Resultados Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -366,9 +442,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "a585bd4a-4137-4a19-b793-3226f443b669",
-  "activeVersionId": "a585bd4a-4137-4a19-b793-3226f443b669",
-  "versionCounter": 13,
+  "versionId": "eab6d9cb-5933-4f89-9e5d-b9d7cbc691be",
+  "activeVersionId": "eab6d9cb-5933-4f89-9e5d-b9d7cbc691be",
+  "versionCounter": 14,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "shared": [
@@ -393,9 +469,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-08-18T00:57:51.189Z",
-    "createdAt": "2026-08-18T00:57:31.668Z",
-    "versionId": "a585bd4a-4137-4a19-b793-3226f443b669",
+    "updatedAt": "2026-08-20T21:52:26.656Z",
+    "createdAt": "2026-08-20T21:52:26.656Z",
+    "versionId": "eab6d9cb-5933-4f89-9e5d-b9d7cbc691be",
     "workflowId": "JRgzUkoHBKgGpyPA",
     "nodes": [
       {
@@ -485,7 +561,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const i = $('05 GW Preparar Respuesta').first().json || {};\n\nconst paths = {\n  RESPONDER: 'eos-worker-rc1-respond',\n  CREAR_TAREA: 'eos-worker-rc1-internal',\n  CREAR_OBJETIVO: 'eos-worker-rc1-internal',\n  GUARDAR_MEMORIA: 'eos-worker-rc1-internal',\n  GENERAR_EXCEL: 'eos-worker-rc1-file',\n  GENERAR_PDF: 'eos-worker-rc1-file',\n  GENERAR_WORD: 'eos-worker-rc1-file',\n  VER_DASHBOARD: 'eos-worker-rc1-dashboard',\n  VER_BRIEFING: 'eos-worker-rc1-briefing'\n};\n\nconst acciones =\n  Array.isArray(i.acciones) && i.acciones.length\n    ? i.acciones\n    : [{ tipo: 'RESPONDER', datos: {} }];\n\n\n/* =========================================================\n   HELPERS DETERMINÍSTICOS\n========================================================= */\n\nfunction texto(...valores) {\n  for (const valor of valores) {\n    if (\n      typeof valor === 'string' &&\n      valor.trim()\n    ) {\n      return valor.trim();\n    }\n\n    if (\n      typeof valor === 'number' &&\n      Number.isFinite(valor)\n    ) {\n      return String(valor);\n    }\n  }\n\n  return '';\n}\n\n\nfunction prioridad(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 3;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      5,\n      Math.round(n)\n    )\n  );\n}\n\n\nfunction importancia(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 5;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      10,\n      Math.round(n)\n    )\n  );\n}\n\n\n/* =========================================================\n   NORMALIZACIÓN CANÓNICA DE DATOS\n========================================================= */\n\n/*\n  OBJETIVO:\n\n  OpenAI puede expresar el mismo concepto usando\n  diferentes nombres de campos.\n\n  Ejemplo:\n\n  nombre = titulo = name = asunto\n\n  Para exact-once necesitamos convertir todos esos alias\n  al MISMO contrato antes de enviar el payload al Worker.\n\n  De esta manera el fingerprint durable depende de la\n  intención real y no de pequeñas variaciones del modelo.\n*/\n\nfunction normalizarDatos(tipo, entrada) {\n  const d =\n    entrada &&\n    typeof entrada === 'object' &&\n    !Array.isArray(entrada)\n      ? entrada\n      : {};\n\n\n  /* =======================================================\n     CREAR_TAREA\n  ======================================================= */\n\n  if (tipo === 'CREAR_TAREA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name,\n        d.asunto,\n        d.tarea\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      ),\n\n      prioridad: prioridad(\n        d.prioridad ??\n        d.priority\n      ),\n\n      fecha_limite: texto(\n        d.fecha_limite,\n        d.fecha,\n        d.deadline,\n        d.due_date,\n        d.vencimiento\n      )\n    };\n  }\n\n\n  /* =======================================================\n     GUARDAR_MEMORIA\n  ======================================================= */\n\n  if (tipo === 'GUARDAR_MEMORIA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name\n      ),\n\n      categoria: texto(\n        d.categoria,\n        d.category\n      ),\n\n      contenido: texto(\n        d.contenido,\n        d.texto,\n        d.descripcion,\n        d.memoria,\n        d.valor\n      ),\n\n      importancia: importancia(\n        d.importancia ??\n        d.importance\n      )\n    };\n  }\n\n\n  /* =======================================================\n     ARCHIVOS\n     GENERAR_EXCEL / GENERAR_PDF / GENERAR_WORD\n  ======================================================= */\n\n  if (\n    tipo === 'GENERAR_EXCEL' ||\n    tipo === 'GENERAR_PDF' ||\n    tipo === 'GENERAR_WORD'\n  ) {\n    return {\n      tema: texto(\n        d.tema,\n        d.asunto,\n        d.objetivo,\n        d.titulo,\n        d.topic\n      ),\n\n      tipo: texto(\n        d.tipo,\n        d.type,\n        d.plantilla,\n        d.template\n      ),\n\n      rubro: texto(\n        d.rubro,\n        d.sector,\n        d.categoria,\n        d.industry\n      ),\n\n      negocio: texto(\n        d.negocio,\n        d.empresa,\n        d.nombre_negocio,\n        d.nombre_empresa,\n        d.business,\n        d.nombre\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      )\n    };\n  }\n\n\n  /* =======================================================\n     CREAR_OBJETIVO\n\n     Todavía conservamos los datos originales.\n     Su contrato será validado independientemente.\n  ======================================================= */\n\n  if (tipo === 'CREAR_OBJETIVO') {\n    return d;\n  }\n\n\n  /* =======================================================\n     LECTURAS\n  ======================================================= */\n\n  if (\n    tipo === 'VER_DASHBOARD' ||\n    tipo === 'VER_BRIEFING'\n  ) {\n    return {};\n  }\n\n\n  /* =======================================================\n     RESPONDER\n  ======================================================= */\n\n  if (tipo === 'RESPONDER') {\n    return {};\n  }\n\n\n  /* =======================================================\n     FALLBACK\n  ======================================================= */\n\n  return d;\n}\n\n\n/* =========================================================\n   METADATA ESTABLE PARA EXACT-ONCE\n========================================================= */\n\n/*\n  MUY IMPORTANTE:\n\n  Nunca incluimos aquí información variable producida\n  por una ejecución concreta de OpenAI como:\n\n  - openai_response_id\n  - openai_status\n  - openai_model\n  - timestamps de inferencia\n\n  Esos datos pueden cambiar entre replays y causarían\n  falsos EOS_COMMAND_PAYLOAD_MISMATCH.\n\n  El payload durable debe representar la entrada y la\n  intención del usuario.\n*/\n\nconst metadataEstable = {\n  plan: String(\n    i.plan || 'free'\n  ),\n\n  origen: String(\n    i.origen || 'eos-web'\n  ),\n\n  tiene_archivo:\n    i.metadata?.tiene_archivo === true,\n\n  archivo_entrada_nombre:\n    String(\n      i.metadata?.archivo_entrada_nombre ||\n      ''\n    ),\n\n  archivo_entrada_tipo:\n    String(\n      i.metadata?.archivo_entrada_tipo ||\n      ''\n    ),\n\n  imagen_analizada:\n    i.metadata?.imagen_analizada === true\n};\n\n\n/* =========================================================\n   CREAR JOBS PARA EL WORKER\n========================================================= */\n\nreturn acciones.map((accion, index) => {\n\n  const tipo = String(\n    accion?.tipo || 'RESPONDER'\n  )\n    .trim()\n    .toUpperCase();\n\n\n  /* =======================================================\n     VALIDAR ACCIÓN\n  ======================================================= */\n\n  const worker_path =\n    paths[tipo];\n\n  if (!worker_path) {\n    throw new Error(\n      `Acción Worker no permitida: ${tipo}`\n    );\n  }\n\n\n  /* =======================================================\n     CANONICALIZAR DATOS\n  ======================================================= */\n\n  const datos =\n    normalizarDatos(\n      tipo,\n      accion?.datos\n    );\n\n\n  /* =======================================================\n     JOB FINAL\n  ======================================================= */\n\n  return {\n    json: {\n\n      /* ---------------------------------------------------\n         IDENTIDAD DE REQUEST\n      --------------------------------------------------- */\n\n      request_id:\n        i.request_id,\n\n      usuario_id:\n        i.usuario_id,\n\n      usuario_id_original:\n        i.usuario_id_original ||\n        i.usuario_id,\n\n      usuario_key:\n        i.usuario_key ||\n        i.usuario_id,\n\n      conversacion_id:\n        i.conversacion_id,\n\n\n      /* ---------------------------------------------------\n         CONTEXTO DEL USUARIO\n      --------------------------------------------------- */\n\n      nombre:\n        i.nombre ||\n        'Usuario',\n\n      plan:\n        i.plan ||\n        'free',\n\n      origen:\n        i.origen ||\n        'eos-web',\n\n\n      /* ---------------------------------------------------\n         ENTRADA ORIGINAL\n\n         Debe mantenerse estable entre replays.\n      --------------------------------------------------- */\n\n      mensaje:\n        i.mensaje ||\n        '',\n\n\n      /* ---------------------------------------------------\n         RESPUESTA CONVERSACIONAL\n\n         Puede variar entre llamadas a OpenAI.\n\n         El Worker Gate no debe utilizar este campo\n         como parte del fingerprint durable.\n      --------------------------------------------------- */\n\n      respuesta_gateway:\n        i.respuesta ||\n        '',\n\n\n      /* ---------------------------------------------------\n         ACCIÓN CANÓNICA\n      --------------------------------------------------- */\n\n      accion: {\n        tipo,\n        datos\n      },\n\n\n      /* ---------------------------------------------------\n         CONTROL DE MÚLTIPLES ACCIONES\n      --------------------------------------------------- */\n\n      action_index:\n        index,\n\n      action_count:\n        acciones.length,\n\n\n      /* ---------------------------------------------------\n         DESTINO DEL WORKER\n      --------------------------------------------------- */\n\n      worker_path,\n\n\n      /* ---------------------------------------------------\n         HISTORIAL\n\n         Se conserva para contexto pero no debería\n         formar parte del fingerprint durable del comando.\n      --------------------------------------------------- */\n\n      historial:\n        Array.isArray(i.historial)\n          ? i.historial\n          : [],\n\n\n      /* ---------------------------------------------------\n         METADATA DETERMINÍSTICA\n      --------------------------------------------------- */\n\n      metadata:\n        metadataEstable,\n\n\n      /* ---------------------------------------------------\n         OBSERVABILIDAD\n\n         received_at puede servir para tracing,\n         pero tampoco debe formar parte del fingerprint\n         durable del Worker Gate.\n      --------------------------------------------------- */\n\n      received_at:\n        i.received_at ||\n        new Date().toISOString()\n    }\n  };\n});"
+          "jsCode": "const i = $('05 GW Preparar Respuesta').first().json || {};\n\nconst paths = {\n  RESPONDER: 'eos-worker-rc1-respond',\n  CREAR_TAREA: 'eos-worker-rc1-internal',\n  CREAR_OBJETIVO: 'eos-worker-rc1-internal',\n  GUARDAR_MEMORIA: 'eos-worker-rc1-internal',\n  GENERAR_EXCEL: 'eos-worker-rc1-file',\n  GENERAR_PDF: 'eos-worker-rc1-file',\n  GENERAR_WORD: 'eos-worker-rc1-file',\n  VER_DASHBOARD: 'eos-worker-rc1-dashboard',\n  VER_BRIEFING: 'eos-worker-rc1-briefing'\n};\n\nconst acciones =\n  Array.isArray(i.acciones) && i.acciones.length\n    ? i.acciones\n    : [{ tipo: 'RESPONDER', datos: {} }];\n\n\n/* =========================================================\n   CONVERSACIÓN PURA\n\n   Cuando el modelo no pide ninguna acción, arriba se fabrica\n   un job RESPONDER solo para no romper el flujo.\n\n   Ese job no produce ningún efecto durable: la rama RESPONDER\n   del Worker únicamente hace un health ping y devuelve el mismo\n   texto que ya tenemos acá, y el nodo 08 lo descarta igual.\n\n   Marcamos el caso para poder saltear esa vuelta completa\n   (0,7s a 5,6s medidos en producción) en el escenario más\n   frecuente de todos.\n========================================================= */\n\nconst sinAcciones =\n  !Array.isArray(i.acciones) ||\n  i.acciones.length === 0;\n\n\n/* =========================================================\n   HELPERS DETERMINÍSTICOS\n========================================================= */\n\nfunction texto(...valores) {\n  for (const valor of valores) {\n    if (\n      typeof valor === 'string' &&\n      valor.trim()\n    ) {\n      return valor.trim();\n    }\n\n    if (\n      typeof valor === 'number' &&\n      Number.isFinite(valor)\n    ) {\n      return String(valor);\n    }\n  }\n\n  return '';\n}\n\n\nfunction prioridad(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 3;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      5,\n      Math.round(n)\n    )\n  );\n}\n\n\nfunction importancia(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 5;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      10,\n      Math.round(n)\n    )\n  );\n}\n\n\n/* =========================================================\n   NORMALIZACIÓN CANÓNICA DE DATOS\n========================================================= */\n\n/*\n  OBJETIVO:\n\n  OpenAI puede expresar el mismo concepto usando\n  diferentes nombres de campos.\n\n  Ejemplo:\n\n  nombre = titulo = name = asunto\n\n  Para exact-once necesitamos convertir todos esos alias\n  al MISMO contrato antes de enviar el payload al Worker.\n\n  De esta manera el fingerprint durable depende de la\n  intención real y no de pequeñas variaciones del modelo.\n*/\n\nfunction normalizarDatos(tipo, entrada) {\n  const d =\n    entrada &&\n    typeof entrada === 'object' &&\n    !Array.isArray(entrada)\n      ? entrada\n      : {};\n\n\n  /* =======================================================\n     CREAR_TAREA\n  ======================================================= */\n\n  if (tipo === 'CREAR_TAREA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name,\n        d.asunto,\n        d.tarea\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      ),\n\n      prioridad: prioridad(\n        d.prioridad ??\n        d.priority\n      ),\n\n      fecha_limite: texto(\n        d.fecha_limite,\n        d.fecha,\n        d.deadline,\n        d.due_date,\n        d.vencimiento\n      )\n    };\n  }\n\n\n  /* =======================================================\n     GUARDAR_MEMORIA\n  ======================================================= */\n\n  if (tipo === 'GUARDAR_MEMORIA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name\n      ),\n\n      categoria: texto(\n        d.categoria,\n        d.category\n      ),\n\n      contenido: texto(\n        d.contenido,\n        d.texto,\n        d.descripcion,\n        d.memoria,\n        d.valor\n      ),\n\n      importancia: importancia(\n        d.importancia ??\n        d.importance\n      )\n    };\n  }\n\n\n  /* =======================================================\n     ARCHIVOS\n     GENERAR_EXCEL / GENERAR_PDF / GENERAR_WORD\n  ======================================================= */\n\n  if (\n    tipo === 'GENERAR_EXCEL' ||\n    tipo === 'GENERAR_PDF' ||\n    tipo === 'GENERAR_WORD'\n  ) {\n    return {\n      tema: texto(\n        d.tema,\n        d.asunto,\n        d.objetivo,\n        d.titulo,\n        d.topic\n      ),\n\n      tipo: texto(\n        d.tipo,\n        d.type,\n        d.plantilla,\n        d.template\n      ),\n\n      rubro: texto(\n        d.rubro,\n        d.sector,\n        d.categoria,\n        d.industry\n      ),\n\n      negocio: texto(\n        d.negocio,\n        d.empresa,\n        d.nombre_negocio,\n        d.nombre_empresa,\n        d.business,\n        d.nombre\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      )\n    };\n  }\n\n\n  /* =======================================================\n     CREAR_OBJETIVO\n\n     Todavía conservamos los datos originales.\n     Su contrato será validado independientemente.\n  ======================================================= */\n\n  if (tipo === 'CREAR_OBJETIVO') {\n    return d;\n  }\n\n\n  /* =======================================================\n     LECTURAS\n  ======================================================= */\n\n  if (\n    tipo === 'VER_DASHBOARD' ||\n    tipo === 'VER_BRIEFING'\n  ) {\n    return {};\n  }\n\n\n  /* =======================================================\n     RESPONDER\n  ======================================================= */\n\n  if (tipo === 'RESPONDER') {\n    return {};\n  }\n\n\n  /* =======================================================\n     FALLBACK\n  ======================================================= */\n\n  return d;\n}\n\n\n/* =========================================================\n   METADATA ESTABLE PARA EXACT-ONCE\n========================================================= */\n\n/*\n  MUY IMPORTANTE:\n\n  Nunca incluimos aquí información variable producida\n  por una ejecución concreta de OpenAI como:\n\n  - openai_response_id\n  - openai_status\n  - openai_model\n  - timestamps de inferencia\n\n  Esos datos pueden cambiar entre replays y causarían\n  falsos EOS_COMMAND_PAYLOAD_MISMATCH.\n\n  El payload durable debe representar la entrada y la\n  intención del usuario.\n*/\n\nconst metadataEstable = {\n  plan: String(\n    i.plan || 'free'\n  ),\n\n  origen: String(\n    i.origen || 'eos-web'\n  ),\n\n  tiene_archivo:\n    i.metadata?.tiene_archivo === true,\n\n  archivo_entrada_nombre:\n    String(\n      i.metadata?.archivo_entrada_nombre ||\n      ''\n    ),\n\n  archivo_entrada_tipo:\n    String(\n      i.metadata?.archivo_entrada_tipo ||\n      ''\n    ),\n\n  imagen_analizada:\n    i.metadata?.imagen_analizada === true\n};\n\n\n/* =========================================================\n   CREAR JOBS PARA EL WORKER\n========================================================= */\n\nreturn acciones.map((accion, index) => {\n\n  const tipo = String(\n    accion?.tipo || 'RESPONDER'\n  )\n    .trim()\n    .toUpperCase();\n\n\n  /* =======================================================\n     VALIDAR ACCIÓN\n  ======================================================= */\n\n  const worker_path =\n    paths[tipo];\n\n  if (!worker_path) {\n    throw new Error(\n      `Acción Worker no permitida: ${tipo}`\n    );\n  }\n\n\n  /* =======================================================\n     CANONICALIZAR DATOS\n  ======================================================= */\n\n  const datos =\n    normalizarDatos(\n      tipo,\n      accion?.datos\n    );\n\n\n  /* =======================================================\n     JOB FINAL\n  ======================================================= */\n\n  return {\n    json: {\n\n      /* ---------------------------------------------------\n         IDENTIDAD DE REQUEST\n      --------------------------------------------------- */\n\n      request_id:\n        i.request_id,\n\n      usuario_id:\n        i.usuario_id,\n\n      usuario_id_original:\n        i.usuario_id_original ||\n        i.usuario_id,\n\n      usuario_key:\n        i.usuario_key ||\n        i.usuario_id,\n\n      conversacion_id:\n        i.conversacion_id,\n\n\n      /* ---------------------------------------------------\n         CONTEXTO DEL USUARIO\n      --------------------------------------------------- */\n\n      nombre:\n        i.nombre ||\n        'Usuario',\n\n      plan:\n        i.plan ||\n        'free',\n\n      origen:\n        i.origen ||\n        'eos-web',\n\n\n      /* ---------------------------------------------------\n         ENTRADA ORIGINAL\n\n         Debe mantenerse estable entre replays.\n      --------------------------------------------------- */\n\n      mensaje:\n        i.mensaje ||\n        '',\n\n\n      /* ---------------------------------------------------\n         RESPUESTA CONVERSACIONAL\n\n         Puede variar entre llamadas a OpenAI.\n\n         El Worker Gate no debe utilizar este campo\n         como parte del fingerprint durable.\n      --------------------------------------------------- */\n\n      respuesta_gateway:\n        i.respuesta ||\n        '',\n\n\n      /* ---------------------------------------------------\n         ACCIÓN CANÓNICA\n      --------------------------------------------------- */\n\n      accion: {\n        tipo,\n        datos\n      },\n\n\n      /* ---------------------------------------------------\n         CONTROL DE MÚLTIPLES ACCIONES\n      --------------------------------------------------- */\n\n      action_index:\n        index,\n\n      action_count:\n        acciones.length,\n\n\n      /* ---------------------------------------------------\n         DESTINO DEL WORKER\n      --------------------------------------------------- */\n\n      worker_path,\n\n\n      sin_acciones:\n        sinAcciones,\n\n\n      /* ---------------------------------------------------\n         HISTORIAL\n\n         Se conserva para contexto pero no debería\n         formar parte del fingerprint durable del comando.\n      --------------------------------------------------- */\n\n      historial:\n        Array.isArray(i.historial)\n          ? i.historial\n          : [],\n\n\n      /* ---------------------------------------------------\n         METADATA DETERMINÍSTICA\n      --------------------------------------------------- */\n\n      metadata:\n        metadataEstable,\n\n\n      /* ---------------------------------------------------\n         OBSERVABILIDAD\n\n         received_at puede servir para tracing,\n         pero tampoco debe formar parte del fingerprint\n         durable del Worker Gate.\n      --------------------------------------------------- */\n\n      received_at:\n        i.received_at ||\n        new Date().toISOString()\n    }\n  };\n});"
         },
         "id": "38606b92-9c6d-4b41-809c-a2f991d9a3a0",
         "name": "06 GW Preparar Jobs Worker",
@@ -527,8 +603,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.4,
         "position": [
-          1808,
-          0
+          1952,
+          128
         ],
         "retryOnFail": true,
         "maxTries": 2,
@@ -546,7 +622,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2048,
+          2176,
           0
         ]
       },
@@ -570,7 +646,7 @@
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1.5,
         "position": [
-          2288,
+          2400,
           0
         ],
         "id": "a02fa159-ba3b-4650-b09d-00a2a1ee798c",
@@ -634,6 +710,53 @@
         ],
         "notesInFlow": true,
         "notes": "Fail-closed antes de OpenAI: usuario_id + request_id deben coincidir con una reserva vigente creada por /api/eos."
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+                "leftValue": "={{ $json.sin_acciones }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+        "name": "06.5 GW ¿Conversación Pura?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1760,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "/*\n  Conversación pura: el modelo no pidió ninguna acción.\n\n  Devolvemos exactamente la misma forma que devolvía la rama\n  RESPONDER del Background Worker, para que el nodo 08 se\n  comporte igual que siempre — pero sin la vuelta completa\n  (n8n -> worker -> Vercel health ping -> vuelta) que solo\n  servía para que su resultado terminara descartado.\n*/\n\nconst base = $('05 GW Preparar Respuesta').first().json || {};\nconst job = $input.first().json || {};\n\nreturn [{\n  json: {\n    ok: true,\n    executed: false,\n    request_id: job.request_id,\n    accion: 'RESPONDER',\n    respuesta: base.respuesta || '',\n    tipo: 'texto'\n  }\n}];"
+        },
+        "id": "b2d0a3e5-8c4f-4b62-8d79-3a5e9f7c1b24",
+        "name": "06.6 GW Resultado Directo",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1952,
+          -128
+        ]
       }
     ],
     "connections": {
@@ -718,7 +841,7 @@
         "main": [
           [
             {
-              "node": "07 GW Ejecutar Worker Gobernado",
+              "node": "06.5 GW ¿Conversación Pura?",
               "type": "main",
               "index": 0
             }
@@ -746,19 +869,48 @@
             }
           ]
         ]
+      },
+      "06.5 GW ¿Conversación Pura?": {
+        "main": [
+          [
+            {
+              "node": "06.6 GW Resultado Directo",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "07 GW Ejecutar Worker Gobernado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "06.6 GW Resultado Directo": {
+        "main": [
+          [
+            {
+              "node": "08 GW Agregar Resultados Worker",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "nodeGroups": [],
     "authors": "Augusto Barreto",
-    "name": "Version a585bd4a",
-    "description": "",
-    "autosaved": true,
+    "name": null,
+    "description": null,
+    "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-08-18T00:57:50.046Z",
-        "id": 556,
+        "createdAt": "2026-08-20T21:52:27.112Z",
+        "id": 564,
         "workflowId": "JRgzUkoHBKgGpyPA",
-        "versionId": "a585bd4a-4137-4a19-b793-3226f443b669",
+        "versionId": "eab6d9cb-5933-4f89-9e5d-b9d7cbc691be",
         "event": "activated",
         "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
       }

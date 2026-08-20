@@ -477,6 +477,18 @@ export async function POST(req: Request) {
 
     const conversacionId = textoSeguro(body.conversacion_id, 120);
 
+    // El perfil no depende de la verificación de la conversación ni del
+    // análisis del adjunto, así que se dispara ya y se espera recién cuando
+    // hace falta: era un viaje a Supabase esperando en fila sin motivo.
+    // Nunca rechaza, para que un `return` temprano no deje una promesa suelta.
+    const usuarioPromise: Promise<{ data: UsuarioEOS | null; error: unknown }> = Promise.resolve(
+      supabase
+        .from("usuarios")
+        .select("nombre, plan, estado_suscripcion, plan_vencimiento")
+        .eq("id", user.id)
+        .maybeSingle<UsuarioEOS>(),
+    ).catch((error: unknown) => ({ data: null, error }));
+
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
         return Response.json(
@@ -519,11 +531,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("nombre, plan, estado_suscripcion, plan_vencimiento")
-      .eq("id", user.id)
-      .maybeSingle<UsuarioEOS>();
+    const { data: usuario, error: usuarioError } = await usuarioPromise;
 
     if (usuarioError) {
       console.error("No se pudo cargar el perfil EOS:", usuarioError);
