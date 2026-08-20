@@ -68,6 +68,20 @@ export async function POST(request: Request) {
       console.error(
         "Bancard: confirmación con token inválido para shop_process_id",
         shopProcessId,
+        JSON.stringify({
+          recibido: tokenRecibido,
+          esperado: tokenEsperado,
+          amount_crudo: operacion.amount,
+          amount_normalizado: (() => {
+            try {
+              return String(Number.parseFloat(String(monto)).toFixed(2));
+            } catch {
+              return "?";
+            }
+          })(),
+          currency: moneda,
+          claves_recibidas: Object.keys(operacion),
+        }),
       );
 
       return NextResponse.json({ status: "error" }, { status: 401 });
