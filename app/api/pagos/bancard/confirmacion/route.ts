@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import {
@@ -70,63 +71,75 @@ export async function POST(request: Request) {
       return respuestaOk();
     }
 
-    // Fuente de verdad: se le pregunta a Bancard con nuestras claves.
-    const { publicKey, privateKey } = getBancardKeys();
+    /*
+     * La verificación va DESPUÉS de responder. Consultar a Bancard por
+     * esta misma transacción mientras Bancard espera nuestra respuesta
+     * la deja bloqueada y ambas partes se traban (se reprodujo: la
+     * consulta expiraba, y la misma llamada hecha después tarda 350 ms).
+     */
+    after(async () => {
+      const { publicKey, privateKey } = getBancardKeys();
 
-    const consulta = await llamarBancard(
-      "/vpos/api/0.3/single_buy/confirmations",
-      {
-        public_key: publicKey,
-        operation: {
-          token: tokenConsultaConfirmacion(privateKey, shopProcessId),
-          shop_process_id: shopProcessId,
-        },
-      },
-    );
+      // Se le da un instante a Bancard para cerrar la transacción.
+      await new Promise((r) => setTimeout(r, 1500));
 
-    if (!consulta.ok) {
-      const { key, detalle } = describirErrorBancard(consulta.data);
+      for (let intento = 1; intento <= 3; intento += 1) {
+        const consulta = await llamarBancard(
+          "/vpos/api/0.3/single_buy/confirmations",
+          {
+            public_key: publicKey,
+            operation: {
+              token: tokenConsultaConfirmacion(privateKey, shopProcessId),
+              shop_process_id: shopProcessId,
+            },
+          },
+        );
 
-      console.error(
-        "Bancard: no se pudo verificar la confirmación de",
-        shopProcessId,
-        key,
-        detalle,
-      );
+        if (!consulta.ok) {
+          const { key, detalle } = describirErrorBancard(consulta.data);
 
-      // 500 para que Bancard reintente la notificación.
-      return NextResponse.json({ status: "error" }, { status: 500 });
-    }
+          console.error(
+            `Bancard: verificación fallida (intento ${intento}) de`,
+            shopProcessId,
+            key,
+            detalle,
+          );
 
-    const verificada = consulta.data?.confirmation || {};
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
 
-    const aprobado =
-      verificada.response === "S" && String(verificada.response_code) === "00";
+        const verificada = consulta.data?.confirmation || {};
 
-    const { error } = await admin.rpc("eos_bancard_confirmar_cobro_v51", {
-      p_shop_process_id: shopProcessId,
-      p_aprobado: aprobado,
-      p_detalle: {
-        origen: "webhook_bancard_verificado",
-        response: verificada.response ?? null,
-        response_code: verificada.response_code ?? null,
-        response_description: verificada.response_description ?? null,
-        authorization_number: verificada.authorization_number ?? null,
-        ticket_number: verificada.ticket_number ?? null,
-      },
-    });
+        const aprobado =
+          verificada.response === "S" &&
+          String(verificada.response_code) === "00";
 
-    if (error) {
-      const detalle = String(error?.message || "");
+        const { error } = await admin.rpc("eos_bancard_confirmar_cobro_v51", {
+          p_shop_process_id: shopProcessId,
+          p_aprobado: aprobado,
+          p_detalle: {
+            origen: "webhook_bancard_verificado",
+            response: verificada.response ?? null,
+            response_code: verificada.response_code ?? null,
+            response_description: verificada.response_description ?? null,
+            authorization_number: verificada.authorization_number ?? null,
+            ticket_number: verificada.ticket_number ?? null,
+          },
+        });
 
-      if (detalle.includes("EOS_BANCARD_REQUEST_NOT_FOUND")) {
-        return respuestaOk();
+        if (error) {
+          console.error("Bancard: error confirmando desde webhook:", error);
+        }
+
+        return;
       }
 
-      console.error("Bancard: error confirmando cobro desde webhook:", error);
-
-      return NextResponse.json({ status: "error" }, { status: 500 });
-    }
+      console.error(
+        "Bancard: no se pudo verificar la transacción tras 3 intentos:",
+        shopProcessId,
+      );
+    });
 
     return respuestaOk();
   } catch (error) {
