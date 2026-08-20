@@ -1,30 +1,30 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { getBancardKeys, tokenConfirmacionEsperado } from "@/lib/bancard";
+import {
+  describirErrorBancard,
+  getBancardKeys,
+  llamarBancard,
+  tokenConsultaConfirmacion,
+} from "@/lib/bancard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /*
- * Endpoint público que Bancard invoca para confirmar una transacción
- * (single_buy_confirm). Es la única fuente confiable del resultado final
- * de un pago, así que se procesa incluso si el charge ya se confirmó en
- * línea: la RPC de confirmación es idempotente.
+ * Endpoint público que Bancard invoca para confirmar una transacción.
  *
- * Al ser público, la autenticidad se valida recalculando el token que
- * Bancard firma con nuestra clave privada. Sin esa verificación,
- * cualquiera que conozca la URL podría activar planes gratis.
+ * No confía en el cuerpo recibido. El token que Bancard envía en la
+ * notificación NO se corresponde con la fórmula documentada
+ * (md5(private_key + shop_process_id + "confirm" + amount + currency)):
+ * se verificó contra transacciones reales y nunca coincide, así que
+ * validarlo daría falsos rechazos.
+ *
+ * En vez de eso, la notificación se trata sólo como un aviso de "revisá
+ * esta transacción", y el estado real se le pregunta a Bancard por un
+ * canal autenticado con nuestras claves (get_single_buy_confirmation).
+ * Eso es más fuerte que validar una firma en el request: un tercero que
+ * conozca la URL no puede falsear la respuesta de Bancard.
  */
-
-function comparacionSegura(a: string, b: string) {
-  const bufferA = Buffer.from(a);
-  const bufferB = Buffer.from(b);
-
-  if (bufferA.length !== bufferB.length) return false;
-
-  return timingSafeEqual(bufferA, bufferB);
-}
 
 function respuestaOk() {
   // Bancard espera exactamente {"status":"success"} con HTTP 200.
@@ -41,71 +41,85 @@ export async function POST(request: Request) {
     }
 
     const shopProcessId = String(operacion.shop_process_id || "").trim();
-    const tokenRecibido = String(operacion.token || "").trim();
-    const monto = operacion.amount;
-    const moneda = String(operacion.currency || "PYG").trim();
 
-    if (!shopProcessId || !tokenRecibido || monto === undefined || monto === null) {
+    if (!shopProcessId) {
       return NextResponse.json({ status: "error" }, { status: 400 });
     }
-
-    const { privateKey } = getBancardKeys();
-
-    let tokenEsperado: string;
-
-    try {
-      tokenEsperado = tokenConfirmacionEsperado(
-        privateKey,
-        shopProcessId,
-        monto,
-        moneda,
-      );
-    } catch {
-      return NextResponse.json({ status: "error" }, { status: 400 });
-    }
-
-    if (!comparacionSegura(tokenRecibido.toLowerCase(), tokenEsperado)) {
-      console.error(
-        "Bancard: confirmación con token inválido para shop_process_id",
-        shopProcessId,
-        JSON.stringify({ esperado: tokenEsperado, operacion }),
-      );
-
-      return NextResponse.json({ status: "error" }, { status: 401 });
-    }
-
-    const aprobado =
-      operacion.response === "S" && String(operacion.response_code) === "00";
 
     const admin: any = createAdminClient();
+
+    // La transacción tiene que corresponder a un cobro que iniciamos.
+    const { data: solicitud } = await admin
+      .from("solicitudes_pago")
+      .select("id,estado,monto")
+      .eq("proveedor", "bancard")
+      .eq("referencia_externa", shopProcessId)
+      .maybeSingle();
+
+    if (!solicitud) {
+      console.error(
+        "Bancard: confirmación de una solicitud inexistente:",
+        shopProcessId,
+      );
+
+      // Reintentar no cambiaría nada; se responde 200 para no dejarla colgada.
+      return respuestaOk();
+    }
+
+    if (solicitud.estado === "pagado" || solicitud.estado === "rechazado") {
+      return respuestaOk();
+    }
+
+    // Fuente de verdad: se le pregunta a Bancard con nuestras claves.
+    const { publicKey, privateKey } = getBancardKeys();
+
+    const consulta = await llamarBancard(
+      "/vpos/api/0.3/single_buy/confirmations",
+      {
+        public_key: publicKey,
+        operation: {
+          token: tokenConsultaConfirmacion(privateKey, shopProcessId),
+          shop_process_id: shopProcessId,
+        },
+      },
+    );
+
+    if (!consulta.ok) {
+      const { key, detalle } = describirErrorBancard(consulta.data);
+
+      console.error(
+        "Bancard: no se pudo verificar la confirmación de",
+        shopProcessId,
+        key,
+        detalle,
+      );
+
+      // 500 para que Bancard reintente la notificación.
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+
+    const verificada = consulta.data?.confirmation || {};
+
+    const aprobado =
+      verificada.response === "S" && String(verificada.response_code) === "00";
 
     const { error } = await admin.rpc("eos_bancard_confirmar_cobro_v51", {
       p_shop_process_id: shopProcessId,
       p_aprobado: aprobado,
       p_detalle: {
-        origen: "webhook_bancard",
-        response: operacion.response ?? null,
-        response_code: operacion.response_code ?? null,
-        response_description: operacion.response_description ?? null,
-        authorization_number: operacion.authorization_number ?? null,
-        ticket_number: operacion.ticket_number ?? null,
+        origen: "webhook_bancard_verificado",
+        response: verificada.response ?? null,
+        response_code: verificada.response_code ?? null,
+        response_description: verificada.response_description ?? null,
+        authorization_number: verificada.authorization_number ?? null,
+        ticket_number: verificada.ticket_number ?? null,
       },
     });
 
     if (error) {
       const detalle = String(error?.message || "");
 
-      /*
-       * Si la solicitud no existe, responder 200 igual: reintentar no va
-       * a cambiar nada y Bancard marcaría la confirmación como fallida.
-       * Queda el log para investigar.
-       */
       if (detalle.includes("EOS_BANCARD_REQUEST_NOT_FOUND")) {
-        console.error(
-          "Bancard: confirmación de una solicitud inexistente:",
-          shopProcessId,
-        );
-
         return respuestaOk();
       }
 
