@@ -61,8 +61,32 @@ create index if not exists eos_correos_usuario_fecha_idx
 --    El correo es su propia procedencia: no es un documento que el usuario
 --    subió ni una integración bancaria formal.
 -- ============================================================
-alter table public.eos_movimientos_financieros
-  drop constraint if exists eos_movimientos_financieros_origen_check;
+--    Se busca el constraint por su DEFINICIÓN y no por su nombre. Esta base
+--    tiene ~90 migraciones aplicadas que no existen localmente, así que el
+--    nombre real puede no ser el que Postgres genera por defecto. Un
+--    `drop constraint if exists <nombre adivinado>` no haría nada en silencio
+--    y el add fallaría, o peor: quedaría el check viejo bloqueando 'correo'.
+do $$
+declare
+  v_nombre text;
+begin
+  for v_nombre in
+    select con.conname
+      from pg_constraint con
+      join pg_class rel on rel.oid = con.conrelid
+      join pg_namespace nsp on nsp.oid = rel.relnamespace
+     where nsp.nspname = 'public'
+       and rel.relname = 'eos_movimientos_financieros'
+       and con.contype = 'c'
+       and pg_get_constraintdef(con.oid) ilike '%origen%'
+  loop
+    execute format(
+      'alter table public.eos_movimientos_financieros drop constraint %I',
+      v_nombre
+    );
+  end loop;
+end;
+$$;
 
 alter table public.eos_movimientos_financieros
   add constraint eos_movimientos_financieros_origen_check
