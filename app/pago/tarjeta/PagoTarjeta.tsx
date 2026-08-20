@@ -183,6 +183,63 @@ export default function PagoTarjeta() {
     sincronizar();
   }, [tarjetaDeVuelta, sincronizar]);
 
+  /*
+   * Vuelta del pago ocasional: Bancard redirige con ?ref=. El pago lo
+   * confirma el webhook, así que acá sólo se consulta cómo quedó.
+   */
+  const refPago = params.get("ref");
+  const cancelado = params.get("cancelado");
+  const yaConsultado = useRef(false);
+
+  useEffect(() => {
+    if (!refPago || yaConsultado.current) return;
+
+    yaConsultado.current = true;
+
+    if (cancelado) {
+      setAviso("Cancelaste el pago. Podés intentarlo de nuevo cuando quieras.");
+      return;
+    }
+
+    let cancelada = false;
+
+    (async () => {
+      setAviso("Confirmando tu pago...");
+
+      // El webhook puede tardar un instante en llegar.
+      for (let intento = 0; intento < 6 && !cancelada; intento += 1) {
+        const res = await fetch(
+          `/api/pagos/bancard/estado?ref=${encodeURIComponent(refPago)}`,
+          { cache: "no-store" },
+        );
+        const data = await res.json().catch(() => null);
+
+        if (data?.estado === "pagado") {
+          setExito({ plan: data.plan || plan.codigo, dias: data.dias_acreditados ?? null });
+          return;
+        }
+
+        if (data?.estado === "rechazado") {
+          setAviso("");
+          setError("El pago no pudo completarse. Probá con otra tarjeta.");
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      if (!cancelada) {
+        setAviso(
+          "Estamos confirmando tu pago con Bancard. Si no se actualiza en unos minutos, escribinos.",
+        );
+      }
+    })();
+
+    return () => {
+      cancelada = true;
+    };
+  }, [refPago, cancelado, plan.codigo]);
+
   async function cargarScriptBancard(baseUrl: string) {
     if (window.Bancard) return;
 
@@ -245,6 +302,51 @@ export default function PagoTarjeta() {
       setError(err instanceof Error ? err.message : "No pudimos iniciar el registro.");
     } finally {
       setRegistrando(false);
+    }
+  }
+
+  /*
+   * Pago ocasional: la tarjeta se carga en el iframe de Bancard y no
+   * queda guardada. El resultado lo confirma el webhook, así que al
+   * volver se consulta el estado de la solicitud.
+   */
+  async function pagarSinGuardar() {
+    setError("");
+    setAviso("");
+    setPagando(true);
+
+    try {
+      const res = await fetch("/api/pagos/bancard/ocasional", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: plan.codigo, periodicidad }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data?.error || "No pudimos iniciar el pago.");
+
+      await cargarScriptBancard(data.iframe_base_url);
+
+      setIframeActivo(true);
+
+      setTimeout(() => {
+        if (!window.Bancard?.Checkout?.createForm) {
+          setError("No se pudo cargar el formulario de Bancard.");
+          setIframeActivo(false);
+          return;
+        }
+
+        window.Bancard.Checkout.createForm(
+          "bancard-iframe",
+          data.process_id,
+          ESTILOS_IFRAME,
+        );
+      }, 60);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pudimos iniciar el pago.");
+    } finally {
+      setPagando(false);
     }
   }
 
@@ -416,6 +518,15 @@ export default function PagoTarjeta() {
                       ? "Usar otra tarjeta"
                       : "Registrar mi tarjeta"}
                 </button>
+
+                <button
+                  type="button"
+                  className="enlace"
+                  onClick={pagarSinGuardar}
+                  disabled={pagando}
+                >
+                  Pagar sin guardar mi tarjeta
+                </button>
               </div>
             )}
 
@@ -586,6 +697,18 @@ function EstilosPago() {
       }
       .pago-tarjeta button.principal:not(:disabled):hover {
         background: #113f8c;
+      }
+      .pago-tarjeta button.enlace {
+        background: transparent;
+        border: 0;
+        min-height: 36px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #64748b;
+        text-decoration: underline;
+      }
+      .pago-tarjeta button.enlace:not(:disabled):hover {
+        color: #1656bd;
       }
       .pago-tarjeta button.secundario {
         background: #fff;
