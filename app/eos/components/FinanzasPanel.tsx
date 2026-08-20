@@ -28,6 +28,16 @@ type EstadoFinanciero = {
   objetivos_en_ritmo: boolean;
   objetivos_activos: number;
   movimientos_registrados: number;
+  prevision: {
+    proximo_ingreso: { fecha: string; monto: number; descripcion: string; confianza: number } | null;
+    gastos_previsibles: {
+      total: number;
+      cantidad: number;
+      hasta: string;
+      detalle: { fecha: string; descripcion: string; monto: number; periodicidad: string }[];
+    };
+    series_detectadas: number;
+  };
 };
 
 type Respuesta = EstadoFinanciero | { configurado: false };
@@ -122,7 +132,20 @@ export default function FinanzasPanel() {
           <div className="fin-main">
             <div className="fin-main-label">Disponible real</div>
             <div className="fin-main-value">{fmt(data.disponible_real)}</div>
-            <div className="fin-main-hint">Después de compromisos, reserva y ahorro</div>
+            <div className="fin-main-hint">
+              Después de compromisos, gastos previsibles, reserva y ahorro
+            </div>
+            {/*
+              La doctrina pone esta línea al lado del disponible real porque es
+              la que lo vuelve una respuesta: no es lo mismo tener este monto
+              con el sueldo entrando mañana que con el sueldo a 26 días.
+            */}
+            {data.prevision.proximo_ingreso && (
+              <div className="fin-main-hint">
+                Próximo ingreso estimado: {formatearFecha(data.prevision.proximo_ingreso.fecha)} ·{" "}
+                {fmt(data.prevision.proximo_ingreso.monto)}
+              </div>
+            )}
           </div>
 
           <div className="fin-rows">
@@ -132,6 +155,16 @@ export default function FinanzasPanel() {
               okText="Cubiertos"
               badText="Sin cobertura"
             />
+            {data.prevision.gastos_previsibles.cantidad > 0 && (
+              <div className="fin-row">
+                <span className="fin-row-label">Gastos previsibles</span>
+                <span className="fin-row-value is-ok">
+                  <Check size={13} />
+                  {data.prevision.gastos_previsibles.cantidad} ya contemplado
+                  {data.prevision.gastos_previsibles.cantidad === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
             <FinRow label="Reserva" ok={data.reserva_protegida} okText="Protegida" badText="Por debajo del mínimo" />
             <FinRow
               label="Objetivos"
@@ -175,6 +208,27 @@ export default function FinanzasPanel() {
                 </span>
                 <span className="field-value">{fmt(data.compromisos.total)}</span>
               </div>
+              {data.prevision.gastos_previsibles.cantidad > 0 && (
+                <div className="field-row">
+                  <span className="field-label">
+                    Gastos previsibles
+                    <span className="field-hint">
+                      detectados por EOS, hasta el {formatearFecha(data.prevision.gastos_previsibles.hasta)}
+                    </span>
+                  </span>
+                  <span className="field-value">{fmt(data.prevision.gastos_previsibles.total)}</span>
+                </div>
+              )}
+              {data.prevision.gastos_previsibles.detalle.map((p) => (
+                <div className="field-row" key={`${p.descripcion}-${p.fecha}`}>
+                  <span className="field-label">
+                    <span className="field-hint">
+                      {formatearFecha(p.fecha)} · {p.descripcion} ({p.periodicidad})
+                    </span>
+                  </span>
+                  <span className="field-value">{fmt(p.monto)}</span>
+                </div>
+              ))}
               <div className="field-row">
                 <span className="field-label">Reserva mínima</span>
                 <span className="field-value">{fmt(data.reserva_minima)}</span>
@@ -202,6 +256,34 @@ function FinRow({ label, ok, okText, badText }: { label: string; ok: boolean; ok
       </span>
     </div>
   );
+}
+
+const MESES_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/**
+ * Formatea una fecha ISO sin pasar por `new Date`.
+ *
+ * `new Date("2026-08-30")` es medianoche UTC, y al formatearla en la zona de
+ * Paraguay (UTC-3/-4) mostraría el 29. Un día de diferencia en "próximo
+ * ingreso" es exactamente el tipo de error que rompe la confianza.
+ */
+function formatearFecha(iso: string) {
+  const [anio, mes, dia] = iso.slice(0, 10).split("-").map(Number);
+  if (!anio || !mes || !dia || mes < 1 || mes > 12) return iso;
+  return `${dia} de ${MESES_ES[mes - 1]}`;
 }
 
 function formatearMonto(valor: number, moneda: string) {

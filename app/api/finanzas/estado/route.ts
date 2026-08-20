@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  detectarSeries,
+  proximoIngreso,
+  proyectar,
+  sumarDias,
+} from "@/lib/finanzas/recurrencia";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -81,13 +87,47 @@ export async function GET() {
   const compromisosPendientes = movimientos.filter((m) => m.tipo === "compromiso" && m.fecha > hoyISO);
   const totalCompromisos = sum(compromisosPendientes);
 
+  // ==========================================================
+  // PREVISIÓN
+  //
+  // Hasta acá EOS solo restaba lo que alguien había cargado. Pero el alquiler
+  // se paga igual aunque nadie lo anote. La doctrina pide que EOS PREVEA, no
+  // que espere: si un movimiento viene repitiéndose con patrón, cuenta.
+  //
+  // Las proyecciones no se guardan en la base a propósito (ver
+  // lib/finanzas/recurrencia.ts): son dato derivado y duplicarían el gasto
+  // cuando el movimiento real aparezca.
+  // ==========================================================
+  const series = detectarSeries(movimientos);
+  const ingresoEstimado = proximoIngreso(series, hoyISO);
+
+  // El horizonte natural del disponible real es "hasta que vuelva a entrar
+  // plata": ese es el tramo que el usuario tiene que atravesar con lo que
+  // tiene hoy. Sin un ingreso detectado, 30 días es el ciclo por defecto.
+  const horizonte = ingresoEstimado ? ingresoEstimado.fecha : sumarDias(hoyISO, 30);
+
+  const previsibles = proyectar(
+    series.filter((s) => s.tipo !== "ingreso"),
+    {
+      desde: hoyISO,
+      hasta: horizonte,
+      // Todo lo que ya está cargado a futuro: sin esto, un compromiso anotado
+      // a mano se restaría dos veces y el disponible saldría más bajo del real.
+      yaRegistrados: movimientos.filter((m) => m.fecha > hoyISO),
+    },
+  );
+  const totalPrevisible = previsibles.reduce((total, p) => total + p.monto, 0);
+
   const saldoEstimado = num(politica.saldo_inicial) + ingresos - gastos;
   const reserva = num(politica.reserva_minima);
   const ahorroComprometido = (ingresos * num(politica.porcentaje_ahorro)) / 100;
 
-  const disponibleReal = saldoEstimado - totalCompromisos - reserva - ahorroComprometido;
+  // El ingreso estimado NO se suma: no se gasta plata que todavía no entró.
+  // Se informa aparte, porque no es lo mismo tener el sueldo mañana que a 26 días.
+  const disponibleReal =
+    saldoEstimado - totalCompromisos - totalPrevisible - reserva - ahorroComprometido;
 
-  const compromisosCubiertos = saldoEstimado - reserva >= totalCompromisos;
+  const compromisosCubiertos = saldoEstimado - reserva >= totalCompromisos + totalPrevisible;
   const reservaProtegida = saldoEstimado >= reserva;
 
   const objetivos = (objetivosRes.data ?? []) as { estado: string | null; progreso: number | null }[];
@@ -128,6 +168,30 @@ export async function GET() {
       objetivos_en_ritmo: objetivosEnRitmo,
       objetivos_activos: objetivosActivos.length,
       movimientos_registrados: movimientos.length,
+      prevision: {
+        // La línea que la doctrina pone al lado del disponible real, porque es
+        // la que convierte un número en una respuesta.
+        proximo_ingreso: ingresoEstimado
+          ? {
+              fecha: ingresoEstimado.fecha,
+              monto: redondear(ingresoEstimado.monto),
+              descripcion: ingresoEstimado.descripcion,
+              confianza: ingresoEstimado.confianza,
+            }
+          : null,
+        gastos_previsibles: {
+          total: redondear(totalPrevisible),
+          cantidad: previsibles.length,
+          hasta: horizonte,
+          detalle: previsibles.slice(0, 6).map((p) => ({
+            fecha: p.fecha,
+            descripcion: p.descripcion,
+            monto: redondear(p.monto),
+            periodicidad: p.periodicidad,
+          })),
+        },
+        series_detectadas: series.length,
+      },
     },
     { headers: noStore() },
   );
