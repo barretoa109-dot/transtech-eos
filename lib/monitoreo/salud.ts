@@ -48,6 +48,10 @@ const VARIABLES_OPCIONALES = [
   "RESEND_WEBHOOK_SECRET",
   "EOS_CORREO_DOMINIO",
   "EOS_APP_BASE_URL",
+  // Sin estas dos el push queda apagado en silencio: el botón directamente no
+  // aparece y nadie se entera de que falta configuración.
+  "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+  "VAPID_PRIVATE_KEY",
   // Tiene un valor por defecto escrito en `app/api/eos/route.ts`, así que su
   // ausencia no rompe el chat. Se informa igual porque significa que la URL
   // de n8n vive en el código: si n8n cambia de dirección haría falta un
