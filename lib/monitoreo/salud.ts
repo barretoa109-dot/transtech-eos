@@ -38,7 +38,6 @@ const VARIABLES_CRITICAS = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "RESEND_API_KEY",
   "CRON_SECRET",
-  "N8N_EOS_WEBHOOK_URL",
 ] as const;
 
 /**
@@ -49,6 +48,11 @@ const VARIABLES_OPCIONALES = [
   "RESEND_WEBHOOK_SECRET",
   "EOS_CORREO_DOMINIO",
   "EOS_APP_BASE_URL",
+  // Tiene un valor por defecto escrito en `app/api/eos/route.ts`, así que su
+  // ausencia no rompe el chat. Se informa igual porque significa que la URL
+  // de n8n vive en el código: si n8n cambia de dirección haría falta un
+  // deploy en vez de cambiar una variable.
+  "N8N_EOS_WEBHOOK_URL",
 ] as const;
 
 async function aislar(nombre: string, fn: () => Promise<Chequeo>): Promise<Chequeo> {
