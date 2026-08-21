@@ -46,17 +46,31 @@ export async function POST(request: Request) {
   const crudo = await request.text();
 
   const secreto = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secreto) {
-    console.error("Correo: falta RESEND_WEBHOOK_SECRET, se rechaza el webhook.");
+  const apiKey = process.env.RESEND_API_KEY;
+
+  // Las dos variables se validan juntas y ANTES de construir el cliente.
+  //
+  // `new Resend(undefined)` lanza "Missing API key". Cuando ese constructor
+  // vivía dentro del try de la verificación, una variable de entorno faltante
+  // salía como 401 "Firma inválida" — un problema de configuración disfrazado
+  // de problema de firma, que costó una tarde de diagnóstico en la dirección
+  // equivocada. Un 503 acá y un 401 solo allá abajo hacen la diferencia
+  // diagnosticable desde afuera sin filtrar qué variable falta.
+  if (!secreto || !apiKey) {
+    console.error("Correo: falta RESEND_WEBHOOK_SECRET o RESEND_API_KEY.", {
+      webhook_secret: Boolean(secreto),
+      api_key: Boolean(apiKey),
+    });
     return Response.json({ error: "No configurado." }, { status: 503 });
   }
+
+  const resend = new Resend(apiKey);
 
   // Sin firma válida no se procesa: el buzón escribe movimientos que afectan
   // el disponible real, así que aceptar un POST sin verificar sería permitir
   // que cualquiera inyecte plata falsa en la cuenta de un usuario.
   let evento: EmailRecibido;
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
     evento = resend.webhooks.verify({
       payload: crudo,
       // El SDK pide los tres campos svix sueltos, no el objeto Headers web.
