@@ -14,7 +14,10 @@ export const dynamic = "force-dynamic";
  * BORRAR cuando el buzón esté funcionando.
  */
 export async function GET(request: Request) {
-  const secreto = process.env.CRON_SECRET;
+  // Se protege con la service role key de Supabase y no con CRON_SECRET:
+  // el CRON_SECRET local resultó no coincidir con el de producción, que es
+  // justo el tipo de suposición que este endpoint existe para eliminar.
+  const secreto = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const enviado = request.headers.get("x-eos-diagnostico");
 
   if (!secreto || enviado !== secreto) {
