@@ -25,7 +25,15 @@ Las migraciones en `supabase/migrations/` son forward-only — no hay un mecanis
 1. Escribir una migración nueva que revierta el cambio específico (nunca editar ni borrar una migración ya aplicada en producción — el historial de migraciones debe ser append-only).
 2. Aplicar esa migración de reversión de la misma forma que cualquier otra.
 
-**Nota importante descubierta hoy:** varias funciones/tablas viven en la base de producción sin tener su migración correspondiente en este repo (p. ej. el trigger `handle_new_user` sobre `auth.users`, y varias tablas de Worker Gate/autonomía). Antes de asumir que un rollback de código alcanza, verificar si el problema está también en un objeto de base que no está versionado acá — puede requerir revertir directamente en la base, no solo en git.
+**Drift de migraciones: RESUELTO el 2026-08-21.** Durante un tiempo hubo 91 migraciones aplicadas en producción sin archivo en este repo (venían de la rama RC1 y del dashboard), más 2 archivos locales que nunca se habían registrado en el remoto. Eso significaba dos cosas graves: el repo no podía reconstruir el esquema desde cero, y `supabase db push` habría intentado reejecutar esas dos.
+
+Se resolvió sin aplanar nada: Supabase guarda el SQL de cada migración en la columna `statements` de `supabase_migrations.schema_migrations`, así que las 91 se recuperaron textualmente y se restituyeron como archivos (llevan una cabecera que lo aclara). Las 2 locales se verificaron aplicadas —el trigger y las tablas existían— y se registraron con su SQL.
+
+Estado verificado con `supabase migration list --linked`: **125 migraciones, todas con `local` y `remote` coincidentes**. `supabase db push` volvió a ser seguro.
+
+**Cómo no volver a romperlo:** toda migración nueva debe quedar como archivo en `supabase/migrations/` *y* registrada en el remoto. Si se aplica quirúrgicamente por la Management API (que sigue siendo el método usado en este proyecto), hay que insertar la fila en `supabase_migrations.schema_migrations` en el mismo movimiento, incluyendo el SQL en `statements` — eso es lo que permitió esta recuperación.
+
+**Nota que sigue vigente:** algunos objetos viven en la base sin haber pasado nunca por una migración (p. ej. el trigger `handle_new_user` sobre `auth.users`). Antes de asumir que un rollback de código alcanza, verificar si el problema está también en un objeto de base no versionado.
 
 **Antes de un rollback de datos**: Supabase free tier no incluye point-in-time recovery más allá de backups diarios automáticos cortos — ver sección 4 (mover fuera del free tier es un P1 abierto).
 
