@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
+import EliminarCuenta from "./EliminarCuenta";
 
 type ProfileViewProps = {
   nombre: string;
@@ -176,6 +177,8 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
           </Link>
         </div>
       </div>
+
+      <EliminarCuenta />
     </div>
   );
 }
