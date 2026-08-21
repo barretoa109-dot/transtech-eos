@@ -123,6 +123,10 @@ const PALABRAS_INGRESO = [
   "deposito",
   "depositado",
   "transferencia recibida",
+  // En plural porque así lo escribe el GNB en el asunto ("Transferencias
+  // Recibidas SPI"). Sin esto la dirección no se detectaba en el asunto y la
+  // confianza quedaba justo en el umbral, a un pelo de descartarse.
+  "transferencias recibidas",
   "recibiste",
   "salario",
   "sueldo",
@@ -267,9 +271,17 @@ function buscarFecha(texto: string, porDefecto: string): string {
  * detección de recurrencia, importa que sea estable entre avisos del mismo
  * tipo — por eso sale del asunto y no del cuerpo, que cambia siempre.
  */
-function describir(correo: CorreoEntrante): string {
-  const asunto = (correo.asunto ?? "").trim();
-  if (asunto) return asunto.slice(0, 160);
+function describir(correo: CorreoEntrante, cuerpo: string): string {
+  // El caso normal acá es un REENVÍO: el usuario configura una regla y su
+  // correo antepone "Fwd:". El asunto original vive dentro del cuerpo, en la
+  // cabecera del mensaje reenviado, y es más limpio y más estable que el
+  // reenviado — importa porque de esta descripción sale la clave con la que
+  // se agrupan las series recurrentes.
+  const original = cuerpo.match(/^\s*(?:Subject|Asunto):\s*(.+)$/mi)?.[1]?.trim();
+  const asunto = (original || correo.asunto || "").trim();
+
+  const limpio = asunto.replace(/^((re|rv|fwd?|fw)\s*:\s*)+/i, "").trim();
+  if (limpio) return limpio.slice(0, 160);
 
   const dominio = (correo.remitente ?? "").split("@")[1]?.split(".")[0];
   return dominio ? `Aviso de ${dominio}` : "Movimiento informado por correo";
@@ -319,7 +331,7 @@ export function extraerDeCorreo(correo: CorreoEntrante): MovimientoDeCorreo[] {
   if (!tipo) return [];
 
   const fecha = buscarFecha(cuerpo, correo.recibidoEn);
-  const descripcion = describir(correo);
+  const descripcion = describir(correo, cuerpo);
   const principal = importes[0];
 
   // Confianza: máxima cuando el asunto dice la dirección y hay un único
