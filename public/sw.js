@@ -66,3 +66,59 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
+/* =========================================================
+   NOTIFICACIONES PUSH
+
+   El navegador despierta al service worker para entregar el mensaje, así
+   que estos manejadores tienen que ser autosuficientes: no hay página
+   abierta ni estado en memoria del que depender.
+========================================================= */
+
+self.addEventListener("push", (event) => {
+  // Si el payload viene roto, igual se muestra algo: una notificación vacía
+  // es mala, pero una notificación que no aparece hace que el usuario deje
+  // de confiar en el canal.
+  let datos = {};
+  try {
+    datos = event.data ? event.data.json() : {};
+  } catch {
+    datos = {};
+  }
+
+  const titulo = datos.titulo || "EOS";
+  const opciones = {
+    body: datos.cuerpo || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    lang: "es",
+    // Sin vibración ni requireInteraction a propósito: la doctrina pide que
+    // EOS baje la ansiedad, no que interrumpa. Una notificación diaria que
+    // vibra y se queda fija en pantalla se desactiva en una semana.
+    tag: datos.tag || "eos-briefing",
+    renotify: false,
+    data: { url: datos.url || "/eos/chat" },
+  };
+
+  event.waitUntil(self.registration.showNotification(titulo, opciones));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const destino = (event.notification.data && event.notification.data.url) || "/eos/chat";
+
+  // Si EOS ya está abierto en alguna pestaña, se reutiliza en vez de abrir
+  // otra: nadie quiere doce pestañas de la misma app.
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientes) => {
+      for (const cliente of clientes) {
+        if (cliente.url.includes("/eos") && "focus" in cliente) {
+          cliente.navigate(destino);
+          return cliente.focus();
+        }
+      }
+      return self.clients.openWindow(destino);
+    }),
+  );
+});

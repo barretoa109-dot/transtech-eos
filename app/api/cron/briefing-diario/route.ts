@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
+import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "@/lib/push/enviar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,8 +131,18 @@ export async function GET(request: Request) {
   }
 
   const destinatarios = (preferencias ?? []) as { usuario_id: string }[];
+
+  // Sin nadie suscripto al correo todavía hay que intentar el push: son
+  // canales independientes, y alguien puede querer solo el del teléfono.
+  // Salir acá sin más dejaría el push muerto sin que nadie lo note.
   if (destinatarios.length === 0) {
-    return NextResponse.json({ ok: true, fecha: hoy, suscriptos: 0, enviados: 0 });
+    return NextResponse.json({
+      ok: true,
+      fecha: hoy,
+      suscriptos: 0,
+      enviados: 0,
+      push: await enviarPush(admin, hoy),
+    });
   }
 
   const ids = destinatarios.map((p) => p.usuario_id);
@@ -236,6 +247,8 @@ export async function GET(request: Request) {
     }
   }
 
+  const push = await enviarPush(admin, hoy);
+
   return NextResponse.json({
     ok: true,
     fecha: hoy,
@@ -243,5 +256,105 @@ export async function GET(request: Request) {
     enviados,
     omitidos,
     fallidos,
+    push,
   });
+}
+
+/**
+ * Manda el briefing por push a quien tenga notificaciones activas.
+ *
+ * Es un canal independiente del correo: alguien puede querer el push en el
+ * teléfono y no el correo, o al revés. Por eso no se filtra por
+ * `canal_email` — la suscripción push ES el consentimiento, porque el
+ * navegador ya le pidió permiso explícito al usuario.
+ *
+ * Comparte la idempotencia con el correo a través de `eos_briefing_envios`,
+ * distinguiendo por `canal`: un mismo día puede haber un envío por correo y
+ * uno por push, pero nunca dos del mismo canal.
+ */
+async function enviarPush(admin: any, hoy: string) {
+  if (!pushConfigurado()) return { enviados: 0, omitido: "sin claves VAPID" };
+
+  const { data: suscripciones } = await admin
+    .from("eos_push_suscripciones")
+    .select("id,usuario_id,endpoint,p256dh,auth")
+    .eq("activa", true);
+
+  const activas = (suscripciones ?? []) as (Suscripcion & { usuario_id: string })[];
+  if (activas.length === 0) return { enviados: 0, dispositivos: 0 };
+
+  const usuarios = [...new Set(activas.map((s) => s.usuario_id))];
+
+  const [{ data: briefings }, { data: yaEnviados }] = await Promise.all([
+    admin
+      .from("eos_daily_briefings")
+      .select("usuario_id,titulo_dia,resumen")
+      .in("usuario_id", usuarios)
+      .eq("briefing_date", hoy)
+      .eq("estado", "listo"),
+    admin
+      .from("eos_briefing_envios")
+      .select("usuario_id")
+      .eq("briefing_date", hoy)
+      .eq("canal", "push")
+      .in("usuario_id", usuarios),
+  ]);
+
+  const briefingDe = new Map(
+    ((briefings ?? []) as { usuario_id: string; titulo_dia: string | null; resumen: string | null }[]).map(
+      (b) => [b.usuario_id, b],
+    ),
+  );
+  const previos = new Set(((yaEnviados ?? []) as { usuario_id: string }[]).map((e) => e.usuario_id));
+
+  let enviados = 0;
+  const muertasTotales: string[] = [];
+
+  for (const usuarioId of usuarios) {
+    if (previos.has(usuarioId)) continue;
+
+    const briefing = briefingDe.get(usuarioId);
+    if (!briefing) continue;
+
+    const dispositivos = activas.filter((s) => s.usuario_id === usuarioId);
+
+    // El título viene del modelo, así que puede traer basura de QA: se usa el
+    // nombre del producto como título y el resumen como cuerpo, que es texto
+    // en prosa. Misma razón que el asunto fijo del correo.
+    const resultado = await enviarAviso(dispositivos, {
+      titulo: "Tu briefing de hoy",
+      cuerpo: resumirParaPush(briefing.resumen || briefing.titulo_dia),
+      url: "/eos/chat",
+    });
+
+    muertasTotales.push(...resultado.muertas);
+
+    // Se registra si al menos un dispositivo lo recibió: si todos fallaron, el
+    // usuario no vio nada y mañana debería volver a intentarse.
+    if (resultado.enviados > 0) {
+      enviados += 1;
+      await admin
+        .from("eos_briefing_envios")
+        .insert({ usuario_id: usuarioId, briefing_date: hoy, canal: "push", estado: "enviado" })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+    }
+  }
+
+  // Suscripciones que el servicio de push dio por muertas. Se desactivan en
+  // vez de borrarse, para poder distinguir "nunca se suscribió" de "se fue".
+  if (muertasTotales.length > 0) {
+    await admin
+      .from("eos_push_suscripciones")
+      .update({ activa: false, ultimo_error: "endpoint dado de baja por el servicio de push" })
+      .in("id", muertasTotales);
+  }
+
+  return {
+    enviados,
+    dispositivos: activas.length,
+    dadas_de_baja: muertasTotales.length,
+  };
 }
