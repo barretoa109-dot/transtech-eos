@@ -1,9 +1,11 @@
 import { timingSafeEqual } from "crypto";
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 import { createAdminClient } from "@/lib/supabase-admin";
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
+import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +82,25 @@ export async function GET(request: Request) {
   if (!permiso.ok) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+
+  // El chequeo de salud viaja pegado a este cron porque el plan Hobby de
+  // Vercel solo permite dos crons y los dos ya están usados.
+  //
+  // Se agenda ACÁ, apenas pasa la autorización y antes de cualquier `return`
+  // temprano: si nadie tiene el briefing activado, la función corta antes de
+  // llegar al final y el chequeo nunca se ejecutaría — justo el escenario en
+  // el que más falta hace, porque nadie estaría mirando.
+  //
+  // Va en `after()` para no demorar la respuesta, y solo avisa si algo falla.
+  after(async () => {
+    try {
+      const base = baseUrlApp();
+      const reporte = await correrChequeos(base);
+      if (!reporte.sano) await enviarAlerta(reporte, base);
+    } catch (error) {
+      console.error("Briefing: falló el chequeo de salud posterior:", error);
+    }
+  });
 
   const apiKey = process.env.RESEND_API_KEY;
   const remitente = process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>";
