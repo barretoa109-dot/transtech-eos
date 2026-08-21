@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Target } from "lucide-react";
 import type { Briefing } from "../types/briefing";
+import BriefingCorreoToggle from "./BriefingCorreoToggle";
 
 type DecisionSummary = {
   id: string;
@@ -101,6 +102,8 @@ export default function BriefingView({
             </div>
           )}
         </div>
+
+        <BriefingCorreoToggle />
 
         <div className="card">
           <div className="card-title">Decisiones pendientes</div>
