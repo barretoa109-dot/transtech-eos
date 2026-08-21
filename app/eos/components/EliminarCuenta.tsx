@@ -24,7 +24,26 @@ export default function EliminarCuenta() {
 
   if (!abierto) {
     return (
-      <div style={{ marginTop: 22, textAlign: "center" }}>
+      <div
+        style={{
+          marginTop: 22,
+          textAlign: "center",
+          display: "flex",
+          gap: 18,
+          justifyContent: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        {/*
+          Descargar va antes que eliminar a propósito: si alguien está por
+          irse, lo mínimo es ofrecerle llevarse lo suyo primero.
+        */}
+        <a
+          href="/api/cuenta/exportar"
+          style={{ color: "var(--muted, #64748b)", fontSize: 13, textDecoration: "underline" }}
+        >
+          Descargar mis datos
+        </a>
         <button
           type="button"
           onClick={() => setAbierto(true)}

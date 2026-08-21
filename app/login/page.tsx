@@ -110,7 +110,15 @@ export default function LoginPage() {
             </div>
 
             <p className="mt-7 text-center text-xs leading-5 text-slate-600">
-              Al continuar, aceptás los términos de servicio y la política de privacidad de TRANSTECH EOS.
+              Al continuar, aceptás los{" "}
+              <a href="/terminos" className="underline" target="_blank" rel="noopener noreferrer">
+                términos de servicio
+              </a>{" "}
+              y la{" "}
+              <a href="/privacidad" className="underline" target="_blank" rel="noopener noreferrer">
+                política de privacidad
+              </a>{" "}
+              de TRANSTECH EOS.
             </p>
           </div>
         </section>
