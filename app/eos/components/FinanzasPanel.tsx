@@ -5,6 +5,7 @@ import { AlertTriangle, Check, ChevronDown, ShieldCheck, SlidersHorizontal } fro
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasCandidatos from "./FinanzasCandidatos";
 import FinanzasBuzon from "./FinanzasBuzon";
+import FinanzasConciliar from "./FinanzasConciliar";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -29,6 +30,14 @@ type EstadoFinanciero = {
   objetivos_en_ritmo: boolean;
   objetivos_activos: number;
   movimientos_registrados: number;
+  conciliacion: {
+    confianza: "alta" | "media" | "baja";
+    veces: number;
+    dias_desde_ultima: number | null;
+    gasto_invisible: number;
+    aprendido: boolean;
+    conviene_preguntar: boolean;
+  };
   prevision: {
     proximo_ingreso: { fecha: string; monto: number; descripcion: string; confianza: number } | null;
     gastos_previsibles: {
@@ -103,6 +112,14 @@ export default function FinanzasPanel() {
 
   return (
     <>
+    {data.conciliacion?.conviene_preguntar && (
+      <FinanzasConciliar
+        moneda={data.moneda}
+        saldoCalculado={data.saldo_estimado}
+        vecesConciliado={data.conciliacion.veces}
+        onListo={() => void cargar()}
+      />
+    )}
     <FinanzasBuzon />
     <FinanzasCandidatos onImportado={() => void cargar()} />
 
@@ -231,6 +248,21 @@ export default function FinanzasPanel() {
                   <span className="field-value">{fmt(p.monto)}</span>
                 </div>
               ))}
+              {/*
+                Solo aparece cuando EOS ya aprendió el ritmo. Es la prueba de
+                que dejó de necesitar al usuario: descuenta lo que no ve, solo.
+              */}
+              {data.conciliacion?.aprendido && data.conciliacion.gasto_invisible > 0 && (
+                <div className="field-row">
+                  <span className="field-label">
+                    Gastos que EOS no ve
+                    <span className="field-hint">
+                      billetera y efectivo, aprendido de tu ritmo
+                    </span>
+                  </span>
+                  <span className="field-value">{fmt(data.conciliacion.gasto_invisible)}</span>
+                </div>
+              )}
               <div className="field-row">
                 <span className="field-label">Reserva mínima</span>
                 <span className="field-value">{fmt(data.reserva_minima)}</span>

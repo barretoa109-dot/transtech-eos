@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { conciliar, convieneConciliar } from "@/lib/finanzas/conciliacion";
 import {
   detectarSeries,
   proximoIngreso,
@@ -14,6 +15,11 @@ type Movimiento = {
   monto: number | string | null;
   fecha: string;
   descripcion: string | null;
+};
+
+type ConciliacionFila = {
+  fecha: string;
+  saldo_declarado: number | string | null;
 };
 
 type Politica = {
@@ -43,7 +49,7 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  const [politicaRes, movimientosRes, objetivosRes] = await Promise.all([
+  const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes] = await Promise.all([
     supabase
       .from("eos_finanzas_politica")
       .select("moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro,umbral_autorizacion")
@@ -55,6 +61,11 @@ export async function GET() {
       .eq("usuario_id", user.id)
       .order("fecha", { ascending: true }),
     supabase.from("eos_goals").select("estado,progreso").eq("usuario_id", user.id),
+    supabase
+      .from("eos_finanzas_conciliaciones")
+      .select("fecha,saldo_declarado")
+      .eq("usuario_id", user.id)
+      .order("fecha", { ascending: true }),
   ]);
 
   if (politicaRes.error && politicaRes.error.code !== "PGRST116") {
@@ -74,12 +85,44 @@ export async function GET() {
     monto: num(m.monto),
   }));
 
-  const hoy = new Date();
-  const hoyISO = hoy.toISOString().slice(0, 10);
-  const desdeSaldo = politica.saldo_inicial_fecha;
+  // El día del usuario, no el del servidor. `toISOString()` es UTC: a las
+  // 23:00 de Paraguay ya sería mañana, y un compromiso que vence mañana
+  // dejaría de contarse como futuro.
+  const hoyISO = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Asuncion",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
-  // Aplicados: lo que ya ocurrió desde que se declaró el saldo inicial.
-  const aplicados = movimientos.filter((m) => m.fecha >= desdeSaldo && m.fecha <= hoyISO);
+  // ==========================================================
+  // CONCILIACIÓN
+  //
+  // EOS no ve los pagos con billetera ni el efectivo. Sin esto, el disponible
+  // real se muestra con total confianza estando equivocado, y el usuario
+  // decide con ese número.
+  //
+  // Si el usuario ya le dijo alguna vez cuánto tiene de verdad, se parte de
+  // ahí en vez del saldo inicial; y si lo dijo dos veces, EOS ya aprendió a
+  // qué ritmo se le escapa dinero y lo descuenta sin volver a preguntar.
+  // ==========================================================
+  const conciliaciones = ((conciliacionesRes.data ?? []) as ConciliacionFila[]).map((c) => ({
+    fecha: c.fecha,
+    saldo_declarado: num(c.saldo_declarado),
+  }));
+
+  const estadoConciliacion = conciliar({
+    saldoInicial: num(politica.saldo_inicial),
+    saldoInicialFecha: politica.saldo_inicial_fecha,
+    conciliaciones,
+    movimientos,
+    hoy: hoyISO,
+  });
+
+  const desdeSaldo = estadoConciliacion.desde;
+
+  // Aplicados: lo que ocurrió desde el último punto confiable.
+  const aplicados = movimientos.filter((m) => m.fecha > desdeSaldo && m.fecha <= hoyISO);
   const ingresos = sum(aplicados.filter((m) => m.tipo === "ingreso"));
   const gastos = sum(aplicados.filter((m) => m.tipo === "gasto"));
 
@@ -118,7 +161,12 @@ export async function GET() {
   );
   const totalPrevisible = previsibles.reduce((total, p) => total + p.monto, 0);
 
-  const saldoEstimado = num(politica.saldo_inicial) + ingresos - gastos;
+  // La base sale de la conciliación: el último saldo que el usuario confirmó,
+  // o el inicial si nunca confirmó ninguno. Y se descuenta lo que EOS aprendió
+  // que se gasta sin verlo — billetera, efectivo — para no mostrar de más.
+  const saldoEstimado =
+    estadoConciliacion.base + ingresos - gastos - estadoConciliacion.gasto_invisible;
+
   const reserva = num(politica.reserva_minima);
   const ahorroComprometido = (ingresos * num(politica.porcentaje_ahorro)) / 100;
 
@@ -191,6 +239,15 @@ export async function GET() {
           })),
         },
         series_detectadas: series.length,
+      },
+      conciliacion: {
+        confianza: estadoConciliacion.confianza,
+        veces: estadoConciliacion.conciliaciones,
+        dias_desde_ultima: estadoConciliacion.dias_desde_ultima,
+        gasto_invisible: redondear(estadoConciliacion.gasto_invisible),
+        // Ya aprendió el ritmo: puede descontar solo y no molestar más.
+        aprendido: estadoConciliacion.ritmo_diario !== null,
+        conviene_preguntar: convieneConciliar(estadoConciliacion),
       },
     },
     { headers: noStore() },
