@@ -112,6 +112,22 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
     detalle: faltantes.length === 0 ? "todas presentes" : `faltan: ${faltantes.join(", ")}`,
   });
 
+  // Entorno de cobros, siempre visible.
+  //
+  // Cobrar tarjetas reales apuntando a staging —o al revés— es un desastre
+  // silencioso: no falla nada visible, simplemente el dinero no existe donde
+  // se cree que existe. Tenerlo a la vista en el chequeo evita descubrirlo
+  // por un cliente que reclama.
+  const entornoBancard = (process.env.BANCARD_ENV || "staging").trim().toLowerCase();
+  chequeos.push({
+    nombre: "Entorno de cobros (Bancard)",
+    ok: true,
+    detalle:
+      entornoBancard === "production"
+        ? "PRODUCCIÓN — se cobran tarjetas reales"
+        : `${entornoBancard} — los cobros son de prueba, no entra dinero`,
+  });
+
   const opcionalesFaltantes = VARIABLES_OPCIONALES.filter((v) => !process.env[v]);
   if (opcionalesFaltantes.length > 0) {
     chequeos.push({
