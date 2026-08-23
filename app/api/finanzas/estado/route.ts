@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { conciliar, convieneConciliar } from "@/lib/finanzas/conciliacion";
+import { combinarSeries, confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
 import {
   detectarSeries,
   proximoIngreso,
@@ -49,7 +50,7 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes] = await Promise.all([
+  const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes, fijosRes] = await Promise.all([
     supabase
       .from("eos_finanzas_politica")
       .select("moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro,umbral_autorizacion")
@@ -66,6 +67,11 @@ export async function GET() {
       .select("fecha,saldo_declarado")
       .eq("usuario_id", user.id)
       .order("fecha", { ascending: true }),
+    supabase
+      .from("eos_finanzas_fijos")
+      .select("tipo,descripcion,monto,dia_del_mes")
+      .eq("usuario_id", user.id)
+      .eq("activo", true),
   ]);
 
   if (politicaRes.error && politicaRes.error.code !== "PGRST116") {
@@ -141,7 +147,26 @@ export async function GET() {
   // lib/finanzas/recurrencia.ts): son dato derivado y duplicarían el gasto
   // cuando el movimiento real aparezca.
   // ==========================================================
-  const series = detectarSeries(movimientos);
+  const detectadas = detectarSeries(movimientos);
+
+  // Lo que el usuario declaró como fijo se suma a lo que EOS detectó, pero la
+  // realidad manda: si el correo ya trae el alquiler, la serie observada
+  // reemplaza a la declarada. Sumarlas descontaría el gasto dos veces.
+  const fijos = (
+    (fijosRes.data ?? []) as {
+      tipo: string;
+      descripcion: string;
+      monto: number | string;
+      dia_del_mes: number;
+    }[]
+  ).map<Fijo>((f) => ({
+    tipo: f.tipo === "ingreso" ? "ingreso" : "gasto",
+    descripcion: f.descripcion,
+    monto: num(f.monto),
+    dia_del_mes: f.dia_del_mes,
+  }));
+
+  const series = combinarSeries(detectadas, fijos, hoyISO);
   const ingresoEstimado = proximoIngreso(series, hoyISO);
 
   // El horizonte natural del disponible real es "hasta que vuelva a entrar
@@ -238,7 +263,11 @@ export async function GET() {
             periodicidad: p.periodicidad,
           })),
         },
-        series_detectadas: series.length,
+        series_detectadas: detectadas.length,
+        fijos_declarados: fijos.length,
+        // Declaraciones que la realidad ya confirmó por correo: la semilla
+        // cumplió su función y se retiró sola.
+        fijos_confirmados: confirmadosPorLaRealidad(detectadas, fijos),
       },
       conciliacion: {
         confianza: estadoConciliacion.confianza,

@@ -6,6 +6,7 @@ import FinanzasSetup from "./FinanzasSetup";
 import FinanzasCandidatos from "./FinanzasCandidatos";
 import FinanzasBuzon from "./FinanzasBuzon";
 import FinanzasConciliar from "./FinanzasConciliar";
+import FinanzasFijos from "./FinanzasFijos";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -47,6 +48,8 @@ type EstadoFinanciero = {
       detalle: { fecha: string; descripcion: string; monto: number; periodicidad: string }[];
     };
     series_detectadas: number;
+    fijos_declarados: number;
+    fijos_confirmados: number;
   };
 };
 
@@ -120,6 +123,11 @@ export default function FinanzasPanel() {
         onListo={() => void cargar()}
       />
     )}
+    <FinanzasFijos
+      moneda={data.moneda}
+      confirmados={data.prevision?.fijos_confirmados ?? 0}
+      onGuardado={() => void cargar()}
+    />
     <FinanzasBuzon />
     <FinanzasCandidatos onImportado={() => void cargar()} />
 
