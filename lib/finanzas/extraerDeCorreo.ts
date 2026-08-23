@@ -229,7 +229,7 @@ export function buscarImportes(texto: string): ImporteHallado[] {
    DIRECCIÓN Y FECHA
 ========================================================= */
 
-function direccionEn(texto: string): "ingreso" | "gasto" | null {
+function marcaDireccion(texto: string): { tipo: "ingreso" | "gasto"; pos: number } | null {
   const plano = sinAcentos(texto);
 
   // Se busca la primera coincidencia por posición, no por orden de la lista:
@@ -245,7 +245,54 @@ function direccionEn(texto: string): "ingreso" | "gasto" | null {
     if (pos !== -1 && (mejor === null || pos < mejor.pos)) mejor = { tipo: "gasto", pos };
   }
 
-  return mejor?.tipo ?? null;
+  return mejor;
+}
+
+function direccionEn(texto: string): "ingreso" | "gasto" | null {
+  return marcaDireccion(texto)?.tipo ?? null;
+}
+
+/**
+ * Palabras que convierten a un importe en un SALDO y no en un movimiento.
+ *
+ * Casi todo aviso bancario informa el saldo junto con la operación, y el saldo
+ * siempre es el número más grande del correo. Tomarlo por el movimiento no
+ * produce un error chico: convierte una acreditación de ₲500.000 en un ingreso
+ * de ₲4.200.000, con confianza suficiente para guardarse solo.
+ */
+const PALABRAS_DE_SALDO = ["saldo", "limite disponible", "disponible es", "cupo"];
+
+/** ¿El importe que empieza en `indice` viene precedido por palabra de saldo? */
+function pareceSaldo(plano: string, indice: number): boolean {
+  const antes = plano.slice(Math.max(0, indice - 35), indice);
+  return PALABRAS_DE_SALDO.some((p) => antes.includes(p));
+}
+
+/**
+ * De todos los importes del aviso, cuál es el del movimiento.
+ *
+ * La regla es semántica, no posicional: **el importe del movimiento es el que
+ * está más cerca de la palabra que dice qué pasó** ("se acreditó", "consumo",
+ * "se debitó"). Tomar el primero funcionaba solo mientras el banco escribiera
+ * la operación antes que el saldo; dado vuelta —"su saldo es X luego de la
+ * acreditación de Y"— guardaba el saldo como ingreso.
+ *
+ * Un importe pegado a la palabra "saldo" queda descartado salvo que sea el
+ * único: es la señal más fuerte de que ese número no es el movimiento.
+ */
+function elegirPrincipal(
+  importes: ImporteHallado[],
+  plano: string,
+  posicionDireccion: number,
+): ImporteHallado {
+  const noSaldo = importes.filter((i) => !pareceSaldo(plano, i.indice));
+  const candidatos = noSaldo.length > 0 ? noSaldo : importes;
+
+  return candidatos.reduce((mejor, actual) =>
+    Math.abs(actual.indice - posicionDireccion) < Math.abs(mejor.indice - posicionDireccion)
+      ? actual
+      : mejor,
+  );
 }
 
 /** Fecha del cuerpo (dd/mm/aaaa o dd-mm-aaaa). Si no hay, la del correo. */
@@ -332,7 +379,7 @@ export function extraerDeCorreo(correo: CorreoEntrante): MovimientoDeCorreo[] {
 
   const fecha = buscarFecha(cuerpo, correo.recibidoEn);
   const descripcion = describir(correo, cuerpo);
-  const principal = importes[0];
+  const principal = elegirPrincipal(importes, plano, marcaDireccion(completo)?.pos ?? 0);
 
   // Confianza: máxima cuando el asunto dice la dirección y hay un único
   // importe en todo el aviso. Cada ambigüedad la baja.

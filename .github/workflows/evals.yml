@@ -1,0 +1,39 @@
+# La hoja de ruta pide que los evals corran "en cada deploy".
+#
+# Corren acá y no en el `build` de Vercel a propósito: el corredor ejecuta
+# TypeScript directo con `node`, algo que Node 24 hace solo y Node 22 no.
+# Meterlo en `npm run build` ataría cada deploy del sitio a la versión de Node
+# que Vercel decida usar — y un cambio de versión del proveedor dejaría a EOS
+# sin poder desplegar por un motivo que no tiene nada que ver con EOS.
+#
+# Como Vercel despliega desde git, correr en cada push a main es, en la
+# práctica, correr en cada deploy — sin poner el sitio de rehén.
+
+name: evals
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      # Los tests protegen las funciones; los evals protegen las respuestas.
+      - run: npm test
+      - run: npm run evals
+
+      # La auditoría por mutación NO corre acá: rompe el código a propósito
+      # para comprobar que el corpus lo note, y sus fragmentos se desactualizan
+      # apenas alguien reescribe una línea. Es un chequeo manual
+      # (`npm run evals:mutacion`) que se corre al agregar casos nuevos.

@@ -127,12 +127,20 @@ export function parsearImporte(texto: string): { monto: number; moneda: "PYG" | 
   const limpio = texto.trim();
   const enMinusculas = limpio.toLowerCase();
 
+  // Un porcentaje no es plata. "5,5%" entraba como ₲5,5.
+  if (limpio.includes("%")) return null;
+
   const esUSD =
     /\b(usd|us\$|d[oó]lar)/i.test(limpio) || (/\$/.test(limpio) && !/gs|₲|pyg|guaran/i.test(enMinusculas));
 
   // Nos quedamos solo con dígitos y separadores.
   const numerico = limpio.replace(/[^\d.,]/g, "");
   if (!numerico) return null;
+
+  // Ceros a la izquierda: nadie escribe ₲000123456. Es un número de
+  // comprobante, de cuenta o de operación — la fuente más común de importes
+  // falsos en un extracto.
+  if (/^0\d/.test(numerico)) return null;
 
   const tieneComa = numerico.includes(",");
   const tienePunto = numerico.includes(".");
@@ -161,6 +169,13 @@ export function parsearImporte(texto: string): { monto: number; moneda: "PYG" | 
 
   const monto = Number(normalizado);
   if (!Number.isFinite(monto) || monto <= 0) return null;
+
+  // El guaraní no tiene centavos. Un decimal acá no es un importe con
+  // fracción: es una lectura que salió mal ("Gs. 1,5" por "Gs. 1,5 millones").
+  // Guardrail 3: decir "no sé" antes que inventar un número.
+  // "1.234.567,00" sí pasa —Number lo devuelve entero—, que es como los
+  // extractos escriben los montos redondos.
+  if (!esUSD && !Number.isInteger(monto)) return null;
 
   return { monto, moneda: esUSD ? "USD" : "PYG" };
 }
@@ -205,11 +220,53 @@ function armarISO(anio: number, mes: number, dia: number): string | null {
   return fecha.toISOString().slice(0, 10);
 }
 
+/**
+ * Marcas de que la plata fue RECIBIDA, no apenas mencionada.
+ *
+ * Sirven para desempatar, no para puntuar. "Pago recibido del cliente" tiene
+ * una palabra de cada lado —'pago' sale, 'recibido' entra— y el empate caía al
+ * default 'gasto': un cobro de ₲2.000.000 se descontaba en vez de sumarse, con
+ * un error total de ₲4.000.000.
+ *
+ * Se desempata a favor del ingreso solo con estas marcas y no con cualquier
+ * palabra de la lista de ingresos, porque en Paraguay 'cobro' es ambiguo: lo
+ * que yo cobro y lo que el banco me cobra se escriben igual. 'Recibido' y
+ * 'acreditado', en cambio, solo se dicen de la plata que entra.
+ */
+const RECEPCION_EXPLICITA = [
+  "recibido",
+  "recibida",
+  "recibimos",
+  "recibiste",
+  "acreditación",
+  "acreditacion",
+  "acreditado",
+  "acreditada",
+  "depositado",
+  "a mi favor",
+  "a tu favor",
+  "a su favor",
+];
+
 /** Infiere la dirección del movimiento según el contexto de la frase. */
 export function inferirTipo(contexto: string): { tipo: MovimientoCandidato["tipo"]; confianza: number } {
   const texto = contexto.toLowerCase();
 
-  const puntaje = (palabras: string[]) => palabras.reduce((total, p) => (texto.includes(p) ? total + 1 : total), 0);
+  /**
+   * Cuenta CONCEPTOS distintos, no coincidencias de texto.
+   *
+   * "compras" hace match con "compra" y con "compras" a la vez, así que la
+   * misma evidencia puntuaba 2 en plural y 1 en singular — y 2 es lo que sube
+   * la confianza a 0,85, el nivel con el que la UI deja de pedir revisión. La
+   * fuerza de una prueba no puede depender de la gramática.
+   */
+  const puntaje = (palabras: string[]) => {
+    const conceptos = new Set<string>();
+    for (const palabra of palabras) {
+      if (texto.includes(palabra)) conceptos.add(palabra.replace(/s$/, ""));
+    }
+    return conceptos.size;
+  };
 
   const compromiso = puntaje(COMPROMISO);
   const ingreso = puntaje(INGRESO);
@@ -223,6 +280,14 @@ export function inferirTipo(contexto: string): { tipo: MovimientoCandidato["tipo
 
   if (ingreso > gasto) return { tipo: "ingreso", confianza: ingreso >= 2 ? 0.85 : 0.7 };
   if (gasto > ingreso) return { tipo: "gasto", confianza: gasto >= 2 ? 0.85 : 0.7 };
+
+  // Empate con señales de los dos lados. Gana el ingreso solo si el texto dice
+  // explícitamente que la plata se recibió; la confianza queda baja a
+  // propósito, porque sigue siendo un texto ambiguo y la UI debe pedir
+  // revisión antes de tocar el disponible real.
+  if (ingreso > 0 && ingreso === gasto && RECEPCION_EXPLICITA.some((p) => texto.includes(p))) {
+    return { tipo: "ingreso", confianza: 0.6 };
+  }
 
   // Sin señales claras se asume gasto (lo más frecuente en comprobantes),
   // pero con confianza baja para que la UI lo marque como "revisar".

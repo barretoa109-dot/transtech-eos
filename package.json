@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test \"lib/**/*.test.ts\""
+    "test": "node --test \"lib/**/*.test.ts\"",
+    "evals": "node evals/correr.ts",
+    "evals:mutacion": "node evals/mutacion.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
