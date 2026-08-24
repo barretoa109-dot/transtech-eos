@@ -76,6 +76,30 @@ test("formato real del Banco GNB: transferencia recibida", () => {
   assert.equal(m.fecha, "2026-08-20", "la fecha sale del cuerpo, no del reenvío");
 });
 
+test("formato real del Banco GNB: transferencia ENVIADA (débito)", () => {
+  // El GNB escribe el asunto en plural, igual que en las recibidas. Sin el
+  // plural en la lista de gastos la confianza quedaba en 0,80 —el umbral
+  // exacto— y un débito real quedaba a un pelo de descartarse en silencio.
+  const m = entra(
+    correo({
+      asunto: "Transferencias Enviadas SPI",
+      texto: [
+        "Estimado cliente, se le informa que se ha registrado un débito a su cuenta",
+        "por la siguiente operación:",
+        "Fecha y hora: 24/08/2026 10:15:00",
+        "Importe: PYG 250.000",
+      ].join("\n"),
+      remitente: "Transferencias@bancognb.com.py",
+    }),
+  );
+
+  assert.ok(m, "un débito real del GNB tiene que entrar");
+  assert.equal(m.tipo, "gasto");
+  assert.equal(m.monto, 250_000);
+  assert.equal(m.fecha, "2026-08-24");
+  assert.ok(m.confianza > 0.8, `debería superar cómodamente el umbral, dio ${m.confianza}`);
+});
+
 test("el reenvío no ensucia la descripción: sin 'Fwd:' y con el asunto original", () => {
   // De esta descripción sale la clave que agrupa las series recurrentes. Si un
   // mes llega reenviado y otro no, serían dos series distintas en vez de una.

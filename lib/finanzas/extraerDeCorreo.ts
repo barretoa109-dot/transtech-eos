@@ -55,6 +55,11 @@ const PALABRAS_GASTO = [
   "consumo",
   "cargo",
   "transferencia enviada",
+  // En plural porque así lo escribe el GNB ("Transferencias Enviadas SPI"),
+  // igual que su contraparte de ingresos. Sin esto la dirección no se detecta
+  // en el asunto y la confianza queda justo en el umbral: un débito real a un
+  // pelo de descartarse en silencio.
+  "transferencias enviadas",
   "enviaste",
   "giro enviado",
 ];
