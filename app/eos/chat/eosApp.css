@@ -1999,3 +1999,121 @@
   color: var(--muted);
   opacity: 0.8;
 }
+
+/* ============================================================
+   ONBOARDING — la conversación fundacional
+   ============================================================
+   No reutiliza `.fin-setup-input` a propósito: ese campo es de 26px y sin
+   borde porque está pensado para UNA cifra sola en la pantalla. Acá hay
+   listas de renglones, y forzarlo daría una pantalla de números gigantes sin
+   contorno donde no se entiende qué es cada cosa.
+*/
+.eos-app .onb-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 18px 0 12px;
+}
+.eos-app .onb-fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.eos-app .onb-campo {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eos-app .onb-campo:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(22, 86, 189, 0.1);
+}
+.eos-app .onb-campo:disabled {
+  background: var(--line-soft);
+  color: var(--muted);
+}
+.eos-app .onb-input { flex: 1 1 180px; }
+.eos-app .onb-select { flex: 0 0 132px; }
+.eos-app .onb-monto { flex: 0 0 118px; }
+.eos-app .onb-dia { flex: 0 0 72px; }
+.eos-app .onb-texto {
+  width: 100%;
+  margin-top: 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.eos-app .onb-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.eos-app .onb-fila-deuda .onb-check { flex: 1 1 100%; }
+.eos-app .onb-quitar {
+  padding: 7px 9px;
+  color: var(--muted);
+}
+.eos-app .onb-pregunta-secundaria { margin-top: 26px; }
+.eos-app .onb-resumen { margin: 18px 0; }
+
+/* La advertencia de cobertura: se ve distinta porque NO es una instrucción
+   para el usuario, es EOS admitiendo un límite propio. */
+.eos-app .onb-honestidad {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--blue);
+  border-radius: 0 10px 10px 0;
+  background: var(--blue-light);
+}
+.eos-app .onb-icono {
+  display: inline;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.eos-app .onb-icono-der {
+  margin-right: 0;
+  margin-left: 6px;
+}
+
+/* La conversación ocupa la pantalla entera: si conviviera con el dashboard,
+   las preguntas competirían con números que el usuario todavía no entiende. */
+.eos-app .onb-pantalla {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 16px 48px;
+  background: var(--bg-sidebar);
+}
+.eos-app .onb-pantalla > .card {
+  width: 100%;
+  max-width: 620px;
+}
+.eos-app .onb-marca {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  color: var(--muted);
+}

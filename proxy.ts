@@ -54,7 +54,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(eosUrl);
   }
 
-  const rutaProtegida = pathname.startsWith("/eos/chat");
+  // El onboarding necesita sesión igual que el chat: sin ella, todas las
+  // respuestas del usuario se pierden con un 401 que él no ve, y la pantalla
+  // le promete justo lo contrario ("cada respuesta queda guardada").
+  const rutaProtegida =
+    pathname.startsWith("/eos/chat") || pathname.startsWith("/eos/onboarding");
 
   if (rutaProtegida && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -84,6 +88,7 @@ export const config = {
     "/dashboard/:path*",
     "/dashboard-eos/:path*",
     "/eos/chat/:path*",
+    "/eos/onboarding/:path*",
     "/mobile/:path*",
   ],
 };
