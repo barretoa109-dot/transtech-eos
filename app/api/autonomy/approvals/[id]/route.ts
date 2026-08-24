@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { registrarAuditoria } from "@/lib/auditoria/registrar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +115,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    await registrarAuditoria(createAdminClient() as never, {
+      usuarioId: user.id,
+      evento: "accion_rechazada",
+      origen: "panel",
+      resumen: `Rechazaste la acción ${current.accion} que EOS había propuesto.`,
+      referencia: id,
+      detalle: { accion: current.accion, riesgo: current.risk_tier },
+    });
+
     return NextResponse.json(
       { ok: true, approval: rejected, executed: false },
       { headers: noStoreHeaders() },
@@ -142,6 +153,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     approval = approved;
+
+    // Se asienta el TAP, no el resultado. La regla no negociable de la hoja de
+    // ruta es que ninguna acción se ejecute sin autorización explícita; lo que
+    // hay que poder probar después es que esa autorización existió y cuándo.
+    // Si la ejecución falla más abajo, la autorización igual ocurrió.
+    await registrarAuditoria(createAdminClient() as never, {
+      usuarioId: user.id,
+      evento: "accion_autorizada",
+      origen: "panel",
+      resumen: `Autorizaste la acción ${approval.accion}.`,
+      referencia: id,
+      detalle: {
+        accion: approval.accion,
+        riesgo: approval.risk_tier,
+        nivel: approval.effective_level,
+        request_id: approval.request_id,
+      },
+    });
   } else if (current.status !== "approved") {
     return NextResponse.json(
       { error: "La solicitud ya fue resuelta." },

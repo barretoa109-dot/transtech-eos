@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { registrarAuditoria } from "@/lib/auditoria/registrar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +39,16 @@ export async function GET() {
 
   const fecha = new Date().toISOString().slice(0, 10);
   const cuerpo = JSON.stringify(data, null, 2);
+
+  // Que alguien se haya descargado TODO es un hecho de seguridad: si la cuenta
+  // se ve comprometida, la pregunta que importa es cuándo salieron los datos.
+  await registrarAuditoria(createAdminClient() as never, {
+    usuarioId: user.id,
+    evento: "datos_exportados",
+    origen: "panel",
+    resumen: "Descargaste una copia completa de tus datos.",
+    detalle: { bytes: cuerpo.length },
+  });
 
   return new Response(cuerpo, {
     headers: {

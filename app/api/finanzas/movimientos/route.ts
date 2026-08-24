@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { registrarVarias, resumirMovimiento } from "@/lib/auditoria/registrar";
 import { extraerMovimientos, type MoneyFinding } from "@/lib/finanzas/extraerMovimientos";
 import { NextResponse } from "next/server";
 
@@ -118,7 +120,7 @@ export async function POST(request: Request) {
     const fecha =
       typeof item.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item.fecha)
         ? item.fecha
-        : new Date().toISOString().slice(0, 10);
+        : hoyEnParaguay();
 
     filas.push({
       usuario_id: user.id,
@@ -143,7 +145,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No pudimos guardar los movimientos." }, { status: 500, headers: noStore() });
   }
 
+  // Estos movimientos SÍ los confirmó el usuario, a diferencia de los que
+  // entran por correo. La bitácora guarda las dos cosas y las distingue: es la
+  // diferencia entre "EOS lo dedujo" y "vos lo aprobaste".
+  const admin = createAdminClient() as never;
+  await registrarVarias(
+    admin,
+    filas.map((fila) => ({
+      usuarioId: user.id,
+      evento: "movimiento_confirmado" as const,
+      origen: "documento" as const,
+      resumen: resumirMovimiento({
+        tipo: fila.tipo === "ingreso" ? "ingreso" : "gasto",
+        monto: fila.monto,
+        moneda: fila.moneda,
+        descripcion: fila.descripcion ?? "sin descripción",
+        fuente: "confirmado por vos desde un documento",
+      }),
+      referencia: fila.documento_id,
+      detalle: {
+        tipo: fila.tipo,
+        monto: fila.monto,
+        moneda: fila.moneda,
+        fecha: fila.fecha,
+        confianza: fila.metadata.confianza ?? undefined,
+      },
+    })),
+  );
+
   return NextResponse.json({ ok: true, guardados: filas.length }, { headers: noStore() });
+}
+
+/**
+ * Hoy en Paraguay, no hoy en UTC.
+ *
+ * Acá había un `toISOString().slice(0, 10)`: a las 21:00 de Asunción la base
+ * ya está en el día siguiente, así que un movimiento confirmado de noche
+ * quedaba fechado mañana. Es el mismo error que ya apareció en el cron del
+ * briefing y en el panel de finanzas.
+ */
+function hoyEnParaguay() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Asuncion",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function noStore() {

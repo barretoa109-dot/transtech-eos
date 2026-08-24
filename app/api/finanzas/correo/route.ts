@@ -7,6 +7,12 @@ import {
   extraerDeCorreo,
   type MovimientoDeCorreo,
 } from "@/lib/finanzas/extraerDeCorreo";
+import {
+  registrarAuditoria,
+  registrarVarias,
+  resumirMovimiento,
+  type EntradaAuditoria,
+} from "@/lib/auditoria/registrar";
 
 export const dynamic = "force-dynamic";
 
@@ -200,6 +206,57 @@ async function procesar(args: {
 
       if (insertError) throw insertError;
     }
+
+    // Bitácora inmutable: es lo que le contesta al usuario "¿de dónde salió
+    // este número?" sobre plata que entró sin que él tocara nada. Se registra
+    // también lo DESCARTADO: que EOS haya visto un importe y no lo haya
+    // guardado es información, y sin esto no queda rastro de esa decisión.
+    const descartados = movimientos.filter((m) => m.confianza < CONFIANZA_MINIMA_CORREO);
+    const fuente = (correo.from ?? args.from ?? "").split("@")[1] ?? "correo";
+
+    await registrarAuditoria(admin, {
+      usuarioId,
+      evento: "correo_recibido",
+      origen: "correo",
+      resumen: `Llegó un aviso de ${fuente}: ${confiables.length} movimiento(s) registrado(s), ${descartados.length} descartado(s).`,
+      referencia: emailId,
+      detalle: { remitente: fuente, leidos: movimientos.length },
+    });
+
+    await registrarVarias(admin, [
+      ...confiables.map(
+        (m): EntradaAuditoria => ({
+          usuarioId,
+          evento: "movimiento_ingerido",
+          origen: "correo",
+          resumen: resumirMovimiento({ ...m, fuente: `aviso de ${fuente}` }),
+          referencia: emailId,
+          detalle: {
+            tipo: m.tipo,
+            monto: m.monto,
+            moneda: m.moneda,
+            fecha: m.fecha,
+            confianza: m.confianza,
+          },
+        }),
+      ),
+      ...descartados.map(
+        (m): EntradaAuditoria => ({
+          usuarioId,
+          evento: "movimiento_descartado",
+          origen: "correo",
+          resumen: `Se descartó un posible ${m.tipo} de ${m.moneda} ${m.monto}: la lectura no llegó al mínimo de confianza.`,
+          referencia: emailId,
+          detalle: {
+            tipo: m.tipo,
+            monto: m.monto,
+            moneda: m.moneda,
+            confianza: m.confianza,
+            minimo: CONFIANZA_MINIMA_CORREO,
+          },
+        }),
+      ),
+    ]);
 
     await admin
       .from("eos_correos_entrantes")
