@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { destinoPedido } from "@/lib/auth/destino";
 
 interface Props {
   onRegister: () => void;
@@ -59,7 +60,12 @@ export default function LoginForm({
       return;
     }
 
-    router.replace("/eos/chat");
+    /*
+     * Al destino pedido, no siempre al chat. Quien llega acá desde el aviso
+     * de una renovación caída viene a pagar: dejarlo en el chat es hacerle
+     * buscar de nuevo la pantalla que le habíamos puesto en la mano.
+     */
+    router.replace(destinoPedido());
     router.refresh();
   }
 
@@ -69,7 +75,9 @@ export default function LoginForm({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/eos/chat`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          destinoPedido(),
+        )}`,
       },
     });
 

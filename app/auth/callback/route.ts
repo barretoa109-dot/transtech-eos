@@ -1,38 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-const DESTINOS_AUTH_PERMITIDOS = [
-  "/eos/chat",
-  "/planes",
-  "/pago",
-];
-
-function destinoSeguro(raw: string | null, origin: string) {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) {
-    return "/eos/chat";
-  }
-
-  try {
-    const destino = new URL(raw, origin);
-
-    if (destino.origin !== origin) {
-      return "/eos/chat";
-    }
-
-    const permitido = DESTINOS_AUTH_PERMITIDOS.some(
-      (base) =>
-        destino.pathname === base || destino.pathname.startsWith(`${base}/`),
-    );
-
-    if (!permitido) {
-      return "/eos/chat";
-    }
-
-    return `${destino.pathname}${destino.search}`;
-  } catch {
-    return "/eos/chat";
-  }
-}
+import { destinoSeguro } from "@/lib/auth/destino";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);

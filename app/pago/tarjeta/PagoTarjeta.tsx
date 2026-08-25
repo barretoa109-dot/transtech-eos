@@ -86,7 +86,13 @@ export default function PagoTarjeta() {
       const res = await fetch("/api/pagos/bancard/tarjetas", { cache: "no-store" });
 
       if (res.status === 401) {
-        router.replace(`/login?next=/pago/tarjeta?plan=${codigoPlan}`);
+        /*
+         * Sin codificar, el `?plan=` quedaba como parámetro del login y no
+         * como parte del destino: se volvía al checkout sin plan elegido.
+         */
+        const destino = `/pago/tarjeta?plan=${codigoPlan}&periodicidad=${periodicidad}`;
+
+        router.replace(`/login?next=${encodeURIComponent(destino)}`);
         return;
       }
 
@@ -107,7 +113,7 @@ export default function PagoTarjeta() {
     } finally {
       setCargando(false);
     }
-  }, [codigoPlan, router]);
+  }, [codigoPlan, periodicidad, router]);
 
   useEffect(() => {
     cargarTarjetas();
