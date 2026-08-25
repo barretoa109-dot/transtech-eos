@@ -10,6 +10,7 @@ import {
 
 test("dice qué pasó, que no es culpa del usuario y qué hacer", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-28",
     hoy: "2026-08-25",
@@ -22,6 +23,7 @@ test("dice qué pasó, que no es culpa del usuario y qué hacer", () => {
 
 test("no usa la palabra 3DS: no le dice nada a quien lo recibe", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-28",
     hoy: "2026-08-25",
@@ -33,6 +35,7 @@ test("no usa la palabra 3DS: no le dice nada a quien lo recibe", () => {
 
 test("el título no lleva plan ni cifras, porque se ve en la pantalla bloqueada", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-28",
     hoy: "2026-08-25",
@@ -45,6 +48,7 @@ test("el título no lleva plan ni cifras, porque se ve en la pantalla bloqueada"
 
 test("nombra el plan en el cuerpo", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-28",
     hoy: "2026-08-25",
@@ -55,6 +59,7 @@ test("nombra el plan en el cuerpo", () => {
 
 test("con el vencimiento a días, dice el día", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-28",
     hoy: "2026-08-25",
@@ -65,6 +70,7 @@ test("con el vencimiento a días, dice el día", () => {
 
 test("si vence hoy, lo dice así y no con la fecha", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "plus",
     vence: "2026-08-25",
     hoy: "2026-08-25",
@@ -75,6 +81,7 @@ test("si vence hoy, lo dice así y no con la fecha", () => {
 
 test("si vence mañana, lo dice así", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "plus",
     vence: "2026-08-26",
     hoy: "2026-08-25",
@@ -87,6 +94,7 @@ test("si el plan YA venció no se disimula", () => {
   // El cron sigue intentando durante la ventana de gracia. Decir "vence el 24"
   // el 26 le haría creer que todavía tiene margen.
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-08-24",
     hoy: "2026-08-26",
@@ -97,7 +105,12 @@ test("si el plan YA venció no se disimula", () => {
 });
 
 test("sin fecha de vencimiento no se inventa ninguna", () => {
-  const aviso = redactarAvisoRenovacion({ plan: "pro", vence: null, hoy: "2026-08-25" });
+  const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
+    plan: "pro",
+    vence: null,
+    hoy: "2026-08-25",
+  });
 
   assert.match(aviso.cuerpo, /siga activo/);
   assert.doesNotMatch(aviso.cuerpo, /vence/);
@@ -105,6 +118,7 @@ test("sin fecha de vencimiento no se inventa ninguna", () => {
 
 test("el mes cambia sin romper el día", () => {
   const aviso = redactarAvisoRenovacion({
+    motivo: "verificacion",
     plan: "pro",
     vence: "2026-09-01",
     hoy: "2026-08-31",
@@ -181,6 +195,7 @@ function adminFalso(opciones: {
 }
 
 const BASE = {
+  motivo: "verificacion" as const,
   usuarioId: "u1",
   solicitudId: "s-hoy",
   plan: "pro",
@@ -264,5 +279,117 @@ test("si no se puede leer el historial, se calla en vez de arriesgar repetir", a
   });
 
   assert.deepEqual(resultado, { avisado: false, motivo: "sin_historial" });
+  assert.equal(enviados.length, 0);
+});
+
+test("el rechazo de tarjeta no manda a confirmar: manda a cambiarla", () => {
+  // Decirle "confirmá el pago" a quien se quedó sin saldo es mandarlo a
+  // chocar contra la misma pared.
+  const aviso = redactarAvisoRenovacion({
+    motivo: "rechazo",
+    plan: "pro",
+    vence: "2026-08-28",
+    hoy: "2026-08-25",
+  });
+
+  assert.match(aviso.cuerpo, /no aceptó el cobro/);
+  assert.match(aviso.cuerpo, /registrá otra tarjeta/);
+  assert.doesNotMatch(aviso.cuerpo, /confirmá el pago/);
+  assert.doesNotMatch(aviso.cuerpo, /verificación/);
+});
+
+test("el rechazo también dice cuánto tiempo queda", () => {
+  const aviso = redactarAvisoRenovacion({
+    motivo: "rechazo",
+    plan: "pro",
+    vence: "2026-08-28",
+    hoy: "2026-08-25",
+  });
+
+  assert.match(aviso.cuerpo, /vence el 28/);
+});
+
+test("el rechazo vencido apura igual que la verificación", () => {
+  const aviso = redactarAvisoRenovacion({
+    motivo: "rechazo",
+    plan: "pro",
+    vence: "2026-08-24",
+    hoy: "2026-08-26",
+  });
+
+  assert.match(aviso.cuerpo, /venció el 24/);
+  assert.match(aviso.cuerpo, /no quedarte sin acceso/);
+});
+
+test("cada motivo lleva su asunto de correo", () => {
+  const verificacion = redactarAvisoRenovacion({
+    motivo: "verificacion",
+    plan: "pro",
+    vence: null,
+    hoy: "2026-08-25",
+  });
+
+  const rechazo = redactarAvisoRenovacion({
+    motivo: "rechazo",
+    plan: "pro",
+    vence: null,
+    hoy: "2026-08-25",
+  });
+
+  assert.notEqual(verificacion.asunto, rechazo.asunto);
+  assert.match(rechazo.asunto, /No pudimos cobrar/);
+});
+
+test("los dos motivos comparten el título, que no delata nada", () => {
+  const rechazo = redactarAvisoRenovacion({
+    motivo: "rechazo",
+    plan: "pro",
+    vence: "2026-08-28",
+    hoy: "2026-08-25",
+  });
+
+  assert.equal(rechazo.titulo, TITULO_RENOVACION);
+});
+
+test("el aviso de rechazo se entrega por el mismo camino", async () => {
+  const enviados: { asunto: string }[] = [];
+  const admin = adminFalso({
+    previas: [{ id: "s-hoy", metadata: {} }],
+    email: "marta@ejemplo.com",
+  });
+
+  const resultado = await avisarRenovacionPendiente(admin, {
+    ...BASE,
+    motivo: "rechazo",
+    enviarCorreo: async (a) => {
+      enviados.push(a);
+    },
+  });
+
+  assert.deepEqual(resultado, { avisado: true, motivo: "enviado" });
+  assert.match(enviados[0].asunto, /No pudimos cobrar/);
+});
+
+test("un rechazo no vuelve a avisar si ya se avisó por 3DS en la misma ventana", async () => {
+  // Son dos intentos del mismo problema: la renovación no salió. Contarlo dos
+  // veces es la repetición que este freno viene a evitar.
+  const enviados: unknown[] = [];
+  const admin = adminFalso({
+    previas: [
+      { id: "s-hoy", metadata: {} },
+      { id: "s-ayer", metadata: { aviso_renovacion_en: "2026-08-24T13:00:00.000Z" } },
+    ],
+    email: "marta@ejemplo.com",
+  });
+
+  const resultado = await avisarRenovacionPendiente(admin, {
+    ...BASE,
+    motivo: "rechazo",
+    enviarCorreo: async (a) => {
+      enviados.push(a);
+    },
+  });
+
+  assert.deepEqual(resultado, { avisado: false, motivo: "repetido" });
   assert.equal(enviados.length, 0);
 });

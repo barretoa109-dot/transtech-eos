@@ -7,6 +7,7 @@ import { hoyEnParaguay } from "@/lib/fecha";
 import {
   avisarRenovacionPendiente,
   type EnviarCorreo,
+  type MotivoRenovacion,
 } from "@/lib/pagos/avisoRenovacion";
 
 export const runtime = "nodejs";
@@ -123,7 +124,7 @@ export async function GET(request: Request) {
     rechazados: 0,
     omitidos: 0,
     errores: 0,
-    /* Cuántos de los rechazos por 3DS terminaron en un aviso entregado. */
+    /* Cuántas renovaciones caídas terminaron en un aviso entregado. */
     avisados: 0,
     sin_aviso: 0,
   };
@@ -182,10 +183,22 @@ export async function GET(request: Request) {
         baseUrlApp: baseUrlApp(),
       });
 
+      /*
+       * Una renovación se cae sola de dos formas: el emisor pide una
+       * verificación que nadie puede responder, o la tarjeta rechaza el
+       * cobro. Las dos terminan igual —sin plan y sin enterarse— así que
+       * las dos avisan, con distinto texto.
+       */
+      let pendiente: { motivo: MotivoRenovacion; solicitudId: string } | null = null;
+
       if (resultado.tipo === "pagado") {
         resumen.cobrados += 1;
       } else if (resultado.tipo === "rechazado") {
         resumen.rechazados += 1;
+
+        if (resultado.solicitudId) {
+          pendiente = { motivo: "rechazo", solicitudId: resultado.solicitudId };
+        }
       } else if (resultado.tipo === "3ds") {
         /*
          * 3DS necesita al usuario presente, así que no se puede
@@ -200,15 +213,21 @@ export async function GET(request: Request) {
 
         resumen.rechazados += 1;
 
-        /*
-         * Y se le avisa. Sin esto la suscripción se cae en silencio: el
-         * usuario no hizo nada mal, el cobro no se pudo completar porque
-         * su banco pide una verificación que sólo puede responder él, y
-         * se enteraría el día que pierde el acceso.
-         */
+        pendiente = { motivo: "verificacion", solicitudId: resultado.solicitudId };
+      } else {
+        resumen.errores += 1;
+      }
+
+      /*
+       * Sin esto la suscripción se cae en silencio: el usuario no hizo nada
+       * mal, el cobro no se pudo completar, y se enteraría el día que pierde
+       * el acceso.
+       */
+      if (pendiente) {
         const aviso = await avisarRenovacionPendiente(admin, {
+          motivo: pendiente.motivo,
           usuarioId: usuario.id,
-          solicitudId: resultado.solicitudId,
+          solicitudId: pendiente.solicitudId,
           plan: String(usuario.plan || "").toLowerCase(),
           periodicidad,
           vence: usuario.plan_vencimiento
@@ -225,14 +244,12 @@ export async function GET(request: Request) {
         } else if (aviso.motivo !== "repetido") {
           // "repetido" es el caso sano: ya se le avisó en esta ventana.
           console.error(
-            "Renovaciones: 3DS sin aviso para",
+            "Renovaciones: renovación caída sin aviso para",
             usuario.id,
             aviso.motivo,
           );
           resumen.sin_aviso += 1;
         }
-      } else {
-        resumen.errores += 1;
       }
     } catch (error) {
       console.error("Renovaciones: fallo con usuario", usuario.id, error);

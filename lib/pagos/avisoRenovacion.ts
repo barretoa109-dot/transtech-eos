@@ -10,10 +10,16 @@ import { enviarAviso, pushConfigurado, type Suscripcion } from "../push/enviar.t
  * acceso, sin haber hecho nada mal y sin saber qué hacer al respecto. Es la
  * peor forma de perder a alguien, porque quería pagar.
  *
- * El mismo silencio existe cuando la tarjeta rechaza el cobro por otro motivo
- * (saldo, tarjeta vencida). Se resuelve por este mismo camino, pero es otra
- * decisión y otro texto: hoy no está cableado.
+ * Vale para las dos formas en que una renovación se cae sola: el banco pide
+ * una verificación que nadie puede responder, o la tarjeta rechaza el cobro.
+ * Lo que pasó y qué hacer al respecto cambian; el resto es igual.
  */
+
+/**
+ * "verificacion": el emisor pidió 3DS y no hay nadie para responderlo.
+ * "rechazo": la tarjeta dijo que no (saldo, vencida, bloqueada).
+ */
+export type MotivoRenovacion = "verificacion" | "rechazo";
 
 export type EnviarCorreo = (args: {
   para: string;
@@ -53,42 +59,76 @@ function diaDelMes(iso: string): string {
  * tiempo tiene, no cómo funciona 3DS. Y si el plan ya venció se dice, en vez
  * de taparlo con un "pronto" que le haría creer que todavía hay margen.
  */
-function urgencia(vence: string | null, hoy: string): string {
-  if (!vence) return "Entrá y confirmá el pago para que tu plan siga activo.";
+function plazo(vence: string | null, hoy: string): string {
+  if (!vence) return "";
 
-  if (vence < hoy) {
-    return `Tu plan venció el ${diaDelMes(vence)}. Entrá y confirmá el pago para no quedarte sin acceso.`;
-  }
+  if (vence < hoy) return `Tu plan venció el ${diaDelMes(vence)}.`;
 
-  if (vence === hoy) return "Tu plan vence hoy. Entrá y confirmá el pago.";
+  if (vence === hoy) return "Tu plan vence hoy.";
 
   const manana = new Date(Date.parse(`${hoy}T00:00:00Z`) + 86_400_000)
     .toISOString()
     .slice(0, 10);
 
-  if (vence === manana) return "Tu plan vence mañana. Entrá y confirmá el pago.";
+  if (vence === manana) return "Tu plan vence mañana.";
 
-  return `Tu plan vence el ${diaDelMes(vence)}. Entrá y confirmá el pago.`;
+  return `Tu plan vence el ${diaDelMes(vence)}.`;
+}
+
+/*
+ * Qué tiene que hacer, que no es lo mismo en los dos casos: una verificación
+ * se responde, una tarjeta rechazada se cambia. Decirle "confirmá el pago" a
+ * quien se quedó sin saldo es mandarlo a chocar contra la misma pared.
+ */
+function accion(motivo: MotivoRenovacion, vence: string | null, hoy: string): string {
+  const paso =
+    motivo === "verificacion"
+      ? "Entrá y confirmá el pago"
+      : "Entrá y probá de nuevo, o registrá otra tarjeta";
+
+  if (!vence) return `${paso} para que tu plan siga activo.`;
+
+  if (vence < hoy) return `${paso} para no quedarte sin acceso.`;
+
+  return `${paso}.`;
 }
 
 /*
  * El texto dice tres cosas y ninguna más: qué pasó, que no fue culpa suya, y
  * qué tiene que hacer. Dice "verificación adicional de tu banco" y no "3DS":
  * el nombre técnico no le explica nada a quien recibe el mensaje.
+ *
+ * Del rechazo tampoco se cita el motivo que devuelve el emisor. Viene en su
+ * idioma y a veces en su jerga ("Do not honour"), y una explicación que no se
+ * entiende asusta más de lo que orienta. Lo que el usuario necesita saber es
+ * que el cobro no salió y que puede resolverlo.
  */
 export function redactarAvisoRenovacion(args: {
+  motivo: MotivoRenovacion;
   plan: string;
   vence: string | null;
   hoy: string;
 }): TextoRenovacion {
-  const cuerpo = `Tu banco pidió una verificación adicional para renovar ${nombrePlan(
-    args.plan,
-  )} y no la podemos hacer por vos. ${urgencia(args.vence, args.hoy)}`;
+  const situacion =
+    args.motivo === "verificacion"
+      ? `Tu banco pidió una verificación adicional para renovar ${nombrePlan(
+          args.plan,
+        )} y no la podemos hacer por vos.`
+      : `Tu tarjeta no aceptó el cobro para renovar ${nombrePlan(args.plan)}.`;
+
+  const partes = [
+    situacion,
+    plazo(args.vence, args.hoy),
+    accion(args.motivo, args.vence, args.hoy),
+  ].filter(Boolean);
 
   return {
     titulo: TITULO_RENOVACION,
-    cuerpo,
-    asunto: "Tu renovación de EOS necesita que la confirmes vos",
+    cuerpo: partes.join(" "),
+    asunto:
+      args.motivo === "verificacion"
+        ? "Tu renovación de EOS necesita que la confirmes vos"
+        : "No pudimos cobrar tu renovación de EOS",
   };
 }
 
@@ -118,6 +158,7 @@ export async function avisarRenovacionPendiente(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen estas tablas
   admin: any,
   args: {
+    motivo: MotivoRenovacion;
     usuarioId: string;
     solicitudId: string;
     plan: string;
@@ -167,6 +208,7 @@ export async function avisarRenovacionPendiente(
   }
 
   const texto = redactarAvisoRenovacion({
+    motivo: args.motivo,
     plan: args.plan,
     vence: args.vence,
     hoy: args.hoy,
