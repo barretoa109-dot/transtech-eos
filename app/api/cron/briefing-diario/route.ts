@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
+import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "@/lib/push/enviar";
 
 export const runtime = "nodejs";
@@ -100,6 +101,43 @@ export async function GET(request: Request) {
       if (!reporte.sano) await enviarAlerta(reporte, base);
     } catch (error) {
       console.error("Briefing: falló el chequeo de salud posterior:", error);
+    }
+  });
+
+  // Los avisos de riesgo se agendan ACÁ por el mismo motivo que el chequeo de
+  // salud: los `return` tempranos de más abajo —sin RESEND_API_KEY, sin nadie
+  // suscripto al correo— se saltearían este trabajo. Ya pasó dos veces en este
+  // archivo; la tercera se evita poniéndolo antes de cualquier salida.
+  //
+  // Es independiente del briefing a propósito: el briefing es un resumen que
+  // se lee cuando se puede, y esto es un aprieto con fecha. Que alguien tenga
+  // el resumen apagado no significa que no quiera enterarse de que el 28 no le
+  // va a alcanzar.
+  after(async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen estas tablas
+      const cliente: any = createAdminClient();
+      const clave = process.env.RESEND_API_KEY;
+
+      const resumen = await avisarRiesgos(cliente, {
+        hoy: hoyEnParaguay(),
+        // El correo es el respaldo de quien no tiene push. Si no hay clave, se
+        // avisa igual por push: media entrega es mejor que ninguna.
+        enviarCorreo: clave
+          ? async ({ para, asunto, texto }) => {
+              await new Resend(clave).emails.send({
+                from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+                to: para,
+                subject: asunto,
+                text: texto,
+              });
+            }
+          : undefined,
+      });
+
+      console.log("Riesgo: avisos del día", resumen);
+    } catch (error) {
+      console.error("Briefing: falló la detección de riesgos:", error);
     }
   });
 
