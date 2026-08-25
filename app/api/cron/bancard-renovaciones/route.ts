@@ -1,7 +1,13 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { ejecutarCobroBancard } from "@/lib/bancard-cobro";
+import { hoyEnParaguay } from "@/lib/fecha";
+import {
+  avisarRenovacionPendiente,
+  type EnviarCorreo,
+} from "@/lib/pagos/avisoRenovacion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +39,25 @@ function baseUrlApp() {
     "https://www.transtech.com.py";
 
   return base.replace(/\/$/, "");
+}
+
+/*
+ * El correo es el respaldo de quien no tiene push activado. Sin la clave se
+ * avisa igual por push: media entrega es mejor que ninguna.
+ */
+function armarEnviarCorreo(): EnviarCorreo | undefined {
+  const clave = process.env.RESEND_API_KEY;
+
+  if (!clave) return undefined;
+
+  return async ({ para, asunto, texto }) => {
+    await new Resend(clave).emails.send({
+      from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+      to: para,
+      subject: asunto,
+      text: texto,
+    });
+  };
 }
 
 function autorizado(request: Request) {
@@ -98,7 +123,13 @@ export async function GET(request: Request) {
     rechazados: 0,
     omitidos: 0,
     errores: 0,
+    /* Cuántos de los rechazos por 3DS terminaron en un aviso entregado. */
+    avisados: 0,
+    sin_aviso: 0,
   };
+
+  const enviarCorreo = armarEnviarCorreo();
+  const hoy = hoyEnParaguay(ahora);
 
   for (const usuario of candidatos || []) {
     try {
@@ -168,6 +199,38 @@ export async function GET(request: Request) {
         });
 
         resumen.rechazados += 1;
+
+        /*
+         * Y se le avisa. Sin esto la suscripción se cae en silencio: el
+         * usuario no hizo nada mal, el cobro no se pudo completar porque
+         * su banco pide una verificación que sólo puede responder él, y
+         * se enteraría el día que pierde el acceso.
+         */
+        const aviso = await avisarRenovacionPendiente(admin, {
+          usuarioId: usuario.id,
+          solicitudId: resultado.solicitudId,
+          plan: String(usuario.plan || "").toLowerCase(),
+          periodicidad,
+          vence: usuario.plan_vencimiento
+            ? hoyEnParaguay(new Date(usuario.plan_vencimiento))
+            : null,
+          hoy,
+          ventanaDesde: desde.toISOString(),
+          baseUrl: baseUrlApp(),
+          enviarCorreo,
+        });
+
+        if (aviso.avisado) {
+          resumen.avisados += 1;
+        } else if (aviso.motivo !== "repetido") {
+          // "repetido" es el caso sano: ya se le avisó en esta ventana.
+          console.error(
+            "Renovaciones: 3DS sin aviso para",
+            usuario.id,
+            aviso.motivo,
+          );
+          resumen.sin_aviso += 1;
+        }
       } else {
         resumen.errores += 1;
       }
