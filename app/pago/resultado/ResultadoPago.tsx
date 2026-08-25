@@ -20,6 +20,13 @@ export default function ResultadoPago() {
   const router = useRouter();
   const params = useSearchParams();
   const solicitudId = params.get("solicitud") || "";
+  /*
+   * Bancard vuelve del desafío 3DS a esta pantalla con ?ref=<shop_process_id>:
+   * el cobro con tarjeta guardada no pasa por el checkout que arma la URL con
+   * ?solicitud=, así que sin esto la verificación del banco terminaba en un
+   * error de pantalla aunque el pago hubiera salido bien.
+   */
+  const refBancard = params.get("ref") || "";
 
   const [estado, setEstado] = useState<Estado>("cargando");
   const [mensaje, setMensaje] = useState("Estamos consultando tu solicitud.");
@@ -35,19 +42,24 @@ export default function ResultadoPago() {
     }
 
     async function consultar() {
-      if (!solicitudId) {
+      if (!solicitudId && !refBancard) {
         setEstado("error");
         setMensaje("No recibimos el identificador de la solicitud.");
         return;
       }
 
       try {
-        const respuesta = await fetch("/api/pagos/consultar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ solicitud_id: solicitudId }),
-          cache: "no-store",
-        });
+        const respuesta = refBancard
+          ? await fetch(
+              `/api/pagos/bancard/estado?ref=${encodeURIComponent(refBancard)}`,
+              { cache: "no-store" },
+            )
+          : await fetch("/api/pagos/consultar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ solicitud_id: solicitudId }),
+              cache: "no-store",
+            });
 
         const resultado = await respuesta.json().catch(() => null);
 
@@ -57,9 +69,17 @@ export default function ResultadoPago() {
 
         if (!activo) return;
 
-        setSolicitud(resultado.solicitud);
+        const datos: Solicitud = refBancard
+          ? {
+              plan_codigo: resultado.plan,
+              estado: resultado.estado,
+              referencia_interna: refBancard,
+            }
+          : resultado.solicitud;
 
-        const valor = resultado.solicitud?.estado;
+        setSolicitud(datos);
+
+        const valor = datos?.estado;
 
         if (valor === "pagado") {
           setEstado("pagado");
@@ -69,13 +89,19 @@ export default function ResultadoPago() {
 
         if (valor === "rechazado" || valor === "cancelado") {
           setEstado("rechazado");
-          setMensaje("El comprobante no pudo ser aprobado. Contactá con TransTech.");
+          setMensaje(
+            refBancard
+              ? "El banco no aprobó el pago. Podés intentar con otra tarjeta."
+              : "El comprobante no pudo ser aprobado. Contactá con TransTech.",
+          );
           return;
         }
 
         setEstado("revision");
         setMensaje(
-          "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan. Esta pantalla se actualizará automáticamente.",
+          refBancard
+            ? "Estamos esperando la confirmación del banco. Esta pantalla se actualizará automáticamente."
+            : "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan. Esta pantalla se actualizará automáticamente.",
         );
         programarNuevaConsulta();
       } catch (error) {
@@ -93,7 +119,7 @@ export default function ResultadoPago() {
       activo = false;
       if (temporizador) clearTimeout(temporizador);
     };
-  }, [solicitudId]);
+  }, [solicitudId, refBancard]);
 
   const monto =
     solicitud?.monto !== undefined
@@ -119,7 +145,9 @@ export default function ResultadoPago() {
       : estado === "pagado"
         ? "Suscripción activada"
         : estado === "revision"
-          ? "Comprobante recibido"
+          ? refBancard
+            ? "Esperando al banco"
+            : "Comprobante recibido"
           : "No pudimos confirmar la solicitud";
 
   return (
@@ -132,10 +160,16 @@ export default function ResultadoPago() {
 
         {solicitud && (
           <div className="detail">
-            <div><span>Plan</span><strong>EOS {solicitud.plan_codigo}</strong></div>
-            <div><span>Facturación</span><strong>{solicitud.periodicidad}</strong></div>
+            {solicitud.plan_codigo && (
+              <div><span>Plan</span><strong>EOS {solicitud.plan_codigo}</strong></div>
+            )}
+            {solicitud.periodicidad && (
+              <div><span>Facturación</span><strong>{solicitud.periodicidad}</strong></div>
+            )}
             {monto && <div><span>Monto</span><strong>Gs. {monto}</strong></div>}
-            <div><span>Referencia</span><strong>{solicitud.referencia_interna}</strong></div>
+            {solicitud.referencia_interna && (
+              <div><span>Referencia</span><strong>{solicitud.referencia_interna}</strong></div>
+            )}
           </div>
         )}
 
