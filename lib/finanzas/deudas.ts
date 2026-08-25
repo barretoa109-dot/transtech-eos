@@ -33,6 +33,8 @@ export type Deuda = {
   cuota_dia: number | null;
   cuotas_totales: number | null;
   cuotas_pagadas: number;
+  /** Interés anual, si el usuario lo sabe. Suele faltar, y el plan lo tolera. */
+  tasa_anual?: number | null;
   vence_el: string | null;
   estado: EstadoDeuda;
   preocupa: boolean;
