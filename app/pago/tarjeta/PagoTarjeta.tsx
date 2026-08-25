@@ -62,6 +62,15 @@ export default function PagoTarjeta() {
 
   const contenedorIframe = useRef<HTMLDivElement | null>(null);
   const [iframeActivo, setIframeActivo] = useState(false);
+  /*
+   * El desafío 3DS lo dibuja el banco emisor, no Bancard, y es mucho más
+   * alto que el formulario de catastro: en 380px el botón de confirmar
+   * queda abajo del pliegue y hay que scrollear DENTRO del iframe para
+   * encontrarlo. Quien no lo descubre, abandona el pago con el código ya
+   * escrito. No podemos medir el contenido porque es cross-origin, así
+   * que se le da altura suficiente de entrada.
+   */
+  const [desafio3ds, setDesafio3ds] = useState(false);
   const [telefono, setTelefono] = useState("");
   const [pideTelefono, setPideTelefono] = useState(false);
 
@@ -282,6 +291,7 @@ export default function PagoTarjeta() {
 
       await cargarScriptBancard(data.iframe_base_url);
 
+      setDesafio3ds(false);
       setIframeActivo(true);
 
       // El contenedor recién existe después de renderizar.
@@ -328,6 +338,7 @@ export default function PagoTarjeta() {
 
       await cargarScriptBancard(data.iframe_base_url);
 
+      setDesafio3ds(false);
       setIframeActivo(true);
 
       setTimeout(() => {
@@ -376,6 +387,8 @@ export default function PagoTarjeta() {
       // Verificación adicional del banco emisor.
       if (res.ok && data?.requiere_3ds && data?.process_id) {
         await cargarScriptBancard(data.iframe_base_url);
+
+        setDesafio3ds(true);
         setIframeActivo(true);
 
         setTimeout(() => {
@@ -465,7 +478,11 @@ export default function PagoTarjeta() {
 
             {iframeActivo && (
               <div className="iframe-wrap">
-                <div id="bancard-iframe" ref={contenedorIframe} />
+                <div
+                  id="bancard-iframe"
+                  className={desafio3ds ? "desafio" : ""}
+                  ref={contenedorIframe}
+                />
                 <button
                   type="button"
                   className="secundario"
@@ -673,6 +690,10 @@ function EstilosPago() {
         width: 100%;
         min-height: 380px;
         border: 0;
+      }
+      #bancard-iframe.desafio,
+      #bancard-iframe.desafio iframe {
+        min-height: 640px;
       }
       .acciones {
         display: grid;
