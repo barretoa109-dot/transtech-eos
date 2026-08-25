@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { destinoSeguro } from "@/lib/auth/destino";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -71,12 +72,23 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname === "/login" && user) {
-    const destinoUrl = request.nextUrl.clone();
+    /*
+     * Al que ya tiene sesión, el login no tiene nada que ofrecerle; el
+     * destino que venía pidiendo, sí.
+     *
+     * Antes se descartaba la query acá mismo, así que el enlace de un aviso
+     * —"tu renovación no se pudo cobrar, vení a pagar"— terminaba en el chat
+     * justamente para quien conserva la sesión abierta, que es el caso
+     * normal a los pocos días. El formulario nunca llegaba a renderizarse:
+     * el rebote ocurre antes.
+     */
+    const pedido = destinoSeguro(
+      request.nextUrl.searchParams.get("next") ||
+        request.nextUrl.searchParams.get("redirect"),
+      request.nextUrl.origin,
+    );
 
-    destinoUrl.pathname = "/eos/chat";
-    destinoUrl.search = "";
-
-    return NextResponse.redirect(destinoUrl);
+    return NextResponse.redirect(new URL(pedido, request.nextUrl.origin));
   }
 
   return response;

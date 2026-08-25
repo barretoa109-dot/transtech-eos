@@ -50,6 +50,8 @@ export default function PagoTarjeta() {
 
   const codigoPlan = (params.get("plan") || "pro").toLowerCase();
   const periodicidad = params.get("periodicidad") === "anual" ? "anual" : "mensual";
+  /* La puso el rebote de más abajo; sirve para no volver a rebotar. */
+  const yaVolvioDelLogin = params.get("reintento") === "1";
 
   const [tarjetas, setTarjetas] = useState<Tarjeta[]>([]);
   const [seleccionada, setSeleccionada] = useState<string>("");
@@ -87,10 +89,25 @@ export default function PagoTarjeta() {
 
       if (res.status === 401) {
         /*
+         * Una sola vuelta al login, nunca dos.
+         *
+         * El proxy deja pasar según la sesión que ve él, y esta API responde
+         * según la que ve ella. Si alguna vez discrepan —una sesión vencida
+         * entre una y otra— rebotar de nuevo sería quedar yendo y viniendo
+         * para siempre. Con la marca, el segundo 401 se muestra en pantalla
+         * en vez de convertirse en un rulo.
+         */
+        if (yaVolvioDelLogin) {
+          setCargando(false);
+          setError("Tu sesión no está activa. Iniciá sesión de nuevo para pagar.");
+          return;
+        }
+
+        /*
          * Sin codificar, el `?plan=` quedaba como parámetro del login y no
          * como parte del destino: se volvía al checkout sin plan elegido.
          */
-        const destino = `/pago/tarjeta?plan=${codigoPlan}&periodicidad=${periodicidad}`;
+        const destino = `/pago/tarjeta?plan=${codigoPlan}&periodicidad=${periodicidad}&reintento=1`;
 
         router.replace(`/login?next=${encodeURIComponent(destino)}`);
         return;
@@ -113,7 +130,7 @@ export default function PagoTarjeta() {
     } finally {
       setCargando(false);
     }
-  }, [codigoPlan, periodicidad, router]);
+  }, [codigoPlan, periodicidad, router, yaVolvioDelLogin]);
 
   useEffect(() => {
     cargarTarjetas();
