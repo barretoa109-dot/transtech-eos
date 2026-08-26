@@ -25,6 +25,24 @@ function esEnlace(texto: string) {
   );
 }
 
+/**
+ * Los documentos que arma EOS se guardan como DESCRIPCIÓN, no como archivo, así
+ * que el mismo enlace sirve para las tres extensiones: lo único que cambia es
+ * `?formato=`. Por eso la burbuja ofrece los tres y no uno solo — pedirle a EOS
+ * "ahora pasámelo en PDF" gastaría un mensaje del plan para rehacer algo que ya
+ * está hecho.
+ */
+const FORMATOS_DOCUMENTO = [
+  { clave: "excel", etiqueta: "Excel" },
+  { clave: "pdf", etiqueta: "PDF" },
+  { clave: "word", etiqueta: "Word" },
+] as const;
+
+function documentoDeEOS(texto: string): string | null {
+  const enlace = texto.match(/^\/api\/documentos\/([0-9a-f-]{36})(\?[^\s]*)?$/i);
+  return enlace ? enlace[1] : null;
+}
+
 function renderizarTextoEnLinea(texto: string) {
   const partes = texto.split(/(\*\*[^*]+\*\*|`[^`]+`|https?:\/\/[^\s]+)/g);
 
@@ -103,6 +121,36 @@ export default function MessageBubble({
                     key={`space-${index}`}
                     className="message-space"
                   />
+                );
+              }
+
+              const documentoId = documentoDeEOS(limpio);
+
+              if (documentoId) {
+                return (
+                  <div key={`documento-${index}`} className="message-file">
+                    <span className="message-file-icon">
+                      <Download size={18} />
+                    </span>
+
+                    <span className="message-file-text">
+                      <strong>Documento listo</strong>
+                      <small>Bajalo en el formato que prefieras</small>
+                    </span>
+
+                    <span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
+                      {FORMATOS_DOCUMENTO.map((formato) => (
+                        <a
+                          key={formato.clave}
+                          href={`/api/documentos/${documentoId}?formato=${formato.clave}`}
+                          className="message-file-formato"
+                          rel="noopener noreferrer"
+                        >
+                          {formato.etiqueta}
+                        </a>
+                      ))}
+                    </span>
+                  </div>
                 );
               }
 

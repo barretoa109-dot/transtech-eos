@@ -2,6 +2,13 @@ import { after } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
+import type { Documento } from "@/lib/documentos/especificacion";
+import {
+  extraerDocumento,
+  formatoPedido,
+  guardarDocumento,
+  FORMATOS as FORMATOS_DOCUMENTO,
+} from "@/lib/documentos/guardar";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 
@@ -302,6 +309,43 @@ function combinarObjetoRespuesta(valor: unknown): Record<string, unknown> {
   }
 
   return data;
+}
+
+/**
+ * Igual que `normalizarRespuestaN8N`, pero además saca del texto la
+ * descripción del documento que EOS haya querido armar.
+ *
+ * Va separado de la normalización porque guardar el documento necesita el
+ * usuario y la conversación, y la normalización es pura. Ver
+ * `lib/documentos/guardar.ts` para las dos formas en que puede llegar.
+ */
+function normalizarRespuestaConDocumento(rawText: string): RespuestaN8N & {
+  documento: Documento | null;
+  recortes: string[];
+} {
+  const base = normalizarRespuestaN8N(rawText);
+
+  let datos: Record<string, unknown> = {};
+  try {
+    datos = combinarObjetoRespuesta(JSON.parse(rawText));
+  } catch {
+    datos = {};
+  }
+
+  const extraido = extraerDocumento(base.respuesta, datos);
+
+  if (extraido.motivo) {
+    console.error("Documentos: EOS mandó un documento que no se pudo leer:", extraido.motivo);
+  }
+
+  return {
+    ...base,
+    // El texto sin el bloque cercado: el JSON crudo no puede quedar en la
+    // burbuja del chat.
+    respuesta: extraido.texto || base.respuesta,
+    documento: extraido.documento,
+    recortes: extraido.recortes,
+  };
 }
 
 function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
@@ -689,7 +733,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const resultado = normalizarRespuestaN8N(rawText);
+    const resultado = normalizarRespuestaConDocumento(rawText);
 
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
@@ -725,6 +769,36 @@ export async function POST(req: Request) {
     quotaReleased = true;
     releaseReservedQuota = null;
 
+    /*
+     * El archivo que EOS quiso mandar.
+     *
+     * Se guarda DESPUÉS de confirmar el cupo y no antes: si el mensaje se cae a
+     * mitad de camino, no queda un documento colgado que el usuario nunca pidió.
+     * Y si el guardado falla, la respuesta sale igual sin el enlace — perder el
+     * archivo es molesto, perder la respuesta entera por el archivo es peor.
+     */
+    let archivoDocumento: { url: string; nombre: string; tipo: string } | null = null;
+
+    if (resultado.documento) {
+      const formato = formatoPedido(payload.mensaje, resultado.metadata?.formato);
+
+      const guardado = await guardarDocumento(createAdminClient(), {
+        usuarioId: user.id,
+        conversacionId: payload.conversacion_id,
+        documento: resultado.documento,
+        formato,
+        recortes: resultado.recortes,
+      });
+
+      if (guardado) {
+        archivoDocumento = {
+          url: guardado.url,
+          nombre: guardado.nombreArchivo,
+          tipo: FORMATOS_DOCUMENTO[formato].etiqueta.toLowerCase(),
+        };
+      }
+    }
+
     after(async () => {
       try {
         await fetch(
@@ -748,9 +822,30 @@ export async function POST(req: Request) {
       }
     });
 
+    // La descripción del documento no viaja al cliente: ya está guardada, y
+    // puede pesar más que la respuesta entera. Por eso se nombran los campos
+    // uno por uno en vez de esparcir `resultado`.
+    const paraElCliente = {
+      respuesta: resultado.respuesta,
+      archivo_url: resultado.archivo_url,
+      archivo_tipo: resultado.archivo_tipo,
+      archivo_nombre: resultado.archivo_nombre,
+      tipo: resultado.tipo,
+      accion: resultado.accion,
+    };
+
     return Response.json(
       {
-        ...resultado,
+        ...paraElCliente,
+        ...(archivoDocumento
+          ? {
+              archivo_url: archivoDocumento.url,
+              archivo_nombre: archivoDocumento.nombre,
+              archivo_tipo: archivoDocumento.tipo,
+              tipo: "archivo",
+              accion: "GENERAR_ARCHIVO",
+            }
+          : {}),
         metadata: {
           ...resultado.metadata,
           usuario_id: payload.usuario_id,

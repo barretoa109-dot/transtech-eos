@@ -2638,3 +2638,74 @@
   opacity: 0.55;
   cursor: wait;
 }
+
+/* ------------------------------------------------------------------
+   El archivo dentro de la burbuja del chat.
+
+   `.message-file` ya se usaba en MessageBubble pero nunca tuvo estilo: el
+   enlace de descarga salía como texto suelto, indistinguible del resto de la
+   respuesta. Con los documentos a pedido pasa a ser una acción frecuente, así
+   que ahora se ve como una tarjeta.
+   ------------------------------------------------------------------ */
+.eos-app .message-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+}
+.eos-app .message-file:hover {
+  border-color: var(--blue);
+}
+.eos-app .message-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--blue-light);
+  color: var(--blue);
+  flex: none;
+}
+.eos-app .message-file-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* Se queda con el espacio sobrante para que los botones de formato no se
+     peguen al ícono cuando el título es corto. */
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+.eos-app .message-file-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+.eos-app .message-file-text small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.eos-app .message-file-formato {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue-dark);
+  text-decoration: none;
+  background: #fff;
+  transition: border-color 0.15s, background 0.15s;
+}
+.eos-app .message-file-formato:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}

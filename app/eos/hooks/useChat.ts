@@ -170,11 +170,25 @@ export function useChat({
           archivo,
         });
 
-        const textoEOS =
+        const textoBase =
           resultadoEOS.respuesta?.trim() ||
           (resultadoEOS.archivo_url
             ? "Tu archivo ya está listo para descargar."
             : "Listo.");
+
+        /*
+         * El enlace del archivo va DENTRO del texto, en su propia línea.
+         *
+         * No es adorno: de todo el mensaje, `mensajes.texto` es lo único que se
+         * guarda en la base. Si el enlace viviera solo en el objeto en memoria,
+         * el archivo desaparecería al recargar la conversación, y el usuario
+         * tendría que volver a pedírselo a EOS —gastando otro mensaje de su
+         * plan— para bajar algo que ya estaba hecho.
+         */
+        const textoEOS =
+          resultadoEOS.archivo_url && !textoBase.includes(resultadoEOS.archivo_url)
+            ? `${textoBase}\n\n${resultadoEOS.archivo_url}`
+            : textoBase;
 
         const mensajeEOS: Mensaje = {
           id: crearIdMensaje("eos"),
