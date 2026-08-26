@@ -28,12 +28,42 @@
 -- 'manual' —y ensucia la métrica de "cuánto de esto es carga manual", que es la
 -- que mide si EOS está cumpliendo su promesa— o queda fuera del check.
 
+-- OJO: la lista incluye 'correo', que NO está en la migración v51 que creó la
+-- tabla. Apareció al aplicar esto contra producción: hay movimientos con ese
+-- origen, así que en algún momento la restricción se ensanchó fuera de las
+-- migraciones versionadas. Es el mismo problema que el rollback runbook llama
+-- "objetos no versionados": si se hubiera reescrito la lista sin mirar, esta
+-- migración habría fallado —o peor, habría borrado un valor válido.
+--
+-- Por eso antes de tocar la restricción se revisa qué valores existen de verdad
+-- y, si aparece uno nuevo, el error dice CUÁL en vez de obligar a salir a
+-- buscarlo.
+do $$
+declare
+  v_desconocidos text;
+begin
+  select string_agg(distinct origen, ', ')
+    into v_desconocidos
+  from public.eos_movimientos_financieros
+  where origen not in (
+    'manual', 'documento', 'chat', 'integracion', 'estimado', 'correo', 'erp'
+  );
+
+  if v_desconocidos is not null then
+    raise exception
+      'EOS: hay movimientos con origen sin contemplar (%). Agregalos a la lista de esta migración antes de correrla.',
+      v_desconocidos;
+  end if;
+end $$;
+
 alter table public.eos_movimientos_financieros
   drop constraint if exists eos_movimientos_financieros_origen_check;
 
 alter table public.eos_movimientos_financieros
   add constraint eos_movimientos_financieros_origen_check
-  check (origen in ('manual', 'documento', 'chat', 'integracion', 'estimado', 'erp'));
+  check (origen in (
+    'manual', 'documento', 'chat', 'integracion', 'estimado', 'correo', 'erp'
+  ));
 
 comment on column public.eos_movimientos_financieros.origen is
   'Procedencia del movimiento. "manual" debe ser excepción. "erp" es una venta o compra registrada en el módulo de gestión.';

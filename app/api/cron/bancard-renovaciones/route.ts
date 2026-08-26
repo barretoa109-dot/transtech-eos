@@ -100,40 +100,96 @@ export async function GET(request: Request) {
   const desde = new Date(ahora.getTime() - DIAS_GRACIA * 86_400_000);
 
   /*
-   * A quién hay que renovarle.
+   * A quién hay que renovarle: dos poblaciones, no una.
    *
-   * El filtro `plan <> free` viene de cuando el plan ERA el producto. Con el
-   * plan armado dejó de alcanzar: alguien que contrató el panel y el briefing
-   * pero ningún tramo de conversaciones queda con `plan = free` —se puede tener
-   * EOS sin chatear— y quedaría fuera de la renovación. Sus módulos vencerían
-   * en silencio y nadie le cobraría nunca: el usuario pierde el producto y
-   * nosotros el ingreso, las dos cosas sin que salte ninguna alarma.
+   * La consulta original buscaba por `usuarios.plan_vencimiento`, que servía
+   * cuando el plan ERA el producto. Con el plan armado hay un caso que se cae
+   * de esa red y no hace ruido:
    *
-   * Por eso se los busca por su armado vigente además de por su plan. La
-   * consulta se hace en dos pasos y no con un `or` porque PostgREST no sabe
-   * filtrar por la existencia de una fila en otra tabla sin una vista.
+   * Quien contrató el panel y el briefing pero ningún tramo de conversaciones
+   * queda con `plan = 'free'` —se puede tener EOS sin chatear— y
+   * `asignar_plan_eos` le pone `plan_vencimiento = NULL` a todo lo que sea
+   * free. Un NULL no entra en un filtro de rango, así que ese usuario nunca
+   * sería candidato: sus módulos vencerían en silencio, dejaría de tener el
+   * producto que paga y nadie le volvería a cobrar. Las dos pérdidas sin una
+   * sola alarma.
+   *
+   * Entonces:
+   *
+   *   A. Planes de los de siempre → por `plan_vencimiento`, como antes.
+   *   B. EOS armados → por el vencimiento de SUS MÓDULOS, que es lo que de
+   *      verdad se les acaba.
+   *
+   * Va en varias consultas y no en un `or` porque PostgREST no sabe filtrar
+   * por la existencia de una fila en otra tabla sin una vista de por medio.
    */
-  const { data: conArmado } = await admin
-    .from("eos_planes_armados")
-    .select("usuario_id")
-    .eq("estado", "vigente")
-    .limit(MAX_POR_EJECUCION);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente admin ya viene sin tipar acá arriba
+  const comunes = (consulta: any) =>
+    consulta
+      .select("id,plan,plan_vencimiento,estado_suscripcion,cancelar_al_vencimiento")
+      .eq("estado_suscripcion", "active")
+      .eq("cancelar_al_vencimiento", false)
+      .limit(MAX_POR_EJECUCION);
 
-  const idsConArmado = ((conArmado ?? []) as { usuario_id: string }[]).map((a) => a.usuario_id);
-
-  const { data: candidatos, error: candidatosError } = await admin
-    .from("usuarios")
-    .select("id,plan,plan_vencimiento,estado_suscripcion,cancelar_al_vencimiento")
-    .or(
-      idsConArmado.length > 0
-        ? `plan.neq.free,id.in.(${idsConArmado.map((id) => `"${id}"`).join(",")})`
-        : "plan.neq.free",
-    )
-    .eq("estado_suscripcion", "active")
-    .eq("cancelar_al_vencimiento", false)
+  const { data: porPlan, error: errorPlan } = await comunes(admin.from("usuarios"))
+    .neq("plan", "free")
     .gte("plan_vencimiento", desde.toISOString())
-    .lte("plan_vencimiento", hasta.toISOString())
-    .limit(MAX_POR_EJECUCION);
+    .lte("plan_vencimiento", hasta.toISOString());
+
+  // Los módulos que se están por vencer, de gente que tiene un armado vigente.
+  const [{ data: porVencer }, { data: armadosVigentes }] = await Promise.all([
+    admin
+      .from("eos_usuario_modulos")
+      .select("usuario_id")
+      .eq("estado", "activo")
+      .not("vencimiento", "is", null)
+      .gte("vencimiento", desde.toISOString())
+      .lte("vencimiento", hasta.toISOString())
+      .limit(MAX_POR_EJECUCION * 20),
+    admin
+      .from("eos_planes_armados")
+      .select("usuario_id")
+      .eq("estado", "vigente")
+      .limit(MAX_POR_EJECUCION * 20),
+  ]);
+
+  const conArmado = new Set(
+    ((armadosVigentes ?? []) as { usuario_id: string }[]).map((a) => a.usuario_id),
+  );
+
+  const idsPorModulo = [
+    ...new Set(
+      ((porVencer ?? []) as { usuario_id: string }[])
+        .map((m) => m.usuario_id)
+        .filter((id) => conArmado.has(id)),
+    ),
+  ];
+
+  let porArmado: unknown[] = [];
+  let errorArmado = null;
+
+  if (idsPorModulo.length > 0) {
+    const respuesta = await comunes(admin.from("usuarios")).in("id", idsPorModulo);
+    porArmado = respuesta.data ?? [];
+    errorArmado = respuesta.error;
+  }
+
+  const candidatosError = errorPlan || errorArmado;
+
+  // Alguien puede caer en las dos listas —tiene plan con vencimiento Y un
+  // armado— y cobrarle dos veces sería el peor error posible de este cron.
+  type Candidato = {
+    id: string;
+    plan: string | null;
+    plan_vencimiento: string | null;
+  };
+
+  const porId = new Map<string, Candidato>();
+  for (const u of [...((porPlan ?? []) as Candidato[]), ...(porArmado as Candidato[])]) {
+    porId.set(String(u.id), u);
+  }
+
+  const candidatos = [...porId.values()].slice(0, MAX_POR_EJECUCION);
 
   if (candidatosError) {
     console.error("Renovaciones: no se pudo listar candidatos:", candidatosError);

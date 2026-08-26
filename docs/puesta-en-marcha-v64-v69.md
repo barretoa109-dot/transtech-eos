@@ -72,18 +72,22 @@ el armado y no el tramo.
 Ninguna función de Bancard existente fue modificada: la certificación en curso
 no se toca.
 
-### Lo único que hay que probar en staging antes de vender
+### El armado sin conversaciones: resuelto, y lo que destapó
 
-**Un armado SIN módulo de conversaciones.** En ese caso el `plan_codigo` de la
-solicitud es `free` —se puede tener EOS sin chatear— y la confirmación llama a
-`asignar_plan_eos(usuario, 'free', dias)`. Esa función **no está versionada en
-este repositorio** (vive solo en la base, como señala el rollback runbook), así
-que no se pudo verificar leyendo el código que acepte `free` sin error.
+Un armado sin tramo de conversaciones manda `plan_codigo = 'free'` a la
+confirmación. Se leyó la definición real de `asignar_plan_eos` en la base —no
+está versionada en el repo— y **acepta `free` sin error**: existe como plan
+activo con cupo de 5 mensajes.
 
-Si lo rechazara, el usuario pagaría y la confirmación fallaría. Es una prueba de
-dos minutos: armar un EOS con Dashboard y Briefing nomás, pagarlo en el ambiente
-de prueba de Bancard, y ver que la solicitud queda en `pagado` y los módulos
-activos.
+Pero deja `plan_vencimiento = NULL` para todo lo que sea free, y un NULL no
+entra en un filtro de rango. Con la consulta vieja, ese usuario nunca habría
+sido candidato a renovación: sus módulos vencían en silencio, perdía el producto
+que paga y nadie volvía a cobrarle.
+
+Por eso el cron ahora busca dos poblaciones: los planes de siempre por su
+`plan_vencimiento`, y los EOS armados por el vencimiento de **sus módulos**, que
+es lo que de verdad se les acaba. Los que caen en las dos listas se deduplican
+antes de cobrar.
 
 ## Factura electrónica: hasta dónde llega hoy
 
