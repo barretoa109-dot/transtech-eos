@@ -1,6 +1,9 @@
-# Puesta en marcha: migraciones v64 a v69
+# Puesta en marcha: migraciones v64 a v70
 
-Seis migraciones nuevas. **El orden importa y el momento del deploy también**:
+> El archivo conserva el nombre `v64-v69` porque ya hay documentos que lo
+> enlazan así. La v70 llegó después y está incluida acá abajo.
+
+Siete migraciones nuevas. **El orden importa y el momento del deploy también**:
 hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 
 | # | Archivo | Qué trae |
@@ -11,10 +14,12 @@ hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 | v67 | `20260826170000_eos_erp_crm_v67.sql` | Tablas de ERP y CRM |
 | v68 | `20260826180000_eos_factura_electronica_v68.sql` | Facturación electrónica |
 | v69 | `20260826190000_eos_erp_registrar_venta_v69.sql` | Registrar una venta, entera |
+| v70 | `20260826200000_eos_erp_registrar_compra_v70.sql` | Registrar una compra, entera |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
-v68 depende de las tablas de v67, y v69 de las de v67 y de
-`eos_movimientos_financieros`.
+v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
+`eos_movimientos_financieros`. La v69 además ensancha el `check` de
+`origen` para admitir `erp`, del que dependen las dos.
 
 ## El orden entre migrar y desplegar
 
