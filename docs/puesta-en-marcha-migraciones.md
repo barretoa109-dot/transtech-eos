@@ -1,10 +1,16 @@
-# Puesta en marcha: migraciones v64 a v73
+# Puesta en marcha: migraciones v64 a v75
 
-> El archivo conserva el nombre `v64-v69` porque ya hay documentos que lo
-> enlazan así. La v70 llegó después y está incluida acá abajo.
+> **Estado al 2026-08-26: las doce migraciones YA ESTÁN APLICADAS** en el
+> proyecto `TransTech EOS`, verificado con `supabase migration list --linked`:
+> no queda ninguna pendiente. Lo que falta es **desplegar el código**, que hoy
+> está commiteado y sin pushear.
+>
+> Este documento queda como registro de qué trae cada una y de lo que se
+> aprendió aplicándolas.
 
-Diez migraciones nuevas. **El orden importa y el momento del deploy también**:
-hay un caso en el que desplegar antes de migrar apaga funciones para todos.
+Doce migraciones. **El orden importa y el momento del deploy también**: hay un
+caso en el que desplegar antes de migrar apaga funciones para todos, y por eso
+se aplicaron primero.
 
 | # | Archivo | Qué trae |
 | --- | --- | --- |
@@ -18,6 +24,8 @@ hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 | v71 | `20260826210000_eos_bancard_armado_v71.sql` | Cobrar el armado con tarjeta y renovarlo |
 | v72 | `20260826220000_eos_revocar_anon_finanzas_v72.sql` | Sacarle a `anon` el permiso sobre las tablas de plata |
 | v73 | `20260826230000_eos_vitrina_negocio_v73.sql` | Poner ERP, CRM y facturación en la vitrina |
+| v74 | `20260826240000_eos_cortesia_facturacion_v74.sql` | Completar la cortesía de las cuentas viejas |
+| v75 | `20260826250000_eos_facturacion_de_quien_v75.sql` | Aclarar de quién son las facturas del módulo |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
 v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
@@ -26,7 +34,8 @@ v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
 
 ## El orden entre migrar y desplegar
 
-**Aplicar las migraciones ANTES de desplegar el código.**
+**Aplicar las migraciones ANTES de desplegar el código.** Ya se hizo en ese
+orden; queda escrito para el próximo entorno.
 
 Desde este cambio, las funciones se piden por módulo (`exigirModulo`). Sin el
 catálogo sembrado —que lo siembra la v66— la puerta no encontraría los módulos.
@@ -129,20 +138,25 @@ pero eso no reemplaza abrirlo.
 
 ## Lista para salir a vender
 
-En orden, y solo lo que falta:
+~~1. Aplicar las migraciones.~~ **Hecho el 2026-08-26.**
 
-1. **Aplicar las diez migraciones** (v64 a v73), en orden, **antes** de desplegar.
-   Es lo único con ventana de tiempo real.
-2. **Probar en el ambiente de prueba de Bancard un armado sin conversaciones**
-   (por ejemplo Dashboard + Briefing). Ver la sección de arriba: es la única
-   parte del circuito que no se pudo verificar leyendo el código.
-3. **Pegar en el prompt de n8n** el texto de
+~~2. Probar el armado sin conversaciones.~~ **Resuelto leyendo la base**: ver la
+sección de arriba. Se encontró y se corrigió un problema de renovación que la
+prueba habría tardado un mes en mostrar.
+
+Queda:
+
+1. **Desplegar** (hoy son varios commits sin pushear).
+2. **Pegar en el prompt de n8n** el texto de
    [`documentos-a-pedido.md`](documentos-a-pedido.md). Sin eso, EOS sabe armar
    archivos pero nunca los pide: es lo único que separa esa función de estar
    andando.
-4. **Para la factura electrónica**: comprar el certificado digital y habilitar el
-   RUC ante la SET. Hasta entonces el módulo emite comprobantes con numeración y
-   CDC, rotulados como lo que son.
+3. **Para la factura electrónica del USUARIO** (no la de TransTech, que la emite
+   Bancard): el certificado digital y la habilitación del RUC los consigue cada
+   usuario. Ver [`facturacion-quien-emite-que.md`](facturacion-quien-emite-que.md),
+   que separa los tres circuitos que usan esa palabra.
+4. **Facturar los pagos por transferencia.** Bancard emite solo lo que pasa por
+   su pasarela; las transferencias quedan afuera y hay que facturarlas aparte.
 
 Lo que **no** hace falta para vender, pero conviene mirar después:
 

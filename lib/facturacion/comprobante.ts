@@ -15,6 +15,18 @@ import type { Documento } from "../documentos/especificacion.ts";
  * porque se dibujan de nuevo en cada descarga.
  *
  * ============================================================
+ * DE QUIÉN ES ESTA FACTURA
+ * ============================================================
+ *
+ * Del USUARIO de EOS, no de TransTech. Una panadería que le vende a Rossana
+ * emite con su propio RUC, su timbrado y su certificado.
+ *
+ * Las facturas de TransTech a sus clientes las emite Bancard automáticamente,
+ * con el timbrado de TransTech, por los cobros que pasan por su pasarela. Son
+ * dos circuitos que no se tocan, y meterlos en el mismo código sería emitir dos
+ * veces el mismo hecho imponible. Ver `docs/facturacion-quien-emite-que.md`.
+ *
+ * ============================================================
  * LO QUE ESTE PAPEL DICE DE SÍ MISMO
  * ============================================================
  *
