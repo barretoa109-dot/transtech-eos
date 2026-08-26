@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { Bell, BellOff, Check } from "lucide-react";
 
 /**
- * Activar o desactivar las notificaciones push.
+ * Activar o desactivar los avisos urgentes.
+ *
+ * Esto NO es el briefing. El briefing sale por correo cada mañana y se lee
+ * cuando se puede; el push es para lo que pierde sentido si se lee mañana —
+ * que el 28 no va a alcanzar. Un push diario "porque sí" es exactamente lo
+ * que hace que alguien apague las notificaciones, y entonces el aviso que sí
+ * importaba tampoco llega.
  *
  * Dos decisiones sobre cuándo aparece:
  *
@@ -134,7 +140,7 @@ export default function PushToggle() {
         ) : (
           <BellOff size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
         )}
-        Notificaciones en este dispositivo
+        Avisos urgentes en este dispositivo
       </div>
 
       {estado === "bloqueado" ? (
@@ -145,8 +151,8 @@ export default function PushToggle() {
       ) : (
         <p className="prose">
           {estado === "activo"
-            ? "Vas a recibir tu briefing acá cada mañana. EOS solo avisa cuando hay algo que decir."
-            : "Recibí tu briefing en este dispositivo, sin tener que abrir la app."}
+            ? "Si algún día no te va a alcanzar, te avisamos acá antes de que pase. Nada más: el briefing va por correo."
+            : "Que EOS te avise en este teléfono cuando detecte un aprieto de plata con fecha. No es el briefing diario."}
         </p>
       )}
 

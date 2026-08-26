@@ -1,7 +1,7 @@
 import { armarPanorama } from "./panorama.ts";
 import { detectarRiesgo, redactarAviso } from "./riesgo.ts";
 import { convieneAvisar, TITULO_AVISO } from "./avisos.ts";
-import { enviarAviso, pushConfigurado, type Suscripcion } from "../push/enviar.ts";
+import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
 
@@ -222,7 +222,7 @@ async function entregar(
   if (pushConfigurado()) {
     const { data } = await admin
       .from("eos_push_suscripciones")
-      .select("endpoint,p256dh,auth")
+      .select("id,endpoint,p256dh,auth")
       .eq("usuario_id", usuarioId)
       .eq("activa", true);
 
@@ -231,7 +231,10 @@ async function entregar(
     if (suscripciones.length > 0) {
       const resultado = await enviarAviso(suscripciones, {
         titulo: TITULO_AVISO,
-        cuerpo: texto,
+        // El aviso completo ya está redactado para caber, pero si un día
+        // crece, es mejor cortarlo nosotros que dejar que el teléfono corte
+        // justo donde estaba la cifra.
+        cuerpo: resumirParaPush(texto, 160),
         url: "/eos/chat",
         tag: "eos-riesgo",
       });
@@ -239,8 +242,8 @@ async function entregar(
       if (resultado.muertas.length > 0) {
         await admin
           .from("eos_push_suscripciones")
-          .update({ activa: false })
-          .in("endpoint", resultado.muertas);
+          .update({ activa: false, ultimo_error: "endpoint dado de baja por el servicio de push" })
+          .in("id", resultado.muertas);
       }
 
       if (resultado.enviados > 0) return true;
