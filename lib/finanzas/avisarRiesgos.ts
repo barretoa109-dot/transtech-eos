@@ -211,6 +211,13 @@ export async function avisarRiesgos(
  * Push primero porque un aprieto de plata es urgente y el correo puede tardar
  * horas en mirarse. Mandar los dos sería recibir el mismo susto dos veces, que
  * es la clase de detalle que hace que alguien apague las notificaciones.
+ *
+ * NOTA (2026-08-25): la pantalla para suscribirse al push se sacó junto con la
+ * sección de Notificaciones, así que en la práctica esta rama no encuentra
+ * suscripciones y todos los avisos salen por correo. El código queda porque el
+ * canal sigue siendo el correcto para lo urgente el día que vuelva a haber
+ * dónde activarlo; borrarlo obligaría a reescribir el reintento, el recorte
+ * del texto y la limpieza de suscripciones muertas desde cero.
  */
 async function entregar(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver arriba
