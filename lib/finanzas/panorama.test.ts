@@ -138,3 +138,64 @@ test("de punta a punta: con el sueldo antes del alquiler, no hay aviso", () => {
 
   assert.equal(riesgo, null);
 });
+
+test("cada egreso dice de dónde salió", () => {
+  // El panel muestra los tres grupos por separado, y para eso necesita poder
+  // distinguirlos DESPUÉS de que se mezclaron en la línea de tiempo. Sin la
+  // etiqueta habría que rehacer el armado afuera, que es exactamente el
+  // problema que este módulo vino a resolver.
+  const panorama = armarPanorama({
+    ...base(),
+    deudas: [PRESTAMO],
+    fijos: [{ tipo: "gasto", descripcion: "Alquiler", monto: 2_000_000, dia_del_mes: 1 }],
+    movimientos: [
+      { tipo: "compromiso", monto: 300_000, fecha: "2026-09-20", descripcion: "Seguro del auto" },
+    ],
+  });
+
+  const fuentes = new Map(panorama.egresos.map((e) => [e.descripcion, e.fuente]));
+
+  assert.equal(fuentes.get("Alquiler"), "previsible");
+  assert.equal(fuentes.get("Seguro del auto"), "anotado");
+  assert.equal(fuentes.get("Cuota 1 de 12 — Banco Itaú"), "cuota");
+
+  // Ninguno puede quedar sin etiqueta: un egreso sin fuente desaparecería de
+  // los tres grupos del panel y el total dejaría de cerrar contra el saldo.
+  assert.ok(panorama.egresos.every((e) => e.fuente));
+});
+
+test("lo que el panel descuenta es lo mismo que la alerta simula", () => {
+  // La regresión que este módulo cierra: mientras el panel sumaba lo suyo y la
+  // alerta lo suyo, el panel no contaba las cuotas. El usuario leía "estás
+  // bien" en una pantalla y "el 28 no te alcanza" en la otra.
+  const panorama = armarPanorama({
+    ...base(),
+    saldoInicial: 2_000_000,
+    reservaMinima: 0,
+    deudas: [PRESTAMO],
+  });
+
+  const totalDescontado = panorama.egresos.reduce((t, e) => t + e.monto, 0);
+  const porGrupos = (["anotado", "previsible", "cuota"] as const).reduce(
+    (t, fuente) =>
+      t + panorama.egresos.filter((e) => e.fuente === fuente).reduce((s, e) => s + e.monto, 0),
+    0,
+  );
+
+  assert.equal(porGrupos, totalDescontado);
+  assert.ok(totalDescontado > 0, "la deuda tiene que aparecer en el descuento");
+});
+
+test("la conciliación viaja con el panorama, no se recalcula afuera", () => {
+  const panorama = armarPanorama({
+    ...base(),
+    movimientos: [
+      { tipo: "gasto", monto: 800_000, fecha: "2026-08-10", descripcion: "Compra" },
+      { tipo: "ingreso", monto: 300_000, fecha: "2026-08-12", descripcion: "Cobro" },
+    ],
+  });
+
+  assert.equal(panorama.aplicado.gastos, 800_000);
+  assert.equal(panorama.aplicado.ingresos, 300_000);
+  assert.equal(panorama.conciliacion.base, 5_000_000);
+});

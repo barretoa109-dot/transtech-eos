@@ -48,6 +48,11 @@ type EstadoFinanciero = {
       hasta: string;
       detalle: { fecha: string; descripcion: string; monto: number; periodicidad: string }[];
     };
+    cuotas: {
+      total: number;
+      cantidad: number;
+      detalle: { fecha: string; descripcion: string; monto: number }[];
+    };
     series_detectadas: number;
     fijos_declarados: number;
     fijos_confirmados: number;
@@ -260,6 +265,33 @@ export default function FinanzasPanel() {
                 </div>
               ))}
               {/*
+                Las cuotas se descuentan del disponible real igual que todo lo
+                demás, así que tienen que poder verse acá. Un descuento que no
+                se puede rastrear hasta su origen es exactamente lo que hace
+                que alguien deje de creerle al número de arriba.
+              */}
+              {data.prevision.cuotas.cantidad > 0 && (
+                <div className="field-row">
+                  <span className="field-label">
+                    Cuotas de tus deudas
+                    <span className="field-hint">
+                      {data.prevision.cuotas.cantidad} en este tramo
+                    </span>
+                  </span>
+                  <span className="field-value">{fmt(data.prevision.cuotas.total)}</span>
+                </div>
+              )}
+              {data.prevision.cuotas.detalle.map((c) => (
+                <div className="field-row" key={`cuota-${c.descripcion}-${c.fecha}`}>
+                  <span className="field-label">
+                    <span className="field-hint">
+                      {formatearFecha(c.fecha)} · {c.descripcion}
+                    </span>
+                  </span>
+                  <span className="field-value">{fmt(c.monto)}</span>
+                </div>
+              ))}
+              {/*
                 Solo aparece cuando EOS ya aprendió el ritmo. Es la prueba de
                 que dejó de necesitar al usuario: descuenta lo que no ve, solo.
               */}
@@ -306,6 +338,7 @@ function ComposicionSaldo({ data, fmt }: { data: EstadoFinanciero; fmt: (v: numb
   const comprometido =
     data.compromisos.total +
     data.prevision.gastos_previsibles.total +
+    data.prevision.cuotas.total +
     data.reserva_minima +
     data.ahorro_comprometido;
 
@@ -323,6 +356,14 @@ function ComposicionSaldo({ data, fmt }: { data: EstadoFinanciero; fmt: (v: numb
       clave: "previsibles",
       etiqueta: "Gastos que EOS ya prevé",
       monto: data.prevision.gastos_previsibles.total,
+    },
+    {
+      // Va separado de los previsibles a propósito: una cuota no es algo que
+      // EOS dedujo, es algo que el usuario ya firmó. Verla en su propio tramo
+      // es lo que hace que el descuento se entienda en vez de sorprender.
+      clave: "cuotas",
+      etiqueta: "Cuotas de tus deudas",
+      monto: data.prevision.cuotas.total,
     },
     { clave: "reserva", etiqueta: "Tu reserva intocable", monto: data.reserva_minima },
     { clave: "ahorro", etiqueta: "Ahorro comprometido", monto: data.ahorro_comprometido },

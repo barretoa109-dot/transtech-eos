@@ -2169,6 +2169,11 @@
 .eos-app .fin-comp-previsibles {
   background: var(--blue);
 }
+/* Las cuotas van en su propio tono, entre lo que el usuario ya asumió y lo
+   que EOS dedujo: son lo único de la barra que fue pactado con un tercero. */
+.eos-app .fin-comp-cuotas {
+  background: #4479cf;
+}
 .eos-app .fin-comp-reserva {
   background: #6fa3e8;
 }

@@ -1,4 +1,4 @@
-import { conciliar, type Conciliacion } from "./conciliacion.ts";
+import { conciliar, type Conciliacion, type ResultadoConciliacion } from "./conciliacion.ts";
 import { combinarSeries, type Fijo } from "./fijos.ts";
 import { cuotasPendientes, sinDuplicar, type Deuda } from "./deudas.ts";
 import {
@@ -6,6 +6,7 @@ import {
   proyectar,
   type MovimientoBase,
   type MovimientoProyectado,
+  type SerieRecurrente,
 } from "./recurrencia.ts";
 
 /**
@@ -23,18 +24,47 @@ import {
  * probar la matemática del dinero sin una sesión, que es la única forma de
  * tener tests sobre ella.
  *
- * Nota para quien venga después: `app/api/finanzas/estado` hace un armado
- * parecido en línea. No se unificó todavía porque ese archivo estaba en manos
- * de otra tarea; cuando se estabilice, debería consumir esto.
+ * Lo consumen el panel (`app/api/finanzas/estado`) y la alerta
+ * (`app/api/finanzas/riesgo`). Que sea el MISMO armado para los dos no es
+ * prolijidad: mientras cada uno sumaba lo suyo, el panel no contaba las cuotas
+ * de las deudas y la alerta sí, así que las dos pantallas daban números
+ * distintos sobre la misma plata y una de las dos estaba mintiendo.
  */
+
+/**
+ * De dónde salió cada egreso.
+ *
+ * El panel los muestra separados porque no significan lo mismo para quien
+ * lee: "compromisos" es lo que el usuario ya sabe que debe, "previsibles" es
+ * lo que EOS dedujo solo, y "cuotas" es lo que ya estaba pactado con un
+ * tercero. Mezclarlos en un total único obligaría al usuario a confiar sin
+ * poder verificar de dónde salió el descuento.
+ */
+export type FuenteEgreso = "anotado" | "previsible" | "cuota";
+
+export type EgresoPanorama = MovimientoProyectado & { fuente: FuenteEgreso };
 
 export type Panorama = {
   /** El saldo del que se parte, ya corregido por conciliación. */
   saldoActual: number;
   /** La línea que el usuario pidió no cruzar. */
   reservaMinima: number;
-  egresos: MovimientoProyectado[];
+  egresos: EgresoPanorama[];
   ingresos: MovimientoProyectado[];
+  /** Detectadas y declaradas ya combinadas, para no recalcularlas afuera. */
+  series: SerieRecurrente[];
+  /** Solo lo que EOS dedujo de los movimientos, que el panel informa aparte. */
+  detectadas: SerieRecurrente[];
+  /**
+   * De dónde partió el saldo y cuánta plata se va sin que EOS la vea.
+   *
+   * Se devuelve en vez de quedar adentro porque el panel tiene que poder
+   * decirle al usuario qué tan seguro está de lo que le está mostrando. Un
+   * número sin su grado de confianza al lado se lee como certeza.
+   */
+  conciliacion: ResultadoConciliacion;
+  /** Lo que efectivamente entró y salió desde ese punto confiable. */
+  aplicado: { ingresos: number; gastos: number };
 };
 
 export function armarPanorama(datos: {
@@ -69,16 +99,17 @@ export function armarPanorama(datos: {
   // aviso llegaría tarde.
   const saldoActual = estado.base + entraron - salieron - estado.gasto_invisible;
 
-  const series = combinarSeries(detectarSeries(movimientos), fijos, hoy);
+  const detectadas = detectarSeries(movimientos);
+  const series = combinarSeries(detectadas, fijos, hoy);
   const futuros = movimientos.filter((m) => m.fecha > hoy);
 
-  const previsibles = proyectar(
+  const previsibles: EgresoPanorama[] = proyectar(
     series.filter((s) => s.tipo !== "ingreso"),
     { desde: hoy, hasta, yaRegistrados: futuros },
-  );
+  ).map((p) => ({ ...p, fuente: "previsible" }));
 
   // Los compromisos ya anotados a futuro son egresos ciertos, no proyecciones.
-  const anotados: MovimientoProyectado[] = futuros
+  const anotados: EgresoPanorama[] = futuros
     .filter((m) => m.tipo === "compromiso" || m.tipo === "gasto")
     .map((m) => ({
       tipo: "gasto",
@@ -87,15 +118,16 @@ export function armarPanorama(datos: {
       fecha: m.fecha,
       periodicidad: "mensual",
       confianza: 1,
+      fuente: "anotado",
     }));
 
   // Las cuotas se agregan al final y filtradas: si el débito de la cuota
   // además viene detectado como serie, sumarla otra vez descontaría dos veces
   // la misma plata y produciría una alerta que no corresponde.
-  const cuotas = sinDuplicar(cuotasPendientes(deudas, { desde: hoy, hasta }), [
-    ...previsibles,
-    ...anotados,
-  ]);
+  const cuotas: EgresoPanorama[] = sinDuplicar(
+    cuotasPendientes(deudas, { desde: hoy, hasta }),
+    [...previsibles, ...anotados],
+  ).map((c) => ({ ...c, fuente: "cuota" }));
 
   const ingresos = proyectar(
     series.filter((s) => s.tipo === "ingreso"),
@@ -109,5 +141,9 @@ export function armarPanorama(datos: {
       a.fecha.localeCompare(b.fecha),
     ),
     ingresos,
+    series,
+    detectadas,
+    conciliacion: estado,
+    aplicado: { ingresos: entraron, gastos: salieron },
   };
 }

@@ -1,15 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
-import { conciliar, convieneConciliar } from "@/lib/finanzas/conciliacion";
-import { combinarSeries, confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
-import {
-  detectarSeries,
-  proximoIngreso,
-  proyectar,
-  sumarDias,
-} from "@/lib/finanzas/recurrencia";
+import { convieneConciliar } from "@/lib/finanzas/conciliacion";
+import { confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
+import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
+import { armarPanorama, type EgresoPanorama } from "@/lib/finanzas/panorama";
+import type { Deuda } from "@/lib/finanzas/deudas";
+import type { MovimientoProyectado } from "@/lib/finanzas/recurrencia";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Hasta dónde se arma la línea de tiempo antes de recortarla.
+ *
+ * El panel solo mira hasta el próximo ingreso, pero cuál es ese ingreso recién
+ * se sabe DESPUÉS de proyectar. Así que se proyecta largo una vez y se corta
+ * después, en vez de adivinar el horizonte y tener que volver a empezar.
+ */
+const HORIZONTE_ARMADO_DIAS = 90;
+
+/** Sin un ingreso detectado, el ciclo por defecto de un mes. */
+const CICLO_POR_DEFECTO_DIAS = 30;
 
 type Movimiento = {
   tipo: "ingreso" | "gasto" | "compromiso";
@@ -38,6 +48,11 @@ type Politica = {
  * Sigue la doctrina EOS Finanzas del usuario: la métrica central NO es el
  * saldo sino el DISPONIBLE REAL, es decir lo que queda después de honrar
  * compromisos futuros, la reserva mínima y el ahorro comprometido.
+ *
+ * El armado de la línea de tiempo vive en `lib/finanzas/panorama.ts` y es el
+ * MISMO que usa la alerta de riesgo. Antes cada uno sumaba lo suyo y el panel
+ * no contaba las cuotas de las deudas: el usuario veía "estás bien" en una
+ * pantalla y "el 28 no te alcanza" en la otra, sobre la misma plata.
  */
 export async function GET() {
   const supabase = await createClient();
@@ -50,29 +65,37 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes, fijosRes] = await Promise.all([
-    supabase
-      .from("eos_finanzas_politica")
-      .select("moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro,umbral_autorizacion")
-      .eq("usuario_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("eos_movimientos_financieros")
-      .select("tipo,monto,fecha,descripcion")
-      .eq("usuario_id", user.id)
-      .order("fecha", { ascending: true }),
-    supabase.from("eos_goals").select("estado,progreso").eq("usuario_id", user.id),
-    supabase
-      .from("eos_finanzas_conciliaciones")
-      .select("fecha,saldo_declarado")
-      .eq("usuario_id", user.id)
-      .order("fecha", { ascending: true }),
-    supabase
-      .from("eos_finanzas_fijos")
-      .select("tipo,descripcion,monto,dia_del_mes")
-      .eq("usuario_id", user.id)
-      .eq("activo", true),
-  ]);
+  const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes, fijosRes, deudasRes] =
+    await Promise.all([
+      supabase
+        .from("eos_finanzas_politica")
+        .select("moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro,umbral_autorizacion")
+        .eq("usuario_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("eos_movimientos_financieros")
+        .select("tipo,monto,fecha,descripcion")
+        .eq("usuario_id", user.id)
+        .order("fecha", { ascending: true }),
+      supabase.from("eos_goals").select("estado,progreso").eq("usuario_id", user.id),
+      supabase
+        .from("eos_finanzas_conciliaciones")
+        .select("fecha,saldo_declarado")
+        .eq("usuario_id", user.id)
+        .order("fecha", { ascending: true }),
+      supabase
+        .from("eos_finanzas_fijos")
+        .select("tipo,descripcion,monto,dia_del_mes")
+        .eq("usuario_id", user.id)
+        .eq("activo", true),
+      supabase
+        .from("eos_finanzas_deudas")
+        .select(
+          "acreedor,tipo,moneda,saldo_declarado,saldo_declarado_el,cuota_monto,cuota_dia,cuotas_totales,cuotas_pagadas,vence_el,estado,preocupa",
+        )
+        .eq("usuario_id", user.id)
+        .neq("estado", "saldada"),
+    ]);
 
   if (politicaRes.error && politicaRes.error.code !== "PGRST116") {
     console.error("No se pudo leer la política financiera:", politicaRes.error);
@@ -94,64 +117,8 @@ export async function GET() {
   // El día del usuario, no el del servidor. `toISOString()` es UTC: a las
   // 23:00 de Paraguay ya sería mañana, y un compromiso que vence mañana
   // dejaría de contarse como futuro.
-  const hoyISO = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Asuncion",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const hoyISO = hoyEnParaguay();
 
-  // ==========================================================
-  // CONCILIACIÓN
-  //
-  // EOS no ve los pagos con billetera ni el efectivo. Sin esto, el disponible
-  // real se muestra con total confianza estando equivocado, y el usuario
-  // decide con ese número.
-  //
-  // Si el usuario ya le dijo alguna vez cuánto tiene de verdad, se parte de
-  // ahí en vez del saldo inicial; y si lo dijo dos veces, EOS ya aprendió a
-  // qué ritmo se le escapa dinero y lo descuenta sin volver a preguntar.
-  // ==========================================================
-  const conciliaciones = ((conciliacionesRes.data ?? []) as ConciliacionFila[]).map((c) => ({
-    fecha: c.fecha,
-    saldo_declarado: num(c.saldo_declarado),
-  }));
-
-  const estadoConciliacion = conciliar({
-    saldoInicial: num(politica.saldo_inicial),
-    saldoInicialFecha: politica.saldo_inicial_fecha,
-    conciliaciones,
-    movimientos,
-    hoy: hoyISO,
-  });
-
-  const desdeSaldo = estadoConciliacion.desde;
-
-  // Aplicados: lo que ocurrió desde el último punto confiable.
-  const aplicados = movimientos.filter((m) => m.fecha > desdeSaldo && m.fecha <= hoyISO);
-  const ingresos = sum(aplicados.filter((m) => m.tipo === "ingreso"));
-  const gastos = sum(aplicados.filter((m) => m.tipo === "gasto"));
-
-  // Compromisos futuros ya conocidos (alquiler, tarjeta, cuotas).
-  const compromisosPendientes = movimientos.filter((m) => m.tipo === "compromiso" && m.fecha > hoyISO);
-  const totalCompromisos = sum(compromisosPendientes);
-
-  // ==========================================================
-  // PREVISIÓN
-  //
-  // Hasta acá EOS solo restaba lo que alguien había cargado. Pero el alquiler
-  // se paga igual aunque nadie lo anote. La doctrina pide que EOS PREVEA, no
-  // que espere: si un movimiento viene repitiéndose con patrón, cuenta.
-  //
-  // Las proyecciones no se guardan en la base a propósito (ver
-  // lib/finanzas/recurrencia.ts): son dato derivado y duplicarían el gasto
-  // cuando el movimiento real aparezca.
-  // ==========================================================
-  const detectadas = detectarSeries(movimientos);
-
-  // Lo que el usuario declaró como fijo se suma a lo que EOS detectó, pero la
-  // realidad manda: si el correo ya trae el alquiler, la serie observada
-  // reemplaza a la declarada. Sumarlas descontaría el gasto dos veces.
   const fijos = (
     (fijosRes.data ?? []) as {
       tipo: string;
@@ -166,41 +133,89 @@ export async function GET() {
     dia_del_mes: f.dia_del_mes,
   }));
 
-  const series = combinarSeries(detectadas, fijos, hoyISO);
-  const ingresoEstimado = proximoIngreso(series, hoyISO);
+  const deudas = ((deudasRes.data ?? []) as unknown as Deuda[]).map((d) => ({
+    ...d,
+    saldo_declarado: num(d.saldo_declarado),
+    cuota_monto: d.cuota_monto === null ? null : num(d.cuota_monto),
+  }));
+
+  // ==========================================================
+  // LA LÍNEA DE TIEMPO
+  //
+  // Reúne las cuatro fuentes —compromisos anotados, series detectadas, fijos
+  // declarados y cuotas de deudas— con la conciliación ya aplicada. EOS no ve
+  // los pagos con billetera ni el efectivo; sin esa corrección el disponible
+  // real se muestra con total confianza estando equivocado.
+  // ==========================================================
+  const panorama = armarPanorama({
+    hoy: hoyISO,
+    hasta: sumarDias(hoyISO, HORIZONTE_ARMADO_DIAS),
+    saldoInicial: num(politica.saldo_inicial),
+    saldoInicialFecha: politica.saldo_inicial_fecha,
+    reservaMinima: num(politica.reserva_minima),
+    movimientos,
+    conciliaciones: ((conciliacionesRes.data ?? []) as ConciliacionFila[]).map((c) => ({
+      fecha: c.fecha,
+      saldo_declarado: num(c.saldo_declarado),
+    })),
+    fijos,
+    deudas,
+  });
+
+  const ingresos = panorama.aplicado.ingresos;
+  const gastos = panorama.aplicado.gastos;
+  const estadoConciliacion = panorama.conciliacion;
+
+  // El próximo ingreso es el más cercano de los dos mundos: el que ya está
+  // cargado a futuro y el que EOS proyecta. Mirar solo las proyecciones diría
+  // "cobrás el 25 de septiembre" a alguien que tiene el sueldo de septiembre
+  // ya anotado — y un ingreso que EOS no ve es plata que el usuario cree que
+  // EOS está contando.
+  const ingresoAnotado = movimientos
+    .filter((m) => m.tipo === "ingreso" && m.fecha > hoyISO)
+    .map<MovimientoProyectado>((m) => ({
+      tipo: "ingreso",
+      descripcion: m.descripcion ?? "Ingreso",
+      monto: m.monto,
+      fecha: m.fecha,
+      periodicidad: "mensual",
+      confianza: 1,
+    }))[0];
+
+  const ingresoProyectado = panorama.ingresos[0];
+  const ingresoEstimado = primeroPorFecha(ingresoAnotado, ingresoProyectado);
 
   // El horizonte natural del disponible real es "hasta que vuelva a entrar
   // plata": ese es el tramo que el usuario tiene que atravesar con lo que
   // tiene hoy. Sin un ingreso detectado, 30 días es el ciclo por defecto.
-  const horizonte = ingresoEstimado ? ingresoEstimado.fecha : sumarDias(hoyISO, 30);
+  const horizonte = ingresoEstimado
+    ? ingresoEstimado.fecha
+    : sumarDias(hoyISO, CICLO_POR_DEFECTO_DIAS);
 
-  const previsibles = proyectar(
-    series.filter((s) => s.tipo !== "ingreso"),
-    {
-      desde: hoyISO,
-      hasta: horizonte,
-      // Todo lo que ya está cargado a futuro: sin esto, un compromiso anotado
-      // a mano se restaría dos veces y el disponible saldría más bajo del real.
-      yaRegistrados: movimientos.filter((m) => m.fecha > hoyISO),
-    },
-  );
-  const totalPrevisible = previsibles.reduce((total, p) => total + p.monto, 0);
+  const egresos = panorama.egresos.filter((e) => e.fecha <= horizonte);
 
-  // La base sale de la conciliación: el último saldo que el usuario confirmó,
-  // o el inicial si nunca confirmó ninguno. Y se descuenta lo que EOS aprendió
-  // que se gasta sin verlo — billetera, efectivo — para no mostrar de más.
-  const saldoEstimado =
-    estadoConciliacion.base + ingresos - gastos - estadoConciliacion.gasto_invisible;
+  const porFuente = (fuente: EgresoPanorama["fuente"]) => egresos.filter((e) => e.fuente === fuente);
 
-  const reserva = num(politica.reserva_minima);
+  const anotados = porFuente("anotado");
+  const previsibles = porFuente("previsible");
+  const cuotas = porFuente("cuota");
+
+  const totalCompromisos = sumar(anotados);
+  const totalPrevisible = sumar(previsibles);
+  const totalCuotas = sumar(cuotas);
+
+  const saldoEstimado = panorama.saldoActual;
+  const reserva = panorama.reservaMinima;
   const ahorroComprometido = (ingresos * num(politica.porcentaje_ahorro)) / 100;
+
+  // Todo lo que ya tiene dueño antes de que el usuario decida nada.
+  const comprometido = totalCompromisos + totalPrevisible + totalCuotas;
 
   // El ingreso estimado NO se suma: no se gasta plata que todavía no entró.
   // Se informa aparte, porque no es lo mismo tener el sueldo mañana que a 26 días.
-  const disponibleReal =
-    saldoEstimado - totalCompromisos - totalPrevisible - reserva - ahorroComprometido;
+  const disponibleReal = saldoEstimado - comprometido - reserva - ahorroComprometido;
 
-  const compromisosCubiertos = saldoEstimado - reserva >= totalCompromisos + totalPrevisible;
+  const compromisosCubiertos = saldoEstimado - reserva >= comprometido;
   const reservaProtegida = saldoEstimado >= reserva;
 
   const objetivos = (objetivosRes.data ?? []) as { estado: string | null; progreso: number | null }[];
@@ -231,10 +246,10 @@ export async function GET() {
       ahorro_comprometido: redondear(ahorroComprometido),
       compromisos: {
         total: redondear(totalCompromisos),
-        cantidad: compromisosPendientes.length,
+        cantidad: anotados.length,
         cubiertos: compromisosCubiertos,
-        proximo: compromisosPendientes[0]
-          ? { fecha: compromisosPendientes[0].fecha, descripcion: compromisosPendientes[0].descripcion }
+        proximo: anotados[0]
+          ? { fecha: anotados[0].fecha, descripcion: anotados[0].descripcion }
           : null,
       },
       reserva_protegida: reservaProtegida,
@@ -263,11 +278,23 @@ export async function GET() {
             periodicidad: p.periodicidad,
           })),
         },
-        series_detectadas: detectadas.length,
+        // Las cuotas van en su propia línea y no mezcladas con los gastos
+        // previsibles: una cuota no es una deducción de EOS, es un compromiso
+        // que el usuario ya firmó con un tercero y tiene fecha cierta.
+        cuotas: {
+          total: redondear(totalCuotas),
+          cantidad: cuotas.length,
+          detalle: cuotas.slice(0, 6).map((c) => ({
+            fecha: c.fecha,
+            descripcion: c.descripcion,
+            monto: redondear(c.monto),
+          })),
+        },
+        series_detectadas: panorama.detectadas.length,
         fijos_declarados: fijos.length,
         // Declaraciones que la realidad ya confirmó por correo: la semilla
         // cumplió su función y se retiró sola.
-        fijos_confirmados: confirmadosPorLaRealidad(detectadas, fijos),
+        fijos_confirmados: confirmadosPorLaRealidad(panorama.detectadas, fijos),
       },
       conciliacion: {
         confianza: estadoConciliacion.confianza,
@@ -283,12 +310,22 @@ export async function GET() {
   );
 }
 
+/** El que ocurre antes. Cualquiera de los dos puede faltar. */
+function primeroPorFecha(
+  a: MovimientoProyectado | undefined,
+  b: MovimientoProyectado | undefined,
+): MovimientoProyectado | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a.fecha <= b.fecha ? a : b;
+}
+
 function num(value: number | string | null | undefined) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-function sum(items: { monto: number }[]) {
+function sumar(items: { monto: number }[]) {
   return items.reduce((total, item) => total + item.monto, 0);
 }
 
