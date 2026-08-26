@@ -1,9 +1,9 @@
-# Puesta en marcha: migraciones v64 a v71
+# Puesta en marcha: migraciones v64 a v72
 
 > El archivo conserva el nombre `v64-v69` porque ya hay documentos que lo
 > enlazan así. La v70 llegó después y está incluida acá abajo.
 
-Ocho migraciones nuevas. **El orden importa y el momento del deploy también**:
+Nueve migraciones nuevas. **El orden importa y el momento del deploy también**:
 hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 
 | # | Archivo | Qué trae |
@@ -16,6 +16,7 @@ hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 | v69 | `20260826190000_eos_erp_registrar_venta_v69.sql` | Registrar una venta, entera |
 | v70 | `20260826200000_eos_erp_registrar_compra_v70.sql` | Registrar una compra, entera |
 | v71 | `20260826210000_eos_bancard_armado_v71.sql` | Cobrar el armado con tarjeta y renovarlo |
+| v72 | `20260826220000_eos_revocar_anon_finanzas_v72.sql` | Sacarle a `anon` el permiso sobre las tablas de plata |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
 v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
