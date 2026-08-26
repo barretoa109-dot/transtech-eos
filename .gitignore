@@ -45,3 +45,9 @@ next-env.d.ts
 
 # Respaldos de datos reales de usuarios: NUNCA subir a un repo publico
 docs/backups/
+
+# Zips de auditoría exportados a mano: pesados y se regeneran
+*.zip
+
+# Config local de Claude Code (la de preview sí se versiona)
+.claude/settings.local.json
