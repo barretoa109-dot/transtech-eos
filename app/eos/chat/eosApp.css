@@ -3019,3 +3019,51 @@
   color: var(--blue-dark);
   font-variant-numeric: tabular-nums;
 }
+
+/* Las funciones contratadas, en la pantalla de cuenta. Los módulos VENCEN, y si
+   el único lugar donde eso se ve es el cobro que no entró, el usuario se entera
+   cuando abre el ERP y no está. */
+.eos-app .mod-lista {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+}
+.eos-app .mod-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .mod-fila:last-child {
+  border-bottom: none;
+}
+.eos-app .mod-punto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--green-light);
+  color: var(--green);
+  flex: none;
+}
+.eos-app .mod-punto.is-avisa {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .mod-nombre {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.eos-app .mod-vence {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.eos-app .mod-fila.is-avisa .mod-vence {
+  color: var(--amber);
+  font-weight: 700;
+}

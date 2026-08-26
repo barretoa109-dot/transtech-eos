@@ -4,9 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import EliminarCuenta from "./EliminarCuenta";
+import MisModulos from "./MisModulos";
 
 type ProfileViewProps = {
   nombre: string;
+  /**
+   * El plan interno del usuario. Ya no se muestra —desde el plan armado, ese
+   * nombre no se corresponde con lo que compró— pero sigue llegando porque el
+   * cupo de mensajes se sigue derivando de él. Ver `MisModulos`.
+   */
   plan: string;
   email: string;
   usuarioId: string;
@@ -21,7 +27,7 @@ type Uso = {
   usados: number;
 };
 
-export default function ProfileView({ nombre, plan, email, usuarioId, conversaciones }: ProfileViewProps) {
+export default function ProfileView({ nombre, email, usuarioId, conversaciones }: ProfileViewProps) {
   const [copiado, setCopiado] = useState(false);
   const [uso, setUso] = useState<Uso | null>(null);
 
@@ -49,8 +55,6 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
       .slice(0, 2)
       .map((p) => p.charAt(0).toUpperCase())
       .join("") || "U";
-
-  const planVisible = capitalizar(plan || "free");
 
   async function copiarUsuarioId() {
     if (!usuarioId || !navigator.clipboard) return;
@@ -82,10 +86,15 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
           <div className="profile-avatar-lg">{iniciales}</div>
           <div>
             <div className="profile-name">{nombre || "Usuario"}</div>
-            <div className="plan-badge">Plan {planVisible}</div>
+            {/*
+              Ya no dice "Plan Pro": desde que el plan lo arma el usuario, ese
+              nombre es un dato interno que no se corresponde con lo que compró.
+              Lo que tiene contratado se lista abajo, con sus vencimientos.
+            */}
+            <div className="plan-badge">Tu EOS</div>
           </div>
           <Link href="/planes" className="ghost-btn">
-            Mejorar plan
+            Cambiar mis funciones
           </Link>
         </div>
 
@@ -99,10 +108,7 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
             <span className="field-label">Correo</span>
             <span className="field-value">{email || "—"}</span>
           </div>
-          <div className="field-row">
-            <span className="field-label">Plan actual</span>
-            <span className="field-value">{uso?.plan_nombre || `EOS ${planVisible}`}</span>
-          </div>
+
           <div className="field-row">
             <span className="field-label">ID de usuario</span>
             <button
@@ -124,6 +130,8 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
             </button>
           </div>
         </div>
+
+        <MisModulos />
 
         <div className="card">
           <div className="card-title">Memoria y contexto</div>
@@ -173,7 +181,7 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
             </>
           )}
           <Link href="/planes" className="reco-btn" style={{ display: "inline-flex", marginTop: 10 }}>
-            Ver planes disponibles
+            Cambiar mi cupo de mensajes
           </Link>
         </div>
       </div>
@@ -183,8 +191,3 @@ export default function ProfileView({ nombre, plan, email, usuarioId, conversaci
   );
 }
 
-function capitalizar(value: string) {
-  const normalizado = value.trim();
-  if (!normalizado) return "Free";
-  return normalizado.charAt(0).toUpperCase() + normalizado.slice(1).toLowerCase();
-}
