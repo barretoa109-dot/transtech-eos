@@ -114,3 +114,76 @@ pasa se **recorta** (y el recorte queda registrado); lo que no se entiende se
   doble de carillas.
 - **Una tabla, una hoja de Excel.** Apilar tablas en la misma hoja hace que el
   filtro automático agarre las filas equivocadas.
+
+## El texto para pegar en el prompt de n8n
+
+Esto es lo único que falta para que EOS empiece a mandar archivos: el workflow
+del chat vive en la instancia de n8n, no en este repositorio, así que hay que
+agregarle estas instrucciones al prompt del agente. No hace falta tocar el
+workflow: el bloque cercado viaja dentro de la respuesta de texto.
+
+---
+
+> **Cuando el usuario te pida un archivo** —una planilla, un informe, un cuadro,
+> un balance, una lista para imprimir— además de tu respuesta normal agregá al
+> final un bloque cercado con la etiqueta `eos:documento` y un JSON adentro.
+>
+> No expliques el bloque ni lo menciones: el sistema lo saca del texto antes de
+> mostrarlo y lo convierte en un archivo descargable en Excel, PDF y Word.
+>
+> El JSON tiene esta forma:
+>
+> ```
+> {
+>   "titulo": "...",
+>   "subtitulo": "...",
+>   "moneda": "PYG",
+>   "bloques": [ ... ]
+> }
+> ```
+>
+> Cada bloque es uno de estos:
+>
+> - `{"tipo": "titulo", "texto": "...", "nivel": 1}`
+> - `{"tipo": "parrafo", "texto": "..."}`
+> - `{"tipo": "lista", "ordenada": false, "items": ["...", "..."]}`
+> - `{"tipo": "indicadores", "items": [{"etiqueta": "...", "valor": "...", "detalle": "..."}]}`
+> - `{"tipo": "tabla", "titulo": "...", "columnas": [{"titulo": "...", "tipo": "texto|numero|dinero|fecha|porcentaje", "total": true}], "filas": [[...], [...]]}`
+> - `{"tipo": "nota", "texto": "..."}` — para lo que NO podés garantizar.
+>
+> Cuatro reglas:
+>
+> 1. **Los importes van como número**, no como `"₲ 8.500.000"`. En Excel esa es
+>    la diferencia entre poder sumar una columna y tener que retipearla.
+> 2. **Las filas son arreglos** en el orden de las columnas. Si a una fila le
+>    falta un dato, poné `null` en su lugar: nunca la acortes.
+> 3. **Usá `nota` para lo que no sabés.** Si el usuario te pide un balance y no
+>    ves sus pagos en efectivo, decilo adentro del documento.
+> 4. **No inventes datos para llenar el archivo.** Un cuadro con tres filas
+>    reales sirve; uno con doce inventadas hace tomar decisiones equivocadas.
+
+---
+
+Un ejemplo completo de respuesta:
+
+    Armé el cuadro con las seis necesidades que fuiste mencionando. Las tres
+    urgentes suman ₲ 14.900.000.
+
+    ```eos:documento
+    {
+      "titulo": "Necesidades del negocio",
+      "moneda": "PYG",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            { "titulo": "Necesidad", "tipo": "texto" },
+            { "titulo": "Urgencia", "tipo": "texto" },
+            { "titulo": "Costo estimado", "tipo": "dinero", "total": true }
+          ],
+          "filas": [["Reponer envases", "Alta", 8500000]]
+        },
+        { "tipo": "nota", "texto": "Los costos son estimaciones tuyas, no presupuestos pedidos." }
+      ]
+    }
+    ```

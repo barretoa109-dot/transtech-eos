@@ -409,11 +409,7 @@ function Armador() {
                           </span>
 
                           <span className="opcion-precio">
-                            {formatearGs(
-                              periodicidad === "anual"
-                                ? modulo.precio_mensual_pyg * MESES_DEL_ANUAL
-                                : modulo.precio_mensual_pyg,
-                            )}
+                            {precioVisible(modulo.precio_mensual_pyg, periodicidad)}
                           </span>
                         </button>
                       );
@@ -440,13 +436,7 @@ function Armador() {
                       return (
                         <li key={codigo}>
                           <span>{modulo.nombre}</span>
-                          <span>
-                            {formatearGs(
-                              periodicidad === "anual"
-                                ? modulo.precio_mensual_pyg * MESES_DEL_ANUAL
-                                : modulo.precio_mensual_pyg,
-                            )}
-                          </span>
+                          <span>{precioVisible(modulo.precio_mensual_pyg, periodicidad)}</span>
                         </li>
                       );
                     })}
@@ -1562,6 +1552,19 @@ function agruparCatalogo(catalogo: ModuloCatalogo[]) {
       modulos: negocio,
     },
   ].filter((grupo) => grupo.modulos.length > 0);
+}
+
+/**
+ * El precio de una función, como se lee en la lista.
+ *
+ * Una función que hoy no se cobra dice "Incluida" y no "Gs. 0": el cero se lee
+ * como un error de la pantalla, y encima invita a preguntarse si va a empezar a
+ * costar sin aviso. "Incluida" dice lo mismo sin las dos dudas.
+ */
+function precioVisible(mensual: number, periodicidad: "mensual" | "anual") {
+  if (mensual <= 0) return "Incluida";
+
+  return formatearGs(periodicidad === "anual" ? mensual * MESES_DEL_ANUAL : mensual);
 }
 
 function formatearGs(valor?: number | null) {

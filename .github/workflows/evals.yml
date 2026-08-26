@@ -37,3 +37,20 @@ jobs:
       # para comprobar que el corpus lo note, y sus fragmentos se desactualizan
       # apenas alguien reescribe una línea. Es un chequeo manual
       # (`npm run evals:mutacion`) que se corre al agregar casos nuevos.
+
+      # ============================================================
+      # Tipos y lint: informan, no bloquean (todavía)
+      # ============================================================
+      #
+      # `tsc` sí tiene que pasar: el build de Next lo corre igual, así que un
+      # error de tipos ya rompe el despliegue. Adelantarlo acá solo hace que se
+      # entere antes quien abrió el PR.
+      #
+      # `lint` arranca con `continue-on-error` porque hoy hay una deuda vieja de
+      # `any` en los módulos de Bancard y del worker, y bloquear el merge por
+      # eso frenaría trabajo que no tiene nada que ver. Lo que sí hace es
+      # ponerla a la vista en cada PR, para que deje de crecer en silencio: el
+      # día que llegue a cero, se saca esta línea y pasa a bloquear.
+      - run: npx tsc --noEmit
+      - run: npm run lint
+        continue-on-error: true
