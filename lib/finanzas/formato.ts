@@ -1,3 +1,5 @@
+import { decimalesDe, simboloDe } from "./monedas.ts";
+
 /**
  * Cómo se escribe la plata en pantalla.
  *
@@ -8,13 +10,22 @@
  * creerle a las dos.
  */
 
-/** Guaraníes sin decimales: nadie escribe ₲ 1.500,00. */
+/**
+ * Guaraníes sin decimales: nadie escribe ₲ 1.500,00. El resto de las monedas
+ * SÍ los lleva —un dólar redondeado a la unidad deja de cerrar contra el
+ * extracto—, y cuántos lleva cada una lo decide `lib/finanzas/monedas.ts`, que
+ * es la única lista de monedas del proyecto.
+ */
 export function formatearMonto(valor: number, moneda: string): string {
-  const simbolo = moneda === "PYG" ? "₲" : moneda === "USD" ? "US$" : "";
-  const formateado = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
-    Math.round(valor),
-  );
-  return `${simbolo} ${formateado}`.trim();
+  const codigo = (moneda || "PYG").toUpperCase();
+  const decimales = decimalesDe(codigo);
+
+  const formateado = new Intl.NumberFormat("es-PY", {
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  }).format(decimales === 0 ? Math.round(valor) : valor);
+
+  return `${simboloDe(codigo)} ${formateado}`.trim();
 }
 
 const MESES_CORTOS = [

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { clasificar, desglosarGastos, type MovimientoGasto } from "./destinos.ts";
+import {
+  clasificar,
+  desglosarGastos,
+  desglosarIngresos,
+  type MovimientoGasto,
+} from "./destinos.ts";
 
 function gasto(descripcion: string | null, monto: number, extra: Partial<MovimientoGasto> = {}): MovimientoGasto {
   return { monto, fecha: "2026-08-12", descripcion, ...extra };
@@ -108,4 +113,44 @@ test("un importe roto no ensucia el desglose entero", () => {
 test("un mes sin gastos devuelve un desglose vacío, no un error", () => {
   const desglose = desglosarGastos([]);
   assert.deepEqual(desglose, { total: 0, cantidad: 0, sin_reconocer: 0, destinos: [] });
+});
+
+test("los ingresos se agrupan por su núcleo, no por el texto literal", () => {
+  // "Transferencia Juan Pérez agosto" y "TRANSF... 09/2026" son el mismo
+  // cliente: si aparecen como dos orígenes distintos, el panel dice que hay el
+  // doble de fuentes de ingreso de las que hay.
+  const desglose = desglosarIngresos([
+    { monto: 1_000_000, fecha: "2026-08-01", descripcion: "Transferencia Juan Perez agosto" },
+    { monto: 1_000_000, fecha: "2026-09-01", descripcion: "TRANSFERENCIA JUAN PEREZ - 09/2026" },
+    { monto: 300_000, fecha: "2026-08-15", descripcion: "Venta mostrador" },
+  ]);
+
+  assert.equal(desglose.origenes.length, 2);
+  assert.equal(desglose.origenes[0].total, 2_000_000);
+  assert.equal(desglose.origenes[0].cantidad, 2);
+  assert.equal(desglose.total, 2_300_000);
+});
+
+test("la categoría que puso el usuario manda sobre la descripción", () => {
+  const desglose = desglosarIngresos([
+    { monto: 500, fecha: "2026-08-01", descripcion: "Cosa rara", categoria: "Alquileres" },
+    { monto: 700, fecha: "2026-08-02", descripcion: "Otra cosa", categoria: "Alquileres" },
+  ]);
+
+  assert.equal(desglose.origenes.length, 1);
+  assert.equal(desglose.origenes[0].etiqueta, "Alquileres");
+});
+
+test("de siete orígenes en adelante, el sobrante se junta en una sola línea", () => {
+  const movimientos = Array.from({ length: 9 }, (_, i) => ({
+    monto: 100 - i,
+    fecha: "2026-08-01",
+    descripcion: `Cliente ${String.fromCharCode(97 + i)}`,
+  }));
+
+  const desglose = desglosarIngresos(movimientos);
+
+  assert.equal(desglose.origenes.length, 7);
+  assert.match(desglose.origenes[6].etiqueta, /^Otros 3 orígenes$/);
+  assert.equal(desglose.origenes[6].cantidad, 3);
 });

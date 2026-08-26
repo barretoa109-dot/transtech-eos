@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { armarPanorama } from "@/lib/finanzas/panorama";
+import { codigoMoneda } from "@/lib/finanzas/monedas";
 import { detectarRiesgo, redactarAviso } from "@/lib/finanzas/riesgo";
 import { trazarTrayectoria } from "@/lib/finanzas/trayectoria";
 import type { Deuda } from "@/lib/finanzas/deudas";
@@ -42,7 +43,7 @@ export async function GET() {
       .maybeSingle(),
     supabase
       .from("eos_movimientos_financieros")
-      .select("tipo,monto,fecha,descripcion")
+      .select("tipo,monto,moneda,fecha,descripcion")
       .eq("usuario_id", user.id)
       .order("fecha", { ascending: true }),
     supabase
@@ -52,7 +53,7 @@ export async function GET() {
       .order("fecha", { ascending: true }),
     supabase
       .from("eos_finanzas_fijos")
-      .select("tipo,descripcion,monto,dia_del_mes")
+      .select("tipo,descripcion,monto,moneda,dia_del_mes")
       .eq("usuario_id", user.id)
       .eq("activo", true),
     supabase
@@ -77,13 +78,31 @@ export async function GET() {
     return NextResponse.json({ configurado: false, riesgo: null }, { headers: noStore() });
   }
 
+  /*
+   * El aviso mira SOLO la moneda principal.
+   *
+   * Antes miraba todo junto: los dólares del ahorro entraban al mismo saldo
+   * que los guaraníes del día a día, y el aviso podía decir "te alcanza"
+   * porque el faltante en guaraníes quedaba tapado por dólares que no se van a
+   * vender. Es el mismo error que tenía el panel y por el que el panel y la
+   * alerta daban números distintos sobre la misma plata.
+   *
+   * Que sea solo la principal y no una alerta por moneda es una decisión de
+   * alcance: el aprieto que EOS avisa es el de la plata con la que se vive.
+   * Una alerta por cada moneda necesita además su propia deduplicación, y sin
+   * eso serían tres sustos por el mismo mes.
+   */
+  const principal = codigoMoneda(politica.moneda, "PYG");
+  const deLaPrincipal = <T extends { moneda?: string | null }>(filas: T[]) =>
+    filas.filter((f) => codigoMoneda(f.moneda, principal) === principal);
+
   const panorama = armarPanorama({
     hoy,
     hasta,
     saldoInicial: num(politica.saldo_inicial),
     saldoInicialFecha: politica.saldo_inicial_fecha,
     reservaMinima: num(politica.reserva_minima),
-    movimientos: ((movimientosRes.data ?? []) as Fila[]).map((m) => ({
+    movimientos: deLaPrincipal((movimientosRes.data ?? []) as Fila[]).map((m) => ({
       tipo: m.tipo as "ingreso" | "gasto" | "compromiso",
       monto: num(m.monto),
       fecha: m.fecha,
@@ -92,13 +111,13 @@ export async function GET() {
     conciliaciones: ((conciliacionesRes.data ?? []) as { fecha: string; saldo_declarado: number | string }[]).map(
       (c) => ({ fecha: c.fecha, saldo_declarado: num(c.saldo_declarado) }),
     ),
-    fijos: ((fijosRes.data ?? []) as FilaFijo[]).map<Fijo>((f) => ({
+    fijos: deLaPrincipal((fijosRes.data ?? []) as FilaFijo[]).map<Fijo>((f) => ({
       tipo: f.tipo === "ingreso" ? "ingreso" : "gasto",
       descripcion: f.descripcion,
       monto: num(f.monto),
       dia_del_mes: f.dia_del_mes,
     })),
-    deudas: ((deudasRes.data ?? []) as unknown as Deuda[]).map((d) => ({
+    deudas: deLaPrincipal((deudasRes.data ?? []) as unknown as Deuda[]).map((d) => ({
       ...d,
       saldo_declarado: num(d.saldo_declarado),
       cuota_monto: d.cuota_monto === null ? null : num(d.cuota_monto),
@@ -125,9 +144,9 @@ export async function GET() {
   return NextResponse.json(
     {
       configurado: true,
-      moneda: politica.moneda ?? "PYG",
+      moneda: principal,
       riesgo,
-      aviso: riesgo ? redactarAviso(riesgo, politica.moneda ?? "PYG") : null,
+      aviso: riesgo ? redactarAviso(riesgo, principal) : null,
       trayectoria,
       // Sirve para que la interfaz pueda decir "miré los próximos 45 días" en
       // vez de dejar al usuario adivinando qué tan lejos alcanza la promesa.
@@ -137,8 +156,20 @@ export async function GET() {
   );
 }
 
-type Fila = { tipo: string; monto: number | string; fecha: string; descripcion: string | null };
-type FilaFijo = { tipo: string; descripcion: string; monto: number | string; dia_del_mes: number };
+type Fila = {
+  tipo: string;
+  monto: number | string;
+  moneda: string | null;
+  fecha: string;
+  descripcion: string | null;
+};
+type FilaFijo = {
+  tipo: string;
+  descripcion: string;
+  monto: number | string;
+  moneda: string | null;
+  dia_del_mes: number;
+};
 
 function num(valor: number | string | null | undefined): number {
   const n = typeof valor === "string" ? Number(valor) : (valor ?? 0);

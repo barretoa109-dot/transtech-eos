@@ -1740,6 +1740,62 @@
   color: var(--muted);
 }
 
+/* Las otras monedas del usuario.
+
+   Cada una es su propio mundo: su saldo, sus compromisos, su disponible real.
+   No se suman ni se convierten — ver el comentario de OtrasMonedas en
+   FinanzasPanel.tsx. Se pintan más chicas que el número principal a propósito:
+   son plata de verdad, pero no es la moneda en la que se vive. */
+.eos-app .fin-monedas {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 8px;
+}
+.eos-app .fin-monedas-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .fin-moneda {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--green);
+  border-radius: 8px;
+  background: #fff;
+}
+.eos-app .fin-moneda-atencion {
+  border-left-color: var(--amber);
+}
+.eos-app .fin-moneda-accion {
+  border-left-color: var(--red);
+}
+.eos-app .fin-moneda-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.eos-app .fin-moneda-nombre {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+.eos-app .fin-moneda-valor {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--blue-dark);
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .fin-moneda-hint {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
 .eos-app .fin-rows {
   margin-top: 6px;
 }
@@ -2357,40 +2413,78 @@
   background: var(--blue);
   margin-left: 8px;
 }
-.eos-app .dest-meses {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  margin-top: 12px;
+.eos-app .dest-sw.is-neto {
+  background: var(--blue-dark);
+  margin-left: 8px;
+  border-radius: 999px;
 }
-.eos-app .dest-mes {
-  flex: 1;
-  min-width: 0;
+
+/* El gráfico de doce meses. Antes eran divs con altura en porcentaje: doce
+   columnas dobles quedaban de dos píxeles en un teléfono. Con viewBox, el
+   navegador escala el dibujo entero y las proporciones se mantienen. */
+.eos-app .dest-svg {
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+  overflow: visible;
 }
-.eos-app .dest-mes-barras {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 3px;
-  height: 76px;
+.eos-app .dest-bar {
+  rx: 2;
 }
-.eos-app .dest-mes-barra {
-  width: 44%;
-  max-width: 22px;
-  min-height: 2px;
-  border-radius: 3px 3px 0 0;
+.eos-app .dest-bar.is-in {
+  fill: var(--green);
 }
-.eos-app .dest-mes-barra.is-in {
+.eos-app .dest-bar.is-out {
+  fill: var(--blue);
+}
+.eos-app .dest-linea-neto {
+  fill: none;
+  stroke: var(--blue-dark);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.eos-app .dest-punto-neto {
+  fill: var(--blue-dark);
+}
+.eos-app .dest-punto-neto.is-rojo {
+  fill: var(--red);
+}
+.eos-app .dest-cero {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.eos-app .dest-eje {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+/* Los dos lados de la pregunta —en qué se fue y de dónde vino— comparten
+   tarjeta, así que necesitan un encabezado que los separe sin competir con el
+   título de la tarjeta. */
+.eos-app .dest-seccion {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .dest-punto.dest-ingreso {
   background: var(--green);
 }
-.eos-app .dest-mes-barra.is-out {
-  background: var(--blue);
-}
-.eos-app .dest-mes-label {
-  margin-top: 6px;
-  text-align: center;
-  font-size: 11px;
+.eos-app .dest-interanual {
+  margin: 6px 0 2px;
+  font-size: 12.5px;
   color: var(--muted);
+}
+.eos-app .dest-interanual strong.is-up {
+  color: var(--amber);
+}
+.eos-app .dest-interanual strong.is-down {
+  color: var(--green);
 }
 
 /* En el teléfono la fila de cinco columnas no entra: el cambio contra el mes

@@ -8,6 +8,7 @@ import FinanzasBuzon from "./FinanzasBuzon";
 import FinanzasConciliar from "./FinanzasConciliar";
 import FinanzasFijos from "./FinanzasFijos";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { nombreDeMoneda } from "@/lib/finanzas/monedas";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -40,6 +41,11 @@ type EstadoFinanciero = {
     aprendido: boolean;
     conviene_preguntar: boolean;
   };
+  /**
+   * Cada moneda del usuario, calculada entera y por separado. La primera es la
+   * principal y sus números son los mismos que están en la raíz.
+   */
+  monedas?: BloqueMoneda[];
   prevision: {
     proximo_ingreso: { fecha: string; monto: number; descripcion: string; confianza: number } | null;
     gastos_previsibles: {
@@ -56,6 +62,34 @@ type EstadoFinanciero = {
     series_detectadas: number;
     fijos_declarados: number;
     fijos_confirmados: number;
+  };
+};
+
+type BloqueMoneda = {
+  moneda: string;
+  principal: boolean;
+  estado: Estado;
+  sin_datos: boolean;
+  disponible_real: number;
+  saldo_estimado: number;
+  ingresos: number;
+  gastos: number;
+  movimientos_registrados: number;
+  punto_de_partida: {
+    base: number;
+    desde: string;
+    origen: "constitucion" | "cuentas" | "sin_declarar";
+  };
+  cuentas: {
+    nombre: string;
+    tipo: string;
+    saldo_declarado: number | null;
+    saldo_declarado_el: string | null;
+  }[];
+  compromisos: { total: number; cantidad: number; cubiertos: boolean };
+  prevision: {
+    cuotas: { total: number; cantidad: number };
+    gastos_previsibles: { total: number; cantidad: number };
   };
 };
 
@@ -182,6 +216,8 @@ export default function FinanzasPanel() {
           </div>
 
           <ComposicionSaldo data={data} fmt={fmt} />
+
+          <OtrasMonedas monedas={data.monedas ?? []} />
 
           <div className="fin-rows">
             <FinRow
@@ -321,6 +357,79 @@ export default function FinanzasPanel() {
     </div>
     </>
   );
+}
+
+/**
+ * Las otras monedas del usuario.
+ *
+ * ============================================================
+ * POR QUÉ NO ESTÁN SUMADAS AL NÚMERO DE ARRIBA
+ * ============================================================
+ *
+ * Hasta ahora lo estaban, y era un bug: el panel sumaba dólares con guaraníes
+ * como si fueran lo mismo, y mostraba un total que no existe en ninguna moneda
+ * del mundo. Ahora cada moneda tiene su propia línea de tiempo, su propio
+ * disponible real y su propia tarjeta.
+ *
+ * No se convierten a guaraníes ni se muestra un gran total. El porqué está en
+ * el comentario de cabecera de `lib/finanzas/monedas.ts`, pero se resume en
+ * que la cotización no la sabe EOS y un total convertido no contesta ninguna
+ * pregunta que alguien tenga de verdad.
+ *
+ * Cada tarjeta dice de dónde salió su punto de partida. "Según lo que
+ * declaraste el 20 de agosto" y "desde tu primer movimiento" son dos niveles de
+ * certeza muy distintos, y mostrarlos como el mismo número pelado es lo que
+ * hace que alguien confíe de más en el segundo.
+ */
+function OtrasMonedas({ monedas }: { monedas: BloqueMoneda[] }) {
+  const otras = monedas.filter((m) => !m.principal);
+  if (otras.length === 0) return null;
+
+  return (
+    <div className="fin-monedas">
+      <div className="fin-monedas-titulo">También tenés</div>
+
+      {otras.map((m) => {
+        const fmt = (valor: number) => formatearMonto(valor, m.moneda);
+        const comprometido =
+          m.compromisos.total + m.prevision.cuotas.total + m.prevision.gastos_previsibles.total;
+
+        return (
+          <div className={`fin-moneda fin-moneda-${m.estado}`} key={m.moneda}>
+            <div className="fin-moneda-head">
+              <span className="fin-moneda-nombre">{nombreDeMoneda(m.moneda)}</span>
+              <span className="fin-moneda-valor">{fmt(m.disponible_real)}</span>
+            </div>
+
+            <div className="fin-moneda-hint">
+              {comprometido > 0
+                ? `Saldo ${fmt(m.saldo_estimado)} · ${fmt(comprometido)} ya comprometidos`
+                : `Saldo ${fmt(m.saldo_estimado)}`}
+            </div>
+
+            <div className="fin-moneda-hint">{origenDelSaldo(m, fmt)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** De dónde salió el punto de partida de esta moneda, dicho en castellano. */
+function origenDelSaldo(m: BloqueMoneda, fmt: (v: number) => string): string {
+  if (m.punto_de_partida.origen === "cuentas") {
+    const cuantas = m.cuentas.length;
+    return `Parte de ${fmt(m.punto_de_partida.base)} según lo que declaraste el ${formatearFecha(
+      m.punto_de_partida.desde,
+    )}${cuantas > 1 ? ` en ${cuantas} cuentas` : ""}.`;
+  }
+
+  if (m.movimientos_registrados === 0) {
+    return "Todavía no hay movimientos en esta moneda.";
+  }
+
+  // Sin saldo declarado, lo único que EOS puede afirmar es lo que vio pasar.
+  return `Contado desde tu primer movimiento del ${formatearFecha(m.punto_de_partida.desde)}: si ya tenías algo antes, declaralo como cuenta para que el número cierre.`;
 }
 
 /**

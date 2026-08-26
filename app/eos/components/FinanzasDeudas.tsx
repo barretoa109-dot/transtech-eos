@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, Heart } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { nombreDeMoneda } from "@/lib/finanzas/monedas";
 
 /**
  * A quién le debés y cuánto falta.
@@ -32,7 +33,7 @@ type Deuda = {
   id: string;
   acreedor: string;
   tipo: "prestamo" | "tarjeta" | "proveedor" | "familiar" | "impuesto" | "otro";
-  moneda: "PYG" | "USD";
+  moneda: string;
   saldo_declarado: number;
   saldo_declarado_el: string;
   cuota_monto: number | null;
@@ -44,10 +45,12 @@ type Deuda = {
   preocupa: boolean;
 };
 
+type TotalMoneda = { moneda: string; total: number; cuota_mensual: number };
+
 type Respuesta = {
   deudas: Deuda[];
-  total_adeudado: number;
-  total_adeudado_usd: number;
+  /** Un total por cada moneda en la que el usuario debe. */
+  totales: TotalMoneda[];
   proxima_cuota: { fecha: string; monto: number; descripcion: string } | null;
 };
 
@@ -87,14 +90,20 @@ export default function FinanzasDeudas() {
   // vería un "no debés nada" que es mentira.
   if (vivas.length === 0) return null;
 
-  // Lo que sale todos los meses en cuotas. Es el número que convierte una
-  // lista de saldos en algo que se siente: cuánto de cada mes ya está tomado
-  // antes de decidir nada.
-  const porMes = vivas
-    .filter((d) => d.moneda === "PYG" && d.cuota_monto && restantes(d) !== 0)
-    .reduce((total, d) => total + (d.cuota_monto ?? 0), 0);
+  /*
+   * Un total por moneda.
+   *
+   * Antes esta tarjeta sumaba solo los guaraníes y mostraba los dólares como
+   * una nota al pie; cualquier otra moneda simplemente no existía. Ahora hay
+   * una columna por moneda: sumar deudas de monedas distintas da un número
+   * que no se debe en ninguna.
+   */
+  const totales = data.totales ?? [];
 
-  const pyg = (v: number) => formatearMonto(v, "PYG");
+  // La próxima cuota sale de `proximaCuota`, que recorre todas las deudas sin
+  // mirar la moneda: se muestra en la de mayor peso, que es la que la va a
+  // haber generado en la práctica.
+  const monedaPrincipal = totales[0]?.moneda ?? "PYG";
 
   return (
     <div className="card">
@@ -104,27 +113,26 @@ export default function FinanzasDeudas() {
       </div>
 
       <div className="deuda-resumen">
-        <div className="deuda-kpi">
-          <div className="deuda-kpi-l">Total declarado</div>
-          <div className="deuda-kpi-v">{pyg(data.total_adeudado)}</div>
-          {data.total_adeudado_usd > 0 && (
-            <div className="deuda-kpi-extra">+ {formatearMonto(data.total_adeudado_usd, "USD")}</div>
-          )}
-        </div>
-        {porMes > 0 && (
-          <div className="deuda-kpi">
-            <div className="deuda-kpi-l">Sale por mes en cuotas</div>
-            <div className="deuda-kpi-v">{pyg(porMes)}</div>
-            <div className="deuda-kpi-extra">ya descontado de tu disponible</div>
+        {totales.map((t) => (
+          <div className="deuda-kpi" key={t.moneda}>
+            <div className="deuda-kpi-l">
+              {totales.length > 1 ? `Total en ${nombreDeMoneda(t.moneda).toLowerCase()}` : "Total declarado"}
+            </div>
+            <div className="deuda-kpi-v">{formatearMonto(t.total, t.moneda)}</div>
+            {t.cuota_mensual > 0 && (
+              <div className="deuda-kpi-extra">
+                {formatearMonto(t.cuota_mensual, t.moneda)} por mes en cuotas
+              </div>
+            )}
           </div>
-        )}
+        ))}
         {data.proxima_cuota && (
           <div className="deuda-kpi">
             <div className="deuda-kpi-l">
               <CalendarClock size={12} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />
               Próxima cuota
             </div>
-            <div className="deuda-kpi-v">{pyg(data.proxima_cuota.monto)}</div>
+            <div className="deuda-kpi-v">{formatearMonto(data.proxima_cuota.monto, monedaPrincipal)}</div>
             <div className="deuda-kpi-extra">{formatearFecha(data.proxima_cuota.fecha)}</div>
           </div>
         )}

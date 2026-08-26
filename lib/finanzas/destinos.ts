@@ -1,3 +1,5 @@
+import { normalizarDescripcion } from "./recurrencia.ts";
+
 /**
  * A dónde se fue la plata.
  *
@@ -299,4 +301,110 @@ export function desglosarGastos(
     sin_reconocer: redondear(ahora.get(OTROS.clave)?.total ?? 0),
     destinos,
   };
+}
+
+/**
+ * De dónde vino la plata.
+ *
+ * El reverso de `desglosarGastos`, y la otra mitad de la pregunta del usuario:
+ * "a dónde va, a dónde fue". Un panel que solo explica los gastos deja creer
+ * que el problema siempre está del lado del que gasta; muchas veces está del
+ * lado del que cobra —un cliente que dejó de pagar, un ingreso que era único y
+ * no se repitió— y eso solo se ve mirando los ingresos con la misma lupa.
+ *
+ * NO usa las reglas de rubro de los gastos: "ANDE" o "supermercado" no
+ * significan nada en un ingreso. Se agrupa por la categoría si el usuario la
+ * puso, y si no por el núcleo de la descripción, con el mismo normalizador con
+ * el que `recurrencia` agrupa las series — así "Transferencia Juan Pérez
+ * agosto" y "TRANSF. JUAN PEREZ - 09/2026" caen juntos, que es lo que una
+ * persona espera al mirar de dónde le entra la plata.
+ */
+export type LineaOrigen = {
+  etiqueta: string;
+  total: number;
+  cantidad: number;
+  porcentaje: number;
+  /** Lo mismo en el período anterior. `null` si no hay con qué comparar. */
+  antes: number | null;
+};
+
+export type DesgloseIngresos = {
+  total: number;
+  cantidad: number;
+  origenes: LineaOrigen[];
+};
+
+/** Cuántos orígenes se muestran antes de juntar el resto en "Otros ingresos". */
+const MAX_ORIGENES = 6;
+
+function claveDeOrigen(m: MovimientoGasto): { clave: string; etiqueta: string } {
+  const categoria = (m.categoria ?? "").trim();
+  if (categoria) return { clave: categoria.toLowerCase(), etiqueta: categoria };
+
+  const nucleo = normalizarDescripcion(m.descripcion);
+  if (!nucleo) return { clave: "sin-detalle", etiqueta: "Sin detalle" };
+
+  return { clave: nucleo, etiqueta: capitalizar(nucleo) };
+}
+
+function capitalizar(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function acumularOrigenes(movimientos: MovimientoGasto[]) {
+  const mapa = new Map<string, { etiqueta: string; total: number; cantidad: number }>();
+
+  for (const m of movimientos) {
+    const { clave, etiqueta } = claveDeOrigen(m);
+    const actual = mapa.get(clave);
+
+    if (actual) {
+      actual.total += m.monto;
+      actual.cantidad += 1;
+    } else {
+      mapa.set(clave, { etiqueta, total: m.monto, cantidad: 1 });
+    }
+  }
+
+  return mapa;
+}
+
+export function desglosarIngresos(
+  actuales: MovimientoGasto[],
+  previos: MovimientoGasto[] = [],
+): DesgloseIngresos {
+  const ahora = acumularOrigenes(actuales);
+  const antes = acumularOrigenes(previos);
+  const hayComparacion = previos.length > 0;
+
+  const total = [...ahora.values()].reduce((t, v) => t + v.total, 0);
+  const cantidad = [...ahora.values()].reduce((t, v) => t + v.cantidad, 0);
+
+  const ordenados = [...ahora.entries()].sort((a, b) => b[1].total - a[1].total);
+  const principales = ordenados.slice(0, MAX_ORIGENES);
+  const resto = ordenados.slice(MAX_ORIGENES);
+
+  const origenes: LineaOrigen[] = principales.map(([clave, v]) => ({
+    etiqueta: v.etiqueta,
+    total: redondear(v.total),
+    cantidad: v.cantidad,
+    porcentaje: total > 0 ? Math.round((v.total / total) * 1000) / 10 : 0,
+    antes: hayComparacion ? redondear(antes.get(clave)?.total ?? 0) : null,
+  }));
+
+  if (resto.length > 0) {
+    const totalResto = resto.reduce((t, [, v]) => t + v.total, 0);
+
+    origenes.push({
+      etiqueta: `Otros ${resto.length} orígenes`,
+      total: redondear(totalResto),
+      cantidad: resto.reduce((t, [, v]) => t + v.cantidad, 0),
+      porcentaje: total > 0 ? Math.round((totalResto / total) * 1000) / 10 : 0,
+      antes: hayComparacion
+        ? redondear(resto.reduce((t, [clave]) => t + (antes.get(clave)?.total ?? 0), 0))
+        : null,
+    });
+  }
+
+  return { total: redondear(total), cantidad, origenes };
 }

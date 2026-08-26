@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay } from "@/lib/fecha";
 import {
+  estaViva,
   porPrioridad,
   proximaCuota,
   totalAdeudado,
@@ -56,9 +57,34 @@ export async function GET() {
 
   const deudas = (data ?? []) as unknown as Deuda[];
 
+  /*
+   * Un total por moneda, no dos campos fijos.
+   *
+   * Antes eran `total_adeudado` (guaraníes) y `total_adeudado_usd`, porque el
+   * modelo solo admitía esas dos. Una deuda con un proveedor de Ciudad del
+   * Este puede estar en reales, y sumarla a los guaraníes daría un total que no
+   * existe en ninguna moneda. Los dos campos viejos se mantienen para no
+   * romper a quien todavía los lea.
+   */
+  const vivas = deudas.filter((d) => d.estado !== "saldada");
+  const monedas = [...new Set(vivas.map((d) => d.moneda))];
+
+  const totales = monedas
+    .map((moneda) => ({
+      moneda,
+      total: totalAdeudado(deudas, moneda),
+      // Lo que sale todos los meses en cuotas: el número que convierte una
+      // lista de saldos en algo que se siente.
+      cuota_mensual: vivas
+        .filter((d) => d.moneda === moneda && estaViva(d))
+        .reduce((suma, d) => suma + (d.cuota_monto ?? 0), 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+
   return NextResponse.json(
     {
       deudas: porPrioridad(deudas),
+      totales,
       total_adeudado: totalAdeudado(deudas),
       total_adeudado_usd: totalAdeudado(deudas, "USD"),
       proxima_cuota: proximaCuota(deudas, hoyEnParaguay()),

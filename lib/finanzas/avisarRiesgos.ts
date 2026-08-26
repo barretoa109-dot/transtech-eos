@@ -1,4 +1,5 @@
 import { armarPanorama } from "./panorama.ts";
+import { codigoMoneda } from "./monedas.ts";
 import { detectarRiesgo, redactarAviso } from "./riesgo.ts";
 import { convieneAvisar, TITULO_AVISO } from "./avisos.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
@@ -81,7 +82,7 @@ export async function avisarRiesgos(
       const [movimientos, conciliaciones, fijos, deudas, previo] = await Promise.all([
         admin
           .from("eos_movimientos_financieros")
-          .select("tipo,monto,fecha,descripcion")
+          .select("tipo,monto,moneda,fecha,descripcion")
           .eq("usuario_id", uid)
           .order("fecha", { ascending: true }),
         admin
@@ -90,7 +91,7 @@ export async function avisarRiesgos(
           .eq("usuario_id", uid),
         admin
           .from("eos_finanzas_fijos")
-          .select("tipo,descripcion,monto,dia_del_mes")
+          .select("tipo,descripcion,monto,moneda,dia_del_mes")
           .eq("usuario_id", uid)
           .eq("activo", true),
         admin
@@ -109,13 +110,27 @@ export async function avisarRiesgos(
           .maybeSingle(),
       ]);
 
+      /*
+       * Solo la moneda principal, igual que el panel.
+       *
+       * Antes se sumaba todo junto y los dólares del ahorro tapaban un
+       * faltante en guaraníes: el aviso decía "te alcanza" con plata que no se
+       * va a vender. Ver el comentario largo en `app/api/finanzas/riesgo`, que
+       * hace exactamente lo mismo — y tiene que seguir haciéndolo, porque si
+       * los dos caminos se separan el usuario recibe un correo que no coincide
+       * con lo que ve en pantalla.
+       */
+      const principal = codigoMoneda(politica.moneda, "PYG");
+      const deLaPrincipal = (filas: Record<string, unknown>[]) =>
+        filas.filter((f) => codigoMoneda(f.moneda, principal) === principal);
+
       const panorama = armarPanorama({
         hoy,
         hasta,
         saldoInicial: num(politica.saldo_inicial),
         saldoInicialFecha: politica.saldo_inicial_fecha,
         reservaMinima: num(politica.reserva_minima),
-        movimientos: ((movimientos.data ?? []) as Record<string, unknown>[]).map((m) => ({
+        movimientos: deLaPrincipal((movimientos.data ?? []) as Record<string, unknown>[]).map((m) => ({
           tipo: m.tipo as "ingreso" | "gasto" | "compromiso",
           monto: num(m.monto),
           fecha: m.fecha as string,
@@ -125,13 +140,13 @@ export async function avisarRiesgos(
           fecha: c.fecha as string,
           saldo_declarado: num(c.saldo_declarado),
         })),
-        fijos: ((fijos.data ?? []) as Record<string, unknown>[]).map<Fijo>((f) => ({
+        fijos: deLaPrincipal((fijos.data ?? []) as Record<string, unknown>[]).map<Fijo>((f) => ({
           tipo: f.tipo === "ingreso" ? "ingreso" : "gasto",
           descripcion: f.descripcion as string,
           monto: num(f.monto),
           dia_del_mes: f.dia_del_mes as number,
         })),
-        deudas: ((deudas.data ?? []) as unknown as Deuda[]).map((d) => ({
+        deudas: (deLaPrincipal(deudas.data ?? []) as unknown as Deuda[]).map((d) => ({
           ...d,
           saldo_declarado: num(d.saldo_declarado),
           cuota_monto: d.cuota_monto === null ? null : num(d.cuota_monto),
@@ -174,7 +189,7 @@ export async function avisarRiesgos(
         continue;
       }
 
-      const texto = redactarAviso(riesgo, politica.moneda ?? "PYG");
+      const texto = redactarAviso(riesgo, principal);
       const entregado = await entregar(admin, uid, texto, opciones.enviarCorreo);
 
       if (!entregado) {

@@ -1,4 +1,5 @@
 import { proximaFechaDelMes } from "./fijos.ts";
+import { monedaConocida } from "./monedas.ts";
 import type { MovimientoProyectado } from "./recurrencia.ts";
 
 /**
@@ -26,7 +27,8 @@ export type Deuda = {
   id?: string;
   acreedor: string;
   tipo: "prestamo" | "tarjeta" | "proveedor" | "familiar" | "impuesto" | "otro";
-  moneda: "PYG" | "USD";
+  /** Cualquiera de las de `lib/finanzas/monedas.ts`. Antes eran solo dos. */
+  moneda: string;
   saldo_declarado: number;
   saldo_declarado_el: string;
   cuota_monto: number | null;
@@ -169,7 +171,7 @@ function diasEntre(a: string, b: string): number {
 }
 
 /** Cuánto debe en total, por moneda. Solo lo que sigue vivo. */
-export function totalAdeudado(deudas: Deuda[], moneda: "PYG" | "USD" = "PYG"): number {
+export function totalAdeudado(deudas: Deuda[], moneda: string = "PYG"): number {
   return deudas
     .filter((d) => d.estado !== "saldada" && d.moneda === moneda)
     .reduce((total, d) => total + d.saldo_declarado, 0);
@@ -220,7 +222,7 @@ const MAXIMO_RAZONABLE = 999_999_999_999;
 export type DeudaValidada = {
   acreedor: string;
   tipo: string;
-  moneda: "PYG" | "USD";
+  moneda: string;
   saldo_declarado: number;
   saldo_declarado_el: string;
   cuota_monto: number | null;
@@ -305,7 +307,9 @@ export function validarDeuda(
     valor: {
       acreedor: acreedor.slice(0, 120),
       tipo,
-      moneda: body.moneda === "USD" ? "USD" : "PYG",
+      // Una deuda en reales con un proveedor de Ciudad del Este es tan común
+      // como una en dólares; antes acá todo lo que no fuera USD caía en PYG.
+      moneda: monedaConocida(body.moneda),
       saldo_declarado: Math.round(saldo * 100) / 100,
       saldo_declarado_el: fechaOpcional(body.saldo_declarado_el) ?? hoy,
       cuota_monto: cuotaMonto === null ? null : Math.round(cuotaMonto * 100) / 100,
