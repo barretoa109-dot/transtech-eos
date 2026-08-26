@@ -99,7 +99,46 @@ export async function POST(request: Request) {
  * alguien toca un interruptor.
  */
 export async function GET(request: Request) {
-  const modulos = (new URL(request.url).searchParams.get("modulos") ?? "")
+  const { searchParams } = new URL(request.url);
+
+  /*
+   * Con `?id=` devuelve un armado YA GUARDADO, para que el checkout pueda
+   * mostrar el precio sin recalcularlo.
+   *
+   * Sale del cliente del usuario y no del de servicio a propósito: la política
+   * de RLS de `eos_planes_armados` solo deja leer los propios, así que un id
+   * ajeno pegado en la URL devuelve vacío en vez del precio de otra persona.
+   * El monto que se COBRA no sale de acá igual — lo vuelve a leer la función de
+   * la base al crear la solicitud de pago.
+   */
+  const id = (searchParams.get("id") ?? "").trim();
+
+  if (id) {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
+    }
+
+    const { data, error } = await supabase
+      .from("eos_planes_armados")
+      .select("id,modulos,periodicidad,monto,moneda,estado")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !data) {
+      return NextResponse.json({ error: "No encontrado." }, { status: 404, headers: noStore() });
+    }
+
+    return NextResponse.json(data, { headers: noStore() });
+  }
+
+  const modulos = (searchParams.get("modulos") ?? "")
     .split(",")
     .map((m) => m.trim().toLowerCase())
     .filter(Boolean)
@@ -109,8 +148,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Sin funciones." }, { status: 400, headers: noStore() });
   }
 
-  const periodicidad =
-    new URL(request.url).searchParams.get("periodicidad") === "anual" ? "anual" : "mensual";
+  const periodicidad = searchParams.get("periodicidad") === "anual" ? "anual" : "mensual";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (createAdminClient() as any).rpc("eos_precio_armado", {

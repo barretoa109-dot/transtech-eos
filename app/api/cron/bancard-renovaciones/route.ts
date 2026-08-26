@@ -174,13 +174,39 @@ export async function GET(request: Request) {
 
       const periodicidad = ultimo?.periodicidad === "anual" ? "anual" : "mensual";
 
+      /*
+       * Qué se le renueva: el EOS que armó, o el plan de siempre.
+       *
+       * Un usuario que armó su EOS función por función paga la suma de esas
+       * funciones. Sin esta consulta, la renovación cobraría el precio del plan
+       * —o sea, solo el tramo de conversaciones— y le seguiría entregando todo
+       * lo que eligió. Cobrar de menos y entregar de más, todos los meses.
+       *
+       * El monto sale del armado y está CONGELADO ahí desde que lo contrató: si
+       * mañana sube el precio de un módulo, a este usuario se le sigue cobrando
+       * lo que aceptó hasta que él lo cambie.
+       */
+      const { data: armado } = await admin.rpc("eos_armado_vigente", {
+        p_usuario_id: usuario.id,
+      });
+
+      const armadoId = (armado as { armado_id?: string } | null)?.armado_id ?? null;
+
       const resultado = await ejecutarCobroBancard({
         admin,
         usuarioId: usuario.id,
         plan: String(usuario.plan || "").toLowerCase(),
-        periodicidad,
+        // Un armado trae su propia periodicidad congelada; la del último pago
+        // solo manda cuando se renueva un plan de los viejos.
+        periodicidad:
+          (armado as { periodicidad?: string } | null)?.periodicidad === "anual"
+            ? "anual"
+            : armadoId
+              ? "mensual"
+              : periodicidad,
         tarjetaId: tarjeta.id,
         baseUrlApp: baseUrlApp(),
+        armadoId,
       });
 
       /*

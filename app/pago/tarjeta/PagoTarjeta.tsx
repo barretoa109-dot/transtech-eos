@@ -49,6 +49,16 @@ export default function PagoTarjeta() {
   const params = useSearchParams();
 
   const codigoPlan = (params.get("plan") || "pro").toLowerCase();
+
+  /*
+   * El otro camino que llega acá: un EOS armado a medida.
+   *
+   * Cuando viene `?armado=`, el precio NO sale de la tabla de planes de este
+   * archivo sino de lo que el usuario eligió función por función, ya calculado
+   * y congelado por la base. El resto de la pantalla —las tarjetas, el 3DS, el
+   * iframe— es exactamente igual: lo único distinto es de dónde sale la cifra.
+   */
+  const armadoId = (params.get("armado") || "").trim();
   const periodicidad = params.get("periodicidad") === "anual" ? "anual" : "mensual";
   /* La puso el rebote de más abajo; sirve para no volver a rebotar. */
   const yaVolvioDelLogin = params.get("reintento") === "1";
@@ -76,12 +86,22 @@ export default function PagoTarjeta() {
   const [telefono, setTelefono] = useState("");
   const [pideTelefono, setPideTelefono] = useState(false);
 
+  const [armado, setArmado] = useState<{ monto: number; modulos: string[]; periodicidad: string } | null>(
+    null,
+  );
+
   const definicion = PLANES[codigoPlan] || PLANES.pro;
-  const plan: Plan = {
-    codigo: codigoPlan,
-    nombre: definicion.nombre,
-    precio: periodicidad === "anual" ? definicion.anual : definicion.mensual,
-  };
+  const plan: Plan = armado
+    ? {
+        codigo: "armado",
+        nombre: "Tu EOS",
+        precio: armado.monto,
+      }
+    : {
+        codigo: codigoPlan,
+        nombre: definicion.nombre,
+        precio: periodicidad === "anual" ? definicion.anual : definicion.mensual,
+      };
 
   const cargarTarjetas = useCallback(async () => {
     try {
@@ -107,7 +127,9 @@ export default function PagoTarjeta() {
          * Sin codificar, el `?plan=` quedaba como parámetro del login y no
          * como parte del destino: se volvía al checkout sin plan elegido.
          */
-        const destino = `/pago/tarjeta?plan=${codigoPlan}&periodicidad=${periodicidad}&reintento=1`;
+        const destino = armadoId
+          ? `/pago/tarjeta?armado=${encodeURIComponent(armadoId)}&reintento=1`
+          : `/pago/tarjeta?plan=${codigoPlan}&periodicidad=${periodicidad}&reintento=1`;
 
         router.replace(`/login?next=${encodeURIComponent(destino)}`);
         return;
@@ -130,11 +152,44 @@ export default function PagoTarjeta() {
     } finally {
       setCargando(false);
     }
-  }, [codigoPlan, periodicidad, router, yaVolvioDelLogin]);
+  }, [armadoId, codigoPlan, periodicidad, router, yaVolvioDelLogin]);
 
   useEffect(() => {
     cargarTarjetas();
   }, [cargarTarjetas]);
+
+  /*
+   * El precio del armado lo trae la propia base.
+   *
+   * La política de RLS de `eos_planes_armados` solo deja leer los propios, así
+   * que un id ajeno pegado en la URL no devuelve nada en vez de devolver el
+   * precio de otro. Y el monto que se COBRA no sale de acá igual: lo vuelve a
+   * leer la función de la base al crear la solicitud. Esto es para mostrarlo.
+   */
+  useEffect(() => {
+    if (!armadoId) return;
+
+    let activo = true;
+
+    fetch(`/api/modulos/armado?id=${encodeURIComponent(armadoId)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (activo && data?.monto) {
+          setArmado({
+            monto: Number(data.monto),
+            modulos: Array.isArray(data.modulos) ? data.modulos : [],
+            periodicidad: String(data.periodicidad ?? "mensual"),
+          });
+        }
+      })
+      .catch(() => {
+        /* Sin el detalle igual se puede pagar: el monto real lo pone la base. */
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [armadoId]);
 
 
   const sincronizar = useCallback(async () => {
@@ -352,7 +407,9 @@ export default function PagoTarjeta() {
       const res = await fetch("/api/pagos/bancard/ocasional", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: plan.codigo, periodicidad }),
+        body: JSON.stringify(
+          armadoId ? { armado_id: armadoId } : { plan: plan.codigo, periodicidad },
+        ),
       });
 
       const data = await res.json();
@@ -399,8 +456,7 @@ export default function PagoTarjeta() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: plan.codigo,
-          periodicidad,
+          ...(armadoId ? { armado_id: armadoId } : { plan: plan.codigo, periodicidad }),
           tarjeta_id: seleccionada,
         }),
       });
@@ -575,7 +631,14 @@ export default function PagoTarjeta() {
               TransTech nunca los ve ni los guarda.
             </p>
 
-            <a className="alternativa" href={`/pago?plan=${plan.codigo}&periodicidad=${periodicidad}`}>
+            <a
+              className="alternativa"
+              href={
+                armadoId
+                  ? `/pago?armado=${encodeURIComponent(armadoId)}`
+                  : `/pago?plan=${plan.codigo}&periodicidad=${periodicidad}`
+              }
+            >
               Prefiero pagar por transferencia
             </a>
           </>

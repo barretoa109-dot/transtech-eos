@@ -253,7 +253,12 @@ function Armador() {
         throw new Error(resultado?.error || "No pudimos guardar tu selección.");
       }
 
-      router.push(`/pago?armado=${encodeURIComponent(resultado.armado_id)}`);
+      /*
+       * Al checkout de TARJETA, que es el camino principal y ofrece la
+       * transferencia como alternativa. Mandar directo a transferencia haría
+       * que el que quiere pagar con tarjeta —la mayoría— tenga que buscar cómo.
+       */
+      router.push(`/pago/tarjeta?armado=${encodeURIComponent(resultado.armado_id)}`);
     } catch (err) {
       console.error("No se pudo preparar el pago del armado:", err);
       setError(err instanceof Error ? err.message : "No pudimos preparar el pago.");

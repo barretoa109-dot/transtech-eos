@@ -20,6 +20,15 @@ type Parametros = {
   periodicidad: "mensual" | "anual";
   tarjetaId: string;
   baseUrlApp: string;
+  /**
+   * El EOS armado a medida que se está cobrando, si lo hay.
+   *
+   * Cuando viene, el monto sale del armado y no del precio del plan. Sin esto,
+   * la renovación del mes dos cobraría solo el tramo de conversaciones de un
+   * EOS que el usuario armó completo — un agujero que crece con cada usuario y
+   * con cada mes.
+   */
+  armadoId?: string | null;
 };
 
 function textoError(error: unknown) {
@@ -44,6 +53,7 @@ export async function ejecutarCobroBancard({
   periodicidad,
   tarjetaId,
   baseUrlApp,
+  armadoId = null,
 }: Parametros): Promise<ResultadoCobro> {
   const { data: mapeo } = await admin
     .from("eos_bancard_usuarios_v51")
@@ -55,15 +65,18 @@ export async function ejecutarCobroBancard({
     return { tipo: "error", motivo: "Todavía no tenés una tarjeta registrada.", codigo: 409 };
   }
 
-  const { data: creado, error: crearError } = await admin.rpc(
-    "eos_bancard_crear_cobro_v51",
-    {
-      p_usuario_id: usuarioId,
-      p_plan_codigo: plan,
-      p_periodicidad: periodicidad,
-      p_tarjeta_id: tarjetaId,
-    },
-  );
+  const { data: creado, error: crearError } = armadoId
+    ? await admin.rpc("eos_bancard_crear_pago_armado_v71", {
+        p_usuario_id: usuarioId,
+        p_armado_id: armadoId,
+        p_tarjeta_id: tarjetaId,
+      })
+    : await admin.rpc("eos_bancard_crear_cobro_v51", {
+        p_usuario_id: usuarioId,
+        p_plan_codigo: plan,
+        p_periodicidad: periodicidad,
+        p_tarjeta_id: tarjetaId,
+      });
 
   if (crearError) {
     const texto = textoError(crearError);
@@ -74,6 +87,8 @@ export async function ejecutarCobroBancard({
       ["EOS_BANCARD_PLAN_PRICE_INVALID", "El plan no tiene un precio válido.", 400],
       ["EOS_BANCARD_CARD_NOT_FOUND", "No encontramos esa tarjeta guardada.", 404],
       ["EOS_BANCARD_USER_NOT_FOUND", "No encontramos la cuenta.", 409],
+      ["EOS_ARMADO_NO_EXISTE", "No encontramos el EOS armado que se quiere cobrar.", 404],
+      ["EOS_ARMADO_MONTO_INVALIDO", "Ese armado no tiene un precio válido.", 400],
     ];
 
     for (const [codigo, mensaje, status] of mapa) {

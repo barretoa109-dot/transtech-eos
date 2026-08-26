@@ -15,6 +15,8 @@ export const dynamic = "force-dynamic";
 
 type Body = {
   plan?: string;
+  /** Un EOS armado a medida (v66). Cuando viene, manda sobre `plan`. */
+  armado_id?: string;
   periodicidad?: "mensual" | "anual";
 };
 
@@ -57,16 +59,30 @@ export async function POST(request: Request) {
     const plan = String(body?.plan || "").trim().toLowerCase();
     const periodicidad = body?.periodicidad === "anual" ? "anual" : "mensual";
 
+    /*
+     * Dos formas de llegar al mismo checkout de Bancard.
+     *
+     * La de siempre cobra el precio de un plan. La nueva cobra el EOS que el
+     * usuario armó función por función, y el monto sale de ahí. Sin esta rama,
+     * quien armaba un EOS de Gs. 340.000 y pagaba con tarjeta era cobrado por
+     * el tramo de conversaciones nomás — y recibía igual todos los módulos,
+     * porque el trigger de la v66 los activa mirando el metadata.
+     */
+    const armadoId = String(body?.armado_id || "").trim();
+
     const admin: any = createAdminClient();
 
-    const { data: creado, error: crearError } = await admin.rpc(
-      "eos_bancard_crear_pago_ocasional_v52",
-      {
-        p_usuario_id: user.id,
-        p_plan_codigo: plan,
-        p_periodicidad: periodicidad,
-      },
-    );
+    const { data: creado, error: crearError } = armadoId
+      ? await admin.rpc("eos_bancard_crear_pago_armado_v71", {
+          p_usuario_id: user.id,
+          p_armado_id: armadoId,
+          p_tarjeta_id: null,
+        })
+      : await admin.rpc("eos_bancard_crear_pago_ocasional_v52", {
+          p_usuario_id: user.id,
+          p_plan_codigo: plan,
+          p_periodicidad: periodicidad,
+        });
 
     if (crearError) {
       const texto = textoErrorRpc(crearError);
@@ -76,6 +92,8 @@ export async function POST(request: Request) {
         ["EOS_BANCARD_PERIOD_INVALID", "La periodicidad no es válida.", 400],
         ["EOS_BANCARD_PLAN_PRICE_INVALID", "El plan no tiene un precio válido.", 400],
         ["EOS_BANCARD_USER_NOT_FOUND", "No encontramos tu cuenta.", 409],
+        ["EOS_ARMADO_NO_EXISTE", "No encontramos el EOS que armaste. Volvé a elegir tus funciones.", 404],
+        ["EOS_ARMADO_MONTO_INVALIDO", "Ese armado no tiene un precio válido.", 400],
       ];
 
       for (const [codigo, mensaje, status] of mapa) {
@@ -107,7 +125,9 @@ export async function POST(request: Request) {
 
     const { publicKey, privateKey } = getBancardKeys();
     const monto = formatearMontoBancard(pago.monto);
-    const retorno = `${baseUrlApp()}/pago/tarjeta?ref=${pago.shop_process_id}&plan=${encodeURIComponent(plan)}&periodicidad=${periodicidad}`;
+    const retorno = armadoId
+      ? `${baseUrlApp()}/pago/tarjeta?ref=${pago.shop_process_id}&armado=${encodeURIComponent(armadoId)}`
+      : `${baseUrlApp()}/pago/tarjeta?ref=${pago.shop_process_id}&plan=${encodeURIComponent(plan)}&periodicidad=${periodicidad}`;
 
     const respuesta = await llamarBancard("/vpos/api/0.3/single_buy", {
       public_key: publicKey,
@@ -118,7 +138,8 @@ export async function POST(request: Request) {
         currency: "PYG",
         // El staging los rechaza si faltan, pese a figurar como opcionales.
         additional_data: "",
-        description: `EOS ${plan}`.slice(0, 20),
+        // Bancard corta en 20 caracteres, así que no entra el detalle.
+        description: (armadoId ? "EOS a medida" : `EOS ${plan}`).slice(0, 20),
         return_url: retorno,
         cancel_url: `${retorno}&cancelado=1`,
       },

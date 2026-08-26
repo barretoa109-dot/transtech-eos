@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 type CobrarBody = {
   plan?: string;
+  /** Un EOS armado a medida (v66). Cuando viene, manda sobre `plan`. */
+  armado_id?: string;
   periodicidad?: "mensual" | "anual";
   tarjeta_id?: string;
 };
@@ -38,6 +40,8 @@ export async function POST(request: Request) {
     const plan = String(body?.plan || "").trim().toLowerCase();
     const periodicidad = body?.periodicidad === "anual" ? "anual" : "mensual";
     const tarjetaId = String(body?.tarjeta_id || "").trim();
+    // Cuando el usuario armó su EOS, el monto sale del armado y no del plan.
+    const armadoId = String(body?.armado_id || "").trim();
 
     if (!tarjetaId) {
       return NextResponse.json(
@@ -50,6 +54,7 @@ export async function POST(request: Request) {
       admin: createAdminClient(),
       usuarioId: user.id,
       plan,
+      armadoId: armadoId || null,
       periodicidad,
       tarjetaId,
       baseUrlApp: baseUrlApp(),

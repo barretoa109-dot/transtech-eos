@@ -1,9 +1,9 @@
-# Puesta en marcha: migraciones v64 a v70
+# Puesta en marcha: migraciones v64 a v71
 
 > El archivo conserva el nombre `v64-v69` porque ya hay documentos que lo
 > enlazan así. La v70 llegó después y está incluida acá abajo.
 
-Siete migraciones nuevas. **El orden importa y el momento del deploy también**:
+Ocho migraciones nuevas. **El orden importa y el momento del deploy también**:
 hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 
 | # | Archivo | Qué trae |
@@ -15,6 +15,7 @@ hay un caso en el que desplegar antes de migrar apaga funciones para todos.
 | v68 | `20260826180000_eos_factura_electronica_v68.sql` | Facturación electrónica |
 | v69 | `20260826190000_eos_erp_registrar_venta_v69.sql` | Registrar una venta, entera |
 | v70 | `20260826200000_eos_erp_registrar_compra_v70.sql` | Registrar una compra, entera |
+| v71 | `20260826210000_eos_bancard_armado_v71.sql` | Cobrar el armado con tarjeta y renovarlo |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
 v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
@@ -60,17 +61,27 @@ No se modificó ninguna función de cobro existente. La solicitud sigue llevando
 un `plan_codigo` de los de siempre —el del tramo de conversaciones elegido— así
 que `asignar_plan_eos` sigue fijando el plan y el cupo sin enterarse de nada.
 
-### Lo que falta conectar
+El camino de tarjeta hace lo mismo desde la v71: `/pago/tarjeta?armado=…` crea
+la solicitud con `eos_bancard_crear_pago_armado_v71`, que es idéntica a las
+funciones certificadas de Bancard salvo en de dónde sale el monto. Y la
+renovación lee `eos_armado_vigente` antes de cobrar, así que el mes dos cobra
+el armado y no el tramo.
 
-- **Tarjeta.** El camino de Bancard todavía cobra por plan. Para que cobre un
-  armado hay que pasarle el `armado_id` en `solicitudes_pago.metadata`: el
-  trigger ya hace el resto.
-- **Renovación.** El cobro recurrente lee el precio del plan, así que renovaría
-  por el tramo y no por el armado completo. El monto correcto está en
-  `eos_planes_armados` con `estado = 'vigente'`.
+Ninguna función de Bancard existente fue modificada: la certificación en curso
+no se toca.
 
-Las dos cosas viven en la cadena de Bancard, que tiene su propia sesión de
-trabajo; por eso quedaron señaladas y no tocadas.
+### Lo único que hay que probar en staging antes de vender
+
+**Un armado SIN módulo de conversaciones.** En ese caso el `plan_codigo` de la
+solicitud es `free` —se puede tener EOS sin chatear— y la confirmación llama a
+`asignar_plan_eos(usuario, 'free', dias)`. Esa función **no está versionada en
+este repositorio** (vive solo en la base, como señala el rollback runbook), así
+que no se pudo verificar leyendo el código que acepte `free` sin error.
+
+Si lo rechazara, el usuario pagaría y la confirmación fallaría. Es una prueba de
+dos minutos: armar un EOS con Dashboard y Briefing nomás, pagarlo en el ambiente
+de prueba de Bancard, y ver que la solicitud queda en `pagado` y los módulos
+activos.
 
 ## Factura electrónica: hasta dónde llega hoy
 
