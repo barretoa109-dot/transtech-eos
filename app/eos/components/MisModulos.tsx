@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
-import { DIAS_AVISO_VENCIMIENTO, diasRestantes, porVencer } from "@/lib/modulos/catalogo";
+import { DIAS_AVISO_VENCIMIENTO } from "@/lib/modulos/catalogo";
 
 /**
  * Qué funciones tiene contratadas el usuario, y hasta cuándo.
@@ -31,6 +32,8 @@ type Modulo = {
   descripcion: string | null;
   contratado: boolean;
   vencimiento?: string | null;
+  dias_restantes?: number | null;
+  por_vencer?: boolean;
   origen?: string;
 };
 
@@ -41,9 +44,9 @@ export default function MisModulos() {
     let activo = true;
 
     fetch("/api/modulos", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No disponible"))))
       .then((payload) => {
-        if (activo && payload) setModulos(payload.modulos ?? []);
+        if (activo) setModulos(Array.isArray(payload.modulos) ? payload.modulos : []);
       })
       .catch(() => {
         /* La tarjeta simplemente no se muestra. */
@@ -57,7 +60,7 @@ export default function MisModulos() {
   if (modulos === null) return null;
 
   const activos = modulos.filter((m) => m.contratado);
-  const porVencerPronto = activos.filter((m) => porVencer(m as { vencimiento: string | null }));
+  const porVencerPronto = activos.filter((m) => m.por_vencer === true);
 
   return (
     <div className="card">
@@ -75,8 +78,8 @@ export default function MisModulos() {
       ) : (
         <div className="mod-lista">
           {activos.map((m) => {
-            const dias = diasRestantes(m as { vencimiento: string | null });
-            const avisa = porVencer(m as { vencimiento: string | null });
+            const dias = m.dias_restantes ?? null;
+            const avisa = m.por_vencer === true;
 
             return (
               <div className={`mod-fila ${avisa ? "is-avisa" : ""}`} key={m.codigo}>
@@ -98,7 +101,7 @@ export default function MisModulos() {
                       : "sin vencimiento"
                     : dias <= 0
                       ? "vencida"
-                      : `${dias} ${dias === 1 ? "día" : "días"}`}
+                      : `vence en ${dias} ${dias === 1 ? "día" : "días"}`}
                 </span>
               </div>
             );
@@ -109,15 +112,15 @@ export default function MisModulos() {
       {porVencerPronto.length > 0 && (
         <p className="prose" style={{ marginTop: 10, color: "var(--amber)", fontSize: 13 }}>
           {porVencerPronto.length === 1
-            ? `${porVencerPronto[0].nombre} vence dentro de ${DIAS_AVISO_VENCIMIENTO} días.`
+            ? `${porVencerPronto[0].nombre} vence pronto.`
             : `${porVencerPronto.length} funciones vencen dentro de ${DIAS_AVISO_VENCIMIENTO} días.`}{" "}
           Renovalas antes de que dejen de andar.
         </p>
       )}
 
-      <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+      <Link className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
         {activos.length === 0 ? "Armar mi EOS" : "Cambiar mis funciones"}
-      </a>
+      </Link>
     </div>
   );
 }
