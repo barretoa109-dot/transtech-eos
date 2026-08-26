@@ -99,10 +99,36 @@ export async function GET(request: Request) {
   const hasta = new Date(ahora.getTime() + DIAS_ANTICIPACION * 86_400_000);
   const desde = new Date(ahora.getTime() - DIAS_GRACIA * 86_400_000);
 
+  /*
+   * A quién hay que renovarle.
+   *
+   * El filtro `plan <> free` viene de cuando el plan ERA el producto. Con el
+   * plan armado dejó de alcanzar: alguien que contrató el panel y el briefing
+   * pero ningún tramo de conversaciones queda con `plan = free` —se puede tener
+   * EOS sin chatear— y quedaría fuera de la renovación. Sus módulos vencerían
+   * en silencio y nadie le cobraría nunca: el usuario pierde el producto y
+   * nosotros el ingreso, las dos cosas sin que salte ninguna alarma.
+   *
+   * Por eso se los busca por su armado vigente además de por su plan. La
+   * consulta se hace en dos pasos y no con un `or` porque PostgREST no sabe
+   * filtrar por la existencia de una fila en otra tabla sin una vista.
+   */
+  const { data: conArmado } = await admin
+    .from("eos_planes_armados")
+    .select("usuario_id")
+    .eq("estado", "vigente")
+    .limit(MAX_POR_EJECUCION);
+
+  const idsConArmado = ((conArmado ?? []) as { usuario_id: string }[]).map((a) => a.usuario_id);
+
   const { data: candidatos, error: candidatosError } = await admin
     .from("usuarios")
     .select("id,plan,plan_vencimiento,estado_suscripcion,cancelar_al_vencimiento")
-    .neq("plan", "free")
+    .or(
+      idsConArmado.length > 0
+        ? `plan.neq.free,id.in.(${idsConArmado.map((id) => `"${id}"`).join(",")})`
+        : "plan.neq.free",
+    )
     .eq("estado_suscripcion", "active")
     .eq("cancelar_al_vencimiento", false)
     .gte("plan_vencimiento", desde.toISOString())
