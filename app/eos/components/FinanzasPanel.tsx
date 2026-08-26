@@ -7,6 +7,7 @@ import FinanzasCandidatos from "./FinanzasCandidatos";
 import FinanzasBuzon from "./FinanzasBuzon";
 import FinanzasConciliar from "./FinanzasConciliar";
 import FinanzasFijos from "./FinanzasFijos";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -175,6 +176,8 @@ export default function FinanzasPanel() {
             )}
           </div>
 
+          <ComposicionSaldo data={data} fmt={fmt} />
+
           <div className="fin-rows">
             <FinRow
               label="Próximos compromisos"
@@ -288,6 +291,79 @@ export default function FinanzasPanel() {
   );
 }
 
+/**
+ * Por qué el disponible real es ese y no el saldo entero.
+ *
+ * El número grande de arriba contesta "cuánto puedo gastar", pero deja una
+ * pregunta abierta que hasta ahora había que ir a buscar en "Ver detalles":
+ * dónde está el resto de la plata. Sin esta barra, alguien con 5.000.000 en el
+ * banco ve "disponible real: 400.000" y lo lee como un error del sistema.
+ *
+ * Cada tramo es plata que sigue siendo del usuario; lo que cambia es que ya
+ * tiene dueño. Por eso ninguno se pinta de rojo salvo el faltante real.
+ */
+function ComposicionSaldo({ data, fmt }: { data: EstadoFinanciero; fmt: (v: number) => string }) {
+  const comprometido =
+    data.compromisos.total +
+    data.prevision.gastos_previsibles.total +
+    data.reserva_minima +
+    data.ahorro_comprometido;
+
+  const alcanza = data.disponible_real >= 0;
+
+  // Cuando no alcanza, la barra ya no puede representar el saldo: lo asumido
+  // es más grande que lo que hay. La escala pasa a ser lo comprometido, y el
+  // hueco se ve como lo que es — un tramo que no está cubierto por nada.
+  const base = alcanza ? data.saldo_estimado : comprometido;
+  if (base <= 0) return null;
+
+  const tramos = [
+    { clave: "compromisos", etiqueta: "Compromisos ya asumidos", monto: data.compromisos.total },
+    {
+      clave: "previsibles",
+      etiqueta: "Gastos que EOS ya prevé",
+      monto: data.prevision.gastos_previsibles.total,
+    },
+    { clave: "reserva", etiqueta: "Tu reserva intocable", monto: data.reserva_minima },
+    { clave: "ahorro", etiqueta: "Ahorro comprometido", monto: data.ahorro_comprometido },
+    alcanza
+      ? { clave: "libre", etiqueta: "Libre para decidir", monto: data.disponible_real }
+      : { clave: "faltante", etiqueta: "Sin respaldo", monto: -data.disponible_real },
+  ].filter((t) => t.monto > 0);
+
+  if (tramos.length === 0) return null;
+
+  return (
+    <div className="fin-composicion">
+      <div className="fin-comp-label">
+        {alcanza ? "Dónde está tu saldo" : "Lo asumido supera tu saldo"}
+        <span className="fin-comp-base">{fmt(base)}</span>
+      </div>
+
+      <div className="fin-comp-barra" role="img" aria-label="Reparto del saldo estimado">
+        {tramos.map((t) => (
+          <span
+            key={t.clave}
+            className={`fin-comp-tramo fin-comp-${t.clave}`}
+            style={{ width: `${(t.monto / base) * 100}%` }}
+            title={`${t.etiqueta}: ${fmt(t.monto)}`}
+          />
+        ))}
+      </div>
+
+      <div className="fin-comp-lista">
+        {tramos.map((t) => (
+          <span className="fin-comp-item" key={t.clave}>
+            <span className={`fin-comp-punto fin-comp-${t.clave}`} />
+            {t.etiqueta}
+            <b>{fmt(t.monto)}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FinRow({ label, ok, okText, badText }: { label: string; ok: boolean; okText: string; badText: string }) {
   return (
     <div className="fin-row">
@@ -326,10 +402,4 @@ function formatearFecha(iso: string) {
   const [anio, mes, dia] = iso.slice(0, 10).split("-").map(Number);
   if (!anio || !mes || !dia || mes < 1 || mes > 12) return iso;
   return `${dia} de ${MESES_ES[mes - 1]}`;
-}
-
-function formatearMonto(valor: number, moneda: string) {
-  const simbolo = moneda === "PYG" ? "₲" : moneda === "USD" ? "US$" : "";
-  const formateado = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(Math.round(valor));
-  return `${simbolo} ${formateado}`.trim();
 }

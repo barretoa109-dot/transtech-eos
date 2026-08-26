@@ -2117,3 +2117,519 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+/* ---- Composición del saldo (FinanzasPanel.tsx) ----
+   La explicación del número grande: dónde está el resto de la plata. Los
+   tramos comprometidos van en tonos cada vez más claros del azul del producto
+   y lo libre en verde, porque es lo único sobre lo que se puede decidir. */
+.eos-app .fin-composicion {
+  margin-top: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .fin-comp-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .fin-comp-base {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.eos-app .fin-comp-barra {
+  display: flex;
+  height: 12px;
+  margin-top: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line-soft);
+}
+.eos-app .fin-comp-tramo {
+  height: 100%;
+  min-width: 2px;
+}
+.eos-app .fin-comp-punto {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.eos-app .fin-comp-compromisos {
+  background: var(--blue-dark);
+}
+.eos-app .fin-comp-previsibles {
+  background: var(--blue);
+}
+.eos-app .fin-comp-reserva {
+  background: #6fa3e8;
+}
+.eos-app .fin-comp-ahorro {
+  background: #a9c8f0;
+}
+.eos-app .fin-comp-libre {
+  background: var(--green);
+}
+.eos-app .fin-comp-faltante {
+  background: var(--red);
+}
+.eos-app .fin-comp-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 12px;
+}
+.eos-app .fin-comp-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .fin-comp-item b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---- En qué se fue la plata (FinanzasDestino.tsx) ----
+   Un color por destino. La paleta se aleja del azul del producto a propósito:
+   acá el color es dato, y si compitiera con el azul de la marca el usuario
+   leería jerarquía donde solo hay categorías. */
+.eos-app .dest-barra {
+  display: flex;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line-soft);
+}
+.eos-app .dest-tramo {
+  height: 100%;
+  min-width: 2px;
+}
+.eos-app .dest-punto {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+.eos-app .dest-vivienda {
+  background: #1656bd;
+}
+.eos-app .dest-servicios {
+  background: #0ea5e9;
+}
+.eos-app .dest-mercado {
+  background: #10a37f;
+}
+.eos-app .dest-transporte {
+  background: #f59e0b;
+}
+.eos-app .dest-salud {
+  background: #ec4899;
+}
+.eos-app .dest-educacion {
+  background: #8b5cf6;
+}
+.eos-app .dest-deudas {
+  background: #dc2626;
+}
+.eos-app .dest-impuestos {
+  background: #78716c;
+}
+.eos-app .dest-comida {
+  background: #f97316;
+}
+.eos-app .dest-suscripciones {
+  background: #14b8a6;
+}
+.eos-app .dest-otros {
+  background: #cbd5e1;
+}
+
+.eos-app .dest-lista {
+  margin-top: 14px;
+}
+.eos-app .dest-fila {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto 42px minmax(96px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.eos-app .dest-fila:last-child {
+  border-bottom: none;
+}
+.eos-app .dest-nombre {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .dest-ayuda {
+  display: inline-flex;
+  color: var(--muted);
+  cursor: help;
+}
+.eos-app .dest-monto {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.eos-app .dest-peso {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+.eos-app .dest-cambio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.eos-app .dest-cambio.is-sube {
+  color: var(--amber);
+}
+.eos-app .dest-cambio.is-baja {
+  color: var(--green);
+}
+.eos-app .dest-cambio.is-nuevo {
+  color: var(--blue);
+}
+
+.eos-app .dest-historia {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.eos-app .dest-historia-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eos-app .dest-historia-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .dest-historia-leyenda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.eos-app .dest-sw {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.eos-app .dest-sw.is-in {
+  background: var(--green);
+}
+.eos-app .dest-sw.is-out {
+  background: var(--blue);
+  margin-left: 8px;
+}
+.eos-app .dest-meses {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+.eos-app .dest-mes {
+  flex: 1;
+  min-width: 0;
+}
+.eos-app .dest-mes-barras {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 76px;
+}
+.eos-app .dest-mes-barra {
+  width: 44%;
+  max-width: 22px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+}
+.eos-app .dest-mes-barra.is-in {
+  background: var(--green);
+}
+.eos-app .dest-mes-barra.is-out {
+  background: var(--blue);
+}
+.eos-app .dest-mes-label {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* En el teléfono la fila de cinco columnas no entra: el cambio contra el mes
+   anterior se va abajo, alineado con el nombre, en vez de comprimir el monto
+   hasta volverlo ilegible. */
+@media (max-width: 560px) {
+  .eos-app .dest-fila {
+    grid-template-columns: 9px 1fr auto;
+    row-gap: 2px;
+  }
+  .eos-app .dest-peso,
+  .eos-app .dest-cambio {
+    grid-column: 2 / 4;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .eos-app .dest-cambio {
+    justify-self: end;
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .eos-app .dest-peso {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+/* ---- Trayectoria del saldo (FinanzasTrayectoria.tsx) ----
+   La franja de abajo es "por debajo de tu reserva". Se pinta en ámbar y no en
+   rojo a propósito: cruzar la reserva es quedarse sin colchón, no sin plata, y
+   el rojo se guarda para cuando de verdad no alcanza. */
+/* El SVG dibuja en pixeles reales (ver FinanzasTrayectoria.tsx): la caja es
+   la que define el ancho y el componente lo mide. */
+.eos-app .tray-caja {
+  margin-top: 14px;
+  width: 100%;
+}
+/* El width/height explícito no es redundante: la hoja tiene una regla global
+   `.eos-app svg { width: 18px }` para los iconos de lucide, y sin esto el
+   gráfico entero se encoge a 18 pixeles. Como el viewBox se arma con el ancho
+   medido, el 100% da escala 1:1 y el texto no se deforma. */
+.eos-app .tray-svg {
+  display: block;
+  width: 100%;
+  height: 210px;
+  overflow: visible;
+}
+.eos-app .tray-zona {
+  fill: var(--amber);
+  opacity: 0.07;
+}
+.eos-app .tray-reserva {
+  stroke: var(--amber);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+.eos-app .tray-reserva-label {
+  fill: var(--amber);
+  font-size: 10px;
+  font-weight: 700;
+}
+.eos-app .tray-area {
+  fill: url(#trayGrad);
+}
+.eos-app .tray-linea {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.eos-app .tray-cruce {
+  stroke: var(--red);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+.eos-app .tray-punto-cruce {
+  fill: var(--red);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.eos-app .tray-cruce-label {
+  fill: var(--red);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.eos-app .tray-hoy {
+  fill: var(--blue-dark);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.eos-app .tray-aviso {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: var(--red-light);
+  color: #991b1b;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.eos-app .tray-aviso.is-ok {
+  background: var(--green-light);
+  color: #065f46;
+}
+
+/* ---- Deudas (FinanzasDeudas.tsx) ---- */
+.eos-app .deuda-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+.eos-app .deuda-kpi {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+}
+.eos-app .deuda-kpi-l {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.eos-app .deuda-kpi-v {
+  margin-top: 5px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+.eos-app .deuda-kpi-extra {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.eos-app .deuda-lista {
+  margin-top: 14px;
+}
+.eos-app .deuda-item {
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .deuda-item:last-child {
+  border-bottom: none;
+}
+.eos-app .deuda-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.eos-app .deuda-acreedor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.eos-app .deuda-preocupa {
+  display: inline-flex;
+  color: var(--red);
+}
+.eos-app .deuda-estado {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.eos-app .deuda-estado.is-ok {
+  background: var(--green-light);
+  color: var(--green);
+}
+.eos-app .deuda-estado.is-medio {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .deuda-estado.is-mal {
+  background: var(--red-light);
+  color: var(--red);
+}
+.eos-app .deuda-cifras {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-top: 6px;
+}
+.eos-app .deuda-saldo {
+  font-size: 15px;
+  font-weight: 800;
+}
+.eos-app .deuda-tipo {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-size: 11px;
+  font-weight: 700;
+}
+.eos-app .deuda-cuota {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.eos-app .deuda-fuente {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ---- Descarga de informes (FinanzasInforme.tsx) ---- */
+.eos-app .informe-formatos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.eos-app .informe-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.eos-app .informe-btn:hover:not(:disabled) {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  color: var(--blue-dark);
+}
+.eos-app .informe-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { armarPanorama } from "@/lib/finanzas/panorama";
 import { detectarRiesgo, redactarAviso } from "@/lib/finanzas/riesgo";
+import { trazarTrayectoria } from "@/lib/finanzas/trayectoria";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
 
@@ -112,11 +113,22 @@ export async function GET() {
     ingresos: panorama.ingresos,
   });
 
+  const trayectoria = trazarTrayectoria({
+    hoy,
+    hasta,
+    saldoActual: panorama.saldoActual,
+    reservaMinima: panorama.reservaMinima,
+    egresos: panorama.egresos,
+    ingresos: panorama.ingresos,
+  });
+
   return NextResponse.json(
     {
       configurado: true,
+      moneda: politica.moneda ?? "PYG",
       riesgo,
       aviso: riesgo ? redactarAviso(riesgo, politica.moneda ?? "PYG") : null,
+      trayectoria,
       // Sirve para que la interfaz pueda decir "miré los próximos 45 días" en
       // vez de dejar al usuario adivinando qué tan lejos alcanza la promesa.
       horizonte: { desde: hoy, hasta },

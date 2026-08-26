@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
 import FinanzasPanel from "./FinanzasPanel";
+import FinanzasDestino from "./FinanzasDestino";
+import FinanzasTrayectoria from "./FinanzasTrayectoria";
+import FinanzasDeudas from "./FinanzasDeudas";
+import FinanzasInforme from "./FinanzasInforme";
 import type { Briefing } from "../types/briefing";
 
 type DashboardViewProps = {
@@ -68,6 +72,15 @@ export default function DashboardView({
         {/* Doctrina EOS Finanzas: primero responder "¿Estoy bien?", el detalle
             es opt-in. Por eso va arriba de todo, antes de cualquier métrica. */}
         <FinanzasPanel />
+
+        {/* El orden de acá abajo sigue el orden en que se hacen las preguntas,
+            no el de las tablas: "¿estoy bien?" (arriba), "¿qué se viene?",
+            "¿en qué se me fue?" y "¿a quién le debo?". Cada tarjeta se calla
+            sola cuando no tiene nada que decir. */}
+        <FinanzasTrayectoria />
+        <FinanzasDestino />
+        <FinanzasDeudas />
+        <FinanzasInforme />
 
         <div className="chip-row">
           {PERIODOS.map((p) => (
