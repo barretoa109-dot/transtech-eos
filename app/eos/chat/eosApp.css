@@ -2803,3 +2803,186 @@
   border-color: var(--blue);
   background: var(--blue-light);
 }
+
+/* ------------------------------------------------------------------
+   NEGOCIO — ERP y CRM
+
+   Formularios chatos y listas densas: quien carga una venta lo hace con el
+   cliente enfrente, así que cada campo de más es tiempo que el otro espera
+   parado. Nada de acordeones ni pasos.
+   ------------------------------------------------------------------ */
+.eos-app .neg-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.eos-app .neg-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text, #07132a);
+}
+.eos-app .neg-input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+.eos-app .neg-cantidad {
+  flex: 0 0 72px;
+  text-align: right;
+}
+.eos-app .neg-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* El catálogo como botones: en un mostrador se toca, no se busca. */
+.eos-app .neg-catalogo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0;
+}
+.eos-app .neg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.eos-app .neg-chip:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.eos-app .neg-chip span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.eos-app .neg-lineas {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 6px;
+}
+.eos-app .neg-linea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eos-app .neg-linea-nombre {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .neg-linea-total {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .neg-quitar {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.eos-app .neg-quitar:hover {
+  color: var(--red);
+}
+.eos-app .neg-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .neg-total strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--blue-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.eos-app .neg-lista {
+  display: grid;
+  gap: 2px;
+}
+.eos-app .neg-fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .neg-fila:last-child {
+  border-bottom: none;
+}
+.eos-app .neg-fila-texto {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eos-app .neg-fila-texto strong {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.eos-app .neg-fila-texto small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.eos-app .neg-fila-monto {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .neg-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.eos-app .neg-estado.is-ok {
+  background: var(--green-light);
+  color: var(--green);
+}
+.eos-app .neg-estado.is-mal {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .neg-error {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+}

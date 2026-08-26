@@ -26,7 +26,9 @@ test("un código desconocido no rompe el nombre que se muestra", () => {
   // Puede aparecer un módulo nuevo en la base antes de estar en el catálogo
   // de TypeScript. Mostrar algo legible es mejor que romper la pantalla.
   assert.equal(nombreModulo("erp"), "ERP");
-  assert.equal(nombreModulo("facturacion"), "FACTURACION");
+  // "facturacion" dejó de servir de ejemplo cuando entró al catálogo: el módulo
+  // desconocido de hoy es el que todavía no se escribió.
+  assert.equal(nombreModulo("nomina"), "NOMINA");
 });
 
 test("un módulo sin vencimiento nunca está por vencer", () => {

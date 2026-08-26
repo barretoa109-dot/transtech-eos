@@ -51,6 +51,10 @@ export const MODULOS = {
     nombre: "Decisiones y aprendizajes",
     resumen: "Lo que decidiste, cómo salió, y qué aprendió EOS de eso.",
   },
+  facturacion: {
+    nombre: "Factura electrónica",
+    resumen: "Documentos electrónicos con SIFEN, sobre las ventas que ya cargaste.",
+  },
   erp: {
     nombre: "ERP",
     resumen: "Operaciones, inventario y compras, sobre lo que EOS ya sabe del negocio.",

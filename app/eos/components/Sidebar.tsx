@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, FileText, Lightbulb, Plus, ScrollText, PanelLeftClose } from "lucide-react";
+import { BarChart3, FileText, Lightbulb, Plus, ScrollText, Store, PanelLeftClose } from "lucide-react";
 
 type Conversacion = {
   id: string;
@@ -9,7 +9,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "perfil";
+type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -29,6 +29,7 @@ type SidebarProps = {
 const NAV_ITEMS: { vista: Vista; label: string; icon: React.ReactNode }[] = [
   { vista: "briefing", label: "Briefing", icon: <FileText size={16} /> },
   { vista: "dashboard", label: "Dashboard", icon: <BarChart3 size={16} /> },
+  { vista: "negocio", label: "Negocio", icon: <Store size={16} /> },
   { vista: "decisions", label: "Decisiones", icon: <ScrollText size={16} /> },
   { vista: "learnings", label: "Aprendizajes", icon: <Lightbulb size={16} /> },
 ];

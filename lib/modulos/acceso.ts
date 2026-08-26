@@ -127,6 +127,33 @@ export async function exigirModulo(
 }
 
 /**
+ * La puerta cuando alcanza con tener CUALQUIERA de varios módulos.
+ *
+ * El caso real: los contactos. Son del CRM, pero una venta del ERP necesita un
+ * cliente. Obligar a contratar el CRM para poder facturarle a alguien sería
+ * vender dos módulos para que uno funcione, y eso se siente exactamente como lo
+ * que este cambio de planes vino a eliminar.
+ *
+ * Se prueban en orden y gana el primero: con dos o tres módulos la diferencia
+ * de latencia no se nota, y la alternativa —una consulta que los mire todos
+ * juntos— duplicaría la regla de acceso fuera de `eos_tiene_modulo`, que es la
+ * única fuente de verdad.
+ */
+export async function exigirAlgunModulo(
+  codigos: CodigoModulo[],
+): Promise<{ respuesta: NextResponse; usuarioId?: undefined } | { respuesta?: undefined; usuarioId: string }> {
+  let ultima: Awaited<ReturnType<typeof exigirModulo>> | null = null;
+
+  for (const codigo of codigos) {
+    const puerta = await exigirModulo(codigo);
+    if (!puerta.respuesta) return puerta;
+    ultima = puerta;
+  }
+
+  return ultima ?? (await exigirModulo(codigos[0]));
+}
+
+/**
  * Los módulos vigentes del usuario, para pintar la interfaz.
  *
  * Una sola consulta en vez de una por módulo: con dos anexos la diferencia no
