@@ -122,3 +122,32 @@ Verificado en el navegador contra un catálogo de prueba: el armador suma bien
 multimoneda, la vista Negocio, la descarga de documentos desde el chat— porque
 requiere una sesión real. El build de producción pasa y los 334 tests también,
 pero eso no reemplaza abrirlo.
+
+## Lista para salir a vender
+
+En orden, y solo lo que falta:
+
+1. **Aplicar las diez migraciones** (v64 a v73), en orden, **antes** de desplegar.
+   Es lo único con ventana de tiempo real.
+2. **Probar en el ambiente de prueba de Bancard un armado sin conversaciones**
+   (por ejemplo Dashboard + Briefing). Ver la sección de arriba: es la única
+   parte del circuito que no se pudo verificar leyendo el código.
+3. **Pegar en el prompt de n8n** el texto de
+   [`documentos-a-pedido.md`](documentos-a-pedido.md). Sin eso, EOS sabe armar
+   archivos pero nunca los pide: es lo único que separa esa función de estar
+   andando.
+4. **Para la factura electrónica**: comprar el certificado digital y habilitar el
+   RUC ante la SET. Hasta entonces el módulo emite comprobantes con numeración y
+   CDC, rotulados como lo que son.
+
+Lo que **no** hace falta para vender, pero conviene mirar después:
+
+- La deuda de `any` en `lib/bancard.ts`, `lib/bancard-cobro.ts` y los dos
+  `worker-gate-*`. CI ya la muestra en cada PR sin bloquear; el día que llegue a
+  cero, sacar el `continue-on-error` del workflow.
+- Doce componentes vacíos en `app/components/ui/` y dos archivos vacíos en la
+  raíz (`lib-backup.txt`, `supabase-schema.sql`). Son ruido, no riesgo; se
+  dejaron por si son andamio de algo en curso.
+- `public.usuarios` no tiene su política de RLS versionada en el repo. Se
+  verificó que con la clave anónima da 401, así que hoy está bien cerrada — pero
+  esa garantía vive solo en la base y nadie la puede revisar desde acá.
