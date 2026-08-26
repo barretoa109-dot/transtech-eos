@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -7,21 +8,14 @@ const BRIEFING_COLUMNS =
   "id,briefing_date,estado,tipo_usuario,saludo,titulo_dia,resumen,enfoque_dia,prioridad_1,prioridad_2,prioridad_3,recomendacion_principal,logros,riesgos,proximos_pasos,fuentes,score,modelo_version,generated_at,created_at,updated_at" as const;
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // El briefing es una función que se contrata. `exigirModulo` también
+  // resuelve la sesión: sumarle un `getUser()` serían dos validaciones de
+  // token por request.
+  const puerta = await exigirModulo("briefing");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: "Sesión no válida." },
-      {
-        status: 401,
-        headers: noStoreHeaders(),
-      },
-    );
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   const { data, error } = await supabase
     .from("eos_daily_briefings")

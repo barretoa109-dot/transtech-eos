@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +17,13 @@ export const dynamic = "force-dynamic";
  * tienen el suyo sin necesidad de migrar datos.
  */
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // El buzón es la puerta de la lectura automática del correo.
+  const puerta = await exigirModulo("lectura");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  // La RPC del buzón toma el usuario de `auth.uid()`, así que acá alcanza con
+  // haber pasado la puerta.
+  const supabase = await createClient();
 
   const dominio = process.env.EOS_CORREO_DOMINIO;
 

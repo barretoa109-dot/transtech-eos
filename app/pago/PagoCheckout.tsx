@@ -33,6 +33,13 @@ type DatosComprador = {
   razon_social: string;
 };
 
+type ArmadoPago = {
+  id: string;
+  modulos: string[];
+  periodicidad: "mensual" | "anual";
+  monto: number;
+};
+
 type PedidoCreado = {
   solicitud_id: string;
   referencia: string;
@@ -55,10 +62,27 @@ export default function PagoCheckout() {
   const supabase = useMemo(() => createClient(), []);
 
   const planCodigo = (searchParams.get("plan") || "").trim().toLowerCase();
-  const periodicidad =
+
+  /*
+   * El otro camino que llega acá: un EOS armado a medida.
+   *
+   * Cuando viene `?armado=`, el precio NO sale de un plan sino de lo que el
+   * usuario eligió función por función, ya calculado y congelado por la base
+   * (`eos_planes_armados`). La pantalla es la misma —los datos del comprador,
+   * la cuenta destino, el comprobante— porque lo único distinto es de dónde
+   * sale la cifra.
+   */
+  const armadoId = (searchParams.get("armado") || "").trim();
+
+  const periodicidadPedida =
     searchParams.get("periodicidad") === "anual" ? "anual" : "mensual";
 
   const [plan, setPlan] = useState<PlanPago | null>(null);
+  const [armado, setArmado] = useState<ArmadoPago | null>(null);
+
+  // La periodicidad que vale: la del armado cuando hay uno, porque ahí ya quedó
+  // congelada junto con el precio, y la de la URL cuando se compra un plan.
+  const periodicidad = armado?.periodicidad ?? periodicidadPedida;
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
@@ -84,7 +108,7 @@ export default function PagoCheckout() {
       setError("");
 
       try {
-        if (!PLANES_PAGOS.has(planCodigo)) {
+        if (!armadoId && !PLANES_PAGOS.has(planCodigo)) {
           throw new Error("El plan seleccionado no es válido.");
         }
 
@@ -94,9 +118,9 @@ export default function PagoCheckout() {
         } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          const destino = `/pago?plan=${encodeURIComponent(
-            planCodigo,
-          )}&periodicidad=${periodicidad}`;
+          const destino = armadoId
+            ? `/pago?armado=${encodeURIComponent(armadoId)}`
+            : `/pago?plan=${encodeURIComponent(planCodigo)}&periodicidad=${periodicidadPedida}`;
 
           router.replace(`/login?redirect=${encodeURIComponent(destino)}`);
           return;
@@ -115,6 +139,24 @@ export default function PagoCheckout() {
               user.user_metadata?.phone ||
               actual.telefono,
           }));
+        }
+
+        if (armadoId) {
+          // La política de RLS solo deja leer los armados propios, así que un
+          // id ajeno pegado en la URL no devuelve nada en vez de devolver el
+           // precio de otro.
+          const { data: armadoData, error: armadoError } = await supabase
+            .from("eos_planes_armados")
+            .select("id,modulos,periodicidad,monto,estado")
+            .eq("id", armadoId)
+            .maybeSingle();
+
+          if (armadoError || !armadoData) {
+            throw new Error("No encontramos el EOS que armaste. Volvé a elegir tus funciones.");
+          }
+
+          if (activo) setArmado(armadoData as unknown as ArmadoPago);
+          return;
         }
 
         const { data: planData, error: planError } = await supabase
@@ -148,7 +190,7 @@ export default function PagoCheckout() {
     return () => {
       activo = false;
     };
-  }, [periodicidad, planCodigo, router, supabase]);
+  }, [armadoId, periodicidadPedida, planCodigo, router, supabase]);
 
   function actualizarCampo(campo: keyof DatosComprador, valor: string) {
     setComprador((actual) => ({ ...actual, [campo]: valor }));
@@ -164,8 +206,9 @@ export default function PagoCheckout() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: planCodigo,
-          periodicidad,
+          ...(armadoId
+            ? { armado_id: armadoId }
+            : { plan: planCodigo, periodicidad: periodicidadPedida }),
           ...comprador,
         }),
       });
@@ -249,8 +292,9 @@ export default function PagoCheckout() {
     await copiar(datos, "Todos los datos");
   }
 
-  const monto =
-    periodicidad === "anual"
+  const monto = armado
+    ? armado.monto
+    : periodicidad === "anual"
       ? plan?.precio_anual_pyg
       : plan?.precio_mensual_pyg;
 
@@ -402,6 +446,7 @@ export default function PagoCheckout() {
               planCodigo={planCodigo}
               periodicidad={periodicidad}
               montoFormateado={montoFormateado}
+              modulos={armado?.modulos ?? null}
             />
           </section>
         ) : (
@@ -1234,11 +1279,14 @@ function Resumen({
   planCodigo,
   periodicidad,
   montoFormateado,
+  modulos,
 }: {
   plan: PlanPago | null;
   planCodigo: string;
   periodicidad: string;
   montoFormateado: string;
+  /** Las funciones del EOS armado a medida, o null si se compró un plan. */
+  modulos: string[] | null;
 }) {
   return (
     <aside className="summary-card">
@@ -1252,12 +1300,14 @@ function Resumen({
             RESUMEN DEL PEDIDO
           </span>
 
-          <h2>{plan?.nombre || `EOS ${planCodigo}`}</h2>
+          <h2>{modulos ? "Tu EOS" : plan?.nombre || `EOS ${planCodigo}`}</h2>
         </div>
       </div>
 
       <p className="summary-description">
-        {plan?.descripcion || "Suscripción a TransTech EOS."}
+        {modulos
+          ? `${modulos.length} ${modulos.length === 1 ? "función elegida" : "funciones elegidas"} por vos.`
+          : plan?.descripcion || "Suscripción a TransTech EOS."}
       </p>
 
       <div className="summary-price">
@@ -1279,7 +1329,9 @@ function Resumen({
           <div>
             <strong>Precio validado en la plataforma</strong>
             <small>
-              El importe corresponde al plan seleccionado.
+              {modulos
+                ? "El importe lo calculó EOS con las funciones que elegiste."
+                : "El importe corresponde al plan seleccionado."}
             </small>
           </div>
         </li>

@@ -29,6 +29,8 @@ export type ResumenAvisos = {
   avisados: number;
   omitidos_por_repetido: number;
   sin_canal: number;
+  /** No contrató el módulo de avisos: EOS mira, pero no interrumpe. */
+  sin_modulo: number;
   /** No se pudo leer el historial: se calla para no repetir. */
   sin_historial: number;
 };
@@ -56,6 +58,7 @@ export async function avisarRiesgos(
     avisados: 0,
     omitidos_por_repetido: 0,
     sin_canal: 0,
+    sin_modulo: 0,
     sin_historial: 0,
   };
 
@@ -79,6 +82,26 @@ export async function avisarRiesgos(
     resumen.evaluados += 1;
 
     try {
+      /*
+       * Que EOS avise solo es una función contratable.
+       *
+       * La pantalla del panel muestra la curva a quien contrató el panel; esto
+       * —el correo que llega sin que el usuario entre— es el módulo "alertas".
+       * Se pregunta acá y no afuera porque es una fila por usuario: filtrarlo
+       * en la consulta de políticas obligaría a un join sobre una función
+       * `security definer`, y esa función es justamente la única fuente de
+       * verdad del acceso.
+       */
+      const { data: tieneAlertas } = await admin.rpc("eos_tiene_modulo", {
+        p_usuario_id: uid,
+        p_modulo: "alertas",
+      });
+
+      if (tieneAlertas !== true) {
+        resumen.sin_modulo += 1;
+        continue;
+      }
+
       const [movimientos, conciliaciones, fijos, deudas, previo] = await Promise.all([
         admin
           .from("eos_movimientos_financieros")

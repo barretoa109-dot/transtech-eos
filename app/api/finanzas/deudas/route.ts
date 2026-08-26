@@ -10,6 +10,7 @@ import {
   validarDeuda,
   type Deuda,
 } from "@/lib/finanzas/deudas";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +33,12 @@ const COLUMNAS =
   "cuotas_totales,cuotas_pagadas,tasa_anual,vence_el,estado,preocupa,notas";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // Las deudas son parte del panel financiero.
+  const puerta = await exigirModulo("dashboard");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   const { data, error } = await supabase
     .from("eos_finanzas_deudas")

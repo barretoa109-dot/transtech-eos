@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 import { normalizarDocumento } from "@/lib/documentos/especificacion";
 import { crearExcelDocumento } from "@/lib/documentos/excel";
 import { crearPdfDocumento } from "@/lib/documentos/pdf";
@@ -28,16 +29,12 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET(request: Request, contexto: { params: Promise<{ id: string }> }) {
+  // Bajar el archivo es la parte que se contrata; armarlo ya lo hizo EOS.
+  const puerta = await exigirModulo("documentos");
+  if (puerta.respuesta) return puerta.respuesta;
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const user = { id: puerta.usuarioId };
 
   const { id } = await contexto.params;
 

@@ -1,66 +1,107 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  Building2,
-  Check,
-  Crown,
-  Loader2,
-  Mail,
-  Send,
-  Sparkles,
-  UserRound,
-  UsersRound,
-  X,
-} from "lucide-react";
+import { Check, Loader2, Mail, Send, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
+import {
+  calcularArmado,
+  MESES_DEL_ANUAL,
+  TOPE_MENSUAL_PYG,
+  type ModuloCatalogo,
+} from "@/lib/modulos/armado";
 
-type PlanRow = {
-  id: string;
-  nombre?: string | null;
-  precio?: string | null;
-  descripcion?: string | null;
-  codigo?: string | null;
-  precio_mensual_pyg?: number | null;
-  precio_anual_pyg?: number | null;
-  precio_mensual_usd?: number | null;
-  precio_anual_usd?: number | null;
-  limite_mensajes?: number | null;
-  limite_excel?: number | null;
-  limite_pdf?: number | null;
-  limite_automatizaciones?: number | null;
-  limite_usuarios?: number | null;
-  memoria_dias?: number | null;
-  prioridad?: number | null;
-  es_publico?: boolean | null;
-  activo?: boolean | null;
-  orden?: number | null;
+/**
+ * Armá tu EOS.
+ *
+ * ============================================================
+ * POR QUÉ ACÁ YA NO HAY PLANES
+ * ============================================================
+ *
+ * Había cinco escalones y cada uno era una apuesta sobre qué combinación de
+ * funciones quiere la gente. La apuesta fallaba siempre igual: el que solo
+ * quería conversar más tenía que pagar un panel financiero que no usa, y el que
+ * solo quería el panel tenía que pagar mensajes que no iba a mandar.
+ *
+ * Ahora cada función tiene precio y el usuario prende las que quiere. La cuenta
+ * se ve cambiar mientras elige, y hay un techo: prendas lo que prendas, no
+ * pagás más de Gs. 500.000.
+ *
+ * ============================================================
+ * DOS DETALLES QUE NO SON DETALLE
+ * ============================================================
+ *
+ * 1. **El total de esta pantalla no cobra.** Se calcula acá para que el número
+ *    responda al instante, pero el que cobra es `eos_precio_armado`, en la
+ *    base. Si los dos no coinciden, manda la base — y por eso el servidor
+ *    ignora cualquier total que le mande el navegador.
+ *
+ * 2. **Nada de `<Link>` con clases de este archivo.** styled-jsx no estila
+ *    componentes propios: las clases se aplican al elemento generado y el
+ *    componente las pierde. Se rompe SOLO en producción, así que se descubre
+ *    tarde. Los enlaces con estilo usan `:global(.btn)`, que ya existía por
+ *    exactamente el mismo motivo.
+ */
+
+type ModuloContratado = {
+  codigo: string;
+  contratado?: boolean;
 };
 
-type EstadoComercial = {
-  plan_codigo?: string | null;
-  plan_nombre?: string | null;
-  estado_suscripcion?: string | null;
-};
+const PERIODOS = [
+  { clave: "mensual" as const, etiqueta: "Mensual" },
+  { clave: "anual" as const, etiqueta: "Anual" },
+];
 
-const CODIGOS_PUBLICOS = ["free", "personal", "pro", "business", "enterprise"];
-
+/**
+ * El límite de Suspense no es decorativo.
+ *
+ * `useSearchParams()` obliga a renderizar del lado del cliente todo lo que
+ * cuelgue de él, y sin un `<Suspense>` que lo contenga el build de producción
+ * directamente FALLA al prerenderizar esta página. En desarrollo no se nota:
+ * es de esos errores que aparecen recién cuando uno cree que terminó.
+ */
 export default function PlanesPage() {
+  return (
+    <Suspense fallback={null}>
+      <Armador />
+    </Suspense>
+  );
+}
+
+function Armador() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const scrolled = useNavScrolled();
+  const searchParams = useSearchParams();
 
-  const [planes, setPlanes] = useState<PlanRow[]>([]);
-  const [planActual, setPlanActual] = useState("free");
+  /*
+   * Lo que ya había elegido antes de que lo mandáramos a iniciar sesión.
+   *
+   * Sin esto, quien arma su EOS, toca "contratar" y no tiene sesión vuelve del
+   * login a una pantalla en blanco y tiene que volver a elegir todo. Es el
+   * momento exacto en el que la gente abandona una compra.
+   */
+  const elegidasEnLaUrl = useMemo(
+    () =>
+      (searchParams.get("elegidas") ?? "")
+        .split(",")
+        .map((c) => c.trim().toLowerCase())
+        .filter(Boolean),
+    [searchParams],
+  );
+
+  const [catalogo, setCatalogo] = useState<ModuloCatalogo[]>([]);
+  const [seleccion, setSeleccion] = useState<string[]>([]);
+  const [contratados, setContratados] = useState<string[]>([]);
   const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">("mensual");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [seleccionando, setSeleccionando] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [mostrarContacto, setMostrarContacto] = useState(false);
   const [enviandoContacto, setEnviandoContacto] = useState(false);
   const [contactoEnviado, setContactoEnviado] = useState(false);
@@ -77,78 +118,116 @@ export default function PlanesPage() {
   useEffect(() => {
     let activo = true;
 
-    async function cargarPlanes() {
+    async function cargarCatalogo() {
       setCargando(true);
       setError("");
 
       try {
+        const respuesta = await fetch("/api/modulos/catalogo", { cache: "no-store" });
+        if (!respuesta.ok) throw new Error("catálogo no disponible");
+
+        const payload = (await respuesta.json()) as { modulos: ModuloCatalogo[] };
+        if (!activo) return;
+
+        setCatalogo(payload.modulos ?? []);
+
+        /*
+         * Lo que ya tiene contratado viene marcado, y arranca prendido.
+         *
+         * Alguien que entra a agregar una función no puede tener que volver a
+         * elegir todo lo que ya paga: si el armado arrancara vacío, el primer
+         * clic en "pagar" le cancelaría en la práctica lo que ya tenía.
+         */
         const {
           data: { user },
         } = await supabase.auth.getUser();
 
-        const { data: planesData, error: planesError } = await supabase
-          .from("planes")
-          .select("*")
-          .eq("activo", true)
-          .eq("es_publico", true)
-          .order("orden", { ascending: true });
-
-        if (planesError) throw planesError;
-
-        const planesValidos = (planesData || [])
-          .filter((plan: PlanRow) => CODIGOS_PUBLICOS.includes(normalizarCodigo(plan.codigo)))
-          .sort((a: PlanRow, b: PlanRow) => (a.orden ?? a.prioridad ?? 999) - (b.orden ?? b.prioridad ?? 999));
-
-        if (activo) setPlanes(planesValidos);
-
-        if (user) {
+        if (!user) {
+          // Sin sesión, un punto de partida razonable: conversar y ver su plata.
           if (activo) {
-            setContacto((actual) => ({
-              ...actual,
-              nombre: actual.nombre || user.user_metadata?.nombre || user.user_metadata?.name || "",
-              email: actual.email || user.email || "",
-            }));
+            setSeleccion(
+              elegidasEnLaUrl.length > 0 ? elegidasEnLaUrl : ["conversaciones", "dashboard"],
+            );
           }
-
-          const { data: estadoData } = await supabase.rpc("obtener_estado_comercial_eos", {
-            p_usuario_id: user.id,
-          });
-
-          const estado = normalizarEstado(estadoData);
-          const codigoActual = normalizarCodigo(estado?.plan_codigo) || normalizarCodigo(estado?.plan_nombre) || "free";
-
-          if (activo) setPlanActual(codigoActual);
+          return;
         }
-      } catch (err) {
-        console.error("No se pudieron cargar los planes:", err);
+
         if (activo) {
-          setError("No pudimos cargar los planes en este momento. Volvé a intentarlo.");
+          setContacto((actual) => ({
+            ...actual,
+            nombre: actual.nombre || user.user_metadata?.nombre || user.user_metadata?.name || "",
+            email: actual.email || user.email || "",
+          }));
         }
+
+        const mios = await fetch("/api/modulos", { cache: "no-store" })
+          .then((res) => (res.ok ? res.json() : null))
+          .catch(() => null);
+
+        const activos = ((mios?.modulos ?? []) as ModuloContratado[])
+          .filter((m) => m.contratado)
+          .map((m) => m.codigo);
+
+        if (!activo) return;
+
+        setContratados(activos);
+        setSeleccion(
+          elegidasEnLaUrl.length > 0
+            ? [...new Set([...activos, ...elegidasEnLaUrl])]
+            : activos.length > 0
+              ? activos
+              : ["conversaciones", "dashboard"],
+        );
+      } catch (err) {
+        console.error("No se pudo cargar el catálogo de funciones:", err);
+        if (activo) setError("No pudimos cargar las funciones en este momento. Volvé a intentarlo.");
       } finally {
         if (activo) setCargando(false);
       }
     }
 
-    cargarPlanes();
+    cargarCatalogo();
 
     return () => {
       activo = false;
     };
-  }, [supabase]);
+  }, [elegidasEnLaUrl, supabase]);
 
-  async function seleccionarPlan(plan: PlanRow) {
-    const codigo = normalizarCodigo(plan.codigo);
+  const armado = useMemo(
+    () => calcularArmado(seleccion, catalogo, periodicidad),
+    [seleccion, catalogo, periodicidad],
+  );
 
-    if (!codigo || codigo === planActual) return;
+  const elegido = useCallback((codigo: string) => armado.modulos.includes(codigo), [armado.modulos]);
 
-    if (codigo === "enterprise") {
-      setContactoEnviado(false);
-      setErrorContacto("");
-      setMostrarContacto(true);
-      return;
-    }
+  /**
+   * Prender o apagar una función.
+   *
+   * En los grupos de alternativas —los tramos de conversaciones— elegir uno
+   * reemplaza al otro en vez de sumarse, y volver a tocar el que ya estaba
+   * apaga el grupo entero. Es lo que uno espera de un grupo de opciones, y
+   * evita que alguien termine pagando dos tramos de lo mismo.
+   */
+  function alternar(modulo: ModuloCatalogo) {
+    setSeleccion((actual) => {
+      const yaEstaba = actual.includes(modulo.codigo);
 
-    setSeleccionando(codigo);
+      if (!modulo.grupo) {
+        return yaEstaba ? actual.filter((c) => c !== modulo.codigo) : [...actual, modulo.codigo];
+      }
+
+      const hermanos = catalogo.filter((m) => m.grupo === modulo.grupo).map((m) => m.codigo);
+      const sinElGrupo = actual.filter((c) => !hermanos.includes(c));
+
+      return yaEstaba ? sinElGrupo : [...sinElGrupo, modulo.codigo];
+    });
+  }
+
+  async function irAPagar() {
+    if (armado.modulos.length === 0 || enviando) return;
+
+    setEnviando(true);
+    setError("");
 
     try {
       const {
@@ -156,26 +235,30 @@ export default function PlanesPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push(`/login?redirect=/planes&plan=${codigo}`);
+        // La selección viaja en la URL para que volver del login no la pierda.
+        const destino = `/planes?elegidas=${encodeURIComponent(armado.modulos.join(","))}`;
+        router.push(`/login?redirect=${encodeURIComponent(destino)}`);
         return;
       }
 
-      sessionStorage.setItem(
-        "eos_plan_seleccionado",
-        JSON.stringify({
-          codigo,
-          periodicidad,
-          plan_id: plan.id,
-        }),
-      );
+      const respuesta = await fetch("/api/modulos/armado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modulos: armado.modulos, periodicidad }),
+      });
 
-      /*
-       * El pago con tarjeta es el camino principal; el checkout de
-       * tarjeta ofrece transferencia como alternativa.
-       */
-      router.push(`/pago/tarjeta?plan=${codigo}&periodicidad=${periodicidad}`);
+      const resultado = await respuesta.json().catch(() => null);
+
+      if (!respuesta.ok || !resultado?.armado_id) {
+        throw new Error(resultado?.error || "No pudimos guardar tu selección.");
+      }
+
+      router.push(`/pago?armado=${encodeURIComponent(resultado.armado_id)}`);
+    } catch (err) {
+      console.error("No se pudo preparar el pago del armado:", err);
+      setError(err instanceof Error ? err.message : "No pudimos preparar el pago.");
     } finally {
-      window.setTimeout(() => setSeleccionando(""), 500);
+      setEnviando(false);
     }
   }
 
@@ -198,8 +281,7 @@ export default function PlanesPage() {
         },
         body: JSON.stringify({
           ...contacto,
-          plan: "enterprise",
-          origen: "pagina_planes",
+          origen: "planes",
         }),
       });
 
@@ -225,6 +307,8 @@ export default function PlanesPage() {
     }
   }
 
+  const grupos = agruparCatalogo(catalogo);
+
   return (
     <main className="planes-page" data-eos-theme="light">
       <AmbientBackground techConfig={planesTechCanvas} spanCount={2} />
@@ -244,27 +328,24 @@ export default function PlanesPage() {
       </nav>
 
       <div className="head wrap">
-        <h1 className="head-title">Elegí el nivel de EOS que acompaña tu crecimiento.</h1>
+        <h1 className="head-title">Armá el EOS que vas a usar. Pagá solo eso.</h1>
         <p className="head-sub">
-          Empezá gratis y ampliá tus capacidades cuando lo necesites. Tu plan, tus límites y tu facturación se
-          actualizan automáticamente desde tu cuenta.
+          Prendé las funciones que te sirven y apagá las que no. La cuenta se actualiza sola, y
+          nunca pasa de {formatearGs(TOPE_MENSUAL_PYG)} por mes, tengas todo prendido o casi todo.
         </p>
         <div className="toggle-wrap">
           <div className="toggle">
-            <button
-              type="button"
-              className={periodicidad === "mensual" ? "active" : ""}
-              onClick={() => setPeriodicidad("mensual")}
-            >
-              Mensual
-            </button>
-            <button
-              type="button"
-              className={periodicidad === "anual" ? "active" : ""}
-              onClick={() => setPeriodicidad("anual")}
-            >
-              Anual <span className="badge">Mejor valor</span>
-            </button>
+            {PERIODOS.map((p) => (
+              <button
+                key={p.clave}
+                type="button"
+                className={periodicidad === p.clave ? "active" : ""}
+                onClick={() => setPeriodicidad(p.clave)}
+              >
+                {p.etiqueta}
+                {p.clave === "anual" && <span className="badge">2 meses gratis</span>}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -273,88 +354,162 @@ export default function PlanesPage() {
         {cargando ? (
           <div className="state-card">
             <Loader2 className="spin" size={24} />
-            Cargando planes...
+            Cargando funciones...
           </div>
-        ) : error ? (
+        ) : catalogo.length === 0 ? (
           <div className="state-card">
-            <strong>No se pudieron cargar los planes</strong>
-            <p>{error}</p>
+            <strong>No se pudieron cargar las funciones</strong>
+            <p>{error || "Volvé a intentarlo en un momento."}</p>
             <button type="button" onClick={() => window.location.reload()}>
               Reintentar
             </button>
           </div>
         ) : (
-          <div className="plans">
-            {planes.map((plan) => {
-              const codigo = normalizarCodigo(plan.codigo);
-              const esActual = codigo === planActual;
-              const esPremium = codigo === "pro";
-              const esExecutive = codigo === "enterprise";
-              const precio = obtenerPrecio(plan, periodicidad);
-              const caracteristicas = obtenerCaracteristicas(plan);
+          <div className="armador">
+            <div className="armador-lista">
+              {grupos.map((grupo) => (
+                <section className="bloque" key={grupo.clave}>
+                  <h2 className="bloque-titulo">{grupo.titulo}</h2>
+                  <p className="bloque-sub">{grupo.sub}</p>
 
-              return (
-                <div
-                  key={plan.id}
-                  className={`plan ${esPremium ? "premium" : ""} ${esExecutive ? "executive" : ""}`}
-                >
-                  {esPremium && (
-                    <div className="plan-badge">
-                      <Sparkles size={12} />
-                      MÁS ELEGIDO
-                    </div>
-                  )}
+                  <div className="opciones">
+                    {grupo.modulos.map((modulo) => {
+                      const activo = elegido(modulo.codigo);
+                      const agregado = armado.agregados.includes(modulo.codigo);
+                      const yaLoTiene = contratados.includes(modulo.codigo);
 
-                  <div className="plan-ic">{obtenerIcono(codigo)}</div>
-                  <div className="plan-tag">{codigo.toUpperCase()}</div>
-                  <div className="plan-name">{plan.nombre || `EOS ${capitalizar(codigo)}`}</div>
-                  <div className="plan-desc">
-                    {plan.descripcion || "Capacidades de TransTech EOS adaptadas a este nivel."}
+                      return (
+                        <button
+                          type="button"
+                          key={modulo.codigo}
+                          className={`opcion ${activo ? "activa" : ""}`}
+                          onClick={() => alternar(modulo)}
+                          aria-pressed={activo}
+                          // El nombre accesible no se arma solo: el texto vive en
+                          // spans anidados y un lector de pantalla anuncia el botón
+                          // sin decir qué función es ni cuánto sale.
+                          aria-label={`${modulo.nombre}, ${formatearGs(modulo.precio_mensual_pyg)} por mes`}
+                        >
+                          <span className={`marca ${activo ? "marcada" : ""}`}>
+                            {activo && <Check size={13} />}
+                          </span>
+
+                          <span className="opcion-texto">
+                            <span className="opcion-nombre">
+                              {modulo.nombre}
+                              {yaLoTiene && <span className="pill">ya lo tenés</span>}
+                              {agregado && !yaLoTiene && <span className="pill">necesaria</span>}
+                            </span>
+                            <span className="opcion-desc">{modulo.descripcion}</span>
+                          </span>
+
+                          <span className="opcion-precio">
+                            {formatearGs(
+                              periodicidad === "anual"
+                                ? modulo.precio_mensual_pyg * MESES_DEL_ANUAL
+                                : modulo.precio_mensual_pyg,
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
+                </section>
+              ))}
+            </div>
 
-                  <div className="plan-price">
-                    <span className="amount">{precio.principal}</span>{" "}
-                    {precio.detalle && <span className="per">{precio.detalle}</span>}
-                  </div>
-                  <div className="plan-price-sub">{periodicidad === "anual" && !esActual ? "facturado anualmente" : ""}</div>
+            <aside className="cuenta">
+              <div className="cuenta-caja">
+                <span className="cuenta-eyebrow">TU EOS</span>
 
-                  <button
-                    type="button"
-                    disabled={esActual || seleccionando === codigo}
-                    onClick={() => seleccionarPlan(plan)}
-                    className={`plan-btn ${esPremium ? "primary" : ""} ${esActual ? "current" : ""}`}
-                  >
-                    {seleccionando === codigo ? (
-                      <>
-                        <Loader2 className="spin" size={13} />
-                        Preparando...
-                      </>
-                    ) : esActual ? (
-                      <>
-                        <Check size={13} />
-                        Plan actual
-                      </>
-                    ) : esExecutive ? (
-                      "Hablar con ventas →"
-                    ) : (
-                      "Elegir plan →"
-                    )}
-                  </button>
+                {armado.modulos.length === 0 ? (
+                  <p className="cuenta-vacia">
+                    Todavía no elegiste nada. Prendé al menos una función para ver tu precio.
+                  </p>
+                ) : (
+                  <ul className="cuenta-lista">
+                    {armado.modulos.map((codigo) => {
+                      const modulo = catalogo.find((m) => m.codigo === codigo);
+                      if (!modulo) return null;
 
-                  <div className="plan-includes-label">Este plan incluye</div>
-                  {caracteristicas.map((item) => (
-                    <div key={item} className="plan-feat">
-                      <Check size={14} />
-                      {item}
-                    </div>
-                  ))}
+                      return (
+                        <li key={codigo}>
+                          <span>{modulo.nombre}</span>
+                          <span>
+                            {formatearGs(
+                              periodicidad === "anual"
+                                ? modulo.precio_mensual_pyg * MESES_DEL_ANUAL
+                                : modulo.precio_mensual_pyg,
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {armado.tope_aplicado && (
+                  <p className="cuenta-tope">
+                    Sumaba {formatearGs(armado.subtotal)}. Se te cobra el tope.
+                  </p>
+                )}
+
+                <div className="cuenta-total">
+                  <span>Total</span>
+                  <strong>{formatearGs(armado.total)}</strong>
                 </div>
-              );
-            })}
+                <div className="cuenta-periodo">
+                  {periodicidad === "anual" ? "por año" : "por mes"}
+                </div>
+
+                {error && <p className="cuenta-error">{error}</p>}
+
+                <button
+                  type="button"
+                  className="cuenta-btn"
+                  disabled={armado.modulos.length === 0 || enviando}
+                  onClick={irAPagar}
+                >
+                  {enviando ? (
+                    <>
+                      <Loader2 className="spin" size={14} />
+                      Preparando...
+                    </>
+                  ) : (
+                    "Contratar →"
+                  )}
+                </button>
+
+                <p className="cuenta-nota">
+                  Podés cambiar tu selección cuando quieras. Lo que ya pagaste no se pierde.
+                </p>
+              </div>
+
+              <div className="cuenta-caja secundaria">
+                <span className="cuenta-eyebrow">¿SOS UNA EMPRESA?</span>
+                <p className="cuenta-vacia">
+                  Si necesitás varios usuarios, integraciones propias o facturación a nombre de tu
+                  organización, hablamos.
+                </p>
+                <button
+                  type="button"
+                  className="cuenta-btn fantasma"
+                  onClick={() => {
+                    setContactoEnviado(false);
+                    setErrorContacto("");
+                    setMostrarContacto(true);
+                  }}
+                >
+                  Hablar con ventas →
+                </button>
+              </div>
+            </aside>
           </div>
         )}
 
-        <p className="note">Precios y capacidades obtenidos directamente desde TransTech EOS.</p>
+        <p className="note">
+          Precios en guaraníes, calculados por EOS al momento de contratar.
+        </p>
       </div>
 
       <footer className="support-footer">
@@ -393,7 +548,7 @@ export default function PlanesPage() {
                   Te responderemos al correo <strong>{contacto.email}</strong>.
                 </p>
                 <button type="button" onClick={() => setMostrarContacto(false)}>
-                  Volver a los planes
+                  Volver a las funciones
                 </button>
               </div>
             ) : (
@@ -403,7 +558,7 @@ export default function PlanesPage() {
                     <Mail size={22} />
                   </span>
                   <div>
-                    <span className="section-label">EOS ENTERPRISE</span>
+                    <span className="section-label">EOS PARA EMPRESAS</span>
                     <h2 id="contact-title">Hablemos de tu organización.</h2>
                   </div>
                 </div>
@@ -1103,116 +1258,309 @@ export default function PlanesPage() {
             grid-template-columns: 1fr;
           }
         }
+
+        /* ============================================================
+           EL ARMADOR
+
+           Dos columnas: la lista de funciones a la izquierda y la cuenta a la
+           derecha, pegada al scroll. En el teléfono la cuenta se va abajo: el
+           precio es la única información que el usuario necesita ver mientras
+           prende y apaga cosas.
+           ============================================================ */
+        .armador {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          gap: 28px;
+          align-items: start;
+        }
+
+        .bloque {
+          margin-bottom: 26px;
+        }
+        .bloque-titulo {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 800;
+          letter-spacing: -0.2px;
+        }
+        .bloque-sub {
+          margin: 3px 0 12px;
+          font-size: 13px;
+          color: var(--muted);
+        }
+
+        .opciones {
+          display: grid;
+          gap: 8px;
+        }
+        .opcion {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          width: 100%;
+          padding: 14px 16px;
+          text-align: left;
+          background: var(--bg);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          transition: border-color 0.18s var(--ease), background 0.18s var(--ease),
+            box-shadow 0.18s var(--ease);
+        }
+        .opcion:hover {
+          border-color: var(--border-hover);
+          background: var(--surface);
+        }
+        .opcion.activa {
+          border-color: var(--blue);
+          background: var(--blue-light);
+          box-shadow: 0 1px 0 rgba(22, 86, 189, 0.08);
+        }
+
+        .marca {
+          flex: none;
+          width: 19px;
+          height: 19px;
+          margin-top: 1px;
+          border: 1.5px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+        }
+        .marca.marcada {
+          background: var(--blue);
+          border-color: var(--blue);
+        }
+
+        .opcion-texto {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .opcion-nombre {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          font-size: 14px;
+          font-weight: 700;
+        }
+        .opcion-desc {
+          font-size: 12.5px;
+          line-height: 1.45;
+          color: var(--muted);
+        }
+        .pill {
+          padding: 2px 8px;
+          border-radius: 999px;
+          background: var(--green-light);
+          color: var(--green);
+          font-size: 10.5px;
+          font-weight: 800;
+          letter-spacing: 0.2px;
+          text-transform: uppercase;
+        }
+
+        .opcion-precio {
+          flex: none;
+          font-size: 13.5px;
+          font-weight: 800;
+          color: var(--blue-dark);
+          font-variant-numeric: tabular-nums;
+        }
+
+        .cuenta {
+          position: sticky;
+          top: 92px;
+          display: grid;
+          gap: 12px;
+        }
+        .cuenta-caja {
+          padding: 18px;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: var(--bg);
+          box-shadow: 0 10px 30px rgba(7, 19, 42, 0.05);
+        }
+        .cuenta-caja.secundaria {
+          box-shadow: none;
+          background: var(--surface);
+        }
+        .cuenta-eyebrow {
+          display: block;
+          font-size: 10.5px;
+          font-weight: 800;
+          letter-spacing: 0.6px;
+          color: var(--muted);
+        }
+        .cuenta-vacia {
+          margin: 10px 0 0;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--muted);
+        }
+        .cuenta-lista {
+          list-style: none;
+          margin: 12px 0 0;
+          padding: 0;
+          display: grid;
+          gap: 6px;
+        }
+        .cuenta-lista li {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 12.5px;
+          color: var(--muted);
+        }
+        .cuenta-lista li span:last-child {
+          font-variant-numeric: tabular-nums;
+          color: var(--text);
+        }
+        .cuenta-tope {
+          margin: 10px 0 0;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: var(--green-light);
+          color: var(--green);
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .cuenta-total {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          margin-top: 14px;
+          padding-top: 12px;
+          border-top: 1px solid var(--border);
+          font-size: 13px;
+          font-weight: 700;
+        }
+        .cuenta-total strong {
+          font-size: 26px;
+          font-weight: 800;
+          letter-spacing: -0.5px;
+          font-variant-numeric: tabular-nums;
+        }
+        .cuenta-periodo {
+          text-align: right;
+          font-size: 11.5px;
+          color: var(--muted);
+        }
+        .cuenta-error {
+          margin: 10px 0 0;
+          font-size: 12.5px;
+          color: #b42318;
+        }
+        .cuenta-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          margin-top: 14px;
+          padding: 12px 16px;
+          border: none;
+          border-radius: 10px;
+          background: var(--blue);
+          color: #fff;
+          font-size: 13.5px;
+          font-weight: 700;
+          transition: background 0.18s var(--ease), opacity 0.18s var(--ease);
+        }
+        .cuenta-btn:hover:not(:disabled) {
+          background: var(--blue-dark);
+        }
+        .cuenta-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .cuenta-btn.fantasma {
+          background: transparent;
+          border: 1px solid var(--border);
+          color: var(--blue-dark);
+        }
+        .cuenta-btn.fantasma:hover {
+          background: var(--bg);
+          border-color: var(--blue);
+        }
+        .cuenta-nota {
+          margin: 10px 0 0;
+          font-size: 11.5px;
+          line-height: 1.5;
+          color: var(--muted);
+        }
+
+        @media (max-width: 900px) {
+          .armador {
+            grid-template-columns: 1fr;
+          }
+          .cuenta {
+            position: static;
+          }
+        }
+
       `}</style>
     </main>
   );
 }
 
-function normalizarEstado(data: unknown): EstadoComercial | null {
-  if (!data) return null;
+/**
+ * Cómo se agrupan las funciones en la pantalla.
+ *
+ * No es el orden del catálogo: es el orden en que alguien decide. Primero
+ * "¿cuánto voy a hablar con EOS?", que es la única pregunta que casi todos se
+ * hacen; después la plata, que es el corazón del producto; y al final las
+ * herramientas de negocio, que solo miran los que las necesitan.
+ *
+ * Los grupos salen de los códigos y no de una columna de la base a propósito:
+ * es una decisión de presentación, no del catálogo. Un módulo nuevo cae en
+ * "Para tu negocio" hasta que alguien decida dónde va mejor, y eso es un cambio
+ * de una línea acá y no una migración.
+ */
+function agruparCatalogo(catalogo: ModuloCatalogo[]) {
+  const de = (codigos: string[]) =>
+    catalogo.filter((m) => codigos.includes(m.codigo)).sort((a, b) => a.orden - b.orden);
 
-  if (Array.isArray(data)) {
-    return (data[0] || null) as EstadoComercial | null;
-  }
+  const conversaciones = catalogo
+    .filter((m) => m.grupo === "conversaciones")
+    .sort((a, b) => a.orden - b.orden);
 
-  if (typeof data === "object") {
-    return data as EstadoComercial;
-  }
+  const dinero = de(["dashboard", "lectura", "alertas", "documentos", "briefing", "decisiones"]);
 
-  return null;
-}
+  const ubicados = new Set([...conversaciones, ...dinero].map((m) => m.codigo));
+  const negocio = catalogo
+    .filter((m) => !ubicados.has(m.codigo))
+    .sort((a, b) => a.orden - b.orden);
 
-function normalizarCodigo(value?: string | null) {
-  const codigo = (value || "").trim().toLowerCase().replace(/^eos\s+/, "");
-
-  if (codigo === "inicial") return "personal";
-  return codigo;
-}
-
-function capitalizar(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return [
+    {
+      clave: "conversaciones",
+      titulo: "Hablar con EOS",
+      sub: "Elegí un tramo, o ninguno si solo querés que EOS trabaje de fondo.",
+      modulos: conversaciones,
+    },
+    {
+      clave: "dinero",
+      titulo: "Tu plata",
+      sub: "Lo que EOS mira, lee y te avisa sin que le preguntes.",
+      modulos: dinero,
+    },
+    {
+      clave: "negocio",
+      titulo: "Para tu negocio",
+      sub: "Gestión completa, conectada a lo que EOS ya sabe de vos.",
+      modulos: negocio,
+    },
+  ].filter((grupo) => grupo.modulos.length > 0);
 }
 
 function formatearGs(valor?: number | null) {
-  if (valor === null || valor === undefined) return null;
+  if (valor === null || valor === undefined) return "";
 
-  return new Intl.NumberFormat("es-PY", {
-    maximumFractionDigits: 0,
-  }).format(valor);
-}
-
-function obtenerPrecio(plan: PlanRow, periodicidad: "mensual" | "anual") {
-  const codigo = normalizarCodigo(plan.codigo);
-
-  if (codigo === "free") {
-    return { principal: "Gratis", detalle: "para comenzar" };
-  }
-
-  if (codigo === "enterprise") {
-    return { principal: "Personalizado", detalle: "según alcance" };
-  }
-
-  const valor = periodicidad === "anual" ? plan.precio_anual_pyg : plan.precio_mensual_pyg;
-
-  if (valor !== null && valor !== undefined) {
-    return {
-      principal: `Gs. ${formatearGs(valor)}`,
-      detalle: periodicidad === "anual" ? "/año" : "/mes",
-    };
-  }
-
-  return {
-    principal: plan.precio || "Consultar",
-    detalle: periodicidad === "anual" ? "facturación anual" : "",
-  };
-}
-
-function limiteVisible(valor: number | null | undefined, singular: string, plural: string) {
-  if (valor === null || valor === undefined) return null;
-  if (valor < 0) return `${plural} ilimitados`;
-  if (valor === 0) return `Sin ${plural.toLowerCase()}`;
-  return `${valor.toLocaleString("es-PY")} ${valor === 1 ? singular : plural}`;
-}
-
-function obtenerCaracteristicas(plan: PlanRow) {
-  const codigo = normalizarCodigo(plan.codigo);
-
-  const items = [
-    limiteVisible(plan.limite_mensajes, "mensaje", "mensajes"),
-    limiteVisible(plan.limite_excel, "Excel", "Excel"),
-    limiteVisible(plan.limite_pdf, "PDF", "PDF"),
-    limiteVisible(plan.limite_automatizaciones, "automatización", "automatizaciones"),
-    plan.memoria_dias === -1
-      ? "Memoria contextual ilimitada"
-      : plan.memoria_dias
-        ? `${plan.memoria_dias} días de memoria contextual`
-        : null,
-    plan.limite_usuarios && plan.limite_usuarios > 1 ? `Hasta ${plan.limite_usuarios} usuarios` : null,
-  ].filter(Boolean) as string[];
-
-  if (codigo === "free") {
-    items.unshift("Acceso inicial a EOS");
-  }
-
-  if (codigo === "pro") {
-    items.unshift("Experiencia completa de EOS");
-  }
-
-  if (codigo === "business") {
-    items.unshift("Gestión para empresas y equipos");
-  }
-
-  if (codigo === "enterprise") {
-    items.unshift("Implementación y alcance personalizados");
-  }
-
-  return items.slice(0, 7);
-}
-
-function obtenerIcono(codigo: string) {
-  if (codigo === "free") return <Sparkles size={21} />;
-  if (codigo === "personal") return <UserRound size={21} />;
-  if (codigo === "pro") return <Crown size={21} />;
-  if (codigo === "business") return <UsersRound size={21} />;
-  return <Building2 size={21} />;
+  return `Gs. ${new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(valor)}`;
 }

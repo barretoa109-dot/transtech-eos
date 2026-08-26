@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createAdminClient } from "../supabase-admin";
 import { createClient } from "../supabase/server";
 import { esCodigoModulo, nombreModulo, type CodigoModulo, type ModuloActivo } from "./catalogo.ts";
 
@@ -56,9 +57,35 @@ export async function verificarModulo(codigo: CodigoModulo): Promise<Acceso> {
     return { permitido: false, motivo: "sin-modulo" };
   }
 
-  return data === true
-    ? { permitido: true, usuarioId: user.id }
-    : { permitido: false, motivo: "sin-modulo" };
+  if (data === true) return { permitido: true, usuarioId: user.id };
+
+  /*
+   * Lo que todavía no se vende, no se cobra.
+   *
+   * Si el módulo no está en el catálogo —porque la migración que lo siembra no
+   * corrió todavía, o porque se lo retiró— negar el acceso apagaría una función
+   * que nadie tuvo oportunidad de contratar. Sería el peor momento posible para
+   * hacerlo: justo después de un deploy, y a todos a la vez.
+   *
+   * La consulta extra solo ocurre en el camino de NEGAR, que una vez sembrado
+   * el catálogo es el caso raro. En el camino feliz sigue siendo una sola.
+   */
+  // Con el cliente de servicio y no con el del usuario: la política de RLS solo
+  // muestra los módulos públicos, así que un módulo interno —que existe y está
+  // gateado a propósito— parecería inexistente y se abriría para todos.
+  const { data: enCatalogo, error: catalogoError } = await createAdminClient()
+    .from("eos_modulos")
+    .select("codigo")
+    .eq("codigo", codigo)
+    .maybeSingle();
+
+  // Otra vez: ante un error de lectura se niega. No saber se resuelve del lado
+  // de no entregar.
+  if (!catalogoError && !enCatalogo) {
+    return { permitido: true, usuarioId: user.id };
+  }
+
+  return { permitido: false, motivo: "sin-modulo" };
 }
 
 /**

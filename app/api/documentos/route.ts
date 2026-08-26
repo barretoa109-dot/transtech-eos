@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
-import { createClient } from "@/lib/supabase/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 import { normalizarDocumento } from "@/lib/documentos/especificacion";
 import { esFormato, guardarDocumento } from "@/lib/documentos/guardar";
 
@@ -29,16 +29,10 @@ export const dynamic = "force-dynamic";
 const MAX_BYTES = 2 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
+  const puerta = await exigirModulo("documentos");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const user = { id: puerta.usuarioId };
 
   const crudo = await request.text();
 

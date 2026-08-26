@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 type CrearPagoBody = {
   plan?: string;
+  /** Un EOS armado a medida (v66). Cuando viene, manda sobre `plan`. */
+  armado_id?: string;
   periodicidad?: "mensual" | "anual";
   nombre?: string;
   email?: string;
@@ -113,7 +115,18 @@ export async function POST(request: Request) {
     const planCodigo = limpiarTexto(body?.plan, 40).toLowerCase();
     const periodicidadEntrada = limpiarTexto(body?.periodicidad, 20).toLowerCase();
 
-    if (!PLANES_PAGOS.has(planCodigo)) {
+    /*
+     * Dos caminos, una sola pantalla de transferencia.
+     *
+     * El de siempre cobra un plan y saca el monto del precio de ese plan. El
+     * nuevo cobra un EOS armado a medida, y el monto sale de lo que el usuario
+     * eligió (ver la migración v66). Lo único que cambia es de dónde sale la
+     * cifra: la referencia, el vencimiento, el comprobante y la revisión son
+     * los mismos, y por eso comparten ruta en vez de duplicar el flujo entero.
+     */
+    const armadoId = limpiarTexto(body?.armado_id, 60);
+
+    if (!armadoId && !PLANES_PAGOS.has(planCodigo)) {
       return NextResponse.json(
         { error: "El plan seleccionado no es válido." },
         { status: 400 },
@@ -172,16 +185,23 @@ export async function POST(request: Request) {
       razon_social: razonSocial,
     };
 
-    const { data, error } = await (admin as any).rpc(
-      "eos_create_or_reuse_transfer_request_v47",
-      {
-        p_usuario_id: user.id,
-        p_plan_codigo: planCodigo,
-        p_periodicidad: periodicidad,
-        p_comprador: comprador,
-        p_cuenta_destino: CUENTA_DESTINO,
-      },
-    );
+    /* eslint-disable @typescript-eslint/no-explicit-any -- el cliente tipado no
+       conoce estas funciones; mismo escape que el resto de las rutas de pagos */
+    const { data, error } = armadoId
+      ? await (admin as any).rpc("eos_crear_solicitud_armado_v66", {
+          p_usuario_id: user.id,
+          p_armado_id: armadoId,
+          p_comprador: comprador,
+          p_cuenta_destino: CUENTA_DESTINO,
+        })
+      : await (admin as any).rpc("eos_create_or_reuse_transfer_request_v47", {
+          p_usuario_id: user.id,
+          p_plan_codigo: planCodigo,
+          p_periodicidad: periodicidad,
+          p_comprador: comprador,
+          p_cuenta_destino: CUENTA_DESTINO,
+        });
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
     if (error) {
       return respuestaErrorRpc(error);

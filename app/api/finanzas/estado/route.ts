@@ -14,6 +14,7 @@ import {
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { MovimientoProyectado } from "@/lib/finanzas/recurrencia";
 import { NextResponse } from "next/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -86,15 +87,15 @@ type CuentaFila = {
  * Las demás monedas viven en `monedas[]`.
  */
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // El panel es una función que se contrata. `exigirModulo` también resuelve la
+  // sesión, así que esto reemplaza al `getUser()` que había acá y no se suma a
+  // él: dos validaciones de token por request son dos viajes al servidor de
+  // auth, y esta ruta es de las que se piden apenas abre la pantalla.
+  const puerta = await exigirModulo("dashboard");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   const [politicaRes, movimientosRes, objetivosRes, conciliacionesRes, fijosRes, deudasRes, cuentasRes] =
     await Promise.all([

@@ -14,9 +14,45 @@
  */
 
 export const MODULOS = {
+  /**
+   * OJO: conversaciones se vende en TRAMOS (`conversaciones`,
+   * `conversaciones_plus`, `conversaciones_full`), así que
+   * `exigirModulo("conversaciones")` le diría que no a alguien que compró un
+   * tramo más alto. No se usa para gatear: el cupo de mensajes lo sigue
+   * aplicando `eos_reserve_message_quota_server_v75` a partir del plan, que es
+   * el que el armado deja fijado. Está acá para poder nombrarlo en pantalla.
+   */
+  conversaciones: {
+    nombre: "Conversaciones",
+    /** Lo que el usuario contrata, en una línea. */
+    resumen: "Hablar con EOS, con toda tu memoria y tu contexto.",
+  },
+  dashboard: {
+    nombre: "Panel financiero",
+    resumen: "Tu disponible real, a dónde va tu plata y de dónde vino, en cada moneda.",
+  },
+  briefing: {
+    nombre: "Briefing diario",
+    resumen: "El resumen del día en tu correo, antes de que abras nada.",
+  },
+  documentos: {
+    nombre: "Documentos a pedido",
+    resumen: "Balances, cuadros e informes en Excel, PDF o Word.",
+  },
+  lectura: {
+    nombre: "Lectura automática",
+    resumen: "EOS lee tus avisos bancarios por correo y carga los movimientos solo.",
+  },
+  alertas: {
+    nombre: "Avisos antes de que pase",
+    resumen: "Te avisa el 24 que el 28 no te va a alcanzar, y con cuánto.",
+  },
+  decisiones: {
+    nombre: "Decisiones y aprendizajes",
+    resumen: "Lo que decidiste, cómo salió, y qué aprendió EOS de eso.",
+  },
   erp: {
     nombre: "ERP",
-    /** Lo que el usuario contrata, en una línea. */
     resumen: "Operaciones, inventario y compras, sobre lo que EOS ya sabe del negocio.",
   },
   crm: {

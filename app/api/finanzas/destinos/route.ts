@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { desglosarGastos, desglosarIngresos, type MovimientoGasto } from "@/lib/finanzas/destinos";
 import { agruparPorMoneda, codigoMoneda, ordenarMonedas, volumenPorMoneda } from "@/lib/finanzas/monedas";
 import { NextResponse } from "next/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -41,15 +42,12 @@ type Fila = {
  * moneda de número más grande, que no significa nada.
  */
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // Parte del panel financiero: misma puerta, ver `estado/route.ts`.
+  const puerta = await exigirModulo("dashboard");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   // El mes del usuario, no el del servidor: a las 23:00 en Paraguay el 31 de
   // agosto, `toISOString()` ya diría septiembre y el desglose del mes se

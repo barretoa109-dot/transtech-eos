@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { exigirModulo } from "@/lib/modulos/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { conciliar } from "@/lib/finanzas/conciliacion";
 import { armarInforme, type DeudaInforme, type MovimientoInforme } from "@/lib/informes/armar";
@@ -49,15 +50,12 @@ type Formato = keyof typeof FORMATOS;
 const MAX_MOVIMIENTOS = 5_000;
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // El informe con datos reales es parte del módulo de documentos.
+  const puerta = await exigirModulo("documentos");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   const { searchParams } = new URL(request.url);
 

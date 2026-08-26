@@ -8,6 +8,7 @@ import { detectarRiesgo, redactarAviso } from "@/lib/finanzas/riesgo";
 import { trazarTrayectoria } from "@/lib/finanzas/trayectoria";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
+import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +23,14 @@ const HORIZONTE_DIAS = 45;
  * que el problema exista, no que encuentre problemas.
  */
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  // La curva del saldo es parte del panel, no del aviso: quien contrató el
+  // panel tiene que poder ver cómo viene su mes. Lo que se contrata aparte es
+  // que EOS AVISE sin que entres, y eso vive en el cron (`avisarRiesgos`).
+  const puerta = await exigirModulo("dashboard");
+  if (puerta.respuesta) return puerta.respuesta;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
-  }
+  const supabase = await createClient();
+  const user = { id: puerta.usuarioId };
 
   const hoy = hoyEnParaguay();
   const hasta = sumarDias(hoy, HORIZONTE_DIAS);
