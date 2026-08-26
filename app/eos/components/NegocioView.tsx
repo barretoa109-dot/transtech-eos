@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check, Plus, Receipt } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
+import Embudo from "./negocio/Embudo";
+import Compras from "./negocio/Compras";
+import Emisor from "./negocio/Emisor";
+import type { Contacto, Producto } from "./negocio/tipos";
 
 /**
  * El negocio adentro de EOS.
@@ -31,28 +35,6 @@ import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/
  * manda si alguna vez no coinciden.
  */
 
-type Contacto = {
-  id: string;
-  nombre: string;
-  ruc: string | null;
-  ruc_dv: number | null;
-  telefono: string | null;
-  es_cliente: boolean;
-  es_proveedor: boolean;
-};
-
-type Producto = {
-  id: string;
-  codigo: string | null;
-  nombre: string;
-  precio_venta: number;
-  moneda: string;
-  iva: TasaIva;
-  controla_stock: boolean;
-  stock_actual: number;
-  stock_minimo: number;
-  bajo_minimo: boolean;
-};
 
 type VentaItem = {
   id: string;
@@ -77,12 +59,24 @@ type Venta = {
   items: VentaItem[];
 };
 
-type Pestania = "ventas" | "productos" | "clientes";
+type Pestania = "ventas" | "compras" | "productos" | "clientes" | "embudo" | "emisor";
 
+/*
+ * El orden es el del día de trabajo, no el del organigrama: primero lo que
+ * entra, después lo que sale, después el catálogo y la gente, y al final lo
+ * que se mira de vez en cuando.
+ *
+ * Las tres primeras viven en este archivo porque comparten el estado de la
+ * carga; las tres últimas son pantallas propias en `./negocio`, que es lo que
+ * mantiene este archivo legible.
+ */
 const PESTANIAS: { clave: Pestania; etiqueta: string }[] = [
   { clave: "ventas", etiqueta: "Ventas" },
+  { clave: "compras", etiqueta: "Compras" },
   { clave: "productos", etiqueta: "Productos" },
   { clave: "clientes", etiqueta: "Clientes" },
+  { clave: "embudo", etiqueta: "Embudo" },
+  { clave: "emisor", etiqueta: "Facturación" },
 ];
 
 export default function NegocioView() {
@@ -210,8 +204,18 @@ export default function NegocioView() {
             productos={productos}
             onCambio={() => void cargar()}
           />
+        ) : pestania === "compras" ? (
+          <Compras
+            contactos={contactos.filter((c) => c.es_proveedor || !c.es_cliente)}
+            productos={productos}
+            onCambio={() => void cargar()}
+          />
         ) : pestania === "productos" ? (
           <Productos productos={productos} onCambio={() => void cargar()} />
+        ) : pestania === "embudo" ? (
+          <Embudo contactos={contactos} />
+        ) : pestania === "emisor" ? (
+          <Emisor />
         ) : (
           <Clientes contactos={contactos} onCambio={() => void cargar()} />
         )}

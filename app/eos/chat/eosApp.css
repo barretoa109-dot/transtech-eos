@@ -2986,3 +2986,36 @@
   font-size: 12.5px;
   color: var(--red);
 }
+
+/* Las etapas del embudo, en fila. Una etapa vacía también informa: "no hay
+   nada en propuesta" explica por qué el mes que viene va a estar flojo. */
+.eos-app .neg-etapas {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.eos-app .neg-etapa {
+  flex: 1 1 90px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  text-align: center;
+}
+.eos-app .neg-etapa-nombre {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.eos-app .neg-etapa-cantidad {
+  display: block;
+  margin-top: 3px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--blue-dark);
+  font-variant-numeric: tabular-nums;
+}
