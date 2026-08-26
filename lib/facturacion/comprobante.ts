@@ -89,39 +89,63 @@ export function armarComprobante(datos: {
         },
       ],
     },
+    /*
+     * Emisor y cliente en dos tablas de dos filas, no de siete.
+     *
+     * La versión larga —una fila por dato, con encabezados "Dato" y "Valor"—
+     * empujaba el comprobante a una segunda página donde caía sola la
+     * advertencia legal. Un papel que se le entrega a un cliente con una
+     * segunda carilla casi vacía se ve como un error de impresión.
+     *
+     * Los encabezados además no decían nada: "Dato" y "Valor" son ruido. Ahora
+     * el encabezado ES el nombre de la sección.
+     */
     {
       tipo: "tabla",
-      titulo: "Emisor",
       columnas: [
-        { titulo: "Dato", tipo: "texto" },
-        { titulo: "Valor", tipo: "texto" },
+        { titulo: "Emisor", tipo: "texto" },
+        // Con el título vacío, el normalizador la bautiza "Columna 2" —hace bien,
+        // una columna sin nombre en un Excel es ilegible— así que acá se le da
+        // uno que signifique algo.
+        { titulo: "Datos fiscales", tipo: "texto" },
       ],
       filas: [
-        ["Razón social", emisor || "—"],
-        ...(fantasia ? [["Nombre de fantasía", fantasia]] : []),
-        ["RUC", rucCompleto(config.ruc, config.ruc_dv) || "—"],
-        ["Timbrado", texto(config.timbrado_numero) || "—"],
         [
-          "Vigencia del timbrado",
-          [texto(config.timbrado_inicio), texto(config.timbrado_fin)].filter(Boolean).join(" al ") ||
-            "—",
+          [emisor, fantasia && fantasia !== emisor ? `(${fantasia})` : ""]
+            .filter(Boolean)
+            .join(" ") || "—",
+          `RUC ${rucCompleto(config.ruc, config.ruc_dv) || "—"}`,
         ],
-        ["Dirección", [texto(config.direccion), texto(config.numero_casa)].filter(Boolean).join(" ") || "—"],
-        ["Teléfono", texto(config.telefono) || "—"],
+        [
+          [texto(config.direccion), texto(config.numero_casa), texto(config.telefono)]
+            .filter(Boolean)
+            .join(" · ") || "—",
+          [
+            texto(config.timbrado_numero) ? `Timbrado ${texto(config.timbrado_numero)}` : "",
+            [texto(config.timbrado_inicio), texto(config.timbrado_fin)]
+              .filter(Boolean)
+              .join(" al "),
+          ]
+            .filter(Boolean)
+            .join(" · ") || "—",
+        ],
       ],
     },
     {
       tipo: "tabla",
-      titulo: "Cliente",
       columnas: [
-        { titulo: "Dato", tipo: "texto" },
-        { titulo: "Valor", tipo: "texto" },
+        { titulo: "Cliente", tipo: "texto" },
+        { titulo: "Datos fiscales", tipo: "texto" },
       ],
       filas: [
-        ["Nombre", texto(contacto?.nombre) || "Consumidor final"],
-        ["RUC", rucCompleto(contacto?.ruc, contacto?.ruc_dv) || "—"],
-        ["Dirección", texto(contacto?.direccion) || "—"],
-        ["Condición de venta", texto(venta.condicion) === "credito" ? "Crédito" : "Contado"],
+        [
+          texto(contacto?.nombre) || "Consumidor final",
+          `RUC ${rucCompleto(contacto?.ruc, contacto?.ruc_dv) || "—"}`,
+        ],
+        [
+          texto(contacto?.direccion) || "—",
+          `Condición: ${texto(venta.condicion) === "credito" ? "Crédito" : "Contado"}`,
+        ],
       ],
     },
     {

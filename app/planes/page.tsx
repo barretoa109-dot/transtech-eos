@@ -470,6 +470,8 @@ function Armador() {
                       <Loader2 className="spin" size={14} />
                       Preparando...
                     </>
+                  ) : contratados.length > 0 ? (
+                    "Actualizar mi EOS →"
                   ) : (
                     "Contratar →"
                   )}

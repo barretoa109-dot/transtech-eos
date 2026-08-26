@@ -501,7 +501,10 @@ export default function PagoTarjeta() {
           <div className="check">✓</div>
           <h1>Pago confirmado</h1>
           <p>
-            Tu plan <strong>{exito.plan}</strong> quedó activo
+            {/* Un armado no tiene nombre de plan: decir "tu plan armado" sería
+                mostrarle al usuario un código interno en el momento en que
+                acaba de pagar. */}
+            {armadoId ? "Tu EOS" : <>Tu plan <strong>{exito.plan}</strong></>} quedó activo
             {exito.dias ? ` por ${exito.dias} días` : ""}.
           </p>
           <button type="button" onClick={() => router.push("/eos/chat")}>
