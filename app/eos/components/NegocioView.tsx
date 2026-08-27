@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Plus, Receipt } from "lucide-react";
+import { Check, Plus, Receipt } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Emisor from "./negocio/Emisor";
 import Anular from "./negocio/Anular";
+import FilaProducto from "./negocio/FilaProducto";
+import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto, Producto } from "./negocio/tipos";
 
 /**
@@ -663,21 +665,7 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
         ) : (
           <div className="neg-lista">
             {productos.map((p) => (
-              <div className="neg-fila" key={p.id}>
-                <div className="neg-fila-texto">
-                  <strong>{p.nombre}</strong>
-                  <small>
-                    {p.iva === 0 ? "Exenta" : `IVA ${p.iva}%`}
-                    {p.controla_stock ? ` · ${p.stock_actual} en stock` : ""}
-                  </small>
-                </div>
-                <span className="neg-fila-monto">{formatearMonto(p.precio_venta, p.moneda)}</span>
-                {p.bajo_minimo && (
-                  <span className="neg-estado is-mal">
-                    <AlertTriangle size={12} /> bajo mínimo
-                  </span>
-                )}
-              </div>
+              <FilaProducto key={p.id} producto={p} onCambio={onCambio} />
             ))}
           </div>
         )}
@@ -786,22 +774,7 @@ function Clientes({ contactos, onCambio }: { contactos: Contacto[]; onCambio: ()
         ) : (
           <div className="neg-lista">
             {contactos.map((c) => (
-              <div className="neg-fila" key={c.id}>
-                <div className="neg-fila-texto">
-                  <strong>{c.nombre}</strong>
-                  <small>
-                    {c.ruc ? `RUC ${c.ruc}${c.ruc_dv !== null ? `-${c.ruc_dv}` : ""}` : "Sin RUC"}
-                    {c.telefono ? ` · ${c.telefono}` : ""}
-                  </small>
-                </div>
-                <span className="neg-estado">
-                  {c.es_proveedor && c.es_cliente
-                    ? "cliente y proveedor"
-                    : c.es_proveedor
-                      ? "proveedor"
-                      : "cliente"}
-                </span>
-              </div>
+              <FilaContacto key={c.id} contacto={c} onCambio={onCambio} />
             ))}
           </div>
         )}

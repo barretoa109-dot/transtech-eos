@@ -1100,6 +1100,37 @@
   gap: 6px;
 }
 
+/* Editor en el lugar: ocupa toda la fila, que ya viene con flex-wrap. */
+.eos-app .fila-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-soft, rgba(0, 0, 0, 0.02));
+}
+.eos-app .fila-editor-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.eos-app .fila-editor-campos .neg-input {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.eos-app .fila-editor-campos .neg-cantidad {
+  flex: 0 1 110px;
+}
+.eos-app .fila-editor-nota {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .eos-app .card {
   border: 1px solid var(--line);
   border-radius: 16px;
