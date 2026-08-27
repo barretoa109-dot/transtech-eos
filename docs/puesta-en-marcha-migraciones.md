@@ -1,14 +1,13 @@
-# Puesta en marcha: migraciones v64 a v75
+# Puesta en marcha: migraciones v64 a v76
 
-> **Estado al 2026-08-26: las doce migraciones YA ESTÁN APLICADAS** en el
+> **Estado al 2026-08-26: las trece migraciones YA ESTÁN APLICADAS** en el
 > proyecto `TransTech EOS`, verificado con `supabase migration list --linked`:
-> no queda ninguna pendiente. Lo que falta es **desplegar el código**, que hoy
-> está commiteado y sin pushear.
+> no queda ninguna pendiente, y el código está desplegado.
 >
 > Este documento queda como registro de qué trae cada una y de lo que se
 > aprendió aplicándolas.
 
-Doce migraciones. **El orden importa y el momento del deploy también**: hay un
+Trece migraciones. **El orden importa y el momento del deploy también**: hay un
 caso en el que desplegar antes de migrar apaga funciones para todos, y por eso
 se aplicaron primero.
 
@@ -26,11 +25,32 @@ se aplicaron primero.
 | v73 | `20260826230000_eos_vitrina_negocio_v73.sql` | Poner ERP, CRM y facturación en la vitrina |
 | v74 | `20260826240000_eos_cortesia_facturacion_v74.sql` | Completar la cortesía de las cuentas viejas |
 | v75 | `20260826250000_eos_facturacion_de_quien_v75.sql` | Aclarar de quién son las facturas del módulo |
+| v76 | `20260826260000_eos_erp_tenant_numeric_hardening_v76.sql` | Que las relaciones del ERP y el CRM también sean del usuario |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
 v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
 `eos_movimientos_financieros`. La v69 además ensancha el `check` de
 `origen` para admitir `erp`, del que dependen las dos.
+
+### La v76, y por qué importa que se haya aplicado tarde
+
+La escribió la revisión en paralelo, y cierra un agujero real de la v69: mi
+`eos_erp_registrar_venta` aceptaba un `contacto_id` sin comprobar que fuera del
+usuario. Como la función es `security definer`, la RLS no la cubre — y el nombre
+de ese contacto se copiaba a la descripción del movimiento financiero.
+
+Se arregla con triggers y no con un chequeo dentro de esa función, que es mejor:
+cubre por igual la interfaz, el chat, los RPC y cualquier integración futura.
+
+**Estuvo desplegada sin aplicar durante unas horas.** El código que atrapa
+`EOS_CONTACTO_AJENO` se pusheó antes de que la migración corriera, así que el
+error nunca podía dispararse y la protección no existía. Es exactamente el
+peligro que este documento advierte al revés, y quedó como recordatorio de que la
+regla vale en las dos direcciones: la migración va antes, siempre.
+
+Verificado contra la base después de aplicarla: una venta con el contacto de otra
+cuenta se rechaza con `EOS_CONTACTO_AJENO`, y la misma venta con el contacto
+propio pasa. Los datos de prueba se borraron.
 
 ## El orden entre migrar y desplegar
 
