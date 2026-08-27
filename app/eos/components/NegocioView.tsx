@@ -7,6 +7,7 @@ import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Emisor from "./negocio/Emisor";
+import Anular from "./negocio/Anular";
 import type { Contacto, Producto } from "./negocio/tipos";
 
 /**
@@ -471,6 +472,9 @@ function Ventas({
                 )}
 
                 <Facturar ventaId={v.id} />
+
+                {/* Anular va al final: se lee después de las acciones normales. */}
+                <Anular recurso="ventas" id={v.id} onAnulado={onCambio} />
               </div>
             ))}
           </div>

@@ -1057,6 +1057,49 @@
   color: #fff;
 }
 
+/* Anular devuelve stock y borra plata: se ve distinto de cobrar o facturar. */
+.eos-app .chip.is-danger {
+  cursor: pointer;
+  color: #b3423f;
+  border-color: rgba(179, 66, 63, 0.35);
+  background: rgba(179, 66, 63, 0.05);
+}
+.eos-app .chip.is-danger:hover {
+  background: rgba(179, 66, 63, 0.11);
+}
+.eos-app .chip.is-danger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* El cuadro que pide el motivo. Ocupa toda la fila: `.neg-fila` envuelve. */
+.eos-app .anular-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(179, 66, 63, 0.3);
+  border-radius: 10px;
+  background: rgba(179, 66, 63, 0.05);
+}
+.eos-app .anular-aviso {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.eos-app .anular-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b3423f;
+}
+.eos-app .anular-acciones {
+  display: flex;
+  gap: 6px;
+}
+
 .eos-app .card {
   border: 1px solid var(--line);
   border-radius: 16px;

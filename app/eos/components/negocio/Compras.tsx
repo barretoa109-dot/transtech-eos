@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Anular from "./Anular";
 import { Check } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
@@ -294,6 +295,8 @@ export default function Compras({
                     Pagar
                   </button>
                 )}
+
+                <Anular recurso="compras" id={c.id} onAnulado={cargar} />
               </div>
             ))}
           </div>
