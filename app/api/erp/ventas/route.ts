@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
+import { normalizarItemsErp } from "@/lib/erp/entrada";
 
 export const dynamic = "force-dynamic";
 
@@ -70,29 +71,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
 
-  const crudos = Array.isArray(cuerpo.items) ? cuerpo.items : [];
+  const resultadoItems = normalizarItemsErp(cuerpo.items, tasaValida, MAX_ITEMS);
 
-  const items = crudos
-    .filter((i): i is Record<string, unknown> => typeof i === "object" && i !== null)
-    .slice(0, MAX_ITEMS)
-    .map((i) => ({
-      producto_id: typeof i.producto_id === "string" ? i.producto_id : null,
-      descripcion: String(i.descripcion ?? "").trim().slice(0, 300) || null,
-      cantidad: Number(i.cantidad ?? 1),
-      precio_unitario:
-        i.precio_unitario === undefined || i.precio_unitario === null
-          ? null
-          : Number(i.precio_unitario),
-      iva: i.iva === undefined || i.iva === null ? null : tasaValida(i.iva),
-    }))
-    .filter((i) => Number.isFinite(i.cantidad) && i.cantidad > 0);
+  if (!resultadoItems.ok) {
+    const mensaje =
+      resultadoItems.motivo === "precio-invalido"
+        ? "Los precios tienen que ser números mayores o iguales a cero."
+        : resultadoItems.motivo === "cantidad-invalida"
+          ? "Las cantidades tienen que ser números mayores a cero."
+          : resultadoItems.motivo === "demasiados-items"
+            ? `La venta admite como máximo ${MAX_ITEMS} ítems.`
+            : resultadoItems.motivo === "item-invalido"
+              ? "Cada ítem de la venta debe ser un objeto válido."
+          : "La venta necesita al menos un ítem.";
 
-  if (items.length === 0) {
     return NextResponse.json(
-      { error: "La venta necesita al menos un ítem." },
+      { error: mensaje },
       { status: 400, headers: noStore() },
     );
   }
+
+  const items = resultadoItems.items;
 
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
@@ -123,6 +122,20 @@ export async function POST(request: Request) {
     if (texto.includes("EOS_VENTA_CANTIDAD_INVALIDA")) {
       return NextResponse.json(
         { error: "Las cantidades tienen que ser mayores a cero." },
+        { status: 400, headers: noStore() },
+      );
+    }
+
+    if (texto.includes("EOS_CONTACTO_AJENO")) {
+      return NextResponse.json(
+        { error: "El contacto no pertenece a tu cuenta." },
+        { status: 400, headers: noStore() },
+      );
+    }
+
+    if (texto.includes("eos_erp_venta_items_precio_valido_v76")) {
+      return NextResponse.json(
+        { error: "Los precios tienen que ser números mayores o iguales a cero." },
         { status: 400, headers: noStore() },
       );
     }

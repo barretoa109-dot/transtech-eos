@@ -118,16 +118,74 @@ export async function POST(request: Request) {
   const hecha = typeof cuerpo.hecha === "boolean" ? cuerpo.hecha : tipo !== "tarea";
 
   const supabase = await createClient();
+  const contactoId =
+    typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null;
+  const oportunidadId =
+    typeof cuerpo.oportunidad_id === "string" && cuerpo.oportunidad_id
+      ? cuerpo.oportunidad_id
+      : null;
+
+  const [contactoRespuesta, oportunidadRespuesta] = await Promise.all([
+    contactoId
+      ? supabase
+          .from("eos_crm_contactos")
+          .select("id")
+          .eq("id", contactoId)
+          .eq("usuario_id", puerta.usuarioId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    oportunidadId
+      ? supabase
+          .from("eos_crm_oportunidades")
+          .select("id,contacto_id")
+          .eq("id", oportunidadId)
+          .eq("usuario_id", puerta.usuarioId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (contactoRespuesta.error || oportunidadRespuesta.error) {
+    console.error(
+      "CRM: no se pudieron validar las relaciones de la actividad:",
+      contactoRespuesta.error || oportunidadRespuesta.error,
+    );
+    return NextResponse.json(
+      { error: "No pudimos validar el contacto o la oportunidad." },
+      { status: 503, headers: noStore() },
+    );
+  }
+
+  if (contactoId && !contactoRespuesta.data) {
+    return NextResponse.json(
+      { error: "El contacto no pertenece a tu cuenta." },
+      { status: 400, headers: noStore() },
+    );
+  }
+
+  if (oportunidadId && !oportunidadRespuesta.data) {
+    return NextResponse.json(
+      { error: "La oportunidad no pertenece a tu cuenta." },
+      { status: 400, headers: noStore() },
+    );
+  }
+
+  if (
+    contactoId &&
+    oportunidadRespuesta.data?.contacto_id &&
+    contactoId !== oportunidadRespuesta.data.contacto_id
+  ) {
+    return NextResponse.json(
+      { error: "El contacto no coincide con el de la oportunidad." },
+      { status: 400, headers: noStore() },
+    );
+  }
 
   const { data, error } = await supabase
     .from("eos_crm_actividades")
     .insert({
       usuario_id: puerta.usuarioId,
-      contacto_id: typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null,
-      oportunidad_id:
-        typeof cuerpo.oportunidad_id === "string" && cuerpo.oportunidad_id
-          ? cuerpo.oportunidad_id
-          : null,
+      contacto_id: contactoId,
+      oportunidad_id: oportunidadId,
       tipo,
       detalle,
       fecha,
@@ -137,6 +195,20 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    const texto = String(error.message ?? "");
+    if (texto.includes("EOS_CONTACTO_AJENO") || texto.includes("EOS_OPORTUNIDAD_AJENA")) {
+      return NextResponse.json(
+        { error: "El contacto o la oportunidad no pertenecen a tu cuenta." },
+        { status: 400, headers: noStore() },
+      );
+    }
+    if (texto.includes("EOS_ACTIVIDAD_RELACIONES_INCONSISTENTES")) {
+      return NextResponse.json(
+        { error: "El contacto no coincide con el de la oportunidad." },
+        { status: 400, headers: noStore() },
+      );
+    }
+
     console.error("CRM: no se pudo guardar la actividad:", error);
     return NextResponse.json(
       { error: "No pudimos guardar la nota." },

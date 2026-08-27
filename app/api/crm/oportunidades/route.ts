@@ -101,12 +101,40 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+  const contactoId =
+    typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null;
+
+  // La FK simple solo prueba que el UUID exista. Comprobamos pertenencia acá
+  // para responder 400; el trigger v76 repite la regla como última defensa.
+  if (contactoId) {
+    const { data: contacto, error: contactoError } = await supabase
+      .from("eos_crm_contactos")
+      .select("id")
+      .eq("id", contactoId)
+      .eq("usuario_id", puerta.usuarioId)
+      .maybeSingle();
+
+    if (contactoError) {
+      console.error("CRM: no se pudo validar el contacto:", contactoError);
+      return NextResponse.json(
+        { error: "No pudimos validar el contacto." },
+        { status: 503, headers: noStore() },
+      );
+    }
+
+    if (!contacto) {
+      return NextResponse.json(
+        { error: "El contacto no pertenece a tu cuenta." },
+        { status: 400, headers: noStore() },
+      );
+    }
+  }
 
   const { data, error } = await supabase
     .from("eos_crm_oportunidades")
     .insert({
       usuario_id: puerta.usuarioId,
-      contacto_id: typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null,
+      contacto_id: contactoId,
       titulo,
       detalle: String(cuerpo.detalle ?? "").trim().slice(0, 2000) || null,
       monto: Math.max(0, Number(cuerpo.monto) || 0),
@@ -120,6 +148,13 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    if (String(error.message ?? "").includes("EOS_CONTACTO_AJENO")) {
+      return NextResponse.json(
+        { error: "El contacto no pertenece a tu cuenta." },
+        { status: 400, headers: noStore() },
+      );
+    }
+
     console.error("CRM: no se pudo guardar la oportunidad:", error);
     return NextResponse.json(
       { error: "No pudimos guardar la oportunidad." },
