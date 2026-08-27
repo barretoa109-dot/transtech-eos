@@ -158,6 +158,24 @@ Por eso el prompt tiene una quinta regla: totalizar solo cuando las filas se
 suman de verdad, como el detalle de una factura. Verificado después del cambio:
 la tabla resumen dejó de totalizar y la de detalle siguió haciéndolo.
 
+### La respuesta ya no devuelve el estado interno
+
+El nodo 08 esparcía `...base`, y base arrastra todo lo que el workflow fue
+armando: el prompt, lo que se le mandó a OpenAI, el historial y —cuando el
+usuario adjunta una foto— `imagen_data_url` con el base64 completo.
+
+Es decir: subir una imagen de 8 MB hacía que esos 8 MB **volvieran** de n8n a
+Vercel para ser descartados ahí mismo. Ida y vuelta, por nada, en el camino
+crítico de cada mensaje.
+
+Ahora la salida es una lista explícita de lo que lee `normalizarRespuestaN8N`.
+Medido contra el webhook real: una conversación pasó de ~2.500 a 709 bytes, y un
+pedido de archivo de 3.328 a 1.023. Con imagen adjunta la diferencia son
+megabytes.
+
+Solo se tocó el nodo 08, que es el último antes de responder: los nodos internos
+siguen leyendo `$('05 GW Preparar Respuesta')` como siempre.
+
 ### Cómo probarlo sin gastarle un mensaje a nadie
 
 La puerta de admisión del gateway exige una reserva de cupo creada por la app,
