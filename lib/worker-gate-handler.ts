@@ -24,6 +24,25 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
   GENERAR_WORD: { tier: 1, points: 1, maxLevel: 3 },
   CREAR_TAREA: { tier: 1, points: 2, maxLevel: 3 },
   CREAR_OBJETIVO: { tier: 2, points: 4, maxLevel: 2 },
+
+  /*
+   * Las tres que tocan el negocio, y por qué ninguna se ejecuta sola.
+   *
+   * Con tier 2 o más, la puerta exige aprobación explícita sin importar el
+   * nivel de autonomía configurado: ver la decisión más abajo. Una venta
+   * descuenta stock y suma plata al panel, y un ajuste reescribe un
+   * inventario. Si el modelo entiende mal "vendile tres panes" y carga
+   * treinta, el error queda escrito en las dos partes del sistema donde más
+   * caro sale. Anular existe, pero un sistema que hay que anular seguido deja
+   * de usarse.
+   *
+   * CREAR_CONTACTO es más barato de deshacer y por eso pesa menos, pero
+   * también pide permiso: agendar gente en nombre de alguien no es algo que
+   * deba pasar sin que se entere.
+   */
+  REGISTRAR_VENTA: { tier: 3, points: 6, maxLevel: 2 },
+  AJUSTAR_STOCK: { tier: 3, points: 6, maxLevel: 2 },
+  CREAR_CONTACTO: { tier: 2, points: 3, maxLevel: 2 },
 };
 
 const DEFAULT_PROFILE = {
