@@ -37,6 +37,13 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ClienteAdmin = any;
 
+function exigirSinError(error: unknown, operacion: string) {
+  if (!error) return;
+
+  console.error(`Bancard: falló ${operacion}:`, error);
+  throw new Error(`EOS_BANCARD_LOCAL_${operacion.toUpperCase().replace(/\W+/g, "_")}`);
+}
+
 /* Un catastro que no se completó en media hora es un catastro abandonado. */
 const MINUTOS_PARA_CADUCAR = 30;
 
@@ -130,7 +137,7 @@ export async function reconciliarTarjetas(
      * Insertando lo que Bancard reporta, cualquier tarjeta que la pasarela
      * tenga se vuelve visible y cobrable, venga de donde venga.
      */
-    await admin.from("eos_bancard_tarjetas_v51").upsert(
+    const { error: upsertError } = await admin.from("eos_bancard_tarjetas_v51").upsert(
       {
         usuario_id: usuarioId,
         bancard_card_id: cardId,
@@ -144,22 +151,28 @@ export async function reconciliarTarjetas(
       },
       { onConflict: "usuario_id,bancard_card_id" },
     );
+
+    exigirSinError(upsertError, "guardar tarjeta reconciliada");
   }
 
   // Lo que Bancard ya no tiene no puede seguir figurando como cobrable.
   if (idsVigentes.length > 0) {
-    await admin
+    const { error: retirarError } = await admin
       .from("eos_bancard_tarjetas_v51")
       .update({ estado: "eliminada", es_principal: false, updated_at: ahora })
       .eq("usuario_id", usuarioId)
       .eq("estado", "activa")
       .not("bancard_card_id", "in", `(${idsVigentes.join(",")})`);
+
+    exigirSinError(retirarError, "retirar tarjetas ausentes");
   } else {
-    await admin
+    const { error: retirarTodasError } = await admin
       .from("eos_bancard_tarjetas_v51")
       .update({ estado: "eliminada", es_principal: false, updated_at: ahora })
       .eq("usuario_id", usuarioId)
       .eq("estado", "activa");
+
+    exigirSinError(retirarTodasError, "retirar tarjetas ausentes");
   }
 
   /*
@@ -173,21 +186,25 @@ export async function reconciliarTarjetas(
    */
   const limite = new Date(Date.now() - MINUTOS_PARA_CADUCAR * 60_000).toISOString();
 
-  await admin
+  const { error: caducarError } = await admin
     .from("eos_bancard_tarjetas_v51")
     .update({ estado: "caducada", updated_at: ahora })
     .eq("usuario_id", usuarioId)
     .eq("estado", "pendiente")
     .lt("created_at", limite);
 
+  exigirSinError(caducarError, "caducar catastros abandonados");
+
   const tarjetas = await soloLeerActivas(admin, usuarioId);
 
   // Si no hay principal definida, la primera activa pasa a serlo.
   if (tarjetas.length > 0 && !tarjetas.some((t) => t.es_principal)) {
-    await admin
+    const { error: principalError } = await admin
       .from("eos_bancard_tarjetas_v51")
       .update({ es_principal: true, updated_at: ahora })
       .eq("id", tarjetas[0].id);
+
+    exigirSinError(principalError, "elegir tarjeta principal");
 
     tarjetas[0].es_principal = true;
   }
@@ -196,23 +213,27 @@ export async function reconciliarTarjetas(
 }
 
 async function soloLeerActivas(admin: ClienteAdmin, usuarioId: string): Promise<TarjetaLocal[]> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("eos_bancard_tarjetas_v51")
     .select("id,card_masked_number,card_brand,card_type,expiration_date,es_principal,created_at")
     .eq("usuario_id", usuarioId)
     .eq("estado", "activa")
     .order("created_at", { ascending: true });
 
+  exigirSinError(error, "leer tarjetas activas");
+
   return (data || []) as TarjetaLocal[];
 }
 
 /* El id de Bancard del usuario, o null si todavía no catastró nunca. */
 export async function bancardUserIdDe(admin: ClienteAdmin, usuarioId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("eos_bancard_usuarios_v51")
     .select("bancard_user_id")
     .eq("usuario_id", usuarioId)
     .maybeSingle();
+
+  exigirSinError(error, "leer usuario de Bancard");
 
   return (data?.bancard_user_id as number | undefined) ?? null;
 }

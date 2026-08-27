@@ -28,6 +28,34 @@ export default function ResultadoPago() {
    */
   const refBancard = params.get("ref") || "";
 
+  /*
+   * ============================================================
+   * VOLVER A LA VENTANA GRANDE DESPUÉS DEL 3DS
+   * ============================================================
+   *
+   * El desafío del banco se muestra DENTRO de un iframe en el checkout, y
+   * Bancard lo cierra redirigiendo ese iframe a nuestra `return_url` — que es
+   * esta pantalla. Sin esto, el resultado del pago se dibuja dentro de la
+   * cajita del desafío: una página entera apretada en unos cientos de píxeles,
+   * encima del checkout que quedó atrás.
+   *
+   * Así que si nos damos cuenta de que estamos embebidos, sacamos la ventana de
+   * arriba a esta misma dirección. La página se vuelve a cargar completa, con
+   * su `?ref=`, y sigue consultando el estado igual que siempre.
+   *
+   * El acceso a `window.top.location` puede fallar por origen cruzado; si eso
+   * pasa, se sigue mostrando embebido, que es feo pero no rompe nada.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined" || window.top === window.self) return;
+
+    try {
+      window.top!.location.replace(window.location.href);
+    } catch {
+      /* Embebidos nos quedamos: el pago ya está resuelto igual. */
+    }
+  }, []);
+
   const [estado, setEstado] = useState<Estado>("cargando");
   const [mensaje, setMensaje] = useState("Estamos consultando tu solicitud.");
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
