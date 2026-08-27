@@ -115,75 +115,53 @@ pasa se **recorta** (y el recorte queda registrado); lo que no se entiende se
 - **Una tabla, una hoja de Excel.** Apilar tablas en la misma hoja hace que el
   filtro automático agarre las filas equivocadas.
 
-## El texto para pegar en el prompt de n8n
+## Cómo quedó conectado en n8n
 
-Esto es lo único que falta para que EOS empiece a mandar archivos: el workflow
-del chat vive en la instancia de n8n, no en este repositorio, así que hay que
-agregarle estas instrucciones al prompt del agente. No hace falta tocar el
-workflow: el bloque cercado viaja dentro de la respuesta de texto.
+**Ya está hecho.** El workflow `EOS 4.0 - Conversational Gateway WORKER GATE RC1`
+(id `JRgzUkoHBKgGpyPA`) quedó actualizado el 2026-08-26, y su JSON está
+versionado en
+[`n8n/workflows/eos-conversational-gateway-rc1.json`](../n8n/workflows/eos-conversational-gateway-rc1.json),
+sin credenciales.
 
----
+### Por qué NO se usó el bloque cercado
 
-> **Cuando el usuario te pida un archivo** —una planilla, un informe, un cuadro,
-> un balance, una lista para imprimir— además de tu respuesta normal agregá al
-> final un bloque cercado con la etiqueta `eos:documento` y un JSON adentro.
->
-> No expliques el bloque ni lo menciones: el sistema lo saca del texto antes de
-> mostrarlo y lo convierte en un archivo descargable en Excel, PDF y Word.
->
-> El JSON tiene esta forma:
->
-> ```
-> {
->   "titulo": "...",
->   "subtitulo": "...",
->   "moneda": "PYG",
->   "bloques": [ ... ]
-> }
-> ```
->
-> Cada bloque es uno de estos:
->
-> - `{"tipo": "titulo", "texto": "...", "nivel": 1}`
-> - `{"tipo": "parrafo", "texto": "..."}`
-> - `{"tipo": "lista", "ordenada": false, "items": ["...", "..."]}`
-> - `{"tipo": "indicadores", "items": [{"etiqueta": "...", "valor": "...", "detalle": "..."}]}`
-> - `{"tipo": "tabla", "titulo": "...", "columnas": [{"titulo": "...", "tipo": "texto|numero|dinero|fecha|porcentaje", "total": true}], "filas": [[...], [...]]}`
-> - `{"tipo": "nota", "texto": "..."}` — para lo que NO podés garantizar.
->
-> Cuatro reglas:
->
-> 1. **Los importes van como número**, no como `"₲ 8.500.000"`. En Excel esa es
->    la diferencia entre poder sumar una columna y tener que retipearla.
-> 2. **Las filas son arreglos** en el orden de las columnas. Si a una fila le
->    falta un dato, poné `null` en su lugar: nunca la acortes.
-> 3. **Usá `nota` para lo que no sabés.** Si el usuario te pide un balance y no
->    ves sus pagos en efectivo, decilo adentro del documento.
-> 4. **No inventes datos para llenar el archivo.** Un cuadro con tres filas
->    reales sirve; uno con doce inventadas hace tomar decisiones equivocadas.
+Ese workflow le exige al modelo un JSON estricto y le prohíbe el markdown y los
+bloques de código. Meterle un bloque cercado sería pedirle justo lo que el resto
+del prompt le prohíbe. Así que la integración usa **la otra forma que este
+repositorio ya aceptaba**: un campo `documento` dentro del JSON de la respuesta.
 
----
+El bloque cercado sigue funcionando y sigue documentado más arriba, para
+cualquier otro canal que mande texto libre.
 
-Un ejemplo completo de respuesta:
+### Los dos cambios
 
-    Armé el cuadro con las seis necesidades que fuiste mencionando. Las tres
-    urgentes suman ₲ 14.900.000.
+1. **El prompt del sistema** suma la sección "ARCHIVOS QUE PIDE EL USUARIO", con
+   la forma del campo, los seis tipos de bloque y cinco reglas.
+2. **El nodo `05 GW Preparar Respuesta`** pasa el campo a la salida. Como el nodo
+   08 esparce `...base`, llega a la respuesta por las dos ramas: la de
+   conversación pura y la del worker.
 
-    ```eos:documento
-    {
-      "titulo": "Necesidades del negocio",
-      "moneda": "PYG",
-      "bloques": [
-        {
-          "tipo": "tabla",
-          "columnas": [
-            { "titulo": "Necesidad", "tipo": "texto" },
-            { "titulo": "Urgencia", "tipo": "texto" },
-            { "titulo": "Costo estimado", "tipo": "dinero", "total": true }
-          ],
-          "filas": [["Reponer envases", "Alta", 8500000]]
-        },
-        { "tipo": "nota", "texto": "Los costos son estimaciones tuyas, no presupuestos pedidos." }
-      ]
-    }
-    ```
+Y una regla que evita el peor caso: **si el modelo manda `documento` y además una
+acción `GENERAR_EXCEL` / `GENERAR_PDF` / `GENERAR_WORD`, esas acciones se
+descartan**. Sin eso, el worker viejo armaría su plantilla genérica al mismo
+tiempo que el documento real, y el usuario recibiría dos archivos distintos por
+un solo pedido.
+
+### Lo que encontró la prueba de punta a punta
+
+Pidiéndole un balance por el webhook real, el modelo marcó `"total": true` en la
+columna de una tabla **resumen** —ingresos, gastos, resultado— y el renderizador
+sumó las tres filas: `Gs. 24.800.000`. Un número que no significa nada y que el
+lector lee como un error del sistema.
+
+Por eso el prompt tiene una quinta regla: totalizar solo cuando las filas se
+suman de verdad, como el detalle de una factura. Verificado después del cambio:
+la tabla resumen dejó de totalizar y la de detalle siguió haciéndolo.
+
+### Cómo probarlo sin gastarle un mensaje a nadie
+
+La puerta de admisión del gateway exige una reserva de cupo creada por la app,
+así que un POST suelto al webhook se rechaza. El camino es reservar con
+`eos_reserve_message_quota_server_v75`, llamar al webhook y **liberar** con
+`eos_release_message_quota_server_v75` — que es exactamente lo que hace
+`/api/eos` cuando n8n falla. La prueba no consume cupo.

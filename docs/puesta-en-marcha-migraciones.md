@@ -138,24 +138,26 @@ pero eso no reemplaza abrirlo.
 
 ## Lista para salir a vender
 
-~~1. Aplicar las migraciones.~~ **Hecho el 2026-08-26.**
+Lo que estaba pendiente el 2026-08-26 y ya está hecho:
 
-~~2. Probar el armado sin conversaciones.~~ **Resuelto leyendo la base**: ver la
-sección de arriba. Se encontró y se corrigió un problema de renovación que la
-prueba habría tardado un mes en mostrar.
+- ~~Aplicar las migraciones.~~ Las doce están aplicadas y verificadas contra la
+  base.
+- ~~Probar el armado sin conversaciones.~~ Resuelto leyendo la definición real de
+  `asignar_plan_eos`: acepta `free`, pero deja el vencimiento en `NULL`. Eso
+  destapó un problema de renovación que la prueba habría tardado un mes en
+  mostrar, y quedó corregido.
+- ~~Pegar el prompt en n8n.~~ El workflow del chat ya devuelve el documento, y se
+  probó de punta a punta —del webhook al PDF— con dos pedidos reales. Ver
+  [documentos-a-pedido.md](documentos-a-pedido.md).
+- ~~Desplegar.~~ Pusheado y desplegado.
 
-Queda:
+Queda, y ninguna de las dos es código:
 
-1. **Desplegar** (hoy son varios commits sin pushear).
-2. **Pegar en el prompt de n8n** el texto de
-   [`documentos-a-pedido.md`](documentos-a-pedido.md). Sin eso, EOS sabe armar
-   archivos pero nunca los pide: es lo único que separa esa función de estar
-   andando.
-3. **Para la factura electrónica del USUARIO** (no la de TransTech, que la emite
+1. **La factura electrónica del USUARIO** (no la de TransTech, que la emite
    Bancard): el certificado digital y la habilitación del RUC los consigue cada
-   usuario. Ver [`facturacion-quien-emite-que.md`](facturacion-quien-emite-que.md),
+   usuario. Ver [facturacion-quien-emite-que.md](facturacion-quien-emite-que.md),
    que separa los tres circuitos que usan esa palabra.
-4. **Facturar los pagos por transferencia.** Bancard emite solo lo que pasa por
+2. **Facturar los pagos por transferencia.** Bancard emite solo lo que pasa por
    su pasarela; las transferencias quedan afuera y hay que facturarlas aparte.
 
 Lo que **no** hace falta para vender, pero conviene mirar después:

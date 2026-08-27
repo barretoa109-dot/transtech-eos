@@ -1,0 +1,423 @@
+{
+  "name": "EOS 4.0 - Conversational Gateway WORKER GATE RC1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-chat",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b42e9fd4-6f6b-4f97-a66d-7697672335c2",
+      "name": "00 GW Webhook EOS Chat",
+      "webhookId": "020f54c2-cb5f-4dee-8b72-73f56fe8285d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\n\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst request_id = clean(body.request_id);\nif (!isUuid(request_id)) {\n  throw new Error('request_id debe ser un UUID válido y debe conservarse desde /api/eos.');\n}\n\nconst usuario_id = clean(body.usuario_id || body.user_id || body.userId);\nif (!isUuid(usuario_id)) {\n  throw new Error('usuario_id debe ser un UUID válido de Supabase.');\n}\n\nconst conversacion_id = clean(body.conversacion_id || body.conversation_id || body.conversationId);\nif (!isUuid(conversacion_id)) {\n  throw new Error('conversacion_id debe ser un UUID válido.');\n}\n\nconst mensaje = clean(body.mensaje || body.message || body.text);\nif (!mensaje) {\n  throw new Error('mensaje es obligatorio.');\n}\n\nlet archivo = null;\nif (body.archivo && typeof body.archivo === 'object' && !Array.isArray(body.archivo)) {\n  const nombre = clean(body.archivo.nombre);\n  const tipo = clean(body.archivo.tipo);\n  const base64 = clean(body.archivo.base64);\n  const tamanio = Number(body.archivo.tamanio || 0) || 0;\n  if (nombre && tipo && base64) archivo = { nombre, tipo, tamanio, base64 };\n}\n\nlet archivo_categoria = '';\nif (archivo) {\n  if (archivo.tipo.startsWith('image/')) archivo_categoria = 'imagen';\n  else if (archivo.tipo === 'application/pdf') archivo_categoria = 'pdf';\n  else if (archivo.tipo.includes('word') || archivo.tipo.includes('officedocument.wordprocessingml')) archivo_categoria = 'word';\n  else if (archivo.tipo.includes('excel') || archivo.tipo.includes('spreadsheet')) archivo_categoria = 'excel';\n  else if (archivo.tipo === 'text/csv') archivo_categoria = 'csv';\n  else if (archivo.tipo.startsWith('text/')) archivo_categoria = 'texto';\n  else archivo_categoria = 'otro';\n}\n\nlet imagen_data_url = '';\nif (archivo && archivo_categoria === 'imagen') {\n  imagen_data_url = archivo.base64.startsWith('data:')\n    ? archivo.base64\n    : `data:${archivo.tipo};base64,${archivo.base64}`;\n}\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    usuario_id_original: usuario_id,\n    usuario_key: usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || body.name || body.usuario_nombre || 'Usuario'),\n    mensaje,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    historial: Array.isArray(body.historial) ? body.historial.slice(-10) : [],\n    archivo,\n    tiene_archivo: !!archivo,\n    archivo_categoria,\n    archivo_nombre: archivo?.nombre || '',\n    archivo_tipo: archivo?.tipo || '',\n    archivo_tamanio: archivo?.tamanio || 0,\n    imagen_data_url,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "id": "b03b4577-0866-4d65-8c67-a3380a0cb28f",
+      "name": "01 GW Preparar Entrada",
+      "notes": "RC1: request_id es obligatorio; nunca se regenera en n8n."
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $('01 GW Preparar Entrada').first().json || {};\n\nconst historial = Array.isArray(i.historial)\n  ? i.historial.slice(-10)\n  : [];\n\nconst historialTexto = historial.length\n  ? historial\n      .map((h) => {\n        const rol =\n          String(h.rol || h.role || '').toLowerCase() === 'eos'\n            ? 'EOS'\n            : 'Usuario';\n\n        const texto = String(\n          h.texto ||\n          h.mensaje ||\n          h.content ||\n          ''\n        ).trim();\n\n        return texto\n          ? `${rol}: ${texto}`\n          : '';\n      })\n      .filter(Boolean)\n      .join('\\n')\n  : 'Sin historial previo.';\n\nconst tieneImagen =\n  !!i.archivo &&\n  i.archivo_categoria === 'imagen' &&\n  !!i.imagen_data_url;\n\nconst prompt_eos = `\nUsuario: ${i.nombre || 'Usuario'}\nPlan: ${i.plan || 'free'}\nOrigen: ${i.origen || 'eos-web'}\n\nConversación reciente:\n${historialTexto}\n\nMensaje actual:\n${i.mensaje || ''}\n\n${\n  tieneImagen\n    ? `El usuario adjuntó una imagen llamada \"${i.archivo_nombre}\". Analizá realmente el contenido visual de la imagen que acompaña este mensaje.`\n    : ''\n}\n`.trim();\n\n/*\n  Contenido multimodal preparado para OpenAI.\n\n  Si no hay imagen:\n  [\n    { type: \"text\", text: \"...\" }\n  ]\n\n  Si hay imagen:\n  [\n    { type: \"text\", text: \"...\" },\n    {\n      type: \"image_url\",\n      image_url: {\n        url: \"data:image/png;base64,...\"\n      }\n    }\n  ]\n*/\n\nconst contenido_openai = [\n  {\n    type: 'text',\n    text: prompt_eos\n  }\n];\n\nif (tieneImagen) {\n  contenido_openai.push({\n    type: 'image_url',\n    image_url: {\n      url: i.imagen_data_url\n    }\n  });\n}\n\nreturn [\n  {\n    json: {\n      ...i,\n\n      prompt_eos,\n\n      tiene_imagen: tieneImagen,\n\n      contenido_openai\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        0
+      ],
+      "id": "a3b416a3-bc48-440b-b7d2-6bfdae801f4e",
+      "name": "03 GW Construir Prompt Rápido"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base =\n  $('03 GW Construir Prompt Rápido').first().json || {};\n\nconst ai =\n  $input.first().json || {};\n\n/* =========================================================\n   EXTRAER TEXTO DESDE RESPONSES API\n========================================================= */\n\nfunction extraerTexto(data) {\n  if (\n    data === null ||\n    data === undefined\n  ) {\n    return '';\n  }\n\n  if (typeof data === 'string') {\n    return data;\n  }\n\n  if (Array.isArray(data)) {\n    for (const item of data) {\n      const texto = extraerTexto(item);\n\n      if (typeof texto === 'string' && texto.trim()) {\n        return texto;\n      }\n    }\n\n    return '';\n  }\n\n  if (typeof data === 'object') {\n\n    /*\n      Responses API:\n      output -> message -> content -> output_text -> text\n    */\n\n    if (Array.isArray(data.output)) {\n      for (const bloque of data.output) {\n\n        if (\n          bloque &&\n          bloque.type === 'message' &&\n          Array.isArray(bloque.content)\n        ) {\n          for (const parte of bloque.content) {\n\n            if (\n              parte &&\n              parte.type === 'output_text' &&\n              typeof parte.text === 'string'\n            ) {\n              return parte.text;\n            }\n\n          }\n        }\n\n      }\n    }\n\n    /*\n      Compatibilidad con respuestas simplificadas\n      o formatos alternativos.\n    */\n\n    if (\n      typeof data.output_text === 'string'\n    ) {\n      return data.output_text;\n    }\n\n    if (\n      typeof data.text === 'string'\n    ) {\n      return data.text;\n    }\n\n    if (\n      typeof data.respuesta === 'string'\n    ) {\n      return data.respuesta;\n    }\n\n    if (\n      typeof data.response === 'string'\n    ) {\n      return data.response;\n    }\n\n    if (\n      typeof data.message === 'string'\n    ) {\n      return data.message;\n    }\n\n    if (data.content) {\n      const textoContent =\n        extraerTexto(data.content);\n\n      if (textoContent) {\n        return textoContent;\n      }\n    }\n  }\n\n  return '';\n}\n\n/* =========================================================\n   TEXTO CRUDO DE OPENAI\n========================================================= */\n\nlet raw =\n  String(extraerTexto(ai) || '')\n    .replace(/```json/gi, '')\n    .replace(/```javascript/gi, '')\n    .replace(/```js/gi, '')\n    .replace(/```/g, '')\n    .trim();\n\n/* =========================================================\n   PARSEAR JSON GENERADO POR EOS\n========================================================= */\n\nlet resultado;\n\ntry {\n  resultado = JSON.parse(raw);\n} catch (error) {\n\n  /*\n    Si por algún motivo EOS responde texto normal,\n    no rompemos el Gateway.\n  */\n\n  resultado = {\n    respuesta:\n      raw ||\n      'Recibí tu mensaje, pero no pude interpretar correctamente la respuesta.',\n    acciones: []\n  };\n}\n\n/* =========================================================\n   NORMALIZAR RESPUESTA\n========================================================= */\n\nconst respuesta =\n  typeof resultado?.respuesta === 'string' &&\n  resultado.respuesta.trim()\n    ? resultado.respuesta.trim()\n    : 'Recibí tu solicitud.';\n\n/* =========================================================\n   ACCIONES PERMITIDAS\n========================================================= */\n\nconst accionesPermitidas =\n  new Set([\n    'GENERAR_EXCEL',\n    'GENERAR_PDF',\n    'GENERAR_WORD',\n    'CREAR_TAREA',\n    'CREAR_OBJETIVO',\n    'GUARDAR_MEMORIA',\n    'VER_DASHBOARD',\n    'VER_BRIEFING'\n  ]);\n\n/* =========================================================\n   NORMALIZAR ACCIONES\n========================================================= */\n\nconst acciones =\n  Array.isArray(resultado?.acciones)\n    ? resultado.acciones\n        .map((accion) => {\n\n          const tipo =\n            String(\n              accion?.tipo || ''\n            )\n              .trim()\n              .toUpperCase();\n\n          const datos =\n            accion?.datos &&\n            typeof accion.datos === 'object' &&\n            !Array.isArray(accion.datos)\n              ? accion.datos\n              : {};\n\n          return {\n            tipo,\n            datos\n          };\n        })\n        .filter((accion) =>\n          accionesPermitidas.has(\n            accion.tipo\n          )\n        )\n    : [];\n\n/* =========================================================\n   DETECTAR ARCHIVO / IMAGEN DE ENTRADA\n========================================================= */\n\nconst tieneArchivo =\n  !!base.archivo;\n\nconst archivoEntradaTipo =\n  String(\n    base.archivo_tipo ||\n    base.archivo?.tipo ||\n    ''\n  ).trim();\n\nconst archivoEntradaNombre =\n  String(\n    base.archivo_nombre ||\n    base.archivo?.nombre ||\n    ''\n  ).trim();\n\n/* =========================================================\n   SALIDA FINAL DEL GATEWAY\n========================================================= */\n\n/* =========================================================\n   EL DOCUMENTO QUE EOS QUISO ARMAR\n\n   Llega como campo del JSON del modelo. Acá solo se comprueba\n   que tenga forma de documento: quien lo valida de verdad es\n   `normalizarDocumento` del lado de la aplicación, que además\n   recorta topes y descarta lo que no entiende.\n\n   Si vino documento, se descartan las acciones de generar\n   archivo: si no, el worker viejo armaría su plantilla\n   genérica al mismo tiempo y el usuario recibiría dos\n   archivos distintos por un solo pedido.\n========================================================= */\n\nconst documento =\n  resultado?.documento &&\n  typeof resultado.documento === 'object' &&\n  !Array.isArray(resultado.documento) &&\n  typeof resultado.documento.titulo === 'string' &&\n  Array.isArray(resultado.documento.bloques)\n    ? resultado.documento\n    : null;\n\nconst accionesDeArchivo = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\n\nconst accionesFinales = documento\n  ? acciones.filter(\n      (a) => !accionesDeArchivo.has(a.tipo)\n    )\n  : acciones;\n\nreturn [\n  {\n    json: {\n      ...base,\n\n      respuesta,\n\n      documento,\n\n      acciones: accionesFinales,\n\n      requiere_worker:\n        accionesFinales.length > 0,\n\n      tipo: 'texto',\n\n      accion_eos:\n        accionesFinales.length > 0\n          ? accionesFinales[0].tipo\n          : 'RESPONDER',\n\n      archivo_url: '',\n\n      archivo_tipo: '',\n\n      metadata: {\n        plan:\n          base.plan || 'free',\n\n        origen:\n          base.origen || 'eos-web',\n\n        cantidad_acciones:\n          accionesFinales.length,\n\n        tiene_archivo:\n          tieneArchivo,\n\n        archivo_entrada_nombre:\n          archivoEntradaNombre,\n\n        archivo_entrada_tipo:\n          archivoEntradaTipo,\n\n        imagen_analizada:\n          base.tiene_imagen === true,\n\n        openai_response_id:\n          ai.id || '',\n\n        openai_status:\n          ai.status || '',\n\n        openai_model:\n          ai.model || ''\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        0
+      ],
+      "id": "649897bd-3158-4aa3-ab25-42e223efb996",
+      "name": "05 GW Preparar Respuesta"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    model: \"gpt-5.5\",\n\n    input: [\n      {\n        role: \"system\",\n        content: [\n          {\n            type: \"input_text\",\n            text: `Sos EOS, el Sistema Operativo Ejecutivo de TransTech.\n\nRespondés al usuario con criterio, naturalidad y claridad, y al mismo tiempo identificás todas las acciones concretas que debe ejecutar el sistema.\n\nTu salida debe ser SIEMPRE un único objeto JSON válido, sin markdown, sin bloques de código y sin texto fuera del JSON.\n\nFormato obligatorio:\n\n{\n  \"respuesta\": \"Texto natural que verá el usuario\",\n  \"acciones\": [\n    {\n      \"tipo\": \"TIPO_DE_ACCION\",\n      \"datos\": {}\n    }\n  ]\n}\n\nAcciones permitidas:\n\nGENERAR_EXCEL\nGENERAR_PDF\nGENERAR_WORD\nCREAR_TAREA\nCREAR_OBJETIVO\nGUARDAR_MEMORIA\nVER_DASHBOARD\nVER_BRIEFING\n\nReglas:\n\n- Si el usuario solamente conversa, pregunta, saluda o pide asesoramiento, devolvé \"acciones\": [].\n- Si solicita una acción, incluí todas las acciones necesarias.\n- Un mismo mensaje puede requerir varias acciones.\n- No inventes acciones fuera de la lista permitida.\n- No afirmes que un archivo, tarea, objetivo o memoria ya fue creado si todavía debe ejecutarlo el Worker.\n- En esos casos, confirmá que se está preparando o registrando.\n- La respuesta debe ser natural y ejecutiva.\n- No menciones workflows, nodos, modelos ni procesos internos.\n- No incluyas comentarios dentro del JSON.\n- Si faltan datos imprescindibles para ejecutar correctamente una acción, no la incluyas todavía y pedí únicamente ese dato en \"respuesta\".\n\nARCHIVOS QUE PIDE EL USUARIO\n\nCuando te pida una planilla, un informe, un cuadro, un balance, una lista para imprimir o cualquier documento, agregá al JSON un campo \"documento\" con la DESCRIPCIÓN del documento. El sistema lo convierte en un archivo real descargable en Excel, PDF y Word.\n\nNo expliques el campo ni lo menciones en \"respuesta\". Y NO incluyas GENERAR_EXCEL, GENERAR_PDF ni GENERAR_WORD en \"acciones\" cuando mandes \"documento\": es el mismo pedido por dos caminos.\n\nForma del campo:\n\n\"documento\": {\n  \"titulo\": \"...\",\n  \"subtitulo\": \"...\",\n  \"moneda\": \"PYG\",\n  \"bloques\": [ ... ]\n}\n\nCada bloque es uno de estos:\n\n{\"tipo\":\"titulo\",\"texto\":\"...\",\"nivel\":1}\n{\"tipo\":\"parrafo\",\"texto\":\"...\"}\n{\"tipo\":\"lista\",\"ordenada\":false,\"items\":[\"...\"]}\n{\"tipo\":\"indicadores\",\"items\":[{\"etiqueta\":\"...\",\"valor\":\"...\",\"detalle\":\"...\"}]}\n{\"tipo\":\"tabla\",\"titulo\":\"...\",\"columnas\":[{\"titulo\":\"...\",\"tipo\":\"texto|numero|dinero|fecha|porcentaje\",\"total\":true}],\"filas\":[[...]]}\n{\"tipo\":\"nota\",\"texto\":\"...\"}\n\nCuatro reglas:\n\n1. Los importes van como NÚMERO, no como texto con símbolo. En Excel esa es la diferencia entre poder sumar una columna y tener que retipearla.\n2. Las filas son arreglos en el orden de las columnas. Si a una fila le falta un dato poné null: nunca la acortes, porque las celdas se corren de columna y el documento miente.\n3. Lo que no sepas va en un bloque \"nota\". Un documento que se presenta como completo sin serlo hace más daño que no existir.\n4. No inventes datos para llenar el archivo. Tres filas reales sirven; doce inventadas hacen tomar decisiones equivocadas.\n5. Poné \"total\": true SOLO cuando las filas se suman de verdad, como el detalle de una factura. En una tabla resumen —ingresos, gastos, resultado— sumar las filas da un número que no significa nada, y el lector lo va a leer como un error del sistema.`\n          }\n        ]\n      },\n\n      {\n        role: \"user\",\n        content: [\n          {\n            type: \"input_text\",\n            text: $json.prompt_eos\n          },\n\n          ...(\n            $json.tiene_imagen && $json.imagen_data_url\n              ? [\n                  {\n                    type: \"input_image\",\n                    image_url: $json.imagen_data_url\n                  }\n                ]\n              : []\n          )\n        ]\n      }\n    ]\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "5fef83ae-b2f8-4b38-9b8c-a6ada16e9721",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const i = $('05 GW Preparar Respuesta').first().json || {};\n\nconst paths = {\n  RESPONDER: 'eos-worker-rc1-respond',\n  CREAR_TAREA: 'eos-worker-rc1-internal',\n  CREAR_OBJETIVO: 'eos-worker-rc1-internal',\n  GUARDAR_MEMORIA: 'eos-worker-rc1-internal',\n  GENERAR_EXCEL: 'eos-worker-rc1-file',\n  GENERAR_PDF: 'eos-worker-rc1-file',\n  GENERAR_WORD: 'eos-worker-rc1-file',\n  VER_DASHBOARD: 'eos-worker-rc1-dashboard',\n  VER_BRIEFING: 'eos-worker-rc1-briefing'\n};\n\nconst acciones =\n  Array.isArray(i.acciones) && i.acciones.length\n    ? i.acciones\n    : [{ tipo: 'RESPONDER', datos: {} }];\n\n\n/* =========================================================\n   CONVERSACIÓN PURA\n\n   Cuando el modelo no pide ninguna acción, arriba se fabrica\n   un job RESPONDER solo para no romper el flujo.\n\n   Ese job no produce ningún efecto durable: la rama RESPONDER\n   del Worker únicamente hace un health ping y devuelve el mismo\n   texto que ya tenemos acá, y el nodo 08 lo descarta igual.\n\n   Marcamos el caso para poder saltear esa vuelta completa\n   (0,7s a 5,6s medidos en producción) en el escenario más\n   frecuente de todos.\n========================================================= */\n\nconst sinAcciones =\n  !Array.isArray(i.acciones) ||\n  i.acciones.length === 0;\n\n\n/* =========================================================\n   HELPERS DETERMINÍSTICOS\n========================================================= */\n\nfunction texto(...valores) {\n  for (const valor of valores) {\n    if (\n      typeof valor === 'string' &&\n      valor.trim()\n    ) {\n      return valor.trim();\n    }\n\n    if (\n      typeof valor === 'number' &&\n      Number.isFinite(valor)\n    ) {\n      return String(valor);\n    }\n  }\n\n  return '';\n}\n\n\nfunction prioridad(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 3;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      5,\n      Math.round(n)\n    )\n  );\n}\n\n\nfunction importancia(valor) {\n  const n = Number(valor);\n\n  if (!Number.isFinite(n)) {\n    return 5;\n  }\n\n  return Math.max(\n    1,\n    Math.min(\n      10,\n      Math.round(n)\n    )\n  );\n}\n\n\n/* =========================================================\n   NORMALIZACIÓN CANÓNICA DE DATOS\n========================================================= */\n\n/*\n  OBJETIVO:\n\n  OpenAI puede expresar el mismo concepto usando\n  diferentes nombres de campos.\n\n  Ejemplo:\n\n  nombre = titulo = name = asunto\n\n  Para exact-once necesitamos convertir todos esos alias\n  al MISMO contrato antes de enviar el payload al Worker.\n\n  De esta manera el fingerprint durable depende de la\n  intención real y no de pequeñas variaciones del modelo.\n*/\n\nfunction normalizarDatos(tipo, entrada) {\n  const d =\n    entrada &&\n    typeof entrada === 'object' &&\n    !Array.isArray(entrada)\n      ? entrada\n      : {};\n\n\n  /* =======================================================\n     CREAR_TAREA\n  ======================================================= */\n\n  if (tipo === 'CREAR_TAREA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name,\n        d.asunto,\n        d.tarea\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      ),\n\n      prioridad: prioridad(\n        d.prioridad ??\n        d.priority\n      ),\n\n      fecha_limite: texto(\n        d.fecha_limite,\n        d.fecha,\n        d.deadline,\n        d.due_date,\n        d.vencimiento\n      )\n    };\n  }\n\n\n  /* =======================================================\n     GUARDAR_MEMORIA\n  ======================================================= */\n\n  if (tipo === 'GUARDAR_MEMORIA') {\n    return {\n      titulo: texto(\n        d.titulo,\n        d.nombre,\n        d.name\n      ),\n\n      categoria: texto(\n        d.categoria,\n        d.category\n      ),\n\n      contenido: texto(\n        d.contenido,\n        d.texto,\n        d.descripcion,\n        d.memoria,\n        d.valor\n      ),\n\n      importancia: importancia(\n        d.importancia ??\n        d.importance\n      )\n    };\n  }\n\n\n  /* =======================================================\n     ARCHIVOS\n     GENERAR_EXCEL / GENERAR_PDF / GENERAR_WORD\n  ======================================================= */\n\n  if (\n    tipo === 'GENERAR_EXCEL' ||\n    tipo === 'GENERAR_PDF' ||\n    tipo === 'GENERAR_WORD'\n  ) {\n    return {\n      tema: texto(\n        d.tema,\n        d.asunto,\n        d.objetivo,\n        d.titulo,\n        d.topic\n      ),\n\n      tipo: texto(\n        d.tipo,\n        d.type,\n        d.plantilla,\n        d.template\n      ),\n\n      rubro: texto(\n        d.rubro,\n        d.sector,\n        d.categoria,\n        d.industry\n      ),\n\n      negocio: texto(\n        d.negocio,\n        d.empresa,\n        d.nombre_negocio,\n        d.nombre_empresa,\n        d.business,\n        d.nombre\n      ),\n\n      descripcion: texto(\n        d.descripcion,\n        d.description,\n        d.detalle,\n        d.detalles\n      )\n    };\n  }\n\n\n  /* =======================================================\n     CREAR_OBJETIVO\n\n     Todavía conservamos los datos originales.\n     Su contrato será validado independientemente.\n  ======================================================= */\n\n  if (tipo === 'CREAR_OBJETIVO') {\n    return d;\n  }\n\n\n  /* =======================================================\n     LECTURAS\n  ======================================================= */\n\n  if (\n    tipo === 'VER_DASHBOARD' ||\n    tipo === 'VER_BRIEFING'\n  ) {\n    return {};\n  }\n\n\n  /* =======================================================\n     RESPONDER\n  ======================================================= */\n\n  if (tipo === 'RESPONDER') {\n    return {};\n  }\n\n\n  /* =======================================================\n     FALLBACK\n  ======================================================= */\n\n  return d;\n}\n\n\n/* =========================================================\n   METADATA ESTABLE PARA EXACT-ONCE\n========================================================= */\n\n/*\n  MUY IMPORTANTE:\n\n  Nunca incluimos aquí información variable producida\n  por una ejecución concreta de OpenAI como:\n\n  - openai_response_id\n  - openai_status\n  - openai_model\n  - timestamps de inferencia\n\n  Esos datos pueden cambiar entre replays y causarían\n  falsos EOS_COMMAND_PAYLOAD_MISMATCH.\n\n  El payload durable debe representar la entrada y la\n  intención del usuario.\n*/\n\nconst metadataEstable = {\n  plan: String(\n    i.plan || 'free'\n  ),\n\n  origen: String(\n    i.origen || 'eos-web'\n  ),\n\n  tiene_archivo:\n    i.metadata?.tiene_archivo === true,\n\n  archivo_entrada_nombre:\n    String(\n      i.metadata?.archivo_entrada_nombre ||\n      ''\n    ),\n\n  archivo_entrada_tipo:\n    String(\n      i.metadata?.archivo_entrada_tipo ||\n      ''\n    ),\n\n  imagen_analizada:\n    i.metadata?.imagen_analizada === true\n};\n\n\n/* =========================================================\n   CREAR JOBS PARA EL WORKER\n========================================================= */\n\nreturn acciones.map((accion, index) => {\n\n  const tipo = String(\n    accion?.tipo || 'RESPONDER'\n  )\n    .trim()\n    .toUpperCase();\n\n\n  /* =======================================================\n     VALIDAR ACCIÓN\n  ======================================================= */\n\n  const worker_path =\n    paths[tipo];\n\n  if (!worker_path) {\n    throw new Error(\n      `Acción Worker no permitida: ${tipo}`\n    );\n  }\n\n\n  /* =======================================================\n     CANONICALIZAR DATOS\n  ======================================================= */\n\n  const datos =\n    normalizarDatos(\n      tipo,\n      accion?.datos\n    );\n\n\n  /* =======================================================\n     JOB FINAL\n  ======================================================= */\n\n  return {\n    json: {\n\n      /* ---------------------------------------------------\n         IDENTIDAD DE REQUEST\n      --------------------------------------------------- */\n\n      request_id:\n        i.request_id,\n\n      usuario_id:\n        i.usuario_id,\n\n      usuario_id_original:\n        i.usuario_id_original ||\n        i.usuario_id,\n\n      usuario_key:\n        i.usuario_key ||\n        i.usuario_id,\n\n      conversacion_id:\n        i.conversacion_id,\n\n\n      /* ---------------------------------------------------\n         CONTEXTO DEL USUARIO\n      --------------------------------------------------- */\n\n      nombre:\n        i.nombre ||\n        'Usuario',\n\n      plan:\n        i.plan ||\n        'free',\n\n      origen:\n        i.origen ||\n        'eos-web',\n\n\n      /* ---------------------------------------------------\n         ENTRADA ORIGINAL\n\n         Debe mantenerse estable entre replays.\n      --------------------------------------------------- */\n\n      mensaje:\n        i.mensaje ||\n        '',\n\n\n      /* ---------------------------------------------------\n         RESPUESTA CONVERSACIONAL\n\n         Puede variar entre llamadas a OpenAI.\n\n         El Worker Gate no debe utilizar este campo\n         como parte del fingerprint durable.\n      --------------------------------------------------- */\n\n      respuesta_gateway:\n        i.respuesta ||\n        '',\n\n\n      /* ---------------------------------------------------\n         ACCIÓN CANÓNICA\n      --------------------------------------------------- */\n\n      accion: {\n        tipo,\n        datos\n      },\n\n\n      /* ---------------------------------------------------\n         CONTROL DE MÚLTIPLES ACCIONES\n      --------------------------------------------------- */\n\n      action_index:\n        index,\n\n      action_count:\n        acciones.length,\n\n\n      /* ---------------------------------------------------\n         DESTINO DEL WORKER\n      --------------------------------------------------- */\n\n      worker_path,\n\n\n      sin_acciones:\n        sinAcciones,\n\n\n      /* ---------------------------------------------------\n         HISTORIAL\n\n         Se conserva para contexto pero no debería\n         formar parte del fingerprint durable del comando.\n      --------------------------------------------------- */\n\n      historial:\n        Array.isArray(i.historial)\n          ? i.historial\n          : [],\n\n\n      /* ---------------------------------------------------\n         METADATA DETERMINÍSTICA\n      --------------------------------------------------- */\n\n      metadata:\n        metadataEstable,\n\n\n      /* ---------------------------------------------------\n         OBSERVABILIDAD\n\n         received_at puede servir para tracing,\n         pero tampoco debe formar parte del fingerprint\n         durable del Worker Gate.\n      --------------------------------------------------- */\n\n      received_at:\n        i.received_at ||\n        new Date().toISOString()\n    }\n  };\n});"
+      },
+      "id": "38606b92-9c6d-4b41-809c-a2f991d9a3a0",
+      "name": "06 GW Preparar Jobs Worker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Un item por acción. Todas las acciones del mismo turno conservan el mismo request_id; accion las diferencia."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EOS_N8N_BASE_URL.replace(/\\/$/, '') + '/webhook/' + $json.worker_path }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.EOS_WORKER_GATE_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "0e18c481-9c51-43c4-926d-7b7d7ff708ee",
+      "name": "07 GW Ejecutar Worker Gobernado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1952,
+        128
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "RC1: retry HTTP reutiliza exactamente request_id + accion + datos. Nunca genera IDs nuevos."
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $('05 GW Preparar Respuesta').first().json || {};\nconst resultados = $input.all().map((item) => item.json || {});\n\nfunction esObjeto(valor) {\n  return !!valor && typeof valor === 'object' && !Array.isArray(valor);\n}\n\n/*\n  Extrae solamente texto real.\n  Nunca convierte objetos mediante String(objeto),\n  evitando \"[object Object]\".\n*/\nfunction extraerTexto(valor) {\n  if (valor === null || valor === undefined) return '';\n\n  if (typeof valor === 'string') {\n    return valor.trim();\n  }\n\n  if (Array.isArray(valor)) {\n    for (const item of valor) {\n      const texto = extraerTexto(item);\n      if (texto) return texto;\n    }\n    return '';\n  }\n\n  if (esObjeto(valor)) {\n    const campos = [\n      'respuesta',\n      'message',\n      'text',\n      'output_text',\n      'content'\n    ];\n\n    for (const campo of campos) {\n      const texto = extraerTexto(valor[campo]);\n      if (texto) return texto;\n    }\n\n    /*\n      Algunos endpoints del Worker devuelven el resultado\n      durable dentro de \"resultado\".\n      Solo extraemos texto si realmente existe.\n    */\n    if (esObjeto(valor.resultado)) {\n      for (const campo of campos) {\n        const texto = extraerTexto(valor.resultado[campo]);\n        if (texto) return texto;\n      }\n    }\n  }\n\n  return '';\n}\n\nfunction accionDe(resultado) {\n  return String(\n    resultado?.accion ||\n    resultado?.action ||\n    resultado?.resultado?.accion ||\n    ''\n  )\n    .trim()\n    .toUpperCase();\n}\n\nfunction tieneError(resultado) {\n  return !!(\n    resultado &&\n    (\n      resultado.ok === false ||\n      resultado.error\n    )\n  );\n}\n\nconst errores = resultados.filter(tieneError);\nconst validos = resultados.filter((r) => !tieneError(r));\n\n/* =========================================================\n   ARCHIVO GENERADO\n========================================================= */\n\nconst archivo = validos.find(\n  (r) =>\n    typeof r.archivo_url === 'string' &&\n    r.archivo_url.trim()\n);\n\nconst archivoUrl = String(archivo?.archivo_url || '').trim();\nconst archivoTipo = String(archivo?.archivo_tipo || '').trim();\nconst archivoNombre = String(archivo?.archivo_nombre || '').trim();\n\n/* =========================================================\n   RESPUESTA BASE\n========================================================= */\n\nlet respuesta =\n  extraerTexto(base.respuesta) ||\n  'Listo.';\n\n/* =========================================================\n   RESPUESTAS DEL WORKER\n========================================================= */\n\nconst respuestasWorker = validos\n  .filter((r) => accionDe(r) !== 'RESPONDER')\n  .map((r) => extraerTexto(r))\n  .filter(Boolean)\n  .filter((text, index, arr) => arr.indexOf(text) === index)\n  .filter((text) => !respuesta.includes(text));\n\n/* =========================================================\n   ACCIONES DE LECTURA\n========================================================= */\n\nconst lectura = validos.find((r) => {\n  const accion = accionDe(r);\n\n  return (\n    r.executed === true &&\n    ['VER_DASHBOARD', 'VER_BRIEFING'].includes(accion) &&\n    extraerTexto(r)\n  );\n});\n\nif (lectura) {\n  respuesta = extraerTexto(lectura);\n\n  const extras = respuestasWorker.filter(\n    (text) => text !== respuesta\n  );\n\n  if (extras.length) {\n    respuesta =\n      `${respuesta}\\n\\n${extras.join('\\n\\n')}`.trim();\n  }\n} else if (respuestasWorker.length) {\n  respuesta =\n    `${respuesta}\\n\\n${respuestasWorker.join('\\n\\n')}`.trim();\n}\n\n/* =========================================================\n   ARCHIVO\n========================================================= */\n\nif (archivoUrl && !respuesta.includes(archivoUrl)) {\n  respuesta =\n    `${respuesta}\\n\\nDescargar archivo: ${archivoUrl}`.trim();\n}\n\n/* =========================================================\n   ERRORES REALES\n========================================================= */\n\nif (errores.length) {\n  const accionesConError = errores\n    .map(accionDe)\n    .filter(Boolean);\n\n  if (accionesConError.length) {\n    respuesta =\n      `${respuesta}\\n\\nNo pude completar automáticamente: ${\n        [...new Set(accionesConError)].join(', ')\n      }.`.trim();\n  }\n}\n\n/* =========================================================\n   ACCIONES EJECUTADAS\n========================================================= */\n\nconst accionesEjecutadas = validos\n  .filter(\n    (r) =>\n      (\n        r.executed === true ||\n        r.estado === 'completada'\n      ) &&\n      r.idempotent !== true &&\n      r.command_idempotent !== true &&\n      r.decision !== 'completed'\n  )\n  .map(accionDe)\n  .filter(Boolean);\n\n/*\n  Replays idempotentes se registran aparte.\n  No los presentamos como una segunda ejecución.\n*/\nconst accionesIdempotentes = validos\n  .filter(\n    (r) =>\n      r.idempotent === true ||\n      r.command_idempotent === true ||\n      r.decision === 'completed'\n  )\n  .map(accionDe)\n  .filter(Boolean);\n\n/* =========================================================\n   SALIDA FINAL\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...base,\n\n      respuesta,\n\n      tipo: archivoUrl\n        ? 'archivo'\n        : 'texto',\n\n      archivo_url: archivoUrl,\n      archivo_tipo: archivoTipo,\n      archivo_nombre: archivoNombre,\n\n      accion: archivo\n        ? accionDe(archivo) || 'GENERAR_EXCEL'\n        : String(base.accion_eos || 'RESPONDER'),\n\n      worker: {\n        ok: errores.length === 0,\n\n        resultados: resultados.length,\n\n        acciones_ejecutadas: [\n          ...new Set(accionesEjecutadas)\n        ],\n\n        acciones_idempotentes: [\n          ...new Set(accionesIdempotentes)\n        ],\n\n        errores: errores.map((e) => ({\n          accion: accionDe(e),\n          error:\n            extraerTexto(e.error) ||\n            extraerTexto(e.message) ||\n            'Worker no completado'\n        }))\n      }\n    }\n  }\n];"
+      },
+      "id": "3fa2ecc4-d4ca-452b-81df-1e93409f5ee3",
+      "name": "08 GW Agregar Resultados Worker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2400,
+        0
+      ],
+      "id": "a02fa159-ba3b-4650-b09d-00a2a1ee798c",
+      "name": "09 GW Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_message_usage_v40",
+        "limit": 1,
+        "orderBy": "reserved_at.desc",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 GW Preparar Entrada').first().json.usuario_id }}"
+            },
+            {
+              "keyName": "request_id",
+              "condition": "eq",
+              "keyValue": "={{ $('01 GW Preparar Entrada').first().json.request_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "reserved"
+            }
+          ]
+        }
+      },
+      "id": "317c3731-7aab-4c96-ba54-3f8cc9c83f2c",
+      "name": "01.5 GW Verificar Reserva API",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        384,
+        0
+      ],
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "Admission Gate: solo acepta request_id ya reservado server-side por /api/eos."
+    },
+    {
+      "parameters": {
+        "jsCode": "const entrada = $('01 GW Preparar Entrada').first().json || {};\nconst rows = $input.all().map((item) => item.json || {}).filter((row) => row && Object.keys(row).length);\n\nconst reserva = rows.find((row) =>\n  String(row.usuario_id || '') === entrada.usuario_id &&\n  String(row.request_id || '') === entrada.request_id &&\n  String(row.status || '') === 'reserved'\n);\n\nconst expira = reserva?.expires_at ? new Date(reserva.expires_at).getTime() : 0;\nconst source = reserva?.metadata && typeof reserva.metadata === 'object'\n  ? String(reserva.metadata.source || '')\n  : '';\n\nif (!reserva || !Number.isFinite(expira) || expira <= Date.now() || source !== 'api-eos-v40') {\n  throw new Error('Gateway RC1 bloqueó un request sin reserva server-owned válida.');\n}\n\nreturn [{\n  json: {\n    ...entrada,\n    gateway_admission: {\n      ok: true,\n      reservation_id: reserva.id || null,\n      expires_at: reserva.expires_at,\n      source\n    }\n  }\n}];"
+      },
+      "id": "f9bfa098-cd6f-4292-a648-8f71f2656a77",
+      "name": "01.6 GW Admission Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Fail-closed antes de OpenAI: usuario_id + request_id deben coincidir con una reserva vigente creada por /api/eos."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+              "leftValue": "={{ $json.sin_acciones }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1c9f2d4-7b3e-4a51-9c68-2f4d8e6b0a13",
+      "name": "06.5 GW ¿Conversación Pura?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n  Conversación pura: el modelo no pidió ninguna acción.\n\n  Devolvemos exactamente la misma forma que devolvía la rama\n  RESPONDER del Background Worker, para que el nodo 08 se\n  comporte igual que siempre — pero sin la vuelta completa\n  (n8n -> worker -> Vercel health ping -> vuelta) que solo\n  servía para que su resultado terminara descartado.\n*/\n\nconst base = $('05 GW Preparar Respuesta').first().json || {};\nconst job = $input.first().json || {};\n\nreturn [{\n  json: {\n    ok: true,\n    executed: false,\n    request_id: job.request_id,\n    accion: 'RESPONDER',\n    respuesta: base.respuesta || '',\n    tipo: 'texto'\n  }\n}];"
+      },
+      "id": "b2d0a3e5-8c4f-4b62-8d79-3a5e9f7c1b24",
+      "name": "06.6 GW Resultado Directo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -128
+      ]
+    }
+  ],
+  "connections": {
+    "00 GW Webhook EOS Chat": {
+      "main": [
+        [
+          {
+            "node": "01 GW Preparar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 GW Preparar Entrada": {
+      "main": [
+        [
+          {
+            "node": "01.5 GW Verificar Reserva API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01.5 GW Verificar Reserva API": {
+      "main": [
+        [
+          {
+            "node": "01.6 GW Admission Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01.6 GW Admission Gate": {
+      "main": [
+        [
+          {
+            "node": "03 GW Construir Prompt Rápido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 GW Construir Prompt Rápido": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "05 GW Preparar Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 GW Preparar Respuesta": {
+      "main": [
+        [
+          {
+            "node": "06 GW Preparar Jobs Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 GW Preparar Jobs Worker": {
+      "main": [
+        [
+          {
+            "node": "06.5 GW ¿Conversación Pura?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 GW Ejecutar Worker Gobernado": {
+      "main": [
+        [
+          {
+            "node": "08 GW Agregar Resultados Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 GW Agregar Resultados Worker": {
+      "main": [
+        [
+          {
+            "node": "09 GW Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06.5 GW ¿Conversación Pura?": {
+      "main": [
+        [
+          {
+            "node": "06.6 GW Resultado Directo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 GW Ejecutar Worker Gobernado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06.6 GW Resultado Directo": {
+      "main": [
+        [
+          {
+            "node": "08 GW Agregar Resultados Worker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
+}
