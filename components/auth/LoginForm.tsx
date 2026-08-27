@@ -1,9 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { destinoPedido } from "@/lib/auth/destino";
+import {
+  NOMBRE_PROVEEDOR,
+  proveedoresHabilitados,
+  type Proveedor,
+} from "@/lib/auth/proveedores";
 
 interface Props {
   onRegister: () => void;
@@ -21,6 +26,25 @@ export default function LoginForm({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  /*
+   * Los botones de Google y Apple aparecen solos cuando el proveedor está
+   * configurado en Supabase. Ver `lib/auth/proveedores.ts`: mostrar un botón
+   * que todavía no tiene credenciales termina en un error del que nadie vuelve.
+   */
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+
+  useEffect(() => {
+    let vigente = true;
+
+    proveedoresHabilitados().then((lista) => {
+      if (vigente) setProveedores(lista);
+    });
+
+    return () => {
+      vigente = false;
+    };
+  }, []);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -69,12 +93,16 @@ export default function LoginForm({
     router.refresh();
   }
 
-  async function loginGoogle() {
+  async function entrarCon(proveedor: Proveedor) {
     setErrorMessage("");
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider: proveedor,
       options: {
+        /*
+         * Al destino pedido, igual que con contraseña: quien venía a pagar
+         * tiene que volver al checkout y no al chat.
+         */
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
           destinoPedido(),
         )}`,
@@ -82,7 +110,11 @@ export default function LoginForm({
     });
 
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(
+        error.message.includes("not enabled")
+          ? `Entrar con ${NOMBRE_PROVEEDOR[proveedor]} todavía no está disponible.`
+          : error.message,
+      );
     }
   }
 
@@ -156,27 +188,32 @@ export default function LoginForm({
         </button>
       </form>
 
-      <div className="my-8 flex items-center gap-4">
-        <div className="h-px flex-1 bg-slate-700" />
-        <span className="text-sm text-slate-500">o continuar con</span>
-        <div className="h-px flex-1 bg-slate-700" />
-      </div>
+      {/*
+        Sin proveedores configurados no se dibuja ni el separador: una sección
+        "o continuar con" vacía, o llena de botones apagados que prometen algo
+        para más adelante, sólo ocupa lugar en la pantalla donde la gente
+        quiere entrar.
+      */}
+      {proveedores.length > 0 && (
+        <>
+          <div className="my-8 flex items-center gap-4">
+            <div className="h-px flex-1 bg-slate-700" />
+            <span className="text-sm text-slate-500">o continuar con</span>
+            <div className="h-px flex-1 bg-slate-700" />
+          </div>
 
-      <button
-  type="button"
-  disabled
-  className="w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
->
-  Continuar con Google — próximamente
-</button>
-
-<button
-  type="button"
-  disabled
-  className="mt-3 w-full cursor-not-allowed rounded-xl border border-slate-800 p-4 font-semibold text-slate-500"
->
-  Continuar con Apple — próximamente
-</button>
+          {proveedores.map((proveedor, i) => (
+            <button
+              key={proveedor}
+              type="button"
+              onClick={() => entrarCon(proveedor)}
+              className={`${i > 0 ? "mt-3 " : ""}w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 font-semibold text-white transition hover:border-[#2f72d6] hover:bg-white/[0.06]`}
+            >
+              Continuar con {NOMBRE_PROVEEDOR[proveedor]}
+            </button>
+          ))}
+        </>
+      )}
 
       <div className="mt-8 text-center">
         <span className="text-slate-400">¿No tienes cuenta?</span>
