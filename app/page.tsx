@@ -164,6 +164,29 @@ const eosFeatures = [
   },
 ];
 
+const gestionNegocio = [
+  {
+    eyebrow: "Operación",
+    title: "Ventas, compras y stock",
+    text: "Registrá lo que vendés y comprás, controlá productos y existencias, y mantené cada cobro o pago conectado con tus finanzas.",
+  },
+  {
+    eyebrow: "Clientes",
+    title: "CRM y embudo comercial",
+    text: "Centralizá clientes y proveedores, seguí oportunidades por etapa y organizá las próximas actividades sin perder contexto.",
+  },
+  {
+    eyebrow: "Decisiones",
+    title: "Información que se conecta",
+    text: "Las operaciones confirmadas alimentan el panel financiero para que caja, compromisos y evolución del negocio cuenten la misma historia.",
+  },
+  {
+    eyebrow: "Documentación",
+    title: "Comprobantes dentro de EOS",
+    text: "Prepará comprobantes internos con numeración y CDC. La integración oficial con SIFEN requiere habilitación y certificado del contribuyente.",
+  },
+];
+
 const metodologia = [
   {
     title: "Diagnóstico",
@@ -265,6 +288,7 @@ export default function Home() {
             <a href="#empresa">Empresa</a>
             <a href="#servicios">Servicios</a>
             <a href="#eos">EOS</a>
+            <a href="#gestion">ERP &amp; CRM</a>
             <a href="#metodologia">Metodología</a>
             <a href="#contacto">Contacto</a>
           </div>
@@ -429,6 +453,40 @@ export default function Home() {
             </div>
           </div>
         </Reveal>
+      </section>
+
+      {/* ERP & CRM */}
+      <section id="gestion">
+        <div className="wrap">
+          <Reveal className="section-head business-head">
+            <div className="section-eyebrow">Gestión para emprendedores y pymes</div>
+            <div className="section-title">Tu operación comercial, conectada dentro de EOS</div>
+            <p className="business-intro">
+              Un ERP y CRM práctico para ordenar el trabajo diario sin sumar sistemas aislados ni volver a cargar la
+              misma información, con los datos de cada cuenta separados dentro de EOS.
+            </p>
+          </Reveal>
+
+          <div className="business-grid">
+            {gestionNegocio.map((item, i) => (
+              <Reveal key={item.title} delay={0.02 + i * 0.06} className="business-card">
+                <div className="business-eyebrow">{item.eyebrow}</div>
+                <div className="business-title">{item.title}</div>
+                <p>{item.text}</p>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal className="business-footer">
+            <div>
+              <strong>Empezá con las funciones que tu negocio necesita.</strong>
+              <span> Podés sumar ERP, CRM y facturación a tu EOS personalizado.</span>
+            </div>
+            <Link className="btn btn-primary" href="/planes">
+              Armar mi EOS →
+            </Link>
+          </Reveal>
+        </div>
       </section>
 
       {/* Methodology */}
@@ -974,6 +1032,77 @@ export default function Home() {
           gap: 14px;
         }
 
+        .home-page :global(.business-head) {
+          max-width: 760px;
+          margin-left: auto;
+          margin-right: auto;
+          text-align: center;
+        }
+        .business-intro {
+          max-width: 680px;
+          margin: 18px auto 0;
+          color: var(--muted);
+          font-size: 15px;
+          line-height: 1.7;
+        }
+        .business-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 40px;
+        }
+        .home-page :global(.business-card) {
+          min-height: 190px;
+          padding: 30px;
+          border: 1px solid var(--border);
+          border-radius: 18px;
+          background: linear-gradient(145deg, #ffffff, var(--surface));
+          box-shadow: 0 16px 42px rgba(15, 23, 42, 0.05);
+          transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+        }
+        .home-page :global(.business-card:hover) {
+          transform: translateY(-3px);
+          border-color: var(--border-hover);
+          box-shadow: 0 20px 48px rgba(15, 23, 42, 0.09);
+        }
+        .business-eyebrow {
+          color: var(--blue-soft);
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          margin-bottom: 12px;
+        }
+        .business-title {
+          font-size: 20px;
+          font-weight: 800;
+          letter-spacing: -0.35px;
+          margin-bottom: 12px;
+        }
+        .home-page :global(.business-card p) {
+          color: var(--muted);
+          font-size: 14px;
+          line-height: 1.7;
+          margin: 0;
+        }
+        .home-page :global(.business-footer) {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+          margin-top: 18px;
+          padding: 22px 26px;
+          border-radius: 16px;
+          border: 1px solid rgba(22, 86, 189, 0.2);
+          background: var(--blue-light);
+          color: var(--text);
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .business-footer span {
+          color: var(--muted);
+        }
+
         .mock {
           border-radius: 18px;
           border: 1px solid var(--border);
@@ -1268,7 +1397,8 @@ export default function Home() {
             grid-template-columns: repeat(2, 1fr);
           }
           .eos-grid,
-          .attr-row {
+          .attr-row,
+          .business-grid {
             grid-template-columns: 1fr;
           }
           .nav-links {
@@ -1289,6 +1419,10 @@ export default function Home() {
           }
           .steps::before {
             display: none;
+          }
+          .home-page :global(.business-footer) {
+            align-items: flex-start;
+            flex-direction: column;
           }
         }
       `}</style>
