@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Loader2, Mail, Send, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -58,42 +58,37 @@ const PERIODOS = [
 ];
 
 /**
- * El límite de Suspense no es decorativo.
+ * Lo que ya había elegido antes de que lo mandáramos a iniciar sesión.
  *
- * `useSearchParams()` obliga a renderizar del lado del cliente todo lo que
- * cuelgue de él, y sin un `<Suspense>` que lo contenga el build de producción
- * directamente FALLA al prerenderizar esta página. En desarrollo no se nota:
- * es de esos errores que aparecen recién cuando uno cree que terminó.
+ * Sin esto, quien arma su EOS, toca "contratar" y no tiene sesión vuelve del
+ * login a una pantalla en blanco y tiene que volver a elegir todo: el momento
+ * exacto en el que la gente abandona una compra.
+ *
+ * ============================================================
+ * POR QUÉ NO SE USA useSearchParams
+ * ============================================================
+ *
+ * Porque arrastra al cliente todo lo que cuelgue de él. Cuando colgaba la
+ * página entera, el HTML que servía el servidor traía TRECE caracteres
+ * visibles: ni Google ni un teléfono lento veían nada hasta que cargaba el
+ * JavaScript — en la página donde se vende el producto.
+ *
+ * El parámetro solo importa al volver del login, que pasa siempre en el
+ * navegador. Leerlo acá da lo mismo y deja la página prerenderizada entera.
  */
-export default function PlanesPage() {
-  return (
-    <Suspense fallback={null}>
-      <Armador />
-    </Suspense>
-  );
+function elegidasDeLaUrl(): string[] {
+  if (typeof window === "undefined") return [];
+
+  return (new URLSearchParams(window.location.search).get("elegidas") ?? "")
+    .split(",")
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-function Armador() {
+export default function PlanesPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const scrolled = useNavScrolled();
-  const searchParams = useSearchParams();
-
-  /*
-   * Lo que ya había elegido antes de que lo mandáramos a iniciar sesión.
-   *
-   * Sin esto, quien arma su EOS, toca "contratar" y no tiene sesión vuelve del
-   * login a una pantalla en blanco y tiene que volver a elegir todo. Es el
-   * momento exacto en el que la gente abandona una compra.
-   */
-  const elegidasEnLaUrl = useMemo(
-    () =>
-      (searchParams.get("elegidas") ?? "")
-        .split(",")
-        .map((c) => c.trim().toLowerCase())
-        .filter(Boolean),
-    [searchParams],
-  );
 
   const [catalogo, setCatalogo] = useState<ModuloCatalogo[]>([]);
   const [seleccion, setSeleccion] = useState<string[]>([]);
@@ -117,6 +112,7 @@ function Armador() {
 
   useEffect(() => {
     let activo = true;
+    const elegidasEnLaUrl = elegidasDeLaUrl();
 
     async function cargarCatalogo() {
       setCargando(true);
@@ -191,7 +187,7 @@ function Armador() {
     return () => {
       activo = false;
     };
-  }, [elegidasEnLaUrl, supabase]);
+  }, [supabase]);
 
   const armado = useMemo(
     () => calcularArmado(seleccion, catalogo, periodicidad),
