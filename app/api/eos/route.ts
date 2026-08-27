@@ -9,6 +9,7 @@ import {
   guardarDocumento,
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
+import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 
@@ -533,6 +534,35 @@ export async function POST(req: Request) {
         .maybeSingle<UsuarioEOS>(),
     ).catch((error: unknown) => ({ data: null, error }));
 
+    /*
+     * Cómo va el negocio, pedido en paralelo con el perfil.
+     *
+     * Va en el prompt de CADA mensaje: sin esto el asistente no sabe una sola
+     * cifra del negocio de quien le escribe, y "¿cómo venimos este mes?" sólo
+     * se puede contestar con generalidades.
+     *
+     * Es una función sola —29 ms medidos contra producción— y no ocho consultas
+     * sueltas, porque esto está en el camino crítico de una conversación. Si
+     * falla, se sigue sin contexto: quedarse sin contestar por no poder contar
+     * las ventas sería peor que contestar sin las ventas.
+     */
+    const contextoPromise: Promise<ContextoNegocio | null> = Promise.resolve(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
+      (createAdminClient() as any).rpc("eos_contexto_negocio", { p_usuario_id: user.id }),
+    )
+      .then(({ data, error }: { data: ContextoNegocio | null; error: unknown }) => {
+        if (error) {
+          console.error("EOS: no se pudo armar el contexto del negocio:", error);
+          return null;
+        }
+
+        return data;
+      })
+      .catch((error: unknown) => {
+        console.error("EOS: error inesperado armando el contexto:", error);
+        return null;
+      });
+
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
         return Response.json(
@@ -589,6 +619,8 @@ export async function POST(req: Request) {
       "Usuario";
     const planServidor = planEfectivo(usuario ?? null);
 
+    const contextoNegocio = textoContexto(await contextoPromise);
+
     const origen = textoSeguro(body.origen, 50) || "eos-web";
     const nuevoChat = body.nuevo_chat === true;
     const requestId = esUuid(body.request_id) ? body.request_id : crypto.randomUUID();
@@ -599,6 +631,9 @@ export async function POST(req: Request) {
       conversacion_id: conversacionId,
       nombre: nombreServidor,
       plan: planServidor,
+      // Vacío cuando la persona todavía no cargó nada: mandar un bloque lleno
+      // de ceros haría que el modelo hable de un negocio parado.
+      contexto_negocio: contextoNegocio,
       mensaje: mensajeConAnalisis,
       historial: normalizarHistorial(body.historial),
       nuevo_chat: nuevoChat,
