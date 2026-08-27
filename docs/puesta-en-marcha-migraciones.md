@@ -1,4 +1,4 @@
-# Puesta en marcha: migraciones v64 a v76
+# Puesta en marcha: migraciones v64 a v77
 
 > **Estado al 2026-08-26: las trece migraciones YA ESTÁN APLICADAS** en el
 > proyecto `TransTech EOS`, verificado con `supabase migration list --linked`:
@@ -26,6 +26,7 @@ se aplicaron primero.
 | v74 | `20260826240000_eos_cortesia_facturacion_v74.sql` | Completar la cortesía de las cuentas viejas |
 | v75 | `20260826250000_eos_facturacion_de_quien_v75.sql` | Aclarar de quién son las facturas del módulo |
 | v76 | `20260826260000_eos_erp_tenant_numeric_hardening_v76.sql` | Que las relaciones del ERP y el CRM también sean del usuario |
+| v77 | `20260827120000_bancard_catastro_abandonado_v77.sql` | Que un catastro abandonado deje de ocupar lugar de tarjeta |
 
 Correlas en orden. v66 depende de que exista `eos_modulos` (v63, ya aplicada),
 v68 depende de las tablas de v67, y v69 y v70 de las de v67 y de
@@ -191,3 +192,37 @@ Lo que **no** hace falta para vender, pero conviene mirar después:
 - `public.usuarios` no tiene su política de RLS versionada en el repo. Se
   verificó que con la clave anónima da 401, así que hoy está bien cerrada — pero
   esa garantía vive solo en la base y nadie la puede revisar desde acá.
+
+### La v77, y lo que enseñó la certificación de Bancard
+
+El 27/8/2026 Bancard reportó que catastraron una tarjeta y al ir a pagar no la
+veían entre las disponibles. La captura que adjuntaron mostraba una lista con
+una sola tarjeta: la de dos días antes.
+
+En la base había dos filas en `pendiente` del día anterior que nunca se
+resolvieron, y `users_cards` de Bancard devolvía una sola tarjeta. La causa no
+era el catastro: era que **la pantalla de pago listaba lo que decía nuestra
+tabla**, y esa tabla sólo se actualizaba si el iframe alcanzaba a avisar el
+resultado. Cuando el aviso no llegaba, la fila quedaba en `pendiente` para
+siempre y la tarjeta era invisible aunque Bancard la tuviera catastrada.
+
+Peor: el cupo de cinco tarjetas contaba esas filas muertas. Cada intento fallido
+quemaba un lugar de forma definitiva, así que a la quinta vez alguien con una
+sola tarjeta real se queda sin poder pagar. El usuario de la certificación ya
+tenía dos de sus cinco lugares quemados.
+
+Se corrigió por el lado del principio y no del síntoma: **Bancard decide qué
+tarjetas existen**. El listado ahora reconcilia contra `users_cards` en cada
+carga, adopta con `upsert` cualquier tarjeta que la pasarela reporte aunque no
+tengamos fila reservada para ella, y da por caducados los catastros de más de
+media hora. Si Bancard no contesta se muestra lo último que sabíamos con
+`sincronizada: false`, porque una pasarela lenta no debe dejar a nadie sin
+poder pagar con una tarjeta que ya tenía.
+
+De paso: leíamos `bancard_proccessed` y Bancard manda `bancard_proccesed`, con
+una sola ese. El campo se guardaba siempre en `false`. No lo usa nadie todavía,
+que es justamente por qué convenía arreglarlo antes de que alguien le creyera.
+
+Comprobado contra la base y la pasarela reales: borrada la fila local de la
+tarjeta, el listado devuelve cero —el síntoma exacto del reporte— y la
+reconciliación la trae de vuelta activa, principal y con `processed=true`.

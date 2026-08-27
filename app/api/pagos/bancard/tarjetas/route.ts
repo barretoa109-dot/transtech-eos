@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { bancardUserIdDe, reconciliarTarjetas } from "@/lib/bancard-tarjetas";
 import {
   describirErrorBancard,
   getBancardBaseUrl,
@@ -31,7 +32,23 @@ function textoErrorRpc(error: unknown) {
     .join(" ");
 }
 
-/* Devuelve las tarjetas catastradas del usuario (sin datos sensibles). */
+/*
+ * Las tarjetas con las que esta persona puede pagar, según BANCARD.
+ *
+ * Se reconcilia contra la pasarela en cada carga en vez de leer nuestra tabla y
+ * confiar. Leer y confiar es lo que rompió la certificación: la tabla sólo se
+ * actualizaba si el iframe de catastro alcanzaba a avisar, y cuando ese aviso
+ * no llegaba la tarjeta quedaba invisible aunque Bancard la tuviera. Quien
+ * probaba veía una lista incompleta y no podía continuar con la operación.
+ *
+ * Cuesta una llamada más en una pantalla que se abre una vez por compra, y a
+ * cambio la lista que se ve es exactamente la lista que se puede cobrar: el
+ * cobro resuelve el alias_token contra ese mismo `users_cards`.
+ *
+ * Si Bancard no contesta se devuelve lo último que sabíamos, con
+ * `sincronizada: false`. Una pasarela lenta no debe dejar a nadie sin poder
+ * pagar con una tarjeta que ya tenía guardada.
+ */
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -44,26 +61,20 @@ export async function GET() {
     }
 
     const admin: any = createAdminClient();
+    const bancardUserId = await bancardUserIdDe(admin, user.id);
 
-    const { data, error } = await admin
-      .from("eos_bancard_tarjetas_v51")
-      .select(
-        "id,card_masked_number,card_brand,card_type,expiration_date,estado,es_principal,created_at",
-      )
-      .eq("usuario_id", user.id)
-      .eq("estado", "activa")
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Bancard: error listando tarjetas:", error);
-
-      return NextResponse.json(
-        { error: "No pudimos obtener tus tarjetas." },
-        { status: 500 },
-      );
+    // Nunca catastró: no hay nada que reconciliar, y tampoco es un error.
+    if (!bancardUserId) {
+      return NextResponse.json({ ok: true, tarjetas: [], sincronizada: true });
     }
 
-    return NextResponse.json({ ok: true, tarjetas: data || [] });
+    const resultado = await reconciliarTarjetas(admin, user.id, bancardUserId);
+
+    return NextResponse.json({
+      ok: true,
+      tarjetas: resultado.tarjetas,
+      sincronizada: resultado.ok,
+    });
   } catch (error) {
     console.error("Bancard: error inesperado listando tarjetas:", error);
 
