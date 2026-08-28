@@ -417,11 +417,21 @@ export default function PlanesPage() {
 
             <aside className="cuenta">
               <div className="cuenta-caja">
-                <span className="cuenta-eyebrow">TU EOS</span>
+                {/*
+                  Se llama por su nombre.
+
+                  Comercialmente hay dos cosas y nada en el medio: el plan Free
+                  con el que se prueba, y el EOS Personalizado que cada uno arma.
+                  Ningún paquete cerrado, ninguna combinación sugerida como
+                  producto. El tope de Gs. 500.000 es la única frontera.
+                */}
+                <span className="cuenta-eyebrow">EOS PERSONALIZADO</span>
 
                 {armado.modulos.length === 0 ? (
                   <p className="cuenta-vacia">
-                    Todavía no elegiste nada. Prendé al menos una función para ver tu precio.
+                    Sin nada prendido seguís en <strong>EOS Free</strong>: 5 mensajes por día
+                    para probar, sin costo y sin tarjeta. Prendé una función cuando quieras
+                    más.
                   </p>
                 ) : (
                   <ul className="cuenta-lista">
