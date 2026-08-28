@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import CerrarSesion from "./CerrarSesion";
+import Soporte from "./Soporte";
 import EliminarCuenta from "./EliminarCuenta";
 import MisModulos from "./MisModulos";
 
@@ -185,6 +186,17 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             Cambiar mi cupo de mensajes
           </Link>
         </div>
+      </div>
+
+      {/*
+        Pedir ayuda va antes que irse.
+
+        Quien llega al final del perfil puede estar por dos motivos muy
+        distintos: algo no le funciona, o se quiere ir. Ofrecer ayuda primero
+        atiende el primero antes de que se convierta en el segundo.
+      */}
+      <div className="soporte-fila">
+        <Soporte pantalla="perfil" />
       </div>
 
       {/*

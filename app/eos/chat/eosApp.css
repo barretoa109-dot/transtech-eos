@@ -1124,6 +1124,74 @@
 .eos-app .fila-editor-campos .neg-cantidad {
   flex: 0 1 110px;
 }
+/* Pedir ayuda: discreto pero siempre a la vista. */
+.eos-app .soporte-fila {
+  margin-top: 30px;
+  display: flex;
+  justify-content: center;
+}
+.eos-app .soporte-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--blue);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.eos-app .soporte-abrir:hover {
+  border-color: var(--blue);
+  background: var(--blue-light, rgba(22, 86, 189, 0.06));
+}
+.eos-app .soporte-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+}
+.eos-app .soporte-titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.eos-app .soporte-sub,
+.eos-app .soporte-alternativa {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.eos-app .soporte-texto {
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+.eos-app .soporte-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: #b3423f;
+}
+.eos-app .soporte-listo {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.eos-app .soporte-acciones {
+  display: flex;
+  gap: 6px;
+}
+
 /* Cerrar sesión: visible, pero sin competir con nada. Nada de rojo: eso
    está reservado para lo que no se deshace. */
 .eos-app .cerrar-sesion-fila {
