@@ -19,6 +19,8 @@
  *  - Nada destructivo. Los chequeos leen, nunca escriben.
  */
 
+import { createAdminClient } from "@/lib/supabase-admin";
+
 export type Chequeo = {
   nombre: string;
   ok: boolean;
@@ -181,6 +183,19 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
     }),
   );
 
+  /* ============================================================
+     CÓMO VINO FUNCIONANDO, NO CÓMO ESTÁ CONFIGURADO
+     ============================================================
+
+     Todo lo de arriba puede estar perfecto mientras un aviso de pago lleva seis
+     horas sin procesarse. Esa es la clase de falla que nadie ve: no hay
+     excepción, no hay 500, simplemente algo no pasó.
+
+     Los números salen de `eos_salud_operativa()` en un solo viaje. Los umbrales
+     se deciden acá y no en la base, porque acá se pueden explicar en castellano
+     y cambiar sin una migración. */
+  chequeos.push(...(await chequeosOperativos()));
+
   const fallos = chequeos.filter((c) => !c.ok);
 
   return {
@@ -189,6 +204,105 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
     chequeos,
     fallos,
   };
+}
+
+type Operativa = {
+  pagos: {
+    avisos_sin_procesar: number;
+    avisos_con_error: number;
+    pagados_hoy: number;
+    rechazados_hoy: number;
+  };
+  acciones: { con_error_24h: number; trabadas: number; completadas_24h: number };
+  briefing: { con_error_hoy: number; enviados_hoy: number };
+  documentos: { generados_24h: number };
+  uso: { usuarios_activos_24h: number };
+};
+
+async function chequeosOperativos(): Promise<Chequeo[]> {
+  let datos: Operativa;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
+    const { data, error } = await (createAdminClient() as any).rpc("eos_salud_operativa");
+
+    if (error) throw new Error(error.message);
+
+    datos = data as Operativa;
+  } catch (error) {
+    return [
+      {
+        nombre: "Estado operativo",
+        ok: false,
+        detalle:
+          "no se pudo consultar: " + (error instanceof Error ? error.message : String(error)),
+      },
+    ];
+  }
+
+  const { pagos, acciones, briefing, documentos, uso } = datos;
+
+  return [
+    {
+      /*
+       * El peor fallo posible de todo el sistema: alguien pagó y nosotros no
+       * nos enteramos. No hay error visible en ningún lado; simplemente la
+       * persona no recibe lo que compró.
+       */
+      nombre: "Avisos de pago procesados",
+      ok: pagos.avisos_sin_procesar === 0,
+      detalle:
+        pagos.avisos_sin_procesar === 0
+          ? `${pagos.pagados_hoy} cobrados y ${pagos.rechazados_hoy} rechazados en 24 h`
+          : `${pagos.avisos_sin_procesar} sin procesar hace más de 15 minutos`,
+    },
+    {
+      nombre: "Avisos de pago sin error",
+      ok: pagos.avisos_con_error === 0,
+      detalle:
+        pagos.avisos_con_error === 0
+          ? "ninguno con error en 24 h"
+          : `${pagos.avisos_con_error} con error en 24 h`,
+    },
+    {
+      /*
+       * Tomadas por un worker que nunca volvió. El lease existe para que otro
+       * las retome; si venció y siguen en ejecución, nadie lo hizo.
+       */
+      nombre: "Acciones sin trabar",
+      ok: acciones.trabadas === 0,
+      detalle:
+        acciones.trabadas === 0
+          ? `${acciones.completadas_24h} completadas en 24 h`
+          : `${acciones.trabadas} tomadas por un worker que no volvió`,
+    },
+    {
+      /*
+       * Las acciones con error NO tumban la salud, y es a propósito: la mayoría
+       * son el sistema haciendo lo correcto —negarse a vender un producto
+       * ambiguo, rechazar un cliente que no existe—. Se muestran para poder
+       * mirarlas, no para despertar a nadie.
+       */
+      nombre: "Acciones con error (informativo)",
+      ok: true,
+      detalle: `${acciones.con_error_24h} en 24 h`,
+    },
+    {
+      nombre: "Briefing diario",
+      ok: briefing.con_error_hoy === 0,
+      detalle:
+        briefing.con_error_hoy === 0
+          ? `${briefing.enviados_hoy} enviados hoy`
+          : `${briefing.con_error_hoy} fallaron hoy`,
+    },
+    {
+      nombre: "Actividad (informativo)",
+      ok: true,
+      detalle:
+        `${uso.usuarios_activos_24h} usuarios activos · ` +
+        `${documentos.generados_24h} documentos generados en 24 h`,
+    },
+  ];
 }
 
 /**

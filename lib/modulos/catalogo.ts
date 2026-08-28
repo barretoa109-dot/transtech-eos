@@ -52,8 +52,11 @@ export const MODULOS = {
     resumen: "Lo que decidiste, cómo salió, y qué aprendió EOS de eso.",
   },
   facturacion: {
-    nombre: "Factura electrónica",
-    resumen: "Documentos electrónicos con SIFEN, sobre las ventas que ya cargaste.",
+    // Se llama por lo que hace hoy. Firmar y enviar a SIFEN depende del
+    // certificado de cada usuario y de su habilitación ante la SET, así que
+    // prometerlo acá sería vender algo que todavía no cumplimos. Ver la v87.
+    nombre: "Comprobantes de venta (beta)",
+    resumen: "El comprobante de tus ventas, con numeración y código de control.",
   },
   erp: {
     nombre: "ERP",
