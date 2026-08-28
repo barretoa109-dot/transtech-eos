@@ -158,8 +158,15 @@ export const caso = {
       descripcion: "EOS recupera",
     });
 
+    /*
+     * Igual que en el caso 3: pedir 3DS no es cobrar. Si se marcara verde, la
+     * recuperación quedaría sin probar y la suite diría que sí.
+     */
     if (operacion.process_id) {
-      comprobar("el cobro pidió 3DS", true, "verificar a mano");
+      sinProbar(
+        "la recuperación tras pagar de nuevo",
+        "el emisor pidió 3DS y el desafío se completa en el navegador — probalo a mano",
+      );
       return;
     }
 

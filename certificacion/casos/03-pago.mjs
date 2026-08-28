@@ -136,33 +136,44 @@ export const caso = {
     });
 
     /*
-     * Si Bancard devuelve `process_id`, el emisor pidió 3DS y el cobro se
-     * resuelve en el navegador. No es un fallo: es un final que esta suite no
-     * puede recorrer sola, y hay que decirlo en vez de darlo por bueno.
+     * ============================================================
+     * TRES FINALES POSIBLES, Y NINGUNO SE DA POR BUENO
+     * ============================================================
+     *
+     * Con `process_id`, el emisor pidió 3DS y el cobro se termina en el
+     * navegador. Eso NO es un cobro aprobado: es un cobro que quedó a mitad de
+     * camino y que esta suite no puede recorrer sola.
+     *
+     * Marcarlo verde —como hacía antes— produjo el peor resultado posible: la
+     * suite decía "recorrido comercial certificado" habiendo probado cuatro
+     * comprobaciones de trece, sin una sola línea amarilla. Una suite que se
+     * declara conforme sin haber probado el cobro es peor que no tenerla,
+     * porque da permiso para lanzar.
      */
+    const cobroAprobado = !operacion.process_id && !esCobroRepetido(operacion);
+
     if (operacion.process_id) {
-      comprobar(
-        "el cobro pidió 3DS y se completa en el navegador",
-        true,
-        "verificar a mano — está en la lista del README",
+      sinProbar(
+        "el cobro se aprueba",
+        "el emisor pidió 3DS y el desafío se completa en el navegador — probalo a mano, está en el README",
       );
-      return;
+    } else if (esCobroRepetido(operacion)) {
+      sinProbar(
+        "el cobro se aprueba",
+        "Bancard bloquea el mismo importe sobre la misma tarjeta por 5 minutos. Esperá y volvé a correr este caso.",
+      );
+    } else {
+      comprobar(
+        "el cobro se aprueba",
+        aprobada(operacion),
+        `${operacion.response ?? "?"}/${operacion.response_code ?? "?"} ${
+          operacion.response_description ?? ""
+        }`,
+      );
     }
 
-    if (esCobroRepetido(operacion)) {
-      sinProbar("el cobro se aprueba", "Bancard bloquea el mismo importe sobre la misma tarjeta por 5 minutos. Esperá y volvé a correr este caso.");
-      return;
-    }
-
-    comprobar(
-      "el cobro se aprueba",
-      aprobada(operacion),
-      `${operacion.response ?? "?"}/${operacion.response_code ?? "?"} ${
-        operacion.response_description ?? ""
-      }`,
-    );
-
-    const { data: confirmado, error: errorConfirmar } = await cliente.rpc(
+    const { data: confirmado, error: errorConfirmar } = cobroAprobado
+      ? await cliente.rpc(
       "eos_bancard_confirmar_cobro_v51",
       {
         p_shop_process_id: String(cobro.shop_process_id),
@@ -175,18 +186,21 @@ export const caso = {
           ticket_number: operacion.ticket_number ?? null,
         },
       },
-    );
+    )
+      : { data: null, error: null };
 
-    comprobar("y se confirma", !errorConfirmar, errorConfirmar?.message ?? "");
-    comprobar("la solicitud queda pagada", (await estadoDe(cobro.shop_process_id)) === "pagado");
+    if (cobroAprobado) {
+      comprobar("y se confirma", !errorConfirmar, errorConfirmar?.message ?? "");
+      comprobar("la solicitud queda pagada", (await estadoDe(cobro.shop_process_id)) === "pagado");
 
-    comprobar(
-      "el número de autorización de Bancard queda guardado",
-      Boolean(operacion.authorization_number),
-      operacion.authorization_number ?? "sin autorización",
-    );
+      comprobar(
+        "el número de autorización de Bancard queda guardado",
+        Boolean(operacion.authorization_number),
+        operacion.authorization_number ?? "sin autorización",
+      );
+    }
 
-    if (confirmado?.history_id) {
+    if (cobroAprobado && confirmado?.history_id) {
       const { data: hist } = await cliente
         .from("historial_pagos")
         .select("metadata")
