@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
+import CerrarSesion from "./CerrarSesion";
 import EliminarCuenta from "./EliminarCuenta";
 import MisModulos from "./MisModulos";
 
@@ -184,6 +185,18 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             Cambiar mi cupo de mensajes
           </Link>
         </div>
+      </div>
+
+      {/*
+        Salir va ANTES de eliminar y separado.
+
+        Son las dos formas de irse de EOS y no se parecen en nada: una se
+        deshace volviendo a entrar y la otra no se deshace. Ponerlas juntas,
+        con el mismo aspecto, es pedirle a alguien apurado que destruya su
+        cuenta cuando sólo quería cerrar la sesión.
+      */}
+      <div className="cerrar-sesion-fila">
+        <CerrarSesion />
       </div>
 
       <EliminarCuenta />

@@ -1124,6 +1124,36 @@
 .eos-app .fila-editor-campos .neg-cantidad {
   flex: 0 1 110px;
 }
+/* Cerrar sesión: visible, pero sin competir con nada. Nada de rojo: eso
+   está reservado para lo que no se deshace. */
+.eos-app .cerrar-sesion-fila {
+  margin-top: 26px;
+  display: flex;
+  justify-content: center;
+}
+.eos-app .cerrar-sesion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.eos-app .cerrar-sesion-btn:hover {
+  color: var(--ink, #111);
+  border-color: var(--muted);
+}
+.eos-app .cerrar-sesion-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .eos-app .fila-editor-nota {
   margin: 0;
   font-size: 12px;

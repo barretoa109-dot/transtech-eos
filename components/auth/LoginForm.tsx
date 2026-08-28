@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { destinoPedido } from "@/lib/auth/destino";
+import CampoContrasena from "./CampoContrasena";
 import {
   NOMBRE_PROVEEDOR,
   proveedoresHabilitados,
@@ -152,9 +153,8 @@ export default function LoginForm({
           Contraseña
         </label>
 
-        <input
+        <CampoContrasena
           id="login-password"
-          type="password"
           autoComplete="current-password"
           required
           className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-[#2f72d6] focus:bg-white/[0.05]"

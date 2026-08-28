@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isPasswordPwned } from "@/lib/pwnedPassword";
+import CampoContrasena from "@/components/auth/CampoContrasena";
 import { useRouter } from "next/navigation";
 
 export default function ActualizarContrasenaPage() {
@@ -75,16 +76,16 @@ export default function ActualizarContrasenaPage() {
 
         <form onSubmit={actualizar}>
 
-          <input
-            type="password"
+          <CampoContrasena
+            autoComplete="new-password"
             placeholder="Nueva contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-8 w-full rounded-xl bg-slate-800 p-4 text-white"
           />
 
-          <input
-            type="password"
+          <CampoContrasena
+            autoComplete="new-password"
             placeholder="Confirmar contraseña"
             value={confirmar}
             onChange={(e) => setConfirmar(e.target.value)}

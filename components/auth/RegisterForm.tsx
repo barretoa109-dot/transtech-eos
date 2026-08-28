@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isPasswordPwned } from "@/lib/pwnedPassword";
+import CampoContrasena from "./CampoContrasena";
 
 interface Props {
   onLogin: () => void;
@@ -166,8 +167,7 @@ export default function RegisterForm({ onLogin }: Props) {
           onChange={(event) => setWhatsapp(event.target.value)}
         />
 
-        <input
-          type="password"
+        <CampoContrasena
           autoComplete="new-password"
           required
           minLength={6}
