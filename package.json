@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "node --test \"lib/**/*.test.ts\"",
     "evals": "node evals/correr.ts",
-    "evals:mutacion": "node evals/mutacion.mjs"
+    "evals:mutacion": "node evals/mutacion.mjs",
+    "certificar": "node certificacion/correr.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
