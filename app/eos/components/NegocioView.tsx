@@ -9,6 +9,7 @@ import Compras from "./negocio/Compras";
 import Emisor from "./negocio/Emisor";
 import Anular from "./negocio/Anular";
 import FilaProducto from "./negocio/FilaProducto";
+import ImportarProductos from "./negocio/ImportarProductos";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto, Producto } from "./negocio/tipos";
 
@@ -656,6 +657,15 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
           {guardando ? "Guardando…" : "Agregar"}
         </button>
       </div>
+
+      {/*
+        Importar va ANTES del catálogo.
+
+        Quien llega a esta pestaña por primera vez tiene su catálogo en una
+        planilla, no en la cabeza. Ofrecerle cargar de a uno primero y la
+        importación al final es hacerle empezar por el camino largo.
+      */}
+      <ImportarProductos onImportado={onCambio} />
 
       <div className="card">
         <div className="card-title">Tu catálogo</div>

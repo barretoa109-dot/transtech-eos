@@ -118,7 +118,7 @@ function texto(valor: unknown, tope: number): string {
   return limpio.length > tope ? `${limpio.slice(0, tope - 1)}…` : limpio;
 }
 
-function numero(valor: unknown): number | null {
+export function numero(valor: unknown): number | null {
   if (typeof valor === "number") return Number.isFinite(valor) ? valor : null;
   if (typeof valor !== "string") return null;
 
