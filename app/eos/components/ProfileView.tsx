@@ -7,6 +7,7 @@ import CerrarSesion from "./CerrarSesion";
 import Soporte from "./Soporte";
 import EliminarCuenta from "./EliminarCuenta";
 import MisModulos from "./MisModulos";
+import MisTarjetas from "./MisTarjetas";
 
 type ProfileViewProps = {
   nombre: string;
@@ -134,6 +135,13 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
         </div>
 
         <MisModulos />
+
+        {/*
+          Las tarjetas van junto a los módulos: las dos cosas responden a la
+          misma pregunta —qué estoy pagando y con qué—. Y es donde alguien las
+          busca cuando quiere sacar un medio de pago.
+        */}
+        <MisTarjetas />
 
         <div className="card">
           <div className="card-title">Memoria y contexto</div>
