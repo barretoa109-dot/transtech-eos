@@ -217,6 +217,20 @@ type Operativa = {
   briefing: { con_error_hoy: number; enviados_hoy: number };
   documentos: { generados_24h: number };
   uso: { usuarios_activos_24h: number };
+  consumo?: {
+    periodo: string;
+    usuarios: number;
+    mensajes: number;
+    tokens_entrada: number;
+    tokens_salida: number;
+    costo_usd: number;
+    el_mas_caro: {
+      tokens: number;
+      mensajes: number;
+      costo_usd: number;
+      plan: string;
+    } | null;
+  };
 };
 
 async function chequeosOperativos(): Promise<Chequeo[]> {
@@ -240,9 +254,51 @@ async function chequeosOperativos(): Promise<Chequeo[]> {
     ];
   }
 
-  const { pagos, acciones, briefing, documentos, uso } = datos;
+  const { pagos, acciones, briefing, documentos, uso, consumo } = datos;
+
+  const miles = (n: number) => Number(n || 0).toLocaleString("es-PY");
+
+  /*
+   * ============================================================
+   * LO QUE CUESTA ATENDER A LA GENTE
+   * ============================================================
+   *
+   * Informativo y no vigilado, porque no hay un número que esté "roto": lo que
+   * es mucho depende de la tarifa de OpenAI del momento y de lo que se esté
+   * cobrando. Pero tiene que estar a la vista, porque hasta hace dos días EOS
+   * cobraba una suscripción sin saber cuánto gastaba en atenderla.
+   *
+   * El más caro va aparte del total a propósito. El promedio esconde justamente
+   * al usuario que rompe la cuenta: con veinte clientes tranquilos y uno que
+   * manda fotos todo el día, el promedio se ve sano y el margen no lo está. Y
+   * el tramo de conversaciones ilimitadas no tiene techo de consumo.
+   */
+  const filasConsumo: Chequeo[] = consumo
+    ? [
+        {
+          nombre: "Consumo del mes (informativo)",
+          ok: true,
+          detalle:
+            `${consumo.usuarios} ${consumo.usuarios === 1 ? "usuario" : "usuarios"} · ` +
+            `${miles(consumo.mensajes)} mensajes · ` +
+            `${miles(consumo.tokens_entrada + consumo.tokens_salida)} tokens` +
+            (consumo.costo_usd > 0 ? ` · USD ${consumo.costo_usd}` : " · costo sin tarifa configurada"),
+        },
+        {
+          nombre: "El usuario más pesado (informativo)",
+          ok: true,
+          detalle: consumo.el_mas_caro
+            ? `${miles(consumo.el_mas_caro.tokens)} tokens en ` +
+              `${consumo.el_mas_caro.mensajes} ` +
+              `${consumo.el_mas_caro.mensajes === 1 ? "mensaje" : "mensajes"} · ` +
+              `plan ${consumo.el_mas_caro.plan}`
+            : "todavía nadie consumió este mes",
+        },
+      ]
+    : [];
 
   return [
+    ...filasConsumo,
     {
       /*
        * El peor fallo posible de todo el sistema: alguien pagó y nosotros no
