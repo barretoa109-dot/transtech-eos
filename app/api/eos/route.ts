@@ -72,6 +72,9 @@ type RespuestaN8N = {
   tipo: string;
   accion: string;
   metadata: Record<string, unknown>;
+  /* Lo que consumió el mensaje en OpenAI. Cero si el gateway no lo mandó. */
+  tokens_entrada: number;
+  tokens_salida: number;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -393,6 +396,10 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
       data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
         ? (data.metadata as Record<string, unknown>)
         : {},
+
+    /* Si el gateway todavía no los manda, quedan en cero y no rompen nada. */
+    tokens_entrada: Number(data.tokens_entrada ?? 0) || 0,
+    tokens_salida: Number(data.tokens_salida ?? 0) || 0,
   };
 }
 
@@ -770,11 +777,44 @@ export async function POST(req: Request) {
 
     const resultado = normalizarRespuestaConDocumento(rawText);
 
+    /*
+     * ============================================================
+     * CUÁNTO COSTÓ ESTE MENSAJE
+     * ============================================================
+     *
+     * Los tokens vienen del gateway, que los saca de la respuesta de OpenAI.
+     * Antes se descartaban y `uso_mensual` acumulaba ceros: EOS cobraba por mes
+     * sin saber cuánto le costaba cada usuario.
+     *
+     * Importa más de lo que parece porque el consumo NO es proporcional a los
+     * mensajes. Un "hola" ya cuesta unos 1.300 tokens de entrada —el prompt
+     * lleva el contexto del negocio, el historial y las instrucciones— y un
+     * mensaje con una foto adjunta cuesta un orden de magnitud más. Dos
+     * clientes con el mismo plan y la misma cantidad de mensajes pueden
+     * costarnos diez veces distinto.
+     *
+     * El precio en dólares sale de dos variables de entorno y NO de una
+     * constante en el código: la tarifa cambia con cada modelo, y un número
+     * clavado acá es un número que dentro de tres meses es falso y nadie
+     * corrige. Si no están configuradas, el costo queda en cero y los tokens
+     * igual se guardan — que es lo que después se puede convertir a plata en
+     * cualquier momento.
+     */
+    const tokensEntrada = Math.max(0, Math.trunc(Number(resultado.tokens_entrada ?? 0)) || 0);
+    const tokensSalida = Math.max(0, Math.trunc(Number(resultado.tokens_salida ?? 0)) || 0);
+
+    const costoEstimado =
+      (tokensEntrada / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_ENTRADA || 0) +
+      (tokensSalida / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_SALIDA || 0);
+
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
       {
         p_usuario_id: user.id,
         p_request_id: payload.request_id,
+        p_tokens_entrada: tokensEntrada,
+        p_tokens_salida: tokensSalida,
+        p_costo_estimado_usd: Number.isFinite(costoEstimado) ? costoEstimado : 0,
       },
     );
 

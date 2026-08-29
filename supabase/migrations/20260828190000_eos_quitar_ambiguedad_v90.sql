@@ -1,0 +1,22 @@
+-- Quitar la versión vieja del finalizador de cuota (v90).
+--
+-- ============================================================
+-- LA v89 ROMPIÓ EL CHAT DURANTE UNOS MINUTOS
+-- ============================================================
+--
+-- Agregar parámetros con valor por defecto no reemplaza una función: crea una
+-- SEGUNDA con distinta cantidad de argumentos. Con las dos vivas, llamarla por
+-- nombre —que es como la llama PostgREST— deja de tener una respuesta única:
+--
+--   Could not choose the best candidate function between:
+--     eos_finalize_message_quota_server_v75(p_usuario_id, p_request_id)
+--     eos_finalize_message_quota_server_v75(p_usuario_id, p_request_id, ...)
+--
+-- Y por ahí pasa CADA mensaje del chat al terminar. O sea: la migración que
+-- venía a medir el consumo dejó a EOS sin poder cerrar una conversación.
+--
+-- Se cayó en la prueba inmediata, antes de que ningún usuario lo notara, y por
+-- eso conviene que quede escrito: `create or replace` con parámetros nuevos NO
+-- es un reemplazo. Cuando la firma cambia, la vieja se borra a mano.
+
+drop function if exists public.eos_finalize_message_quota_server_v75(uuid, uuid);
