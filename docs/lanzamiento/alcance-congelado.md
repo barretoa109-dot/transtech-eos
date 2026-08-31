@@ -52,23 +52,21 @@ de doce módulos la gente lee nombres.
 | Módulo | Qué falta, dicho en la pantalla |
 | --- | --- |
 | **Comprobantes de venta (beta)** — Gs. 0 | Hace numeración correlativa, CDC de 44 dígitos y comprobante imprimible. **No** firma ni envía a SIFEN. El papel sale rotulado como borrador. Ya resuelto en la v87. |
-| **ERP (beta)** — Gs. 0 hoy | Productos, ventas, compras, stock, anulación y ajustes: cerrado. **No** hay empresas con miembros y sucursales, ni depósitos, ni cuenta corriente con vencimientos y cuotas, ni kardex valorizado. Ver `docs/erp-profesional-arquitectura.md`. |
-| **CRM (beta)** — Gs. 0 hoy | Contactos, oportunidades y actividades: cerrado. Falta embudo, razones de pérdida y reportes de desempeño. |
+| **ERP (beta)** — Gs. 120.000 | Productos, ventas, compras, stock, anulación y ajustes: cerrado. **No** hay empresas con miembros y sucursales, ni depósitos, ni cuenta corriente con vencimientos y cuotas, ni kardex valorizado. Ver `docs/erp-profesional-arquitectura.md`. |
+| **CRM (beta)** — Gs. 90.000 | Contactos, oportunidades y actividades: cerrado. Falta embudo, razones de pérdida y reportes de desempeño. |
 | **Lectura automática** — Gs. 35.000 | Lee avisos bancarios por correo. **No** hay conexión directa con bancos, cooperativas ni billeteras: eso es importación, no integración, y así hay que decirlo. |
 | **Avisos antes de que pase** — Gs. 20.000 | Avisa faltante de dinero y vencimientos. La cobertura de riesgos de inventario y cobranzas depende del ERP, que está en beta. |
 
-### Decisión pendiente del dueño del producto
+### Decisión tomada el 2026-08-31
 
-ERP y CRM hoy son públicos con precio Gs. 0 y **no** llevan "(beta)" en el
-nombre. Dos caminos, hay que elegir uno antes de la firma:
+ERP y CRM eran públicos **sin** la marca de beta, y no son módulos baratos: el
+ERP es el segundo más caro del catálogo. Se decidió rotularlos, igual que
+comprobantes en la v87. La migración `20260831120000_..._v92.sql` renombra a
+"ERP (beta)" y "CRM (beta)" y pone en la descripción qué no hay todavía.
 
-- **a)** Renombrarlos a "ERP (beta)" y "CRM (beta)", como ya se hizo con
-  comprobantes. Coherente, barato, honesto.
-- **b)** Dejarlos sin la marca y aceptar que un usuario que espere depósitos,
-  sucursales o cuenta corriente se sienta engañado.
-
-Recomendación: **(a)**. Es una migración de una línea y elimina la queja antes
-de que exista.
+Los precios no se tocan: el tope de Gs. 500.000 está calibrado con ellos
+adentro (150.000 de conversaciones ilimitadas + 20.000 + 25.000 + 25.000 +
+35.000 + 20.000 + 15.000 + 120.000 + 90.000 = 500.000 exacto).
 
 ---
 
