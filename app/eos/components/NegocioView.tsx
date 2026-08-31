@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Plus, Receipt } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Emisor from "./negocio/Emisor";
+import Confirmar from "./negocio/Confirmar";
 import Anular from "./negocio/Anular";
 import FilaProducto from "./negocio/FilaProducto";
 import ImportarProductos from "./negocio/ImportarProductos";
@@ -505,9 +506,15 @@ function Ventas({
                     <Check size={12} /> cobrada
                   </span>
                 ) : (
-                  <button type="button" className="chip" onClick={() => cobrar(v)}>
-                    Cobrar
-                  </button>
+                  <Confirmar
+                    etiqueta="Cobrar"
+                    consecuencia={
+                      `Se registra un ingreso de ${formatearMonto(v.total, v.moneda)} en tu panel, ` +
+                      "con la fecha de hoy. Si te equivocaste de venta, se corrige anulándola."
+                    }
+                    confirmar="Sí, cobrar"
+                    onConfirmar={() => void cobrar(v)}
+                  />
                 )}
 
                 <Facturar ventaId={v.id} />
@@ -584,11 +591,24 @@ function Facturar({ ventaId }: { ventaId: string }) {
 
   if (estado === "error") return <span className="neg-estado is-mal">{mensaje}</span>;
 
+  /*
+    Emitir quema un número correlativo. Ese número no se puede devolver: el
+    siguiente comprobante saldrá con el que sigue, y el hueco queda. Por eso
+    esta acción confirma aunque el papel todavía sea un borrador interno.
+  */
   return (
-    <button type="button" className="chip" disabled={estado === "emitiendo"} onClick={emitir}>
-      <Receipt size={12} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />
-      {estado === "emitiendo" ? "Emitiendo…" : "Comprobante"}
-    </button>
+    <Confirmar
+      etiqueta="Comprobante"
+      consecuencia={
+        "Se emite el comprobante de esta venta y se usa el próximo número de tu " +
+        "numeración, que no se puede devolver. Sale rotulado como borrador: todavía " +
+        "no está firmado ni aprobado por la SET."
+      }
+      confirmar="Sí, emitir"
+      onConfirmar={() => void emitir()}
+      ocupado={estado === "emitiendo"}
+      ocupadoTexto="Emitiendo…"
+    />
   );
 }
 

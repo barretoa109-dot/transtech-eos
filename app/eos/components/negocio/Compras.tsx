@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Confirmar from "./Confirmar";
 import Anular from "./Anular";
 import { Check } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
@@ -328,9 +329,15 @@ export default function Compras({
                     <Check size={12} /> pagada
                   </span>
                 ) : (
-                  <button type="button" className="chip" onClick={() => pagar(c)}>
-                    Pagar
-                  </button>
+                  <Confirmar
+                    etiqueta="Pagar"
+                    consecuencia={
+                      `Se registra un egreso de ${formatearMonto(c.total, c.moneda)} en tu panel, ` +
+                      "con la fecha de hoy. Si te equivocaste de compra, se corrige anulándola."
+                    }
+                    confirmar="Sí, pagar"
+                    onConfirmar={() => void pagar(c)}
+                  />
                 )}
 
                 <Anular recurso="compras" id={c.id} onAnulado={cargar} />

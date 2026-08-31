@@ -25,6 +25,10 @@ const eslintConfig = defineConfig([
      */
     "android/app/build/**",
     "android/app/src/main/assets/**",
+
+    // Los scripts que arman la presentación y el video. Están fuera del
+    // repositorio (`.gitignore`) y no son código de EOS.
+    ".video-build/**",
   ]),
 ]);
 

@@ -3482,3 +3482,34 @@
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
+
+/* ============================================================
+   Confirmar diciendo qué va a pasar (punto 16)
+   ============================================================
+
+   El mismo hueco que `.anular-caja`, sin el rojo: cobrar, pagar o emitir no
+   son acciones peligrosas, son acciones que mueven plata o queman un número.
+   Pintarlas de rojo las igualaría a anular y le quitaría peso al rojo justo
+   donde sí hace falta. */
+
+.eos-app .confirmar-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+}
+.eos-app .confirmar-aviso {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.eos-app .confirmar-acciones {
+  display: flex;
+  gap: 6px;
+}
