@@ -8,6 +8,8 @@ import FinanzasBuzon from "./FinanzasBuzon";
 import FinanzasConciliar from "./FinanzasConciliar";
 import FinanzasFijos from "./FinanzasFijos";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import Traza, { Cifra } from "./Traza";
+import type { ClaveCifra, Trazado } from "@/lib/finanzas/trazabilidad";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
 
 type Estado = "seguro" | "atencion" | "accion";
@@ -33,6 +35,8 @@ type EstadoFinanciero = {
   objetivos_en_ritmo: boolean;
   objetivos_activos: number;
   movimientos_registrados: number;
+  /** De dónde sale cada cifra. Ver `lib/finanzas/trazabilidad.ts`. */
+  trazas: Trazado[];
   conciliacion: {
     confianza: "alta" | "media" | "baja";
     veces: number;
@@ -75,6 +79,7 @@ type BloqueMoneda = {
   ingresos: number;
   gastos: number;
   movimientos_registrados: number;
+  trazas: Trazado[];
   punto_de_partida: {
     base: number;
     desde: string;
@@ -106,6 +111,8 @@ export default function FinanzasPanel() {
   const [error, setError] = useState(false);
   const [detalles, setDetalles] = useState(false);
   const [configurando, setConfigurando] = useState(false);
+  /** Qué cifra está abierta mostrando de dónde sale. */
+  const [abierta, setAbierta] = useState<ClaveCifra | null>(null);
 
   const cargar = useCallback(() => {
     return fetch("/api/finanzas/estado", { cache: "no-store" })
@@ -152,6 +159,19 @@ export default function FinanzasPanel() {
 
   const fmt = (valor: number) => formatearMonto(valor, data.moneda);
   const copy = COPY[data.estado];
+  const trazas = data.trazas ?? [];
+
+  /** Cualquier cifra del panel, tocable si sabemos de dónde sale. */
+  const cifra = (valor: number, clave: ClaveCifra, className?: string) => (
+    <Cifra
+      valor={valor}
+      moneda={data.moneda}
+      cifra={clave}
+      trazas={trazas}
+      onAbrir={setAbierta}
+      className={className}
+    />
+  );
 
   return (
     <>
@@ -198,7 +218,9 @@ export default function FinanzasPanel() {
         <>
           <div className="fin-main">
             <div className="fin-main-label">Disponible real</div>
-            <div className="fin-main-value">{fmt(data.disponible_real)}</div>
+            <div className="fin-main-value">
+              {cifra(data.disponible_real, "disponible_real")}
+            </div>
             <div className="fin-main-hint">
               Después de compromisos, gastos previsibles, reserva y ahorro
             </div>
@@ -214,6 +236,20 @@ export default function FinanzasPanel() {
               </div>
             )}
           </div>
+
+          {/*
+            La traza va acá, pegada al disponible real y no al final: quien
+            toca un número quiere ver de dónde sale ese número, no bajar
+            buscándolo. Abrir otra cifra reemplaza esta, no apila paneles.
+          */}
+          {abierta && (
+            <Traza
+              trazas={trazas}
+              inicial={abierta}
+              moneda={data.moneda}
+              onCerrar={() => setAbierta(null)}
+            />
+          )}
 
           <ComposicionSaldo data={data} fmt={fmt} />
 
@@ -260,15 +296,15 @@ export default function FinanzasPanel() {
             <div className="fin-detalles">
               <div className="field-row">
                 <span className="field-label">Saldo estimado</span>
-                <span className="field-value">{fmt(data.saldo_estimado)}</span>
+                <span className="field-value">{cifra(data.saldo_estimado, "saldo_estimado")}</span>
               </div>
               <div className="field-row">
                 <span className="field-label">Ingresos registrados</span>
-                <span className="field-value">{fmt(data.ingresos)}</span>
+                <span className="field-value">{cifra(data.ingresos, "ingresos")}</span>
               </div>
               <div className="field-row">
                 <span className="field-label">Gastos registrados</span>
-                <span className="field-value">{fmt(data.gastos)}</span>
+                <span className="field-value">{cifra(data.gastos, "gastos")}</span>
               </div>
               <div className="field-row">
                 <span className="field-label">
@@ -277,7 +313,7 @@ export default function FinanzasPanel() {
                     <span className="field-hint">{data.compromisos.cantidad} pendiente(s)</span>
                   )}
                 </span>
-                <span className="field-value">{fmt(data.compromisos.total)}</span>
+                <span className="field-value">{cifra(data.compromisos.total, "compromisos")}</span>
               </div>
               {data.prevision.gastos_previsibles.cantidad > 0 && (
                 <div className="field-row">
@@ -287,7 +323,9 @@ export default function FinanzasPanel() {
                       detectados por EOS, hasta el {formatearFecha(data.prevision.gastos_previsibles.hasta)}
                     </span>
                   </span>
-                  <span className="field-value">{fmt(data.prevision.gastos_previsibles.total)}</span>
+                  <span className="field-value">
+                    {cifra(data.prevision.gastos_previsibles.total, "gastos_previsibles")}
+                  </span>
                 </div>
               )}
               {data.prevision.gastos_previsibles.detalle.map((p) => (

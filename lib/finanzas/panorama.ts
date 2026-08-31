@@ -63,8 +63,24 @@ export type Panorama = {
    * número sin su grado de confianza al lado se lee como certeza.
    */
   conciliacion: ResultadoConciliacion;
-  /** Lo que efectivamente entró y salió desde ese punto confiable. */
-  aplicado: { ingresos: number; gastos: number };
+  /**
+   * Lo que efectivamente entró y salió desde ese punto confiable.
+   *
+   * Van los totales Y las listas que los componen, más la ventana de fechas
+   * que las define. Es lo que le permite al panel llevar al usuario desde
+   * cualquier cifra hasta los movimientos que la forman, con la garantía de
+   * que el detalle suma exactamente el total porque es el mismo array.
+   */
+  aplicado: {
+    ingresos: number;
+    gastos: number;
+    entradas: MovimientoBase[];
+    salidas: MovimientoBase[];
+    /** Exclusivo: el punto de partida confiable no se cuenta a sí mismo. */
+    desde: string;
+    /** Inclusivo. */
+    hasta: string;
+  };
 };
 
 export function armarPanorama(datos: {
@@ -88,11 +104,23 @@ export function armarPanorama(datos: {
     hoy,
   });
 
+  /*
+   * Se guardan las listas, no solo las sumas.
+   *
+   * El panel tiene que poder contestar "¿de dónde sale este número?" con los
+   * movimientos exactos que lo componen. Recalcularlos aparte, con el mismo
+   * filtro escrito dos veces, es garantizar que un día el detalle no cuadre
+   * con el total — y un detalle que no cuadra es peor que no tenerlo: el
+   * usuario descubre que uno de los dos miente y no sabe cuál.
+   *
+   * Devolviendo el MISMO array que se reduce, no pueden separarse.
+   */
   const aplicados = movimientos.filter((m) => m.fecha > estado.desde && m.fecha <= hoy);
-  const entraron = aplicados
-    .filter((m) => m.tipo === "ingreso")
-    .reduce((t, m) => t + m.monto, 0);
-  const salieron = aplicados.filter((m) => m.tipo === "gasto").reduce((t, m) => t + m.monto, 0);
+  const entradas = aplicados.filter((m) => m.tipo === "ingreso");
+  const salidas = aplicados.filter((m) => m.tipo === "gasto");
+
+  const entraron = entradas.reduce((t, m) => t + m.monto, 0);
+  const salieron = salidas.reduce((t, m) => t + m.monto, 0);
 
   // El gasto invisible —billetera, efectivo— también se descuenta acá: si no,
   // la simulación arrancaría con más plata de la que el usuario tiene y el
@@ -144,6 +172,13 @@ export function armarPanorama(datos: {
     series,
     detectadas,
     conciliacion: estado,
-    aplicado: { ingresos: entraron, gastos: salieron },
+    aplicado: {
+      ingresos: entraron,
+      gastos: salieron,
+      entradas,
+      salidas,
+      desde: estado.desde,
+      hasta: hoy,
+    },
   };
 }

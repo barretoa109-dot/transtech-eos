@@ -3239,3 +3239,175 @@
   color: var(--amber);
   font-weight: 700;
 }
+
+/* ============================================================
+   De dónde sale cada número (punto 23)
+   ============================================================
+
+   Un número que no se puede abrir le pide al usuario que crea sin entender.
+   Acá cualquier cifra del panel es tocable, y lo tiene que PARECER: subrayada
+   punteada y con cursor de ayuda, que es el gesto que la gente ya conoce para
+   "esto tiene una explicación detrás".
+
+   No se usa un modal a propósito. Un modal tapa el panel, y justamente lo que
+   el usuario está haciendo es comparar el detalle contra los otros números de
+   la pantalla. */
+
+.eos-app .traza-cifra {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-bottom: 1px dashed var(--line);
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.eos-app .traza-cifra:hover,
+.eos-app .traza-cifra:focus-visible {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+
+.eos-app .traza {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--line);
+}
+
+.eos-app .traza-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eos-app .traza-titulo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.eos-app .traza-titulo strong {
+  font-size: 13.5px;
+}
+.eos-app .traza-titulo span {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.eos-app .traza-volver,
+.eos-app .traza-cerrar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.eos-app .traza-volver:hover,
+.eos-app .traza-cerrar:hover {
+  color: var(--ink);
+}
+
+.eos-app .traza-aviso {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--amber-light);
+  color: var(--amber);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.eos-app .traza-ventana,
+.eos-app .traza-vacio {
+  margin: 10px 0 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.eos-app .traza-lista,
+.eos-app .traza-cuenta {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  /* Una traza con doscientos movimientos no puede empujar el panel entero
+     fuera de la pantalla: se desplaza sola. */
+  max-height: 260px;
+  overflow-y: auto;
+}
+.eos-app .traza-lista li,
+.eos-app .traza-cuenta li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.eos-app .traza-lista li:last-child,
+.eos-app .traza-cuenta li:last-child {
+  border-bottom: none;
+}
+
+.eos-app .traza-fecha {
+  flex: none;
+  width: 84px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.eos-app .traza-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .traza-monto {
+  margin-left: auto;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.eos-app .traza-signo {
+  flex: none;
+  width: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.eos-app .traza-termino {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.eos-app .traza-termino-fijo {
+  flex: 1;
+  min-width: 0;
+}
+.eos-app .traza-resultado {
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .eos-app .traza-fecha {
+    width: 66px;
+  }
+}

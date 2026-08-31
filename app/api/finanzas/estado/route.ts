@@ -3,6 +3,7 @@ import { convieneConciliar } from "@/lib/finanzas/conciliacion";
 import { confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { armarPanorama, type EgresoPanorama } from "@/lib/finanzas/panorama";
+import { noCuadran, trazarPanel } from "@/lib/finanzas/trazabilidad";
 import {
   agruparPorMoneda,
   codigoMoneda,
@@ -390,6 +391,40 @@ function armarBloque(datos: {
   const compromisosCubiertos = saldoEstimado - reserva >= comprometido;
   const reservaProtegida = saldoEstimado >= reserva;
 
+  /*
+   * De dónde sale cada número, armado con los MISMOS arrays que se acaban de
+   * sumar. No se vuelve a filtrar nada: si el detalle se recalculara aparte,
+   * un día no cuadraría con el total, y un detalle que no cuadra es peor que
+   * no tener detalle. Ver `lib/finanzas/trazabilidad.ts`.
+   */
+  const trazas = trazarPanel({
+    aplicado: panorama.aplicado,
+    anotados,
+    previsibles,
+    cuotas,
+    horizonte,
+    saldoBase: panorama.conciliacion.base,
+    gastoInvisible: panorama.conciliacion.gasto_invisible,
+    saldoEstimado,
+    totalCompromisos,
+    totalPrevisible,
+    totalCuotas,
+    reserva,
+    ahorroComprometido,
+    disponibleReal,
+  });
+
+  // Que una traza no cuadre significa que la aritmética de acá arriba cambió y
+  // el desglose quedó viejo. No se le oculta al usuario —el número que ve sigue
+  // siendo el mismo—, pero tiene que quedar en el log para que alguien lo mire.
+  const descuadradas = noCuadran(trazas);
+  if (descuadradas.length > 0) {
+    console.error(
+      "Panel: hay cifras cuyo detalle no suma su total:",
+      descuadradas.map((t) => `${t.cifra} (muestra ${t.total})`).join(", "),
+    );
+  }
+
   let estado: Estado = "seguro";
   if (!reservaProtegida || disponibleReal < 0) {
     estado = "accion";
@@ -409,6 +444,16 @@ function armarBloque(datos: {
     reserva_minima: redondear(reserva),
     ahorro_comprometido: redondear(ahorroComprometido),
     movimientos_registrados: movimientos.length,
+    /*
+     * El camino de cada cifra hasta lo que la compone.
+     *
+     * Va en la MISMA respuesta y no en un endpoint aparte a propósito: pedirlo
+     * después obligaría a recalcular el panel entero para contestar "¿de dónde
+     * sale este número?", y entre las dos corridas el saldo puede haber
+     * cambiado. El detalle tiene que ser el de ESTE número, no el de uno
+     * parecido calculado medio segundo más tarde.
+     */
+    trazas,
     /*
      * De dónde salió el saldo del que se parte.
      *
