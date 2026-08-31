@@ -72,7 +72,7 @@ lista** y no depende de nadie externo.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. Falta patrimonio y evolución. |
-| 22 | Multimoneda | **parcial** | `lib/finanzas/monedas`, separación por moneda y `moneda` en gastos fijos (v65). Falta mostrar tipo de cambio con origen y fecha. |
+| 22 | Multimoneda | **parcial** | El panel financiero ya separaba por moneda. El **ERP y el CRM no**: se corrigió el 31 de agosto (ver abajo). Falta mostrar tipo de cambio con origen y fecha, y falta `eos_contexto_negocio` (v82), que sigue sumando ventas, por cobrar, por pagar y oportunidades entre monedas y se lo cuenta así a EOS en el chat. |
 | 23 | Trazabilidad de cada número | **abierto** | No hay camino de un total a los movimientos que lo componen. |
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
 | 25 | Conexiones automáticas | **abierto** | Solo lectura de correo. Ninguna integración bancaria. El alcance congelado lo saca del anuncio. |
@@ -159,3 +159,40 @@ Por rendimiento, no por número de punto.
    entender, y saber qué va a pasar antes de que pase.
 7. **Punto 48 — accesibilidad.** Antes del piloto, no después.
 8. **Firmas: 1, 9 y 10.**
+
+---
+
+## Hallazgos abiertos, con nombre y apellido
+
+Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
+cada una tiene el archivo y la línea.
+
+### 1. `eos_contexto_negocio` (v82) suma monedas distintas — ABIERTO
+
+La función que le arma a EOS el contexto del negocio calcula:
+
+- `ventas.total` — `sum(v.total)` sobre `eos_erp_ventas`, sin agrupar por moneda;
+- `por_cobrar` y `por_pagar` — lo mismo;
+- `crm.oportunidades_abiertas.monto` — `sum(o.monto)`, lo mismo.
+
+Y `lib/eos/contexto-negocio.ts:113` formatea el resultado con `"PYG"` escrito a
+mano. O sea: **EOS le dice al usuario, en el chat, un número que no existe en
+ninguna moneda.** Es peor que el mismo error en una pantalla, porque viene con
+la autoridad de una respuesta.
+
+Se arregla igual que el embudo: agrupar por moneda y devolver una cifra por
+cada una. Requiere reemplazar la función de la v82, que es la única que la
+define, así que se puede reproducir y enmendar sin riesgo de perder parches.
+
+### 2. El lint no bloquea y esconde seis errores reales — ABIERTO
+
+De los 42, seis son `react-hooks/set-state-in-effect` en React 19
+(`app/admin/pagos`, `app/admin/salud`, `app/eos/autonomy`). Los otros 36 son
+deuda vieja de `any` en Bancard y el worker. Ver punto 49.
+
+### 3. Numeración de migraciones duplicada — MENOR
+
+Hay dos `v88` (`20260828140000` y `20260829005319`) y dos `v92`
+(`20260831120000` y `20260831140545`). El orden real lo da el timestamp, así
+que no rompe nada, pero la etiqueta dejó de identificar. Conviene que la
+próxima retome desde v94.
