@@ -3411,3 +3411,74 @@
     width: 66px;
   }
 }
+
+/* ============================================================
+   Corregir lo que EOS creyó aprender (punto 17)
+   ============================================================
+
+   La recomendación se muestra —antes solo se veía el patrón— porque es la
+   parte que EOS efectivamente usa al contestar, y discutir una conclusión que
+   no se ve es imposible.
+
+   Los descartados se muestran apagados y no ocultos: descartar sin poder
+   deshacer no es una opción, es un borrado disfrazado. */
+
+.eos-app .pattern-reco {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.eos-app .pattern-corregido {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.eos-app .pattern-editor {
+  margin-top: 10px;
+}
+.eos-app .pattern-editor label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.eos-app .pattern-editor textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+.eos-app .pattern-editor textarea:focus-visible {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.eos-app .pattern-acciones {
+  margin-top: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Eliminar no se puede deshacer, así que no se ve igual que las otras. */
+.eos-app .pattern-eliminar {
+  color: var(--red);
+  border-color: var(--red-light);
+}
+.eos-app .pattern-eliminar:hover:not(:disabled) {
+  background: var(--red-light);
+}
+
+.eos-app .pattern-card-descartado {
+  opacity: 0.6;
+}
+.eos-app .pattern-card-descartado .pattern-title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}

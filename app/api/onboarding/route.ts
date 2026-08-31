@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,43 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({ onboarding: data }, { headers: noStore() });
+}
+
+/**
+ * Volver a empezar.
+ *
+ * `completado_en` se ponía una vez y no se limpiaba nunca, así que quien se
+ * equivocó al principio —o cambió de situación, que con el tiempo es lo
+ * normal— quedaba con una configuración que ya no lo representa y sin forma de
+ * rehacerla.
+ *
+ * No borra las respuestas anteriores: quedan hasta que las pise. Reiniciar y
+ * abandonar a la mitad no puede dejar a alguien peor que antes de reiniciar.
+ */
+export async function DELETE() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
+  }
+
+  const { data, error } = await adminSinTipos().rpc("eos_reiniciar_onboarding_v96", {
+    p_usuario_id: user.id,
+  });
+
+  if (error) {
+    console.error("No se pudo reiniciar el onboarding:", error);
+    return NextResponse.json(
+      { error: "No pudimos reiniciar tu configuración." },
+      { status: 500, headers: noStore() },
+    );
+  }
+
+  return NextResponse.json(data, { headers: noStore() });
 }
 
 function noStore() {

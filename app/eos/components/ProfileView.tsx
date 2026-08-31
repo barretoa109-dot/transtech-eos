@@ -6,6 +6,7 @@ import { Check, Copy } from "lucide-react";
 import CerrarSesion from "./CerrarSesion";
 import Soporte from "./Soporte";
 import EliminarCuenta from "./EliminarCuenta";
+import RehacerOnboarding from "./RehacerOnboarding";
 import MisModulos from "./MisModulos";
 import MisTarjetas from "./MisTarjetas";
 
@@ -165,6 +166,16 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             </span>
             <span className="field-value">{conversaciones}</span>
           </div>
+
+          {/*
+            Rehacer la configuración inicial.
+
+            Hasta ahora `completado_en` se ponía una vez y no se limpiaba
+            nunca: quien se equivocó al principio —o cambió de situación, que
+            con el tiempo es lo normal— quedaba con una configuración que ya no
+            lo representa y sin forma de rehacerla.
+          */}
+          <RehacerOnboarding />
         </div>
 
         <div className="card">

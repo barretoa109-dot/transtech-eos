@@ -34,7 +34,7 @@ Medición de hoy, para no discutirla dos veces:
 | 4 | Instalación desde cero | **bloqueado** | Imposible sin una segunda base. Ver la nota de infraestructura abajo. |
 | 5 | Actualización realista | **bloqueado** | Idem. Hoy toda migración se estrena contra datos de usuarios reales. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
-| 7 | Compra real controlada | **parcial** | `npm run certificar` cubre pago, activación, renovación y vencimiento (casos 03 a 06). **No** cubre rechazado, cancelado, duplicado, abandonado, demorado ni reversado. |
+| 7 | Compra real controlada | **parcial** | Los siete finales están cubiertos. El caso 03 ya hacía aprobado, rechazado y abandonado —el tracker decía que no, y estaba mal—. El caso 11, nuevo, hace duplicado y demorado (**verdes contra la base real**) y reversado, que queda amarillo hasta aplicar la v95. **Falta** el 3DS, que se completa en el navegador y la suite no puede recorrer sola. |
 | 8 | Requisitos de publicación | **externo** | D-U-N-S, cuentas de tienda, políticas y verificaciones sin empezar. El alcance congelado saca las apps del lanzamiento: se sale por web. |
 | 9 | Revisión legal | **externo** | Existen `/terminos` y `/privacidad`. Ningún profesional los revisó. |
 | 10 | Decisión formal de lanzamiento | **abierto** | La regla está escrita en el alcance congelado; falta el acta. |
