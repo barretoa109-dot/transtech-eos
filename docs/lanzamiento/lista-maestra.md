@@ -14,12 +14,12 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **413/413 en verde**. Empezó el día en 379.
+- `npm test` → **425/425 en verde**. Empezó el día en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
-- `npm run lint` → **24 errores, 7 avisos**. Empezó el día en 42 y 39.
+- `npm run lint` → **24 errores, 6 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
 - `supabase migration list --linked` → **163 aplicadas, local y remoto coinciden
-  en todas**. Hay **tres más escritas y sin aplicar** a propósito: van después
+  en todas**. Hay **cuatro más escritas y sin aplicar** a propósito: van después
   del deploy. Ver la tabla del final.
 
 ---
@@ -62,11 +62,11 @@ lista** y no depende de nadie externo.
 | 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** aplicar la v96 y el recorrido con sesión. |
 | 14 | Chat de punta a punta | **parcial** | Enviar, recibir y recuperar conversaciones andan. Falta certificar reintento, detención, adjuntos y reanudación tras desconexión. |
 | 15 | No inventar respuestas | **parcial** | `npm run evals` con corpus y auditoría por mutación (`evals:mutacion`). Falta el caso explícito de "no afirmar una acción no confirmada". |
-| 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate exige aprobación para las acciones ERP. Falta cubrir pagos, eliminaciones y documentos fiscales con el mismo criterio. |
+| 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate ya exigía aprobación para las acciones ERP del chat. El 31 de agosto se cubrió lo que faltaba en pantalla: cobrar, pagar y emitir un comprobante no confirmaban nada. Ahora los tres dicen qué va a pasar con el monto adentro (`negocio/Confirmar.tsx`), no un "¿estás seguro?". **Falta** el mismo criterio en las eliminaciones de producto y contacto. |
 | 17 | Memoria de EOS | **parcial** | Hecho el 31 de agosto: ver (la recomendación ahora se muestra; antes solo el patrón), corregir con sus palabras, descartar —deja de llegarle a EOS—, restaurar y eliminar (`eos_gestionar_aprendizaje_v96`). Los descartados quedan plegados, no desaparecen. **Falta** aplicar la v96 y el recorrido con sesión. |
 | 18 | Decisiones y seguimiento | **parcial** | `api/decisions` y `api/decisions/[id]/results`. Falta certificar responsable, fecha y vínculo con la conversación de origen. |
 | 19 | Briefing diario | **parcial** | `api/cron/briefing-diario` y preferencias. Falta certificar horario paraguayo, no-duplicado y el enlace correcto. |
-| 20 | Alertas de riesgo | **parcial** | `api/finanzas/riesgo` cubre faltante y vencimientos. Falta inventario bajo, cobros pendientes y el control de alarmas repetidas. |
+| 20 | Alertas de riesgo | **parcial** | Faltante de plata y vencimientos ya estaban, con control de repetición. El 31 de agosto se sumaron **inventario bajo y cobros demorados** (`lib/erp/riesgos-negocio.ts`, 12 tests), con una clave por riesgo que impide repetirlo y lo vuelve a permitir si el problema se resolvió y volvió. Salen por la misma ruta que ve la pantalla. **Falta** aplicar la v97 y los "gastos anormales", que no se encienden hasta poder distinguirlos de la compra anual del seguro. |
 
 ---
 
@@ -227,7 +227,7 @@ próxima retome desde v94.
 
 ## Migraciones escritas y todavía sin aplicar
 
-Tres, y las tres esperan el mismo momento: **después de mergear y desplegar la
+Cuatro, y las cuatro esperan el mismo momento: **después de mergear y desplegar la
 rama**. `supabase db push` aplica todas las pendientes de una, así que van
 juntas aunque solo una lo exija de verdad.
 
@@ -236,6 +236,7 @@ juntas aunque solo una lo exija de verdad.
 | `20260831160000_..._v94` | `eos_contexto_negocio` devuelve una cifra por moneda | **Es la que manda.** El código desplegado hoy lee esos campos como números; con la base nueva, cada prompt se llena de `₲ NaN`. Al revés no pasa nada. |
 | `20260831180000_..._v95` | Revertir un cobro de Bancard | Aditiva, no rompe nada. Va junto con la v94 porque `db push` no las separa. |
 | `20260831200000_..._v96` | Corregir aprendizajes y rehacer el onboarding | Idem. |
+| `20260831220000_..._v97` | Recordar qué aviso del negocio ya se mandó | Idem. Sin ella, los avisos de inventario y cobros no se envían (el código calla si no puede leer el historial, que es lo correcto). |
 
 Después de aplicarlas: `npm run certificar -- 11` tiene que pasar de 7/8 a 8/8,
 y las tres comprobaciones amarillas de la reversión ponerse verdes.
