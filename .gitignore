@@ -51,3 +51,9 @@ docs/backups/
 
 # Config local de Claude Code (la de preview sí se versiona)
 .claude/settings.local.json
+
+# Material de presentación y video: pesado, se regenera, no es código de EOS
+.video-build/
+*.pptx
+*.mp4
+*.inspect.ndjson

@@ -462,8 +462,8 @@ export default function Home() {
             <div className="section-eyebrow">Gestión para emprendedores y pymes</div>
             <div className="section-title">Tu operación comercial, conectada dentro de EOS</div>
             <p className="business-intro">
-              Un ERP y CRM práctico para ordenar el trabajo diario sin sumar sistemas aislados ni volver a cargar la
-              misma información, con los datos de cada cuenta separados dentro de EOS.
+              Gestión empresarial integrada para centralizar ventas, compras, inventario, clientes y finanzas sin
+              volver a cargar la misma información, con los datos de cada cuenta separados dentro de EOS.
             </p>
           </Reveal>
 
