@@ -72,7 +72,7 @@ lista** y no depende de nadie externo.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. Falta patrimonio y evolución. |
-| 22 | Multimoneda | **parcial** | El panel financiero ya separaba por moneda. El **ERP y el CRM no**: se corrigió el 31 de agosto (ver abajo). Falta mostrar tipo de cambio con origen y fecha, y falta `eos_contexto_negocio` (v82), que sigue sumando ventas, por cobrar, por pagar y oportunidades entre monedas y se lo cuenta así a EOS en el chat. |
+| 22 | Multimoneda | **parcial** | Cerrado el 31 de agosto en ERP, CRM y contexto del chat: la moneda del documento sale de sus líneas, un trigger (v93) rechaza mezclarlas —verificado contra la base real—, el embudo se calcula por moneda y `eos_contexto_negocio` (v94) devuelve una cifra por moneda. **Falta** mostrar tipo de cambio con origen y fecha, y aplicar la v94, que va después del deploy. |
 | 23 | Trazabilidad de cada número | **abierto** | No hay camino de un total a los movimientos que lo componen. |
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
 | 25 | Conexiones automáticas | **abierto** | Solo lectura de correo. Ninguna integración bancaria. El alcance congelado lo saca del anuncio. |
@@ -120,7 +120,7 @@ lista** y no depende de nadie externo.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 48 | Experiencia y accesibilidad | **abierto** | Sin auditoría de teclado, contraste, lectores de pantalla, estados vacíos ni conexión lenta. |
-| 49 | Puerta automática de calidad | **parcial** | `.github/workflows/evals.yml` corre `npm test`, `npm run evals` y `tsc --noEmit` bloqueando; `lint` informa pero **no bloquea** (42 errores de deuda vieja). No hay pruebas SQL, ni de seguridad, ni recorridos de navegador. |
+| 49 | Puerta automática de calidad | **parcial** | `.github/workflows/evals.yml` corre `npm test`, `npm run evals` y `tsc --noEmit` bloqueando; `lint` informa pero **no bloquea**. De 42 errores quedan **41**: 36 son `any`, casi todos el mismo patrón (`createAdminClient()` casteado porque los tipos generados no conocen esos RPC) y se consolidan en un solo lugar; 5 son `react-hooks/set-state-in-effect`, que **no se pueden satisfacer sin cambiar cómo carga datos toda la app** (ver hallazgo 2). Ya existe la primera prueba SQL (`supabase/tests/`). Faltan las de seguridad y los recorridos de navegador. |
 | 50 | Piloto y simulacro | **bloqueado** | Depende del segundo proyecto Supabase. |
 
 ---
@@ -184,11 +184,33 @@ Se arregla igual que el embudo: agrupar por moneda y devolver una cifra por
 cada una. Requiere reemplazar la función de la v82, que es la única que la
 define, así que se puede reproducir y enmendar sin riesgo de perder parches.
 
-### 2. El lint no bloquea y esconde seis errores reales — ABIERTO
+### 2. `set-state-in-effect` no se puede satisfacer con este patrón — ABIERTO
 
-De los 42, seis son `react-hooks/set-state-in-effect` en React 19
-(`app/admin/pagos`, `app/admin/salud`, `app/eos/autonomy`). Los otros 36 son
-deuda vieja de `any` en Bancard y el worker. Ver punto 49.
+Primero pareció que los seis eran arreglables uno por uno. No lo son, y conviene
+dejar escrito por qué antes de que alguien lo vuelva a intentar.
+
+**Uno sí lo era** y está arreglado: `PagoTarjeta.tsx` ponía el aviso de la vuelta
+de Bancard con `setAviso` dentro del efecto, así que el usuario veía un render en
+blanco y el mensaje recién en el segundo. Ahora sale del estado inicial.
+
+**Los otros cinco no.** La regla marca cualquier llamada, desde un efecto, a una
+función que en algún momento toca `setState` — sin importar si eso pasa antes o
+después del primer `await`. La prueba está en `MisTarjetas.tsx`: ya no tenía
+ningún `setState` síncrono, con un comentario que lo explicaba, y la regla lo
+marca igual.
+
+O sea que no se sale de esto quitando líneas: hay que cambiar cómo carga datos
+toda la app (un hook de datos propio, o `use()` con Suspense). Es una decisión de
+arquitectura, no una limpieza.
+
+**Mientras tanto la puerta no puede bloquear por lint**, porque nunca llegaría a
+cero. Dos caminos: hacer ese refactor, o bajar esta regla sola a aviso —con el
+motivo escrito en la config— y bloquear por todo lo demás. El segundo es el que
+convierte la puerta en una puerta.
+
+Y los 36 `any`: casi todos son `createAdminClient()` casteado porque los tipos
+generados no conocen esos RPC. Se resuelven con un único ayudante nombrado y
+documentado, y pasan de 36 a 1.
 
 ### 3. Numeración de migraciones duplicada — MENOR
 
