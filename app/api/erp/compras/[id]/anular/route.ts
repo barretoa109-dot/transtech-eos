@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,18 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const motivo = String(cuerpo?.motivo ?? "").trim().slice(0, 500);
   if (motivo.length < 3) return respuesta("Indicá por qué anulás la compra.", 400);
 
-  const { data, error } = await adminSinTipos().rpc("eos_erp_anular_compra", {
+  const admin = adminSinTipos();
+
+  // El estado y el total antes de tocar nada: después de anular ya no se puede
+  // saber cuánto valía.
+  const { data: antes } = await admin
+    .from("eos_erp_compras")
+    .select("estado,total,moneda,fecha")
+    .eq("id", id)
+    .eq("usuario_id", puerta.usuarioId)
+    .maybeSingle();
+
+  const { data, error } = await admin.rpc("eos_erp_anular_compra", {
     p_usuario_id: puerta.usuarioId,
     p_compra_id: id,
     p_motivo: motivo,
@@ -24,10 +37,49 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
   if (error) {
     const texto = String(error.message ?? "");
+
+    await registrarOperacionErp(admin, {
+      usuarioId: puerta.usuarioId,
+      evento: "compra_anulada",
+      origen: "panel",
+      resumen: `Intento de anular la compra ${id.slice(0, 8)}, rechazado`,
+      referencia: id,
+      resultado: "error",
+      motivo,
+      extra: { error: texto.slice(0, 120) },
+    });
+
     if (texto.includes("EOS_COMPRA_NO_EXISTE")) return respuesta("Compra no encontrada.", 404);
     console.error("ERP: no se pudo anular la compra:", error);
     return respuesta("No pudimos anular la compra.", 503);
   }
+
+  /*
+   * El detalle del costo va al registro completo.
+   *
+   * Anular una compra decide si el costo del producto se rebobina o se
+   * preserva, según haya compras posteriores o ediciones manuales. Esa decisión
+   * es exactamente la que después nadie puede reconstruir mirando la tabla, así
+   * que queda asentada acá con sus tres números.
+   */
+  await registrarOperacionErp(admin, {
+    usuarioId: puerta.usuarioId,
+    evento: "compra_anulada",
+    origen: "panel",
+    resumen: `Compra anulada por ${formatearMonto(Number(antes?.total ?? 0), String(antes?.moneda ?? "PYG"))}`,
+    referencia: id,
+    resultado: "ok",
+    motivo,
+    antes: { estado: antes?.estado ?? null, total: Number(antes?.total ?? 0), fecha: antes?.fecha ?? null },
+    despues: { estado: "anulada" },
+    extra: {
+      ya_estaba: data?.ya_estaba === true,
+      productos_retirados: Number(data?.productos_retirados ?? 0),
+      costos_restaurados: Number(data?.costos_restaurados ?? 0),
+      costos_preservados: Number(data?.costos_preservados ?? 0),
+      movimiento_borrado: data?.movimiento_borrado === true,
+    },
+  });
 
   return NextResponse.json(data, { headers: noStore() });
 }

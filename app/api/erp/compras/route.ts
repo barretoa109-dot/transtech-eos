@@ -6,6 +6,8 @@ import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { normalizarItemsErp } from "@/lib/erp/entrada";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +149,26 @@ export async function POST(request: Request) {
       { status: 503, headers: noStore() },
     );
   }
+
+  await registrarOperacionErp(adminSinTipos(), {
+    usuarioId: puerta.usuarioId,
+    evento: "compra_registrada",
+    origen: "panel",
+    resumen: `Compra registrada por ${formatearMonto(
+      Number(data?.total ?? 0),
+      monedaConocida(cuerpo.moneda),
+    )}`,
+    referencia: String(data?.compra_id ?? data?.id ?? ""),
+    resultado: "ok",
+    despues: {
+      total: Number(data?.total ?? 0),
+      condicion: cuerpo.condicion === "credito" ? "credito" : "contado",
+      pagada: data?.movimiento_id ? true : false,
+    },
+    // Registrar una compra pisa el costo de cada producto. Cuántos, queda acá:
+    // es el rastro de por qué un margen cambió de un día para el otro.
+    extra: { items: items.length },
+  });
 
   return NextResponse.json(data, { status: 201, headers: noStore() });
 }

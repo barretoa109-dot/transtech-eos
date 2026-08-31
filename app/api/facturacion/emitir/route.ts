@@ -7,6 +7,8 @@ import { generarCdc, numeroFormateado } from "@/lib/facturacion/cdc";
 import { armarComprobante } from "@/lib/facturacion/comprobante";
 import { guardarDocumento } from "@/lib/documentos/guardar";
 import { hoyEnParaguay } from "@/lib/fecha";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -219,6 +221,29 @@ export async function POST(request: Request) {
     usuarioId: puerta.usuarioId,
     documento: comprobante,
     formato: "pdf",
+  });
+
+  /*
+   * Emitir quema un número correlativo, y eso no se puede devolver.
+   *
+   * De todas las operaciones del ERP es la única con consecuencia hacia
+   * AFUERA: el día que este comprobante se firme y se envíe a la SET, la
+   * numeración tiene que ser continua y explicable. Un hueco sin registro es
+   * exactamente lo que no se le puede explicar a un fiscalizador.
+   */
+  await registrarOperacionErp(adminSinTipos(), {
+    usuarioId: puerta.usuarioId,
+    evento: "comprobante_emitido",
+    origen: "panel",
+    resumen: `Comprobante ${numeroFormateado(establecimiento, punto, Number(numero))} emitido como borrador`,
+    referencia: String((documento as Record<string, unknown>).id ?? ""),
+    resultado: "ok",
+    despues: {
+      numero: numeroFormateado(establecimiento, punto, Number(numero)),
+      cdc: cdc.valor,
+      estado: "borrador",
+    },
+    extra: { venta_id: String(ventaId ?? "") },
   });
 
   return NextResponse.json(

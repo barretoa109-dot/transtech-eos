@@ -6,6 +6,8 @@ import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { normalizarItemsErp } from "@/lib/erp/entrada";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +160,26 @@ export async function POST(request: Request) {
       { status: 503, headers: noStore() },
     );
   }
+
+  await registrarOperacionErp(adminSinTipos(), {
+    usuarioId: puerta.usuarioId,
+    evento: "venta_registrada",
+    origen: "panel",
+    resumen: `Venta registrada por ${formatearMonto(
+      Number(data?.total ?? 0),
+      monedaConocida(cuerpo.moneda),
+    )}`,
+    referencia: String(data?.venta_id ?? data?.id ?? ""),
+    resultado: "ok",
+    // Sin "antes": una venta nueva no tenía estado anterior. Poner un objeto
+    // vacío sería sugerir que sí y que estaba en blanco.
+    despues: {
+      total: Number(data?.total ?? 0),
+      condicion: cuerpo.condicion === "credito" ? "credito" : "contado",
+      cobrada: data?.movimiento_id ? true : false,
+    },
+    extra: { items: items.length },
+  });
 
   return NextResponse.json(data, { status: 201, headers: noStore() });
 }

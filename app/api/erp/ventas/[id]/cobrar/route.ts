@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,22 @@ export async function POST(_request: Request, contexto: { params: Promise<{ id: 
       { status: 503, headers: noStore() },
     );
   }
+
+  /*
+   * Cobrar y pagar crean un movimiento financiero: es el momento exacto en
+   * que un número del panel cambia sin que el usuario haya tocado finanzas.
+   * Sin esta línea, ese ingreso aparece y no hay dónde ver de dónde salió.
+   */
+  await registrarOperacionErp(adminSinTipos(), {
+    usuarioId: puerta.usuarioId,
+    evento: "venta_cobrada",
+    origen: "panel",
+    resumen: "Venta cobrada: el ingreso entró al panel",
+    referencia: id,
+    resultado: "ok",
+    despues: { movimiento_id: String(data?.movimiento_id ?? "") },
+    extra: { ya_estaba: data?.ya_estaba === true },
+  });
 
   return NextResponse.json(data, { headers: noStore() });
 }

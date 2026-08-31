@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,19 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const motivo = String(cuerpo?.motivo ?? "").trim().slice(0, 500);
   if (motivo.length < 3) return respuesta("Indicá por qué anulás la venta.", 400);
 
-  const { data, error } = await adminSinTipos().rpc("eos_erp_anular_venta", {
+  const admin = adminSinTipos();
+
+  // El estado y el total ANTES de tocar nada. Después de anular ya no se puede
+  // saber cuánto valía, y "cuánto era" es la primera pregunta que se hace
+  // alguien seis meses más tarde mirando por qué el saldo no cierra.
+  const { data: antes } = await admin
+    .from("eos_erp_ventas")
+    .select("estado,total,moneda,fecha")
+    .eq("id", id)
+    .eq("usuario_id", puerta.usuarioId)
+    .maybeSingle();
+
+  const { data, error } = await admin.rpc("eos_erp_anular_venta", {
     p_usuario_id: puerta.usuarioId,
     p_venta_id: id,
     p_motivo: motivo,
@@ -24,6 +38,26 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
   if (error) {
     const texto = String(error.message ?? "");
+
+    /*
+     * El intento fallido también se asienta.
+     *
+     * Una bitácora que solo guarda lo que salió bien no sirve para la consulta
+     * más frecuente: por qué algo NO pasó. "Se intentó anular y la base lo
+     * rechazó porque hay una factura emitida" es la línea que le contesta al
+     * usuario que jura haberla anulado.
+     */
+    await registrarOperacionErp(admin, {
+      usuarioId: puerta.usuarioId,
+      evento: "venta_anulada",
+      origen: "panel",
+      resumen: `Intento de anular la venta ${id.slice(0, 8)}, rechazado`,
+      referencia: id,
+      resultado: texto.includes("EOS_VENTA_CON_FACTURA") ? "rechazado" : "error",
+      motivo,
+      extra: { error: texto.slice(0, 120) },
+    });
+
     if (texto.includes("EOS_VENTA_NO_EXISTE")) return respuesta("Venta no encontrada.", 404);
     if (texto.includes("EOS_VENTA_CON_FACTURA")) {
       return respuesta("La venta tiene un documento fiscal emitido y requiere una anulación fiscal.", 409);
@@ -31,6 +65,23 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     console.error("ERP: no se pudo anular la venta:", error);
     return respuesta("No pudimos anular la venta.", 503);
   }
+
+  await registrarOperacionErp(admin, {
+    usuarioId: puerta.usuarioId,
+    evento: "venta_anulada",
+    origen: "panel",
+    resumen: `Venta anulada por ${formatearMonto(Number(antes?.total ?? 0), String(antes?.moneda ?? "PYG"))}`,
+    referencia: id,
+    resultado: "ok",
+    motivo,
+    antes: { estado: antes?.estado ?? null, total: Number(antes?.total ?? 0), fecha: antes?.fecha ?? null },
+    despues: { estado: "anulada" },
+    extra: {
+      ya_estaba: data?.ya_estaba === true,
+      productos_devueltos: Number(data?.productos_devueltos ?? 0),
+      movimiento_borrado: data?.movimiento_borrado === true,
+    },
+  });
 
   return NextResponse.json(data, { headers: noStore() });
 }

@@ -19,7 +19,25 @@ export type EventoAuditoria =
   | "accion_autorizada"
   | "accion_rechazada"
   | "datos_exportados"
-  | "conciliacion_registrada";
+  | "conciliacion_registrada"
+  /*
+   * Las operaciones del ERP (v98).
+   *
+   * Antes ninguna quedaba asentada acá: la bitácora cubría la ingesta y la
+   * autonomía, o sea por dónde entra la plata y qué autorizó el usuario, pero
+   * no lo que él mismo hace en el negocio. Un stock que no cierra, un costo
+   * que cambió sin que nadie sepa cuándo, una venta que alguien anuló el mes
+   * pasado — nada de eso tenía dónde mirarse.
+   */
+  | "venta_registrada"
+  | "venta_cobrada"
+  | "venta_anulada"
+  | "compra_registrada"
+  | "compra_pagada"
+  | "compra_anulada"
+  | "stock_ajustado"
+  | "producto_modificado"
+  | "comprobante_emitido";
 
 export type OrigenAuditoria = "correo" | "documento" | "chat" | "panel" | "sistema";
 
@@ -89,6 +107,46 @@ export function limpiarDetalle(detalle: Record<string, unknown> | undefined): Re
     }
     // Objetos y arrays quedan afuera a propósito: son el camino por el que se
     // cuela un payload entero sin que nadie lo note.
+  }
+
+  /*
+   * La excepción, y por qué es la única.
+   *
+   * El punto 42 pide "valores anteriores y nuevos" de cada operación sensible.
+   * Eso es, inevitablemente, un objeto — y la regla de arriba los descarta a
+   * todos. Sin la excepción, un `antes: {costo: 1000}` se perdía en silencio,
+   * que es el peor de los dos mundos: quien escribe cree que quedó asentado.
+   *
+   * Se admiten SOLO dos claves, SOLO un nivel, y cada campo pasa por la misma
+   * criba que los de arriba. Un objeto anidado adentro sigue sin entrar, así
+   * que el camino por el que se colaría un payload entero sigue cerrado.
+   */
+  for (const clave of ["antes", "despues"] as const) {
+    const valor = detalle[clave];
+
+    if (!valor || typeof valor !== "object" || Array.isArray(valor)) continue;
+
+    const plano: Record<string, unknown> = {};
+
+    for (const [campo, contenido] of Object.entries(valor as Record<string, unknown>)) {
+      const nombre = campo.toLowerCase();
+
+      if (CLAVES_PROHIBIDAS.some((prohibida) => nombre.includes(prohibida))) continue;
+      if (contenido === undefined) continue;
+
+      // `null` SÍ entra acá, a diferencia de arriba: "el costo era null y ahora
+      // es 1000" es exactamente el cambio que hay que poder ver.
+      if (contenido === null) {
+        plano[campo] = null;
+      } else if (typeof contenido === "string") {
+        plano[campo] =
+          contenido.length > MAX_TEXTO ? `${contenido.slice(0, MAX_TEXTO)}…` : contenido;
+      } else if (typeof contenido === "number" || typeof contenido === "boolean") {
+        plano[campo] = contenido;
+      }
+    }
+
+    if (Object.keys(plano).length > 0) limpio[clave] = plano;
   }
 
   return limpio;
@@ -166,4 +224,80 @@ export function resumirMovimiento(args: {
   const verbo = args.tipo === "ingreso" ? "Ingreso" : "Gasto";
 
   return `${verbo} de ${simbolo} ${monto} — ${args.descripcion} (${args.fuente})`;
+}
+
+/**
+ * Una operación del negocio, asentada siempre con la misma forma.
+ *
+ * ============================================================
+ * POR QUÉ UN AYUDANTE Y NO LLAMAR A `registrarAuditoria` DIRECTO
+ * ============================================================
+ *
+ * El punto 42 pide que cada operación sensible registre actor, fecha, valores
+ * anteriores y nuevos, motivo, origen y resultado. Escribir eso a mano en las
+ * nueve rutas del ERP garantiza que en dos de ellas falte el motivo, en otra el
+ * "antes", y que un auditor descubra el hueco justo cuando importa.
+ *
+ * Acá la forma es una sola y el tipo la exige. Si mañana se agrega un campo
+ * obligatorio, no compila hasta que las nueve lo tengan.
+ *
+ * ============================================================
+ * `resultado` VA AUNQUE SEA "ok"
+ * ============================================================
+ *
+ * Registrar solo lo que salió bien deja una bitácora que no sirve para lo que
+ * más se consulta: por qué algo NO pasó. "Se intentó anular la venta X y la
+ * base lo rechazó porque tiene una factura emitida" es la línea que le contesta
+ * al usuario que jura haberla anulado.
+ *
+ * La fecha y el actor no se pasan: los pone la tabla y la sesión. Si quien
+ * escribe pudiera elegir la fecha, podría antedatar.
+ */
+export type OperacionErp = {
+  usuarioId: string;
+  evento: Extract<
+    EventoAuditoria,
+    | "venta_registrada"
+    | "venta_cobrada"
+    | "venta_anulada"
+    | "compra_registrada"
+    | "compra_pagada"
+    | "compra_anulada"
+    | "stock_ajustado"
+    | "producto_modificado"
+    | "comprobante_emitido"
+  >;
+  /** `panel` si vino de la pantalla, `chat` si lo pidió EOS. */
+  origen: Extract<OrigenAuditoria, "panel" | "chat">;
+  /** Una línea legible: "Venta de ₲ 250.000 a Comercial San Juan". */
+  resumen: string;
+  /** El documento o producto sobre el que se operó. */
+  referencia: string;
+  resultado: "ok" | "rechazado" | "error";
+  /** Obligatorio en anulaciones y ajustes; el resto puede no tenerlo. */
+  motivo?: string | null;
+  antes?: Record<string, unknown>;
+  despues?: Record<string, unknown>;
+  /** Cualquier otro dato plano que ayude a entender qué pasó. */
+  extra?: Record<string, unknown>;
+};
+
+export async function registrarOperacionErp(
+  admin: ClienteAdmin,
+  operacion: OperacionErp,
+): Promise<boolean> {
+  return registrarAuditoria(admin, {
+    usuarioId: operacion.usuarioId,
+    evento: operacion.evento,
+    origen: operacion.origen,
+    resumen: operacion.resumen,
+    referencia: operacion.referencia,
+    detalle: {
+      ...(operacion.extra ?? {}),
+      resultado: operacion.resultado,
+      ...(operacion.motivo ? { motivo: operacion.motivo } : {}),
+      ...(operacion.antes ? { antes: operacion.antes } : {}),
+      ...(operacion.despues ? { despues: operacion.despues } : {}),
+    },
+  });
 }

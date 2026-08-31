@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,18 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     );
   }
 
-  const { data, error } = await adminSinTipos().rpc("eos_erp_ajustar_stock", {
+  const admin = adminSinTipos();
+
+  // El saldo antes del ajuste. Es el dato que después nadie puede reconstruir:
+  // el movimiento de stock guarda el resultante, no de dónde venía.
+  const { data: antes } = await admin
+    .from("eos_erp_productos")
+    .select("nombre,stock_actual")
+    .eq("id", id)
+    .eq("usuario_id", puerta.usuarioId)
+    .maybeSingle();
+
+  const { data, error } = await admin.rpc("eos_erp_ajustar_stock", {
     p_usuario_id: puerta.usuarioId,
     p_producto_id: id,
     p_stock_contado: contado,
@@ -116,6 +128,29 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
       { status: 503, headers: noStore() },
     );
   }
+
+  /*
+   * Un ajuste de stock es la operación que más se consulta hacia atrás.
+   *
+   * Cuando un saldo no cierra, la pregunta es siempre la misma: quién lo tocó,
+   * cuándo, de cuánto a cuánto, y por qué. El movimiento de stock guarda el
+   * saldo resultante y el motivo, pero no el saldo del que se partía — y sin
+   * eso no se puede saber si el ajuste fue de dos unidades o de doscientas.
+   */
+  await registrarOperacionErp(admin, {
+    usuarioId: puerta.usuarioId,
+    evento: "stock_ajustado",
+    origen: "panel",
+    resumen:
+      `Stock de ${antes?.nombre ?? "un producto"} ajustado de ` +
+      `${Number(antes?.stock_actual ?? 0)} a ${Number(data?.stock_actual ?? data?.saldo ?? 0)}`,
+    referencia: id,
+    resultado: "ok",
+    motivo,
+    antes: { stock_actual: Number(antes?.stock_actual ?? 0) },
+    despues: { stock_actual: Number(data?.stock_actual ?? data?.saldo ?? 0) },
+    extra: { modo: contado === null ? "diferencia" : "conteo" },
+  });
 
   return NextResponse.json(data, { headers: noStore() });
 }

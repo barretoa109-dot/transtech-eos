@@ -153,3 +153,60 @@ test("registrarAuditoria manda solo los campos que le corresponde decidir", asyn
     "usuario_id",
   ]);
 });
+
+// ============================================================
+// Antes y después: la excepción del punto 42
+// ============================================================
+//
+// `limpiarDetalle` descarta objetos a propósito. `antes` y `despues` son la
+// única excepción, y tiene que seguir siendo tan estrecha como se escribió.
+
+test("el antes y el después se guardan, a diferencia de cualquier otro objeto", () => {
+  const limpio = limpiarDetalle({
+    antes: { costo: 1000, nombre: "Harina" },
+    despues: { costo: 1500, nombre: "Harina" },
+    otro_objeto: { algo: "que no pasa" },
+  });
+
+  assert.deepEqual(limpio.antes, { costo: 1000, nombre: "Harina" });
+  assert.deepEqual(limpio.despues, { costo: 1500, nombre: "Harina" });
+  assert.equal(limpio.otro_objeto, undefined);
+});
+
+test("un null adentro del antes SÍ se guarda: es el cambio que hay que ver", () => {
+  const limpio = limpiarDetalle({ antes: { costo: null }, despues: { costo: 1000 } });
+
+  assert.deepEqual(limpio.antes, { costo: null });
+  assert.deepEqual(limpio.despues, { costo: 1000 });
+});
+
+test("las claves prohibidas tampoco entran adentro del antes", () => {
+  const limpio = limpiarDetalle({
+    antes: { costo: 100, api_key: "secreta", cuerpo: "el correo entero" },
+  });
+
+  assert.deepEqual(limpio.antes, { costo: 100 });
+});
+
+test("un objeto anidado adentro del antes sigue sin entrar", () => {
+  const limpio = limpiarDetalle({
+    antes: { costo: 100, payload: { todo: "el cuerpo", del: "correo" } },
+  });
+
+  assert.deepEqual(limpio.antes, { costo: 100 });
+});
+
+test("un antes que es un array o queda vacío no ensucia el detalle", () => {
+  assert.equal(limpiarDetalle({ antes: [1, 2, 3] }).antes, undefined);
+  assert.equal(limpiarDetalle({ antes: { token: "x" } }).antes, undefined);
+  assert.equal(limpiarDetalle({ antes: null }).antes, undefined);
+});
+
+test("los textos largos del antes se recortan igual que los de afuera", () => {
+  const largo = "x".repeat(500);
+  const limpio = limpiarDetalle({ antes: { notas: largo } });
+
+  const notas = (limpio.antes as Record<string, string>).notas;
+  assert.ok(notas.length < 250);
+  assert.ok(notas.endsWith("…"));
+});
