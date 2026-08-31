@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { verificarArchivo } from "./verificar.ts";
+import { avisoDeCifras, cifrasContradictorias, verificarArchivo } from "./verificar.ts";
 import { crearExcelDocumento } from "./excel.ts";
 import { crearPdfDocumento } from "./pdf.ts";
 import { crearWordDocumento } from "./word.ts";
@@ -122,4 +122,155 @@ test("un PDF con la firma correcta pero sin cierre no se entrega", () => {
   const resultado = verificarArchivo("pdf", falso);
   assert.equal(resultado.ok, false);
   assert.match((resultado as { motivo: string }).motivo, /cortado/);
+});
+
+// ============================================================
+// Cifras que se contradicen entre sí
+// ============================================================
+//
+// Un archivo que no abre se nota enseguida. Uno cuyo total está mal se nota
+// tarde y delante de otro.
+
+test("una tabla cuyo total sí suma no genera ningún problema", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        titulo: "Gastos",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [
+          ["Alquiler", 2_500_000],
+          ["Servicios", 480_000],
+          ["Total", 2_980_000],
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("un total que no coincide con sus filas se detecta", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        titulo: "Gastos",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [
+          ["Alquiler", 2_500_000],
+          ["Servicios", 480_000],
+          ["Total", 3_000_000],
+        ],
+      },
+    ],
+  });
+
+  assert.equal(problemas.length, 1);
+  assert.equal(problemas[0].declarado, 3_000_000);
+  assert.equal(problemas[0].suma, 2_980_000);
+  assert.equal(problemas[0].columna, "Monto");
+});
+
+test("una diferencia de redondeo no se marca como contradicción", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [
+          ["Uno", 100],
+          ["Dos", 200],
+          ["Total", 301],
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("los subtotales no se cuentan dos veces dentro del total general", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [
+          ["Alquiler", 1_000],
+          ["Luz", 500],
+          ["Subtotal fijos", 1_500],
+          ["Nafta", 300],
+          ["Total", 1_800],
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("una tabla sin fila de total no se toca", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [
+          ["Alquiler", 1_000],
+          ["Luz", 500],
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("una fila que dice Total sin filas numéricas arriba no se contrasta", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        columnas: [{ titulo: "Concepto" }, { titulo: "Monto" }],
+        filas: [["Total del mes", 5_000]],
+      },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("los bloques que no son tablas se ignoran", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      { tipo: "parrafo", texto: "Total: cualquier cosa" },
+      { tipo: "titulo", texto: "Total", nivel: 1 },
+    ],
+  });
+
+  assert.deepEqual(problemas, []);
+});
+
+test("el aviso nombra la columna, la tabla y los dos números", () => {
+  const problemas = cifrasContradictorias({
+    bloques: [
+      {
+        tipo: "tabla",
+        titulo: "Ventas del mes",
+        columnas: [{ titulo: "Cliente" }, { titulo: "Importe" }],
+        filas: [
+          ["Uno", 100],
+          ["Total", 900],
+        ],
+      },
+    ],
+  });
+
+  const texto = avisoDeCifras(problemas);
+
+  assert.match(texto, /Importe/);
+  assert.match(texto, /Ventas del mes/);
+  assert.match(texto, /900/);
+  assert.match(texto, /100/);
 });

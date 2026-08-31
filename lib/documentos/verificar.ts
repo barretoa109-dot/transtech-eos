@@ -140,3 +140,106 @@ function terminaConteniendo(cuerpo: Uint8Array, marca: number[], ventana: number
 
   return false;
 }
+
+/* ============================================================
+   Y que los números del documento no se contradigan entre sí
+   ============================================================
+
+   El verificador de arriba mira los BYTES. Esto mira el contenido, y atrapa
+   otra cosa: una tabla cuya fila "TOTAL" no suma sus propias filas.
+
+   Pasa porque quien describe el documento es un modelo de lenguaje. Puede
+   escribir doce filas correctas y un total redondeado de memoria, o arrastrar
+   el total de una versión anterior de la tabla. El renderizador lo imprime
+   fielmente, y el usuario recibe una planilla que se contradice a sí misma —
+   con la particularidad de que la va a descubrir recién cuando la muestre.
+
+   Un archivo que no abre se nota enseguida. Uno cuyo total está mal se nota
+   tarde y delante de otro. */
+
+export type ProblemaDeCifras = {
+  tabla: string;
+  columna: string;
+  declarado: number;
+  suma: number;
+};
+
+/** Cómo se llama una fila que dice ser el total de las de arriba. */
+const ES_FILA_TOTAL = /^\s*(total|totales|suma|sumatoria|subtotal)\b/i;
+
+/**
+ * Cuánto puede desviarse sin ser una contradicción.
+ *
+ * Cada fila puede haberse redondeado hasta medio guaraní para arriba o para
+ * abajo, así que con N filas la diferencia legítima máxima es N/2. Debajo de
+ * eso es redondeo; arriba, alguien sumó mal.
+ */
+function tolerancia(filas: number): number {
+  return Math.max(1, filas / 2);
+}
+
+export function cifrasContradictorias(documento: {
+  bloques: { tipo: string; [clave: string]: unknown }[];
+}): ProblemaDeCifras[] {
+  const problemas: ProblemaDeCifras[] = [];
+
+  for (const bloque of documento.bloques) {
+    if (bloque.tipo !== "tabla") continue;
+
+    const columnas = (bloque.columnas ?? []) as { titulo: string }[];
+    const filas = (bloque.filas ?? []) as (string | number | null)[][];
+    const titulo = String(bloque.titulo ?? "una tabla");
+
+    for (let i = 0; i < filas.length; i += 1) {
+      const primera = filas[i]?.[0];
+      if (typeof primera !== "string" || !ES_FILA_TOTAL.test(primera)) continue;
+
+      for (let j = 1; j < (filas[i]?.length ?? 0); j += 1) {
+        const declarado = filas[i][j];
+        if (typeof declarado !== "number" || !Number.isFinite(declarado)) continue;
+
+        // Se suman solo las filas ANTERIORES que no son a su vez un total: una
+        // tabla con subtotales por sección no puede contarlos dos veces.
+        let suma = 0;
+        let contadas = 0;
+
+        for (let k = 0; k < i; k += 1) {
+          const etiqueta = filas[k]?.[0];
+          if (typeof etiqueta === "string" && ES_FILA_TOTAL.test(etiqueta)) continue;
+
+          const celda = filas[k]?.[j];
+          if (typeof celda === "number" && Number.isFinite(celda)) {
+            suma += celda;
+            contadas += 1;
+          }
+        }
+
+        // Sin filas numéricas arriba no hay nada que contrastar: puede ser una
+        // tabla de una sola línea que dice "Total" por título.
+        if (contadas === 0) continue;
+
+        if (Math.abs(suma - declarado) > tolerancia(contadas)) {
+          problemas.push({
+            tabla: titulo,
+            columna: columnas[j]?.titulo ?? `columna ${j + 1}`,
+            declarado,
+            suma,
+          });
+        }
+      }
+    }
+  }
+
+  return problemas;
+}
+
+/** Lo que se le dice al usuario. Sin jerga y sin culparlo. */
+export function avisoDeCifras(problemas: ProblemaDeCifras[]): string {
+  const primero = problemas[0];
+
+  return (
+    `Este documento tiene un total que no coincide con sus filas ` +
+    `("${primero.columna}" en ${primero.tabla}: dice ${primero.declarado} y las filas suman ${primero.suma}). ` +
+    "No te lo entregamos así. Volvé a pedirlo."
+  );
+}

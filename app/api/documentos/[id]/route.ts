@@ -7,7 +7,7 @@ import { crearExcelDocumento } from "@/lib/documentos/excel";
 import { crearPdfDocumento } from "@/lib/documentos/pdf";
 import { crearWordDocumento } from "@/lib/documentos/word";
 import { esFormato, nombreDeArchivo, FORMATOS } from "@/lib/documentos/guardar";
-import { verificarArchivo } from "@/lib/documentos/verificar";
+import { avisoDeCifras, cifrasContradictorias, verificarArchivo } from "@/lib/documentos/verificar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,6 +75,31 @@ export async function GET(request: Request, contexto: { params: Promise<{ id: st
     console.error(`Documentos: la descripción guardada de ${id} ya no es válida:`, resultado.motivo);
     return NextResponse.json(
       { error: "Este documento quedó dañado y hay que volver a pedirlo." },
+      { status: 422, headers: noStore() },
+    );
+  }
+
+  /*
+   * Antes de dibujarlo: que los números no se contradigan entre sí.
+   *
+   * Quien describe el documento es un modelo de lenguaje, y puede escribir
+   * doce filas correctas y un total redondeado de memoria. El renderizador lo
+   * imprimiría fielmente y el usuario recibiría una planilla que se contradice
+   * sola — que además va a descubrir recién cuando la muestre.
+   *
+   * Se mira acá, antes de gastar el renderizado, y se frena: la lista dice que
+   * ningún archivo con cifras contradictorias debe descargarse.
+   */
+  const problemas = cifrasContradictorias(resultado.documento);
+
+  if (problemas.length > 0) {
+    console.error(
+      `Documentos: ${id} tiene ${problemas.length} total(es) que no cuadran:`,
+      problemas.map((p) => `${p.tabla}/${p.columna} dice ${p.declarado} y suma ${p.suma}`).join("; "),
+    );
+
+    return NextResponse.json(
+      { error: avisoDeCifras(problemas) },
       { status: 422, headers: noStore() },
     );
   }
