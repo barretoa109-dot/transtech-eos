@@ -6,10 +6,13 @@ declare
   v_usuario uuid := gen_random_uuid();
   v_producto uuid;
   v_compra uuid;
+  v_otra_compra uuid;
   v_item uuid;
+  v_otro_producto uuid;
   v_costo numeric(16,2);
   v_costo_guardado numeric(16,2);
   v_capturado boolean;
+  v_identidad_bloqueada boolean := false;
 begin
   insert into auth.users (id, email)
   values (v_usuario, 'erp-v92-' || v_usuario::text || '@test.local');
@@ -18,9 +21,17 @@ begin
   values (v_usuario, 'Producto costo NULL', null, false)
   returning id into v_producto;
 
+  insert into public.eos_erp_productos (usuario_id, nombre, costo, controla_stock)
+  values (v_usuario, 'Producto ajeno al ítem', 55, false)
+  returning id into v_otro_producto;
+
   insert into public.eos_erp_compras (usuario_id, estado)
   values (v_usuario, 'registrada')
   returning id into v_compra;
+
+  insert into public.eos_erp_compras (usuario_id, estado)
+  values (v_usuario, 'registrada')
+  returning id into v_otra_compra;
 
   -- Un cliente intenta falsificar ambos campos protegidos.
   insert into public.eos_erp_compra_items (
@@ -47,6 +58,41 @@ begin
 
   if v_costo_guardado is not null or v_capturado is distinct from true then
     raise exception 'TEST_V92_UPDATE_MODIFICO_HISTORIAL';
+  end if;
+
+  begin
+    update public.eos_erp_compra_items
+    set producto_id = v_otro_producto
+    where id = v_item;
+  exception
+    when others then
+      if sqlerrm like '%EOS_COMPRA_ITEM_IDENTIDAD_INMUTABLE%' then
+        v_identidad_bloqueada := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if not v_identidad_bloqueada then
+    raise exception 'TEST_V92_PERMITIO_CAMBIAR_IDENTIDAD';
+  end if;
+
+  v_identidad_bloqueada := false;
+  begin
+    update public.eos_erp_compra_items
+    set compra_id = v_otra_compra
+    where id = v_item;
+  exception
+    when others then
+      if sqlerrm like '%EOS_COMPRA_ITEM_IDENTIDAD_INMUTABLE%' then
+        v_identidad_bloqueada := true;
+      else
+        raise;
+      end if;
+  end;
+
+  if not v_identidad_bloqueada then
+    raise exception 'TEST_V92_PERMITIO_CAMBIAR_COMPRA';
   end if;
 
   -- Simula el paso siguiente de registrar compra: esa compra fijó costo 100.

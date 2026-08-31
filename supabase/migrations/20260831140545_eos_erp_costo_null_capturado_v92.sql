@@ -47,6 +47,11 @@ language plpgsql
 set search_path to ''
 as $function$
 begin
+  if new.compra_id is distinct from old.compra_id
+     or new.producto_id is distinct from old.producto_id then
+    raise exception 'EOS_COMPRA_ITEM_IDENTIDAD_INMUTABLE';
+  end if;
+
   new.costo_anterior := old.costo_anterior;
   new.costo_anterior_capturado := old.costo_anterior_capturado;
   return new;
@@ -59,8 +64,7 @@ revoke all on function public.eos_erp_preservar_costo_anterior_v92()
 drop trigger if exists eos_erp_compra_item_preservar_costo_v92
   on public.eos_erp_compra_items;
 create trigger eos_erp_compra_item_preservar_costo_v92
-  before update of costo_anterior, costo_anterior_capturado
-  on public.eos_erp_compra_items
+  before update on public.eos_erp_compra_items
   for each row execute function public.eos_erp_preservar_costo_anterior_v92();
 
 create or replace function public.eos_erp_anular_compra(

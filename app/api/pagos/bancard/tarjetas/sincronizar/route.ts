@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 import { bancardUserIdDe, reconciliarTarjetas } from "@/lib/bancard-tarjetas";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function POST() {
       return NextResponse.json({ error: "Debés iniciar sesión." }, { status: 401 });
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
     const bancardUserId = await bancardUserIdDe(admin, user.id);
 
     if (!bancardUserId) {

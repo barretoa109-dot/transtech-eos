@@ -19,7 +19,7 @@
  *  - Nada destructivo. Los chequeos leen, nunca escriben.
  */
 
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "../supabase/sin-tipos.ts";
 
 export type Chequeo = {
   nombre: string;
@@ -237,8 +237,7 @@ async function chequeosOperativos(): Promise<Chequeo[]> {
   let datos: Operativa;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
-    const { data, error } = await (createAdminClient() as any).rpc("eos_salud_operativa");
+    const { data, error } = await adminSinTipos().rpc("eos_salud_operativa");
 
     if (error) throw new Error(error.message);
 

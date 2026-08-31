@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Falta la referencia." }, { status: 400 });
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     const { data: solicitud } = await admin
       .from("solicitudes_pago")

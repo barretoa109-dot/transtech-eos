@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -374,7 +374,7 @@ export async function POST(request: Request) {
 
     const raw = new Uint8Array(await file.arrayBuffer());
     const checksum = createHash("sha256").update(raw).digest("hex");
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     const { data: duplicate, error: duplicateError } = await admin
       .from("eos_documents_v11")
@@ -533,7 +533,7 @@ export async function POST(request: Request) {
 
     if (uploadedPaths.length > 0) {
       try {
-        const admin: any = createAdminClient();
+        const admin = adminSinTipos();
         await admin.storage.from("eos-documents").remove(uploadedPaths);
       } catch (cleanupError) {
         console.error("No se pudo limpiar documento huérfano:", cleanupError);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +64,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
-  const { data, error } = await (createAdminClient() as any).rpc("eos_erp_ajustar_stock", {
+  const { data, error } = await adminSinTipos().rpc("eos_erp_ajustar_stock", {
     p_usuario_id: puerta.usuarioId,
     p_producto_id: id,
     p_stock_contado: contado,

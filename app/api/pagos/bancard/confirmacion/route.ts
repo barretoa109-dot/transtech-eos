@@ -1,12 +1,12 @@
 import { after } from "next/server";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 import {
   describirErrorBancard,
   getBancardKeys,
   llamarBancard,
   tokenConsultaConfirmacion,
 } from "@/lib/bancard";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: "error" }, { status: 400 });
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     // La transacción tiene que corresponder a un cobro que iniciamos.
     const { data: solicitud } = await admin

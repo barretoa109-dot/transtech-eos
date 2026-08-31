@@ -1,9 +1,9 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { POST as runWorkerGate } from "@/lib/worker-gate-handler";
 import { validateWorkerGatePayloadBinding } from "@/lib/worker-gate-payload-binding";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     // Retry/resume path. A command that already exists was previously brokered
     // for this exact request/action. We never create a new command here.

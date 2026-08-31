@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +16,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const motivo = String(cuerpo?.motivo ?? "").trim().slice(0, 500);
   if (motivo.length < 3) return respuesta("Indicá por qué anulás la venta.", 400);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC agregado por migración v78
-  const { data, error } = await (createAdminClient() as any).rpc("eos_erp_anular_venta", {
+  const { data, error } = await adminSinTipos().rpc("eos_erp_anular_venta", {
     p_usuario_id: puerta.usuarioId,
     p_venta_id: id,
     p_motivo: motivo,

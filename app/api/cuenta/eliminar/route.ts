@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 import { DELETE as eliminarTarjetaBancard } from "@/app/api/pagos/bancard/tarjetas/[id]/route";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,8 +56,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no cubren todas estas tablas
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
 
   // ---- 1. Tarjetas en Bancard (best effort) ----------------------------
   //

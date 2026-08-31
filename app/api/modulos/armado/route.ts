@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +64,7 @@ export async function POST(request: Request) {
 
   // El cliente tipado no conoce las funciones nuevas; mismo escape que usan
   // las rutas de pagos con sus RPC.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (createAdminClient() as any).rpc("eos_guardar_armado", {
+  const { data, error } = await adminSinTipos().rpc("eos_guardar_armado", {
     p_usuario_id: user.id,
     p_modulos: modulos,
     p_periodicidad: periodicidad,

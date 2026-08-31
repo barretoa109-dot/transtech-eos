@@ -12,6 +12,7 @@ import {
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -554,8 +555,7 @@ export async function POST(req: Request) {
      * las ventas sería peor que contestar sin las ventas.
      */
     const contextoPromise: Promise<ContextoNegocio | null> = Promise.resolve(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
-      (createAdminClient() as any).rpc("eos_contexto_negocio", { p_usuario_id: user.id }),
+      adminSinTipos().rpc("eos_contexto_negocio", { p_usuario_id: user.id }),
     )
       .then(({ data, error }: { data: ContextoNegocio | null; error: unknown }) => {
         if (error) {
@@ -649,7 +649,7 @@ export async function POST(req: Request) {
       fecha: new Date().toISOString(),
     };
 
-    const quotaAdmin: any = createAdminClient();
+    const quotaAdmin = adminSinTipos();
     const { data: quotaRaw, error: quotaError } = await quotaAdmin.rpc(
       "eos_reserve_message_quota_server_v75",
       {

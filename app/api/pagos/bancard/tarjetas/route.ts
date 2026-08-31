@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 import { bancardUserIdDe, reconciliarTarjetas } from "@/lib/bancard-tarjetas";
 import {
   describirErrorBancard,
@@ -9,6 +8,7 @@ import {
   llamarBancard,
   tokenCatastro,
 } from "@/lib/bancard";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +60,7 @@ export async function GET() {
       return NextResponse.json({ error: "Debés iniciar sesión." }, { status: 401 });
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
     const bancardUserId = await bancardUserIdDe(admin, user.id);
 
     // Nunca catastró: no hay nada que reconciliar, y tampoco es un error.
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     const periodicidadRetorno =
       body?.periodicidad === "anual" ? "anual" : body?.periodicidad === "mensual" ? "mensual" : "";
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     const { data: perfil, error: perfilError } = await admin
       .from("usuarios")

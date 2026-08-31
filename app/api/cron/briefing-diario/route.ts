@@ -3,10 +3,10 @@ import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,8 +114,7 @@ export async function GET(request: Request) {
   // va a alcanzar.
   after(async () => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen estas tablas
-      const cliente: any = createAdminClient();
+      const cliente = adminSinTipos();
       const clave = process.env.RESEND_API_KEY;
 
       const resumen = await avisarRiesgos(cliente, {
@@ -151,8 +150,7 @@ export async function GET(request: Request) {
   }
 
   const resend = new Resend(apiKey);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen estas tablas
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
   const hoy = hoyEnParaguay();
 
   const { data: preferencias, error: prefError } = await admin

@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "./supabase/sin-tipos.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -266,7 +266,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     const { data: userExists, error: userError } = await admin
       .from("usuarios")

@@ -1,7 +1,6 @@
 import { after } from "next/server";
 import { Resend } from "resend";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import {
   CONFIANZA_MINIMA_CORREO,
   extraerDeCorreo,
@@ -13,6 +12,7 @@ import {
   resumirMovimiento,
   type EntradaAuditoria,
 } from "@/lib/auditoria/registrar";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -105,8 +105,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignorado: true });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen las tablas del buzón todavía
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
 
   const { data: buzonCrudo, error: buzonError } = await admin
     .from("eos_finanzas_buzon")
@@ -166,8 +165,7 @@ async function procesar(args: {
   subject: string | null;
 }) {
   const { emailId, usuarioId } = args;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- los tipos generados no incluyen las tablas del buzón todavía
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
 
   try {
     const respuesta = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {

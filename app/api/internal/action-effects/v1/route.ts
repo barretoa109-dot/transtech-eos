@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       return respond({ ok: false, error: "command_id inválido." }, 400);
     }
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
     const { data, error } = await admin.rpc(
       "eos_execute_internal_effect_v64",
       { p_command_id: commandId },

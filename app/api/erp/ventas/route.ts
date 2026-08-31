@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { normalizarItemsErp } from "@/lib/erp/entrada";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -95,8 +95,7 @@ export async function POST(request: Request) {
 
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
-  const { data, error } = await (createAdminClient() as any).rpc("eos_erp_registrar_venta", {
+  const { data, error } = await adminSinTipos().rpc("eos_erp_registrar_venta", {
     p_usuario_id: puerta.usuarioId,
     p_items: items,
     p_contacto_id: typeof cuerpo.contacto_id === "string" ? cuerpo.contacto_id : null,

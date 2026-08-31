@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase-admin";
 import {
   describirErrorBancard,
   formatearMontoBancard,
@@ -9,6 +8,7 @@ import {
   llamarBancard,
   tokenSingleBuy,
 } from "@/lib/bancard";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
      */
     const armadoId = String(body?.armado_id || "").trim();
 
-    const admin: any = createAdminClient();
+    const admin = adminSinTipos();
 
     const { data: creado, error: crearError } = armadoId
       ? await admin.rpc("eos_bancard_crear_pago_armado_v71", {

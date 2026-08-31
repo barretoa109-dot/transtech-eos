@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
+import { adminSinTipos } from "./supabase/sin-tipos.ts";
 
 const POLICY_VERSION = "eos-worker-gate-v2";
 
@@ -126,7 +126,7 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
   // Let the canonical handler own the normal request-shape error contract.
   if (!isUuid(usuarioId) || !isUuid(requestId) || !action) return null;
 
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
   const { data: rule, error: ruleError } = await admin
     .from("eos_autonomy_rules_v12")
     .select("enabled,require_fresh_context")

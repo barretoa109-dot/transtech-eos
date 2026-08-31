@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createAdminClient } from "@/lib/supabase-admin";
 import { ejecutarCobroBancard } from "@/lib/bancard-cobro";
 import { hoyEnParaguay } from "@/lib/fecha";
 import {
@@ -9,6 +8,7 @@ import {
   type EnviarCorreo,
   type MotivoRenovacion,
 } from "@/lib/pagos/avisoRenovacion";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
-  const admin: any = createAdminClient();
+  const admin = adminSinTipos();
   const ahora = new Date();
 
   const hasta = new Date(ahora.getTime() + DIAS_ANTICIPACION * 86_400_000);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase-admin";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +27,7 @@ export async function POST(_request: Request, contexto: { params: Promise<{ id: 
     return NextResponse.json({ error: "Venta no encontrada." }, { status: 404, headers: noStore() });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
-  const { data, error } = await (createAdminClient() as any).rpc("eos_erp_cobrar_venta", {
+  const { data, error } = await adminSinTipos().rpc("eos_erp_cobrar_venta", {
     p_usuario_id: puerta.usuarioId,
     p_venta_id: id,
   });
