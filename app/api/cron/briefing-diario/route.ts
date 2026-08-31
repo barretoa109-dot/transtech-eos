@@ -154,6 +154,17 @@ export async function GET(request: Request) {
       });
 
       console.log("Negocio: avisos del día", negocio);
+
+      /*
+       * Y se barren los contadores de límite que ya no afectan a nadie.
+       *
+       * Va acá y no en `pg_cron`, que este proyecto no usa. Sin barrido, la
+       * tabla acumula una fila por cada visitante que alguna vez tocó una ruta
+       * pública — y aunque las claves sean opacas, guardar para siempre algo
+       * que ya no sirve es guardar de más.
+       */
+      const { data: limpiados } = await cliente.rpc("eos_limpiar_limites_v99");
+      console.log("Límites: contadores vencidos borrados:", limpiados ?? 0);
     } catch (error) {
       console.error("Briefing: falló la detección de riesgos:", error);
     }

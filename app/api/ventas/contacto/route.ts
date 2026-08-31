@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const runtime = "nodejs";
 
@@ -55,6 +57,33 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Ingresá un correo electrónico válido." },
         { status: 400 },
+      );
+    }
+
+    /*
+     * El techo va acá, después de validar y ANTES de mandar el correo.
+     *
+     * Después de validar, para que un pedido malformado no consuma cupo y un
+     * atacante no pueda gastarle el cupo a nadie con basura. Antes del correo,
+     * porque el correo es lo que cuesta: cada llamada quema cuota de Resend, y
+     * con ella los correos que sí importan — el briefing diario y los avisos
+     * de riesgo salen por la misma cuenta.
+     *
+     * Cinco cada quince minutos. Nadie manda seis consultas de ventas en un
+     * cuarto de hora; un bucle manda seis en un segundo.
+     */
+    const cupo = await consumirCupo(adminSinTipos(), {
+      ruta: "/api/ventas/contacto",
+      cabeceras: request.headers,
+      ventanaSegundos: 900,
+      maximo: 5,
+      secreto: secretoDelEntorno(),
+    });
+
+    if (!cupo.permitido) {
+      return respuestaSinCupo(
+        cupo,
+        "Recibimos varias consultas tuyas hace un momento. Esperá unos minutos y volvé a intentar.",
       );
     }
 

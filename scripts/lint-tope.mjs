@@ -49,7 +49,7 @@
 import { execSync } from "node:child_process";
 
 /** El estado de hoy, 31 de agosto de 2026. Solo puede bajar. */
-const TOPE = { errores: 24, avisos: 6 };
+const TOPE = { errores: 24, avisos: 5 };
 
 function contar() {
   let salida;
