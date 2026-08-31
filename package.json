@@ -10,7 +10,8 @@
     "test": "node --test \"lib/**/*.test.ts\"",
     "evals": "node evals/correr.ts",
     "evals:mutacion": "node evals/mutacion.mjs",
-    "certificar": "node certificacion/correr.mjs"
+    "certificar": "node certificacion/correr.mjs",
+    "lint:tope": "node scripts/lint-tope.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

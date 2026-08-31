@@ -39,18 +39,28 @@ jobs:
       # (`npm run evals:mutacion`) que se corre al agregar casos nuevos.
 
       # ============================================================
-      # Tipos y lint: informan, no bloquean (todavía)
+      # Tipos y lint: los dos bloquean
       # ============================================================
       #
-      # `tsc` sí tiene que pasar: el build de Next lo corre igual, así que un
-      # error de tipos ya rompe el despliegue. Adelantarlo acá solo hace que se
-      # entere antes quien abrió el PR.
+      # `tsc` tiene que pasar: el build de Next lo corre igual, así que un error
+      # de tipos ya rompe el despliegue. Adelantarlo acá solo hace que se entere
+      # antes quien abrió el PR.
       #
-      # `lint` arranca con `continue-on-error` porque hoy hay una deuda vieja de
-      # `any` en los módulos de Bancard y del worker, y bloquear el merge por
-      # eso frenaría trabajo que no tiene nada que ver. Lo que sí hace es
-      # ponerla a la vista en cada PR, para que deje de crecer en silencio: el
-      # día que llegue a cero, se saca esta línea y pasa a bloquear.
+      # `lint` no puede exigir cero todavía: quedan 24 errores heredados, casi
+      # todos JSON de Bancard sin contrato de tipos, y bloquear por ellos
+      # frenaría trabajo que no tiene nada que ver.
+      #
+      # Antes eso se resolvía con `continue-on-error: true` y un comentario que
+      # decía "para que deje de crecer en silencio". No servía: un chequeo que
+      # informa y no bloquea no impide que crezca, solo lo deja anotado en un
+      # log que nadie abre.
+      #
+      # `lint:tope` sí lo impide. Compara contra el número de hoy y falla si
+      # sube — y también si baja, pidiendo que se baje el tope, para que ese
+      # número no pueda mentir sobre el estado real. La deuda solo puede
+      # achicarse, y cada vez que se achica queda el commit que lo prueba.
+      #
+      # El día que llegue a cero se borra el script y esto vuelve a ser
+      # `npm run lint` a secas.
       - run: npx tsc --noEmit
-      - run: npm run lint
-        continue-on-error: true
+      - run: npm run lint:tope
