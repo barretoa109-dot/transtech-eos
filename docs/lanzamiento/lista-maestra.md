@@ -59,11 +59,11 @@ lista** y no depende de nadie externo.
 | --- | --- | --- | --- |
 | 11 | Registro e inicio de sesión | **parcial** | Correo, Google y Apple, recuperación, cierre de sesión y verificación contra contraseñas filtradas (`lib/pwnedPassword.ts`). Falta el recorrido certificado de enlace vencido, sesión expirada y cuenta duplicada. |
 | 12 | Onboarding conversacional | **parcial** | `/eos/onboarding` y `api/onboarding`, caso 07 de certificación. Falta verificar que cubra país, moneda, zona horaria y tipo de usuario sin formulario. |
-| 13 | Corregir el onboarding | **abierto** | No hay camino para reiniciar la configuración ni para decir "esto ya no me representa". |
+| 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** aplicar la v96 y el recorrido con sesión. |
 | 14 | Chat de punta a punta | **parcial** | Enviar, recibir y recuperar conversaciones andan. Falta certificar reintento, detención, adjuntos y reanudación tras desconexión. |
 | 15 | No inventar respuestas | **parcial** | `npm run evals` con corpus y auditoría por mutación (`evals:mutacion`). Falta el caso explícito de "no afirmar una acción no confirmada". |
 | 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate exige aprobación para las acciones ERP. Falta cubrir pagos, eliminaciones y documentos fiscales con el mismo criterio. |
-| 17 | Memoria de EOS | **parcial** | `api/learnings` guarda aprendizajes. Falta que el usuario pueda ver, corregir, ignorar y borrar cada uno. |
+| 17 | Memoria de EOS | **parcial** | Hecho el 31 de agosto: ver (la recomendación ahora se muestra; antes solo el patrón), corregir con sus palabras, descartar —deja de llegarle a EOS—, restaurar y eliminar (`eos_gestionar_aprendizaje_v96`). Los descartados quedan plegados, no desaparecen. **Falta** aplicar la v96 y el recorrido con sesión. |
 | 18 | Decisiones y seguimiento | **parcial** | `api/decisions` y `api/decisions/[id]/results`. Falta certificar responsable, fecha y vínculo con la conversación de origen. |
 | 19 | Briefing diario | **parcial** | `api/cron/briefing-diario` y preferencias. Falta certificar horario paraguayo, no-duplicado y el enlace correcto. |
 | 20 | Alertas de riesgo | **parcial** | `api/finanzas/riesgo` cubre faltante y vencimientos. Falta inventario bajo, cobros pendientes y el control de alarmas repetidas. |
@@ -222,3 +222,20 @@ Hay dos `v88` (`20260828140000` y `20260829005319`) y dos `v92`
 (`20260831120000` y `20260831140545`). El orden real lo da el timestamp, así
 que no rompe nada, pero la etiqueta dejó de identificar. Conviene que la
 próxima retome desde v94.
+
+---
+
+## Migraciones escritas y todavía sin aplicar
+
+Tres, y las tres esperan el mismo momento: **después de mergear y desplegar la
+rama**. `supabase db push` aplica todas las pendientes de una, así que van
+juntas aunque solo una lo exija de verdad.
+
+| Migración | Qué trae | Por qué espera |
+| --- | --- | --- |
+| `20260831160000_..._v94` | `eos_contexto_negocio` devuelve una cifra por moneda | **Es la que manda.** El código desplegado hoy lee esos campos como números; con la base nueva, cada prompt se llena de `₲ NaN`. Al revés no pasa nada. |
+| `20260831180000_..._v95` | Revertir un cobro de Bancard | Aditiva, no rompe nada. Va junto con la v94 porque `db push` no las separa. |
+| `20260831200000_..._v96` | Corregir aprendizajes y rehacer el onboarding | Idem. |
+
+Después de aplicarlas: `npm run certificar -- 11` tiene que pasar de 7/8 a 8/8,
+y las tres comprobaciones amarillas de la reversión ponerse verdes.
