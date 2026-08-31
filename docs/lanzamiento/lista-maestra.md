@@ -14,10 +14,13 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **389/389 en verde** (379 al empezar el día, +10 del verificador de archivos).
-- `npm run build` → **en verde**.
-- `npm run lint` → **42 errores, 39 avisos**. No bloquea el merge (`continue-on-error`).
-- `supabase migration list --linked` → **161 migraciones, local y remoto coinciden en todas**.
+- `npm test` → **413/413 en verde**. Empezó el día en 379.
+- `npm run build` y `npx tsc --noEmit` → **en verde**.
+- `npm run lint` → **24 errores, 7 avisos**. Empezó el día en 42 y 39.
+  Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
+- `supabase migration list --linked` → **163 migraciones, local y remoto
+  coinciden en todas**. La v94 queda sin aplicar a propósito: va después del
+  deploy, y el archivo explica por qué.
 
 ---
 
