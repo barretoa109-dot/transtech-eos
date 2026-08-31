@@ -14,9 +14,9 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **463/463 en verde**. Empezó el día en 379.
+- `npm test` → **477/477 en verde**. Empezó el día en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
-- `npm run lint` → **24 errores, 6 avisos**. Empezó el día en 42 y 39.
+- `npm run lint` → **24 errores, 5 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
 - `supabase migration list --linked` → **169 aplicadas, local y remoto coinciden
   en todas. Cero pendientes.**
@@ -113,7 +113,7 @@ lista** y no depende de nadie externo.
 | --- | --- | --- | --- |
 | 43 | Auditoría de acceso | **cerrado** (con reserva) | **Probado, no afirmado**: el caso 12 de certificación crea una víctima y un intruso con sesión real e intenta, sobre las **64 tablas con `usuario_id`**, leerlas con sesión ajena, leerlas sin sesión con sólo la clave pública, editar y borrar filas ajenas, plantar un movimiento a nombre de otro, y llamar las funciones `security definer`. **13 de 13 en verde contra la base real**, cero fugas. La lista de tablas se descubre leyendo las migraciones, así que una tabla nueva queda cubierta desde que existe. **Reserva:** falta el recorrido de una persona distinta. |
 | 44 | Sin rutas de prueba | **cerrado** | Relevado hoy: no hay rutas de test, debug ni demo en `app/`. Las tres bajo `api/internal` están autorizadas por firma. |
-| 45 | Interfaces externas | **parcial** | Firma de webhook Bancard, `worker-authorize`, `no-store` y `Vary: Cookie` en las APIs. Falta límite de solicitudes y prevención de repetición generalizados. |
+| 45 | Interfaces externas | **parcial** | Firma de webhook Bancard, `worker-authorize`, `no-store` y `Vary: Cookie`. El 31 de agosto se sumó el **techo de solicitudes** (`lib/seguridad/limite.ts` + v99), aplicado a `/api/ventas/contacto`, que era la única ruta totalmente pública y mandaba correo sin ningún tope. La clave va hasheada: no se guarda ninguna IP. Verificado contra la base real. **Falta** aplicarlo a `/api/soporte` y a los webhooks, y la prevención de repetición generalizada. |
 | 46 | Secretos y datos sensibles | **parcial** | `lib/seguridad/cifrado.ts` con AES-GCM ligado a usuario y proveedor, rotación de clave y 14 tests. Falta la revisión de que ningún registro imprima datos privados. |
 | 47 | Recuperación ante incidentes | **parcial** | `docs/rollback-runbook.md` cubre Vercel y Supabase, con el drift de migraciones ya resuelto y documentado. Falta restauración verificada y procedimiento para caída de n8n, correo e IA. |
 
