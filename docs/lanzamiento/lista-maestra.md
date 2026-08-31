@@ -18,9 +18,9 @@ Medición de hoy, para no discutirla dos veces:
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **24 errores, 7 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **163 migraciones, local y remoto
-  coinciden en todas**. La v94 queda sin aplicar a propósito: va después del
-  deploy, y el archivo explica por qué.
+- `supabase migration list --linked` → **163 aplicadas, local y remoto coinciden
+  en todas**. Hay **tres más escritas y sin aplicar** a propósito: van después
+  del deploy. Ver la tabla del final.
 
 ---
 
@@ -30,7 +30,7 @@ Medición de hoy, para no discutirla dos veces:
 | --- | --- | --- | --- |
 | 1 | Congelar el alcance | **parcial** | Redactado en `docs/lanzamiento/alcance-congelado.md`. Falta la firma de producto, legal y técnica, y la decisión sobre rotular ERP y CRM como beta. |
 | 2 | Cerrar los cambios pendientes | **cerrado** | Árbol limpio. Tres commits: invariantes de anulación, validación de entrada de productos, higiene del repo. Los 21 MB de video y presentación quedaron ignorados, no commiteados. |
-| 3 | Sincronizar migraciones | **parcial** | Las 161 coinciden local y remoto, verificado hoy. **Pero hay un solo proyecto Supabase**: desarrollo, pruebas y producción son la misma base. No hay nada que sincronizar porque no hay contra qué. |
+| 3 | Sincronizar migraciones | **parcial** | Las 163 aplicadas coinciden local y remoto, verificado hoy. **Pero hay un solo proyecto Supabase**: desarrollo, pruebas y producción son la misma base. No hay nada que sincronizar porque no hay contra qué. |
 | 4 | Instalación desde cero | **bloqueado** | Imposible sin una segunda base. Ver la nota de infraestructura abajo. |
 | 5 | Actualización realista | **bloqueado** | Idem. Hoy toda migración se estrena contra datos de usuarios reales. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
@@ -46,7 +46,7 @@ imposibles, no en pendientes: no se puede probar una instalación desde cero ni
 una actualización realista contra la base donde viven los usuarios. Y la
 definición de terminado exige "producción o un entorno idéntico".
 
-Un segundo proyecto Supabase (`transtech-eos-staging`), con las mismas 161
+Un segundo proyecto Supabase (`transtech-eos-staging`), con las mismas 163
 migraciones aplicadas desde cero y datos sintéticos, destraba de una vez los
 puntos 3, 4, 5, 7, 43 y 50. **Es la pieza de mayor rendimiento de toda la
 lista** y no depende de nadie externo.
