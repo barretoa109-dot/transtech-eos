@@ -42,6 +42,13 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const contado = numeroOpcional(cuerpo.stock_contado);
   const delta = numeroOpcional(cuerpo.delta);
 
+  if (contado === "invalido" || delta === "invalido") {
+    return NextResponse.json(
+      { error: "El conteo y la diferencia tienen que ser números finitos." },
+      { status: 400, headers: noStore() },
+    );
+  }
+
   if ((contado === null) === (delta === null)) {
     return NextResponse.json(
       { error: "Mandá el conteo o la diferencia, una sola de las dos." },
@@ -50,6 +57,12 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   }
 
   const motivo = String(cuerpo.motivo ?? "").trim().slice(0, 300) || null;
+  if (!motivo) {
+    return NextResponse.json(
+      { error: "Indicá el motivo del ajuste." },
+      { status: 400, headers: noStore() },
+    );
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el cliente tipado no conoce esta función
   const { data, error } = await (createAdminClient() as any).rpc("eos_erp_ajustar_stock", {
@@ -87,6 +100,17 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
       );
     }
 
+    if (
+      texto.includes("EOS_AJUSTE_MODO_INVALIDO") ||
+      texto.includes("EOS_AJUSTE_MOTIVO_REQUERIDO") ||
+      texto.includes("EOS_AJUSTE_NUMERO_INVALIDO")
+    ) {
+      return NextResponse.json(
+        { error: "Revisá el número y el motivo del ajuste." },
+        { status: 400, headers: noStore() },
+      );
+    }
+
     console.error("ERP: no se pudo ajustar el stock:", error);
     return NextResponse.json(
       { error: "No pudimos ajustar el stock." },
@@ -103,7 +127,7 @@ function numeroOpcional(valor: unknown) {
 
   const n = Number(valor);
 
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? n : ("invalido" as const);
 }
 
 function noStore() {

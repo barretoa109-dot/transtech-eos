@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { ivaIncluido, tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
+import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
 
 export const dynamic = "force-dynamic";
 
@@ -86,15 +87,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const precio = numero(cuerpo.precio_venta);
-  if (precio < 0) {
+  const precioResultado = numeroProducto(cuerpo.precio_venta ?? 0);
+  if (!precioResultado.ok) {
     return NextResponse.json(
-      { error: "El precio no puede ser negativo." },
+      { error: "El precio tiene que ser un número mayor o igual a cero.", campo: "precio_venta" },
+      { status: 400, headers: noStore() },
+    );
+  }
+
+  const costoResultado = numeroProductoOpcional(cuerpo.costo);
+  if (!costoResultado.ok) {
+    return NextResponse.json(
+      { error: "El costo tiene que ser un número mayor o igual a cero.", campo: "costo" },
       { status: 400, headers: noStore() },
     );
   }
 
   const controlaStock = cuerpo.controla_stock === true;
+  const stockResultado = controlaStock ? numeroProducto(cuerpo.stock_actual ?? 0) : { ok: true as const, valor: 0 };
+  const minimoResultado = controlaStock ? numeroProducto(cuerpo.stock_minimo ?? 0) : { ok: true as const, valor: 0 };
+  if (!stockResultado.ok || !minimoResultado.ok) {
+    return NextResponse.json(
+      {
+        error: "El stock y el mínimo tienen que ser números mayores o iguales a cero.",
+        campo: !stockResultado.ok ? "stock_actual" : "stock_minimo",
+      },
+      { status: 400, headers: noStore() },
+    );
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -105,15 +126,15 @@ export async function POST(request: Request) {
       nombre,
       descripcion: String(cuerpo.descripcion ?? "").trim().slice(0, 2000) || null,
       unidad: String(cuerpo.unidad ?? "unidad").trim().slice(0, 20) || "unidad",
-      precio_venta: precio,
-      costo: cuerpo.costo === undefined || cuerpo.costo === null ? null : numero(cuerpo.costo),
+      precio_venta: precioResultado.valor,
+      costo: costoResultado.valor,
       moneda: monedaConocida(cuerpo.moneda),
       iva: tasaValida(cuerpo.iva),
       controla_stock: controlaStock,
       // Sin control de stock, el saldo no significa nada: se guarda en cero para
       // que no quede un número viejo confundiendo si algún día se activa.
-      stock_actual: controlaStock ? numero(cuerpo.stock_actual) : 0,
-      stock_minimo: controlaStock ? numero(cuerpo.stock_minimo) : 0,
+      stock_actual: stockResultado.valor,
+      stock_minimo: minimoResultado.valor,
     })
     .select(COLUMNAS)
     .single();
@@ -136,11 +157,6 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ producto: data }, { status: 201, headers: noStore() });
-}
-
-function numero(valor: unknown): number {
-  const n = Number(valor);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function noStore() {

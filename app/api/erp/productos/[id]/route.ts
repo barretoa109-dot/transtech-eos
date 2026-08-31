@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
+import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
 
 export const dynamic = "force-dynamic";
 
@@ -73,20 +74,25 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   }
 
   if (cuerpo.precio_venta !== undefined) {
-    const precio = numero(cuerpo.precio_venta);
-
-    if (precio < 0) {
+    const precio = numeroProducto(cuerpo.precio_venta);
+    if (!precio.ok) {
       return NextResponse.json(
-        { error: "El precio no puede ser negativo." },
+        { error: "El precio tiene que ser un número mayor o igual a cero.", campo: "precio_venta" },
         { status: 400, headers: noStore() },
       );
     }
-
-    cambios.precio_venta = precio;
+    cambios.precio_venta = precio.valor;
   }
 
   if (cuerpo.costo !== undefined) {
-    cambios.costo = cuerpo.costo === null ? null : numero(cuerpo.costo);
+    const costo = numeroProductoOpcional(cuerpo.costo);
+    if (!costo.ok) {
+      return NextResponse.json(
+        { error: "El costo tiene que ser un número mayor o igual a cero.", campo: "costo" },
+        { status: 400, headers: noStore() },
+      );
+    }
+    cambios.costo = costo.valor;
   }
 
   if (cuerpo.codigo !== undefined) {
@@ -103,7 +109,16 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
   if (cuerpo.moneda !== undefined) cambios.moneda = monedaConocida(cuerpo.moneda);
   if (cuerpo.iva !== undefined) cambios.iva = tasaValida(cuerpo.iva);
-  if (cuerpo.stock_minimo !== undefined) cambios.stock_minimo = numero(cuerpo.stock_minimo);
+  if (cuerpo.stock_minimo !== undefined) {
+    const minimo = numeroProducto(cuerpo.stock_minimo);
+    if (!minimo.ok) {
+      return NextResponse.json(
+        { error: "El stock mínimo tiene que ser un número mayor o igual a cero.", campo: "stock_minimo" },
+        { status: 400, headers: noStore() },
+      );
+    }
+    cambios.stock_minimo = minimo.valor;
+  }
   if (cuerpo.activo !== undefined) cambios.activo = cuerpo.activo === true;
 
   /*
@@ -187,12 +202,6 @@ export async function DELETE(_request: Request, contexto: { params: Promise<{ id
   }
 
   return NextResponse.json({ ok: true, id: data.id }, { headers: noStore() });
-}
-
-function numero(valor: unknown) {
-  const n = Number(valor);
-
-  return Number.isFinite(n) ? n : 0;
 }
 
 function noStore() {
