@@ -14,12 +14,12 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **425/425 en verde**. Empezó el día en 379.
+- `npm test` → **439/439 en verde**. Empezó el día en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **24 errores, 6 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
 - `supabase migration list --linked` → **163 aplicadas, local y remoto coinciden
-  en todas**. Hay **cuatro más escritas y sin aplicar** a propósito: van después
+  en todas**. Hay **cinco más escritas y sin aplicar** a propósito: van después
   del deploy. Ver la tabla del final.
 
 ---
@@ -83,7 +83,7 @@ lista** y no depende de nadie externo.
 | 27 | Cálculos de dinero | **parcial** | Cubierto por tests (`lib/finanzas`, `evals/casos/importes.ts`) y reforzado hoy: un precio inválido ya no se guarda como cero. Falta el caso de montos grandes y redondeo de PYG sin decimales. |
 | 28 | Informes por período | **parcial** | `api/informes` y `api/finanzas/periodo`. Falta probar que dos corridas iguales den lo mismo. |
 | 29 | Word, PDF y Excel | **parcial** | `docx`, `exceljs` y `pdfkit` integrados; `docs/documentos-a-pedido.md`. Falta cubrir todos los pedidos posibles. |
-| 30 | Validar antes de entregar | **parcial** | Cerrado hoy el archivo roto: `lib/documentos/verificar.ts` mira bytes, tamaño mínimo, firma y marca de cierre antes de entregar, en `/api/documentos/[id]` y `/api/informes`. Probado contra archivos reales de exceljs, pdfkit y docx para no rechazar los sanos. **Falta** el contraste de cifras (que un total coincida con sus filas). Los datos de otro usuario ya los frena la sesión + RLS. |
+| 30 | Validar antes de entregar | **cerrado** (con reserva) | `lib/documentos/verificar.ts` mira bytes, tamaño mínimo, firma y marca de cierre —probado contra archivos reales de exceljs, pdfkit y docx para no rechazar los sanos— **y desde el 31 de agosto también contrasta las cifras**: una tabla cuya fila TOTAL no suma sus filas se frena con 422 en vez de entregarse. Cuida los subtotales, el redondeo y las tablas de una línea para no dar falsos positivos. Los datos de otro usuario los frena la sesión + RLS. **Reserva:** falta el recorrido de una persona distinta. |
 
 ---
 
@@ -102,7 +102,7 @@ lista** y no depende de nadie externo.
 | 39 | CRM | **parcial** | Contactos, oportunidades y actividades. Falta embudo, conversión y razones de pérdida. |
 | 40 | Reportes empresariales | **parcial** | `api/eos-kpis` y `api/eos-tendencias`. Faltan rotación, margen, cartera y desempeño. |
 | 41 | Facturación electrónica | **cerrado en su rotulado** | La v87 renombró el módulo a "Comprobantes de venta (beta)" y el papel sale como borrador. SIFEN sigue **externo**. |
-| 42 | Auditoría de cambios | **parcial** | `lib/auditoria` y la auditoría nueva de anulaciones. No todas las operaciones ERP escriben antes/después con autor y motivo. |
+| 42 | Auditoría de cambios | **parcial** | Hecho el 31 de agosto: las nueve operaciones sensibles del ERP —registrar, cobrar, pagar, anular venta y compra, ajustar stock, emitir comprobante— escriben en la bitácora encadenada con actor, fecha, antes/después, motivo, origen y resultado. Los intentos rechazados también. El antes/después va dentro de `detalle`, que está hasheado; una columna nueva quedaría fuera de la cadena. **Falta** aplicar la v98, y empresa/sucursal, que no existen hasta la fase 1. |
 
 ---
 
@@ -227,7 +227,7 @@ próxima retome desde v94.
 
 ## Migraciones escritas y todavía sin aplicar
 
-Cuatro, y las cuatro esperan el mismo momento: **después de mergear y desplegar la
+Cinco, y las cinco esperan el mismo momento: **después de mergear y desplegar la
 rama**. `supabase db push` aplica todas las pendientes de una, así que van
 juntas aunque solo una lo exija de verdad.
 
@@ -237,6 +237,7 @@ juntas aunque solo una lo exija de verdad.
 | `20260831180000_..._v95` | Revertir un cobro de Bancard | Aditiva, no rompe nada. Va junto con la v94 porque `db push` no las separa. |
 | `20260831200000_..._v96` | Corregir aprendizajes y rehacer el onboarding | Idem. |
 | `20260831220000_..._v97` | Recordar qué aviso del negocio ya se mandó | Idem. Sin ella, los avisos de inventario y cobros no se envían (el código calla si no puede leer el historial, que es lo correcto). |
+| `20260901000000_..._v98` | Permitir los eventos del ERP en la bitácora | Idem. Sin ella, cada operación intenta asentarse y la fila se rechaza por el `check`; el registro falla en silencio y solo grita en el log. |
 
 Después de aplicarlas: `npm run certificar -- 11` tiene que pasar de 7/8 a 8/8,
 y las tres comprobaciones amarillas de la reversión ponerse verdes.
