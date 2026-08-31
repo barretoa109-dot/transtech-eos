@@ -73,7 +73,7 @@ lista** y no depende de nadie externo.
 | --- | --- | --- | --- |
 | 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. Falta patrimonio y evolución. |
 | 22 | Multimoneda | **parcial** | Cerrado el 31 de agosto en ERP, CRM y contexto del chat: la moneda del documento sale de sus líneas, un trigger (v93) rechaza mezclarlas —verificado contra la base real—, el embudo se calcula por moneda y `eos_contexto_negocio` (v94) devuelve una cifra por moneda. **Falta** mostrar tipo de cambio con origen y fecha, y aplicar la v94, que va después del deploy. |
-| 23 | Trazabilidad de cada número | **abierto** | No hay camino de un total a los movimientos que lo componen. |
+| 23 | Trazabilidad de cada número | **parcial** | Hecho el 31 de agosto. Cada cifra del panel se abre: las que son suma muestran sus movimientos con la ventana de fechas; las que son cuenta (`disponible real`) muestran la operación, con cada término abrible a su vez. El detalle sale de los mismos arrays que se sumaron, y cada traza se comprueba a sí misma (`lib/finanzas/trazabilidad.ts`). **Falta** el recorrido con una cuenta con datos —necesita sesión— y llevar lo mismo a los informes y a los reportes del ERP. |
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
 | 25 | Conexiones automáticas | **abierto** | Solo lectura de correo. Ninguna integración bancaria. El alcance congelado lo saca del anuncio. |
 | 26 | Fijos, deudas y vencimientos | **parcial** | `api/finanzas/fijos` y `api/finanzas/deudas`. Faltan cuotas, pagos parciales e intereses. |
@@ -120,7 +120,7 @@ lista** y no depende de nadie externo.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 48 | Experiencia y accesibilidad | **abierto** | Sin auditoría de teclado, contraste, lectores de pantalla, estados vacíos ni conexión lenta. |
-| 49 | Puerta automática de calidad | **parcial** | `.github/workflows/evals.yml` corre `npm test`, `npm run evals` y `tsc --noEmit` bloqueando; `lint` informa pero **no bloquea**. De 42 errores quedan **41**: 36 son `any`, casi todos el mismo patrón (`createAdminClient()` casteado porque los tipos generados no conocen esos RPC) y se consolidan en un solo lugar; 5 son `react-hooks/set-state-in-effect`, que **no se pueden satisfacer sin cambiar cómo carga datos toda la app** (ver hallazgo 2). Ya existe la primera prueba SQL (`supabase/tests/`). Faltan las de seguridad y los recorridos de navegador. |
+| 49 | Puerta automática de calidad | **parcial** | El CI corre `npm test`, `npm run evals`, `tsc --noEmit` y ahora `npm run lint:tope`, los cuatro bloqueando. El lint todavía no exige cero —quedan 24 errores heredados— pero **ya no puede subir**: el trinquete falla si crece, y también si baja sin actualizar el tope, para que ese número no mienta. Deuda: 42 → 24 errores, 39 → 7 avisos. Ya existe la primera prueba SQL (`supabase/tests/`). Faltan las de seguridad y los recorridos de navegador. |
 | 50 | Piloto y simulacro | **bloqueado** | Depende del segundo proyecto Supabase. |
 
 ---
@@ -149,12 +149,13 @@ Por rendimiento, no por número de punto.
    lista rinde tanto.
 2. ~~**Punto 30 — validar el documento antes de entregarlo.**~~ Hecho el 31 de
    agosto en su parte de integridad. Queda el contraste de cifras.
-3. **Punto 49 — que el lint bloquee.** 42 errores; 36 son `any` en Bancard y el
-   worker, 6 son `setState` dentro de efectos en React 19, que sí son reales.
+3. ~~**Punto 49 — que el lint bloquee.**~~ Hecho lo que se podía sostener: la
+   deuda bajó de 42 a 24 errores y ahora **no puede subir** (`npm run lint:tope`
+   bloquea en el CI). Queda llegar a cero.
 4. **Punto 7 — los siete finales de pago.** Rechazado, cancelado, duplicado,
    abandonado, demorado y reversado, como casos de `npm run certificar`.
-5. **Punto 23 — trazabilidad de cada número.** Es lo que separa un panel que se
-   mira de uno en el que se confía.
+5. ~~**Punto 23 — trazabilidad de cada número.**~~ Hecho en el panel financiero.
+   Queda llevarlo a los informes y a los reportes del ERP.
 6. **Puntos 13, 17 y 16.** El usuario tiene que poder corregir lo que EOS creyó
    entender, y saber qué va a pasar antes de que pase.
 7. **Punto 48 — accesibilidad.** Antes del piloto, no después.
