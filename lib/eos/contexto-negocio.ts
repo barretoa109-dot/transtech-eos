@@ -28,8 +28,17 @@ export type ContextoNegocio = {
   }>;
   erp?: {
     ventas_mes?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
-    por_cobrar?: MontoPorMoneda[];
-    por_pagar?: MontoPorMoneda[];
+    /*
+     * `por_cobrar_monedas` y no `por_cobrar` a propósito.
+     *
+     * La v94 deja las claves viejas donde estaban —con sus totales mezclados—
+     * para que el código todavía desplegado siga funcionando mientras el nuevo
+     * sale. `por_cobrar` no puede ser un número y una lista al mismo tiempo,
+     * así que la lista se llama distinto. Cuando el código viejo ya no exista,
+     * una migración corta borra las viejas y estas recuperan el nombre bueno.
+     */
+    por_cobrar_monedas?: MontoPorMoneda[];
+    por_pagar_monedas?: MontoPorMoneda[];
     bajo_minimo?: Array<{ nombre: string; stock: number }>;
     mas_vendidos?: string[];
   };
@@ -103,10 +112,10 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
       linea.push(vendido ? `${cuantas} por ${vendido}` : cuantas);
     }
 
-    const porCobrar = montos(erp.por_cobrar);
+    const porCobrar = montos(erp.por_cobrar_monedas);
     if (porCobrar) linea.push(`le deben ${porCobrar}`);
 
-    const porPagar = montos(erp.por_pagar);
+    const porPagar = montos(erp.por_pagar_monedas);
     if (porPagar) linea.push(`debe ${porPagar}`);
 
     if (linea.length > 0) partes.push(`Negocio este mes: ${linea.join("; ")}.`);

@@ -20,8 +20,8 @@ test("un negocio recién abierto no dice que está parado", () => {
     finanzas: [],
     erp: {
       ventas_mes: { cantidad: 0, por_moneda: [] },
-      por_cobrar: [],
-      por_pagar: [],
+      por_cobrar_monedas: [],
+      por_pagar_monedas: [],
       bajo_minimo: [],
       mas_vendidos: [],
     },
@@ -57,8 +57,8 @@ test("las ventas, lo que le deben y lo que debe salen en una línea", () => {
   const texto = textoContexto({
     erp: {
       ventas_mes: { cantidad: 12, por_moneda: [{ moneda: "PYG", total: 3_400_000 }] },
-      por_cobrar: [{ moneda: "PYG", total: 800_000 }],
-      por_pagar: [{ moneda: "PYG", total: 250_000 }],
+      por_cobrar_monedas: [{ moneda: "PYG", total: 800_000 }],
+      por_pagar_monedas: [{ moneda: "PYG", total: 250_000 }],
     },
   });
 
@@ -80,8 +80,8 @@ test("los ceros no ocupan lugar en el prompt", () => {
   const texto = textoContexto({
     erp: {
       ventas_mes: { cantidad: 3, por_moneda: [{ moneda: "PYG", total: 90_000 }] },
-      por_cobrar: [],
-      por_pagar: [{ moneda: "PYG", total: 0 }],
+      por_cobrar_monedas: [],
+      por_pagar_monedas: [{ moneda: "PYG", total: 0 }],
     },
   });
 
@@ -151,11 +151,11 @@ test("las ventas en dos monedas se dicen en dos monedas, nunca sumadas", () => {
 test("lo que le deben y lo que debe también salen por moneda", () => {
   const texto = textoContexto({
     erp: {
-      por_cobrar: [
+      por_cobrar_monedas: [
         { moneda: "PYG", total: 1_000_000 },
         { moneda: "USD", total: 200 },
       ],
-      por_pagar: [{ moneda: "USD", total: 90 }],
+      por_pagar_monedas: [{ moneda: "USD", total: 90 }],
     },
   });
 

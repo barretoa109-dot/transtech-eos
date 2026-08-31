@@ -45,26 +45,32 @@
 -- es legítimo; lo que no se puede sumar es la plata.
 --
 -- ============================================================
--- ACÁ EL ORDEN SE INVIERTE: PRIMERO EL CÓDIGO, DESPUÉS ESTO
+-- SE PUEDE APLICAR EN CUALQUIER ORDEN, Y ESO COSTÓ DOS CLAVES FEAS
 -- ============================================================
 --
--- La regla del proyecto es aplicar la migración ANTES de desplegar
--- (`docs/puesta-en-marcha-migraciones.md`), y existe porque desplegar primero
--- deja código esperando algo que la base todavía no tiene.
+-- La primera versión de esta migración REEMPLAZABA las claves viejas por las
+-- nuevas. Eso la volvía dependiente del orden: el código desplegado hoy lee
+-- `ventas_mes.total`, `por_cobrar` y `oportunidades_abiertas.monto` como
+-- NÚMEROS, así que aplicarla antes del deploy hacía desaparecer esas claves,
+-- `formatearMonto` recibía `undefined`, y el prompt de cada conversación se
+-- llenaba de "₲ NaN".
 --
--- Esta vez es al revés, y hay que verlo antes de correrla. El código
--- desplegado hoy lee `ventas_mes.total`, `por_cobrar` y
--- `oportunidades_abiertas.monto` como NÚMEROS. Si esta migración corre antes
--- del deploy, esas claves desaparecen, `formatearMonto` recibe `undefined` y
--- el prompt de cada conversación se llena de "₲ NaN".
+-- "Aplicala después del deploy" es una instrucción que funciona hasta que
+-- alguien —o alguien apurado— la aplica antes. Una migración cuya corrección
+-- depende de que se lea un comentario no es una migración correcta.
 --
--- Al revés no pasa nada: el código nuevo con la base vieja no encuentra
--- `por_moneda`, y entonces dice "8 ventas" sin monto. Pierde un dato; no
--- inventa ninguno.
+-- Así que las claves viejas SE QUEDAN, con su valor viejo, y las nuevas van al
+-- lado. El código viejo sigue leyendo lo que leía; el nuevo lee lo correcto. No
+-- hay ventana en la que algo esté roto, corra cuando corra.
 --
--- **Entonces: mergear y desplegar la rama primero, y correr esta migración
--- después.** Que la regla tenga una excepción no la invalida — lo que la
--- invalida es aplicarla sin mirar en qué dirección rompe.
+-- El precio son dos nombres feos —`por_cobrar_monedas`, `por_pagar_monedas`—
+-- porque `por_cobrar` no puede ser un número y una lista al mismo tiempo.
+-- Cuando el código viejo ya no exista en ningún lado, una migración de tres
+-- líneas borra las cuatro claves viejas y les devuelve el nombre bueno.
+--
+-- Sí: mientras tanto el jsonb lleva los totales mezclados que motivaron todo
+-- esto. No es una regresión — son exactamente los que el código desplegado
+-- muestra hoy — y nadie nuevo los lee.
 
 create or replace function public.eos_contexto_negocio(p_usuario_id uuid)
 returns jsonb
@@ -123,6 +129,15 @@ begin
             and v.fecha >= v_desde
             and v.estado <> 'anulada'
         ),
+        -- Clave vieja, con su valor viejo: la lee el código todavía desplegado.
+        -- Se borra cuando ese código deje de existir.
+        'total', (
+          select coalesce(sum(v.total), 0)
+          from public.eos_erp_ventas v
+          where v.usuario_id = p_usuario_id
+            and v.fecha >= v_desde
+            and v.estado <> 'anulada'
+        ),
         'por_moneda', (
           select coalesce(
             jsonb_agg(jsonb_build_object('moneda', t.moneda, 'total', t.total) order by t.total desc),
@@ -139,7 +154,16 @@ begin
         )
       ),
       -- Ventas a crédito que todavía no entraron: es la plata que le deben.
+      -- Escalar viejo (mezclado) y lista nueva (por moneda), una al lado de la
+      -- otra. `por_cobrar` no puede ser un número y una lista a la vez.
       'por_cobrar', (
+        select coalesce(sum(v2.total), 0)
+        from public.eos_erp_ventas v2
+        where v2.usuario_id = p_usuario_id
+          and v2.estado not in ('anulada', 'cobrada')
+          and v2.movimiento_id is null
+      ),
+      'por_cobrar_monedas', (
         select coalesce(
           jsonb_agg(jsonb_build_object('moneda', t.moneda, 'total', t.total) order by t.total desc),
           '[]'::jsonb
@@ -154,6 +178,13 @@ begin
         ) t
       ),
       'por_pagar', (
+        select coalesce(sum(c.total), 0)
+        from public.eos_erp_compras c
+        where c.usuario_id = p_usuario_id
+          and c.estado not in ('anulada', 'pagada')
+          and c.movimiento_id is null
+      ),
+      'por_pagar_monedas', (
         select coalesce(
           jsonb_agg(jsonb_build_object('moneda', t.moneda, 'total', t.total) order by t.total desc),
           '[]'::jsonb
@@ -213,6 +244,13 @@ begin
       'oportunidades_abiertas', jsonb_build_object(
         'cantidad', (
           select count(*)
+          from public.eos_crm_oportunidades o
+          where o.usuario_id = p_usuario_id
+            and o.etapa not in ('ganada', 'perdida')
+        ),
+        -- Clave vieja, con su valor viejo. Ver la cabecera.
+        'monto', (
+          select coalesce(sum(o.monto), 0)
           from public.eos_crm_oportunidades o
           where o.usuario_id = p_usuario_id
             and o.etapa not in ('ganada', 'perdida')

@@ -227,13 +227,13 @@ próxima retome desde v94.
 
 ## Migraciones escritas y todavía sin aplicar
 
-Cinco, y las cinco esperan el mismo momento: **después de mergear y desplegar la
-rama**. `supabase db push` aplica todas las pendientes de una, así que van
-juntas aunque solo una lo exija de verdad.
+Cinco. **Ninguna depende del orden**: se pueden aplicar antes o después del
+deploy sin dejar nada roto en el medio. Eso costó dos nombres de clave feos en
+la v94, y vale la pena — ver su cabecera.
 
 | Migración | Qué trae | Por qué espera |
 | --- | --- | --- |
-| `20260831160000_..._v94` | `eos_contexto_negocio` devuelve una cifra por moneda | **Es la que manda.** El código desplegado hoy lee esos campos como números; con la base nueva, cada prompt se llena de `₲ NaN`. Al revés no pasa nada. |
+| `20260831160000_..._v94` | `eos_contexto_negocio` devuelve una cifra por moneda | Ya **no** depende del orden: las claves viejas se quedan con su valor viejo y las nuevas van al lado. "Aplicala después del deploy" es una instrucción que funciona hasta que alguien la aplica antes. |
 | `20260831180000_..._v95` | Revertir un cobro de Bancard | Aditiva, no rompe nada. Va junto con la v94 porque `db push` no las separa. |
 | `20260831200000_..._v96` | Corregir aprendizajes y rehacer el onboarding | Idem. |
 | `20260831220000_..._v97` | Recordar qué aviso del negocio ya se mandó | Idem. Sin ella, los avisos de inventario y cobros no se envían (el código calla si no puede leer el historial, que es lo correcto). |
