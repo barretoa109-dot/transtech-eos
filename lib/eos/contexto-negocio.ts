@@ -27,18 +27,39 @@ export type ContextoNegocio = {
     neto_mes: number;
   }>;
   erp?: {
-    ventas_mes?: { cantidad: number; total: number };
-    por_cobrar?: number;
-    por_pagar?: number;
+    ventas_mes?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
+    por_cobrar?: MontoPorMoneda[];
+    por_pagar?: MontoPorMoneda[];
     bajo_minimo?: Array<{ nombre: string; stock: number }>;
     mas_vendidos?: string[];
   };
   crm?: {
-    oportunidades_abiertas?: { cantidad: number; monto: number };
+    oportunidades_abiertas?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
     ganadas_mes?: number;
     actividades_pendientes?: number;
   };
 };
+
+/**
+ * Toda cifra de plata del contexto viene así: una fila por moneda.
+ *
+ * Antes eran números sueltos que la base sumaba entre monedas y esto imprimía
+ * con "PYG" escrito a mano. El resultado era que EOS le contestaba al usuario
+ * una cifra que no existe en ninguna moneda — y con la seguridad de una
+ * respuesta, que es lo que la vuelve peligrosa. Ver la migración v94.
+ */
+export type MontoPorMoneda = { moneda: string; total?: number; monto?: number };
+
+/** "Gs. 1.250.000" o, con dos monedas, "Gs. 1.250.000 y USD 300". */
+function montos(filas: MontoPorMoneda[] | undefined): string | null {
+  const conPlata = (filas ?? [])
+    .map((f) => ({ moneda: f.moneda, valor: Number(f.total ?? f.monto ?? 0) }))
+    .filter((f) => f.valor > 0);
+
+  if (conPlata.length === 0) return null;
+
+  return conPlata.map((f) => formatearMonto(f.valor, f.moneda)).join(" y ");
+}
 
 /*
  * Cuando no hay nada cargado se devuelve cadena vacía y el prompt no lleva
@@ -76,19 +97,17 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
     const linea: string[] = [];
 
     if (erp.ventas_mes && erp.ventas_mes.cantidad > 0) {
-      linea.push(
-        `${erp.ventas_mes.cantidad} ${erp.ventas_mes.cantidad === 1 ? "venta" : "ventas"} ` +
-          `por ${formatearMonto(erp.ventas_mes.total, "PYG")}`,
-      );
+      const vendido = montos(erp.ventas_mes.por_moneda);
+      const cuantas = `${erp.ventas_mes.cantidad} ${erp.ventas_mes.cantidad === 1 ? "venta" : "ventas"}`;
+
+      linea.push(vendido ? `${cuantas} por ${vendido}` : cuantas);
     }
 
-    if (erp.por_cobrar && erp.por_cobrar > 0) {
-      linea.push(`le deben ${formatearMonto(erp.por_cobrar, "PYG")}`);
-    }
+    const porCobrar = montos(erp.por_cobrar);
+    if (porCobrar) linea.push(`le deben ${porCobrar}`);
 
-    if (erp.por_pagar && erp.por_pagar > 0) {
-      linea.push(`debe ${formatearMonto(erp.por_pagar, "PYG")}`);
-    }
+    const porPagar = montos(erp.por_pagar);
+    if (porPagar) linea.push(`debe ${porPagar}`);
 
     if (linea.length > 0) partes.push(`Negocio este mes: ${linea.join("; ")}.`);
 
@@ -108,10 +127,10 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
     const linea: string[] = [];
 
     if (crm.oportunidades_abiertas && crm.oportunidades_abiertas.cantidad > 0) {
-      linea.push(
-        `${crm.oportunidades_abiertas.cantidad} abiertas por ` +
-          `${formatearMonto(crm.oportunidades_abiertas.monto, "PYG")}`,
-      );
+      const enJuego = montos(crm.oportunidades_abiertas.por_moneda);
+      const cuantas = `${crm.oportunidades_abiertas.cantidad} abiertas`;
+
+      linea.push(enJuego ? `${cuantas} por ${enJuego}` : cuantas);
     }
 
     if (crm.ganadas_mes && crm.ganadas_mes > 0) {

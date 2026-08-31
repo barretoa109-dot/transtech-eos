@@ -19,14 +19,14 @@ test("un negocio recién abierto no dice que está parado", () => {
     mes: "2026-08",
     finanzas: [],
     erp: {
-      ventas_mes: { cantidad: 0, total: 0 },
-      por_cobrar: 0,
-      por_pagar: 0,
+      ventas_mes: { cantidad: 0, por_moneda: [] },
+      por_cobrar: [],
+      por_pagar: [],
       bajo_minimo: [],
       mas_vendidos: [],
     },
     crm: {
-      oportunidades_abiertas: { cantidad: 0, monto: 0 },
+      oportunidades_abiertas: { cantidad: 0, por_moneda: [] },
       ganadas_mes: 0,
       actividades_pendientes: 0,
     },
@@ -47,7 +47,7 @@ test("cada moneda va en su renglón y no se suman entre sí", () => {
 
   assert.equal(renglones.length, 2);
   assert.ok(texto.includes("PYG"));
-  assert.ok(texto.includes("USD"));
+  assert.ok(texto.includes("US$"));
 
   // 5.000.000 + 400 no debe aparecer nunca como un solo número.
   assert.ok(!texto.includes("5000400"));
@@ -56,9 +56,9 @@ test("cada moneda va en su renglón y no se suman entre sí", () => {
 test("las ventas, lo que le deben y lo que debe salen en una línea", () => {
   const texto = textoContexto({
     erp: {
-      ventas_mes: { cantidad: 12, total: 3_400_000 },
-      por_cobrar: 800_000,
-      por_pagar: 250_000,
+      ventas_mes: { cantidad: 12, por_moneda: [{ moneda: "PYG", total: 3_400_000 }] },
+      por_cobrar: [{ moneda: "PYG", total: 800_000 }],
+      por_pagar: [{ moneda: "PYG", total: 250_000 }],
     },
   });
 
@@ -68,7 +68,9 @@ test("las ventas, lo que le deben y lo que debe salen en una línea", () => {
 });
 
 test("una sola venta se dice en singular", () => {
-  const texto = textoContexto({ erp: { ventas_mes: { cantidad: 1, total: 50_000 } } });
+  const texto = textoContexto({
+    erp: { ventas_mes: { cantidad: 1, por_moneda: [{ moneda: "PYG", total: 50_000 }] } },
+  });
 
   assert.ok(texto.includes("1 venta por"));
   assert.ok(!texto.includes("1 ventas"));
@@ -76,7 +78,11 @@ test("una sola venta se dice en singular", () => {
 
 test("los ceros no ocupan lugar en el prompt", () => {
   const texto = textoContexto({
-    erp: { ventas_mes: { cantidad: 3, total: 90_000 }, por_cobrar: 0, por_pagar: 0 },
+    erp: {
+      ventas_mes: { cantidad: 3, por_moneda: [{ moneda: "PYG", total: 90_000 }] },
+      por_cobrar: [],
+      por_pagar: [{ moneda: "PYG", total: 0 }],
+    },
   });
 
   assert.ok(texto.includes("3 ventas"));
@@ -109,4 +115,78 @@ test("una tarea de seguimiento se dice en singular", () => {
 
   assert.ok(texto.includes("1 tarea de seguimiento"));
   assert.ok(!texto.includes("1 tareas"));
+});
+
+// ============================================================
+// Lo que motivó la v94: EOS le decía al usuario un número falso
+// ============================================================
+//
+// La base sumaba `total` de todas las ventas sin mirar la moneda, y esto lo
+// imprimía con "PYG" escrito a mano. Un negocio con Gs. 3.000.000 y USD 500
+// escuchaba "vendiste Gs. 3.000.500" — dicho por el asistente, con la
+// autoridad de una respuesta y sin ninguna etiqueta que lo delatara.
+
+test("las ventas en dos monedas se dicen en dos monedas, nunca sumadas", () => {
+  const texto = textoContexto({
+    erp: {
+      ventas_mes: {
+        cantidad: 8,
+        por_moneda: [
+          { moneda: "PYG", total: 3_000_000 },
+          { moneda: "USD", total: 500 },
+        ],
+      },
+    },
+  });
+
+  assert.ok(texto.includes("8 ventas"));
+  assert.ok(texto.includes("₲"));
+  assert.ok(texto.includes("US$"));
+
+  // El número que no puede existir: 3.000.000 + 500.
+  assert.ok(!texto.includes("3.000.500"));
+  assert.ok(!texto.includes("3000500"));
+});
+
+test("lo que le deben y lo que debe también salen por moneda", () => {
+  const texto = textoContexto({
+    erp: {
+      por_cobrar: [
+        { moneda: "PYG", total: 1_000_000 },
+        { moneda: "USD", total: 200 },
+      ],
+      por_pagar: [{ moneda: "USD", total: 90 }],
+    },
+  });
+
+  assert.ok(texto.includes("le deben"));
+  assert.ok(texto.includes("US$"));
+  assert.ok(!texto.includes("1.000.200"));
+});
+
+test("el embudo del CRM tampoco mezcla monedas", () => {
+  const texto = textoContexto({
+    crm: {
+      oportunidades_abiertas: {
+        cantidad: 2,
+        por_moneda: [
+          { moneda: "PYG", monto: 5_000_000 },
+          { moneda: "USD", monto: 10_000 },
+        ],
+      },
+    },
+  });
+
+  assert.ok(texto.includes("2 abiertas"));
+  assert.ok(texto.includes("US$"));
+  assert.ok(!texto.includes("5.010.000"));
+});
+
+test("una cifra sin monedas con plata se dice sin monto, no en cero", () => {
+  const texto = textoContexto({
+    erp: { ventas_mes: { cantidad: 4, por_moneda: [] } },
+  });
+
+  assert.ok(texto.includes("4 ventas"));
+  assert.ok(!texto.includes(" por "));
 });
