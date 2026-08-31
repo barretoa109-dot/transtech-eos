@@ -121,8 +121,21 @@ export const caso = {
       .limit(1)
       .maybeSingle();
 
+    /*
+     * Sin tarjeta esto queda AMARILLO, no rojo.
+     *
+     * Es lo mismo que el README dice del bloqueo de cinco minutos de Bancard:
+     * que falte una precondición del entorno no significa que la recuperación
+     * esté rota, significa que no se pudo probar. Marcarlo rojo hace que la
+     * suite diga "no se puede lanzar con esto roto" cuando no hay nada roto —
+     * y una suite que se pone roja sin motivo enseña a ignorar el rojo, que es
+     * exactamente lo que este archivo trata de evitar.
+     */
     if (!mapeo?.bancard_user_id || !tarjeta) {
-      comprobar("hay tarjeta para probar la recuperación", false);
+      sinProbar(
+        "la recuperación con tarjeta",
+        "la cuenta de certificación no tiene tarjeta catastrada — catastrá una de prueba y volvé a correr este caso",
+      );
       return;
     }
 

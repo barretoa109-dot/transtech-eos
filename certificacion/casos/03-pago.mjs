@@ -44,11 +44,19 @@ export const caso = {
       .eq("usuario_id", usuario.id)
       .maybeSingle();
 
+    /*
+     * Sin tarjeta esto queda AMARILLO, no rojo.
+     *
+     * Es la misma regla que este archivo ya aplica al bloqueo de cinco minutos
+     * de Bancard: una precondición del entorno que falta no significa que el
+     * cobro esté roto, significa que no se pudo probar. En rojo, la suite
+     * declara "no se puede lanzar con esto roto" sin que haya nada roto — y
+     * enseña a ignorar el rojo, que es justo lo que este caso más cuida.
+     */
     if (!mapeo?.bancard_user_id) {
-      comprobar(
-        "la cuenta de certificación tiene tarjeta",
-        false,
-        "catastrá una tarjeta de prueba antes de correr este caso",
+      sinProbar(
+        "el recorrido del cobro con tarjeta",
+        "la cuenta de certificación no tiene tarjeta catastrada — catastrá una de prueba y volvé a correr este caso",
       );
       return;
     }
@@ -61,9 +69,16 @@ export const caso = {
       .limit(1)
       .maybeSingle();
 
-    comprobar("la cuenta tiene una tarjeta activa", Boolean(tarjeta), tarjeta?.card_masked_number ?? "");
+    if (!tarjeta) {
+      // Mismo criterio que arriba: falta el entorno, no funciona mal el cobro.
+      sinProbar(
+        "el recorrido del cobro con tarjeta",
+        "la cuenta tiene un usuario de Bancard pero ninguna tarjeta activa — catastrá una de prueba",
+      );
+      return;
+    }
 
-    if (!tarjeta) return;
+    comprobar("la cuenta tiene una tarjeta activa", true, tarjeta.card_masked_number ?? "");
 
     /* Un armado barato y descartable para cada intento. */
     const armar = async (modulos) => {
