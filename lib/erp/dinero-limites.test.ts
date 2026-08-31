@@ -4,6 +4,7 @@ import test from "node:test";
 import { calcularVenta, ivaIncluido, tasaValida, type LineaVenta } from "./impuestos.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import { armarInforme, type MovimientoInforme } from "../informes/armar.ts";
+import type { Periodo } from "../informes/periodo.ts";
 
 /**
  * Los bordes del dinero: montos grandes, redondeo y reproducibilidad.
@@ -207,17 +208,22 @@ test("el IVA de un monto minúsculo no se va a cero por redondeo hacia abajo", (
 // puede auditar — y el usuario lo va a descubrir comparando el balance de hoy
 // con el que bajó ayer del mismo período.
 
-const PERIODO = { desde: "2026-08-01", hasta: "2026-08-31", etiqueta: "agosto" };
+const PERIODO: Periodo = {
+  clave: "mes",
+  desde: "2026-08-01",
+  hasta: "2026-08-31",
+  etiqueta: "agosto de 2026",
+};
 
 function movimientos(): MovimientoInforme[] {
   return [
-    { tipo: "ingreso", monto: 5_000_000, moneda: "PYG", fecha: "2026-08-05", descripcion: "Sueldo", categoria: "sueldo" },
-    { tipo: "gasto", monto: 1_200_000, moneda: "PYG", fecha: "2026-08-07", descripcion: "Alquiler", categoria: "vivienda" },
-    { tipo: "gasto", monto: 333_333, moneda: "PYG", fecha: "2026-08-12", descripcion: "Súper", categoria: "comida" },
-    { tipo: "compromiso", monto: 450_000, moneda: "PYG", fecha: "2026-08-20", descripcion: "Colegio", categoria: "educacion" },
+    { tipo: "ingreso", monto: 5_000_000, fecha: "2026-08-05", descripcion: "Sueldo", categoria: "sueldo" },
+    { tipo: "gasto", monto: 1_200_000, fecha: "2026-08-07", descripcion: "Alquiler", categoria: "vivienda" },
+    { tipo: "gasto", monto: 333_333, fecha: "2026-08-12", descripcion: "Súper", categoria: "comida" },
+    { tipo: "compromiso", monto: 450_000, fecha: "2026-08-20", descripcion: "Colegio", categoria: "educacion" },
     // Fuera del período: no tiene que entrar en ninguna corrida.
-    { tipo: "gasto", monto: 999_999, moneda: "PYG", fecha: "2026-07-30", descripcion: "Mes pasado", categoria: "otros" },
-  ] as MovimientoInforme[];
+    { tipo: "gasto", monto: 999_999, fecha: "2026-07-30", descripcion: "Mes pasado", categoria: "otros" },
+  ];
 }
 
 test("dos corridas iguales dan exactamente el mismo informe", () => {
