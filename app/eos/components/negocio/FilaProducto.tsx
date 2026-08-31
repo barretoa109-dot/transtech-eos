@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Pencil, Scale } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import type { Producto } from "./tipos";
 
@@ -32,15 +32,28 @@ type Props = { producto: Producto; onCambio: () => void };
 
 export default function FilaProducto({ producto, onCambio }: Props) {
   const [modo, setModo] = useState<"ver" | "editar" | "ajustar">("ver");
+  const [aviso, setAviso] = useState("");
+
+  function listo(mensaje: string) {
+    setModo("ver");
+    setAviso(mensaje);
+    onCambio();
+    window.setTimeout(() => setAviso(""), 4000);
+  }
 
   return (
     <div className="neg-fila">
       <div className="neg-fila-texto">
         <strong>{producto.nombre}</strong>
         <small>
+          {producto.codigo ? `${producto.codigo} · ` : ""}
           {producto.iva === 0 ? "Exenta" : `IVA ${producto.iva}%`}
-          {producto.controla_stock ? ` · ${producto.stock_actual} en stock` : ""}
+          {producto.controla_stock ? ` · ${producto.stock_actual} en stock` : " · servicio"}
+          {producto.costo != null && producto.costo > 0
+            ? ` · costo ${formatearMonto(producto.costo, producto.moneda)}`
+            : ""}
         </small>
+        {aviso && <span className="neg-inline-success" role="status"><Check size={12} /> {aviso}</span>}
       </div>
 
       <span className="neg-fila-monto">
@@ -74,8 +87,7 @@ export default function FilaProducto({ producto, onCambio }: Props) {
           producto={producto}
           onCerrar={() => setModo("ver")}
           onListo={() => {
-            setModo("ver");
-            onCambio();
+            listo("Cambios guardados");
           }}
         />
       )}
@@ -85,8 +97,7 @@ export default function FilaProducto({ producto, onCambio }: Props) {
           producto={producto}
           onCerrar={() => setModo("ver")}
           onListo={() => {
-            setModo("ver");
-            onCambio();
+            listo("Stock actualizado");
           }}
         />
       )}

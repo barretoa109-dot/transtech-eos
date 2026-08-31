@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 
 type MessageBubbleProps = {
@@ -41,6 +42,11 @@ const FORMATOS_DOCUMENTO = [
 function documentoDeEOS(texto: string): string | null {
   const enlace = texto.match(/^\/api\/documentos\/([0-9a-f-]{36})(\?[^\s]*)?$/i);
   return enlace ? enlace[1] : null;
+}
+
+function aprobacionDeEOS(texto: string): string | null {
+  const enlace = texto.match(/https?:\/\/[^\s]+\/eos\/autonomy(?:\?[^\s]*)?/i);
+  return enlace?.[0] ?? null;
 }
 
 function renderizarTextoEnLinea(texto: string) {
@@ -78,7 +84,6 @@ function renderizarTextoEnLinea(texto: string) {
 export default function MessageBubble({
   rol,
   texto,
-  nombre: _nombre,
   onRegenerar,
   regenerando = false,
 }: MessageBubbleProps) {
@@ -125,6 +130,24 @@ export default function MessageBubble({
               }
 
               const documentoId = documentoDeEOS(limpio);
+              const enlaceAprobacion = aprobacionDeEOS(limpio);
+
+              if (enlaceAprobacion) {
+                return (
+                  <div key={`aprobacion-${index}`} className="message-approval">
+                    <span className="message-approval-icon">
+                      <ShieldCheck size={19} />
+                    </span>
+                    <span className="message-file-text">
+                      <strong>Operación lista para registrar</strong>
+                      <small>Revisá los datos y confirmá para que EOS la guarde.</small>
+                    </span>
+                    <a href={enlaceAprobacion} className="message-approval-button">
+                      Revisar y aprobar <ArrowUpRight size={15} />
+                    </a>
+                  </div>
+                );
+              }
 
               if (documentoId) {
                 return (
@@ -476,6 +499,44 @@ export default function MessageBubble({
             border-color 180ms ease;
         }
 
+        .message-approval {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 12px;
+          padding: 13px;
+          border: 1px solid rgba(37, 99, 235, 0.2);
+          border-radius: 15px;
+          background: linear-gradient(135deg, #eff6ff, #f8fbff);
+        }
+
+        .message-approval-icon {
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 12px;
+          background: #1656bd;
+          color: white;
+        }
+
+        .message-approval-button {
+          min-height: 38px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          flex-shrink: 0;
+          padding: 0 13px;
+          border-radius: 11px;
+          background: #1656bd;
+          color: white;
+          font-size: 11px;
+          font-weight: 850;
+          text-decoration: none;
+        }
+
         .message-file:hover {
           transform: translateY(-2px);
           border-color: rgba(37, 99, 235, 0.35);
@@ -571,6 +632,15 @@ export default function MessageBubble({
           .message-bubble {
             padding: 14px 15px;
             font-size: 13px;
+          }
+
+          .message-approval {
+            align-items: flex-start;
+            flex-wrap: wrap;
+          }
+
+          .message-approval-button {
+            width: 100%;
           }
         }
       `}</style>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronRight } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, ChevronRight, Plus, RefreshCw, Target } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { etiquetaDeEtapa, siguienteEtapa } from "@/lib/crm/embudo";
 import type { Actividad, Contacto, Oportunidad } from "./tipos";
@@ -60,6 +60,8 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
   const [embudos, setEmbudos] = useState<EmbudoDeMoneda[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState("");
+  const [moviendo, setMoviendo] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
     return Promise.all([
@@ -73,6 +75,12 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
           return;
         }
 
+        if (respuestas.some((r) => !r.ok)) {
+          throw new Error("No pudimos cargar la información del CRM.");
+        }
+
+        setErrorCarga("");
+
         const [oportunidadesData, actividadesData] = await Promise.all(
           respuestas.map((r) => r.json().catch(() => null)),
         );
@@ -81,7 +89,10 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
         setEmbudos(oportunidadesData?.embudos ?? []);
         setActividades(actividadesData?.actividades ?? []);
       })
-      .catch((err) => console.error("No se pudo cargar el embudo:", err))
+      .catch((err) => {
+        console.error("No se pudo cargar el embudo:", err);
+        setErrorCarga(err instanceof Error ? err.message : "No pudimos cargar el CRM.");
+      })
       .finally(() => setCargando(false));
   }, []);
 
@@ -90,13 +101,23 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
   }, [cargar]);
 
   async function mover(oportunidad: Oportunidad, etapa: string) {
-    await fetch("/api/crm/oportunidades", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: oportunidad.id, etapa }),
-    });
-
-    void cargar();
+    if (moviendo) return;
+    setMoviendo(oportunidad.id);
+    setErrorCarga("");
+    try {
+      const respuesta = await fetch("/api/crm/oportunidades", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: oportunidad.id, etapa }),
+      });
+      const datos = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) throw new Error(datos?.error || "No se pudo actualizar la oportunidad.");
+      await cargar();
+    } catch (err) {
+      setErrorCarga(err instanceof Error ? err.message : "No se pudo actualizar la oportunidad.");
+    } finally {
+      setMoviendo(null);
+    }
   }
 
   if (sinModulo) {
@@ -115,6 +136,21 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
   }
 
   if (cargando) return <p className="empty-note">Cargando tu embudo…</p>;
+
+  if (errorCarga && oportunidades.length === 0) {
+    return (
+      <div className="card neg-empty-state" role="alert">
+        <AlertCircle size={24} />
+        <div>
+          <div className="card-title">El CRM no pudo cargar</div>
+          <p className="card-sub">Tus datos siguen guardados. Revisá la conexión e intentá nuevamente.</p>
+        </div>
+        <button type="button" className="reco-btn" onClick={() => void cargar()}>
+          <RefreshCw size={14} /> Reintentar
+        </button>
+      </div>
+    );
+  }
 
   const abiertasTotales = embudos.reduce((t, e) => t + e.abiertas, 0);
   const variasMonedas = embudos.length > 1;
@@ -185,36 +221,52 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
         </div>
       )}
 
+      {errorCarga && <p className="neg-error" role="alert">{errorCarga}</p>}
+
       <NuevaOportunidad contactos={contactos} onCreada={() => void cargar()} />
 
       <div className="card">
         <div className="card-title">Oportunidades</div>
 
         {oportunidades.length === 0 ? (
-          <p className="empty-note">Todavía no cargaste ninguna.</p>
+          <div className="neg-empty-state">
+            <Target size={28} />
+            <div>
+              <strong>Convertí una consulta en tu primera oportunidad</strong>
+              <p>Registrá qué quiere comprar, el valor estimado y cuándo esperás cerrar. EOS te ayudará a no perder el seguimiento.</p>
+            </div>
+          </div>
         ) : (
-          <div className="neg-lista">
-            {oportunidades.map((o) => (
-              <div className="neg-fila" key={o.id}>
+          <div className="crm-pipeline" aria-label="Embudo de oportunidades">
+            {["nueva", "contactado", "propuesta", "negociacion", "ganada", "perdida"].map((etapa) => {
+              const deEtapa = oportunidades.filter((o) => o.etapa === etapa);
+              return (
+                <section className="crm-columna" key={etapa}>
+                  <header>
+                    <span>{etiquetaDeEtapa(etapa)}</span>
+                    <strong>{deEtapa.length}</strong>
+                  </header>
+                  <div className="crm-columna-lista">
+                  {deEtapa.length === 0 && <p className="crm-columna-vacia">Sin oportunidades</p>}
+                  {deEtapa.map((o) => (
+                    <article className="crm-oportunidad" key={o.id}>
                 <div className="neg-fila-texto">
                   <strong>{o.titulo}</strong>
                   <small>
                     {o.contacto?.nombre ?? "Sin cliente"}
-                    {o.cierre_estimado ? ` · cierra ${o.cierre_estimado}` : ""}
                   </small>
                 </div>
-
-                <span className="neg-fila-monto">{formatearMonto(o.monto, o.moneda)}</span>
-
-                <span className={`neg-estado ${o.etapa === "ganada" ? "is-ok" : ""}`}>
-                  {etiquetaDeEtapa(o.etapa)}
-                </span>
+                <strong className="neg-fila-monto">{formatearMonto(o.monto, o.moneda)}</strong>
+                {o.cierre_estimado && (
+                  <small className="crm-fecha"><CalendarDays size={12} /> {formatearFecha(o.cierre_estimado)}</small>
+                )}
 
                 {o.etapa !== "ganada" && o.etapa !== "perdida" && (
-                  <>
+                  <div className="crm-acciones">
                     <button
                       type="button"
                       className="chip"
+                      disabled={moviendo === o.id}
                       onClick={() => mover(o, siguienteEtapa(o.etapa))}
                       title={`Pasar a ${etiquetaDeEtapa(siguienteEtapa(o.etapa))}`}
                     >
@@ -224,10 +276,14 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
                     <button type="button" className="chip" onClick={() => mover(o, "perdida")}>
                       Perdida
                     </button>
-                  </>
+                  </div>
                 )}
-              </div>
-            ))}
+                    </article>
+                  ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
       </div>
@@ -247,6 +303,8 @@ function NuevaOportunidad({
   const [abierto, setAbierto] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [monto, setMonto] = useState("");
+  const [detalle, setDetalle] = useState("");
+  const [moneda, setMoneda] = useState("PYG");
   const [contactoId, setContactoId] = useState("");
   const [cierre, setCierre] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -264,7 +322,9 @@ function NuevaOportunidad({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titulo,
+          detalle,
           monto: Number(monto) || 0,
+          moneda,
           contacto_id: contactoId || null,
           cierre_estimado: cierre || null,
         }),
@@ -275,6 +335,7 @@ function NuevaOportunidad({
 
       setTitulo("");
       setMonto("");
+      setDetalle("");
       setCierre("");
       setAbierto(false);
       onCreada();
@@ -289,7 +350,7 @@ function NuevaOportunidad({
     return (
       <div className="card">
         <button type="button" className="reco-btn" onClick={() => setAbierto(true)}>
-          Nueva oportunidad
+          <Plus size={14} /> Nueva oportunidad
         </button>
       </div>
     );
@@ -300,6 +361,8 @@ function NuevaOportunidad({
       <div className="card-title">Nueva oportunidad</div>
 
       <div className="neg-form">
+        <label className="neg-field">
+          <span>Oportunidad *</span>
         <input
           className="neg-input"
           placeholder="Qué se está negociando"
@@ -307,6 +370,13 @@ function NuevaOportunidad({
           maxLength={200}
           onChange={(e) => setTitulo(e.target.value)}
         />
+        </label>
+        <label className="neg-field neg-field-wide">
+          <span>Detalle</span>
+          <input className="neg-input" placeholder="Necesidad, alcance o próximo paso" value={detalle} maxLength={2000} onChange={(e) => setDetalle(e.target.value)} />
+        </label>
+        <label className="neg-field">
+          <span>Valor estimado</span>
         <input
           className="neg-input"
           placeholder="Monto estimado"
@@ -314,6 +384,15 @@ function NuevaOportunidad({
           value={monto}
           onChange={(e) => setMonto(e.target.value.replace(/[^\d]/g, ""))}
         />
+        </label>
+        <label className="neg-field neg-field-small">
+          <span>Moneda</span>
+          <select className="neg-input" value={moneda} onChange={(e) => setMoneda(e.target.value)}>
+            <option value="PYG">Guaraníes</option><option value="USD">Dólares</option>
+          </select>
+        </label>
+        <label className="neg-field">
+          <span>Cliente</span>
         <select
           className="neg-input"
           value={contactoId}
@@ -326,12 +405,16 @@ function NuevaOportunidad({
             </option>
           ))}
         </select>
+        </label>
+        <label className="neg-field">
+          <span>Cierre estimado</span>
         <input
           className="neg-input"
           type="date"
           value={cierre}
           onChange={(e) => setCierre(e.target.value)}
         />
+        </label>
       </div>
 
       {error && <p className="neg-error">{error}</p>}
@@ -371,14 +454,16 @@ function Agenda({
   const [esTarea, setEsTarea] = useState(false);
   const [fecha, setFecha] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
 
   async function guardar() {
     if (!detalle.trim() || guardando) return;
 
     setGuardando(true);
+    setError("");
 
     try {
-      await fetch("/api/crm/actividades", {
+      const respuesta = await fetch("/api/crm/actividades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -388,23 +473,28 @@ function Agenda({
           fecha: fecha || undefined,
         }),
       });
+      const datos = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) throw new Error(datos?.error || "No se pudo guardar el seguimiento.");
 
       setDetalle("");
       setFecha("");
       onCambio();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el seguimiento.");
     } finally {
       setGuardando(false);
     }
   }
 
   async function marcar(actividad: Actividad) {
-    await fetch("/api/crm/actividades", {
+    setError("");
+    const respuesta = await fetch("/api/crm/actividades", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: actividad.id, hecha: !actividad.hecha }),
     });
-
-    onCambio();
+    if (respuesta.ok) onCambio();
+    else setError("No se pudo actualizar la tarea. Intentá nuevamente.");
   }
 
   return (
@@ -453,8 +543,13 @@ function Agenda({
         </button>
       </div>
 
+      {error && <p className="neg-error" role="alert">{error}</p>}
+
       {actividades.length === 0 ? (
-        <p className="empty-note">Todavía no anotaste nada.</p>
+        <div className="neg-empty-state compact">
+          <CalendarDays size={22} />
+          <p>Anotá una conversación o programá el próximo paso para que ningún cliente quede sin respuesta.</p>
+        </div>
       ) : (
         <div className="neg-lista">
           {actividades.map((a) => (
@@ -481,4 +576,9 @@ function Agenda({
       )}
     </div>
   );
+}
+
+function formatearFecha(fecha: string) {
+  const [anio, mes, dia] = fecha.split("-");
+  return anio && mes && dia ? `${dia}/${mes}/${anio}` : fecha;
 }

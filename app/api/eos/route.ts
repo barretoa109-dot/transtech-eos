@@ -10,6 +10,7 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
+import { agregarAccesoAprobacion } from "@/lib/eos/acciones-chat";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -73,6 +74,7 @@ type RespuestaN8N = {
   tipo: string;
   accion: string;
   metadata: Record<string, unknown>;
+  acciones: Array<{ tipo?: unknown; datos?: unknown }>;
   /* Lo que consumió el mensaje en OpenAI. Cero si el gateway no lo mandó. */
   tokens_entrada: number;
   tokens_salida: number;
@@ -397,6 +399,12 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
       data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
         ? (data.metadata as Record<string, unknown>)
         : {},
+    acciones: Array.isArray(data.acciones)
+      ? data.acciones.filter(
+          (accion): accion is { tipo?: unknown; datos?: unknown } =>
+            Boolean(accion) && typeof accion === "object" && !Array.isArray(accion),
+        )
+      : [],
 
     /* Si el gateway todavía no los manda, quedan en cero y no rompen nada. */
     tokens_entrada: Number(data.tokens_entrada ?? 0) || 0,
@@ -776,6 +784,11 @@ export async function POST(req: Request) {
     }
 
     const resultado = normalizarRespuestaConDocumento(rawText);
+    resultado.respuesta = agregarAccesoAprobacion(
+      resultado.respuesta,
+      resultado.acciones,
+      new URL(req.url).origin,
+    );
 
     /*
      * ============================================================

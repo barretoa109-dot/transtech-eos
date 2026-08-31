@@ -706,6 +706,13 @@
   background: transparent;
   resize: none;
 }
+.eos-app .composer textarea {
+  min-height: 24px;
+  max-height: 132px;
+  padding: 1px 0;
+  line-height: 1.5;
+  overflow-y: auto;
+}
 .eos-app .composer input::placeholder,
 .eos-app .composer textarea::placeholder {
   color: var(--muted);
@@ -756,6 +763,12 @@
 }
 .eos-app .send-btn:disabled {
   cursor: not-allowed;
+}
+.eos-app .composer-help {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 10.5px;
+  text-align: center;
 }
 .eos-app .hint {
   font-size: 11.5px;
@@ -2983,11 +2996,318 @@
    cliente enfrente, así que cada campo de más es tiempo que el otro espera
    parado. Nada de acordeones ni pasos.
    ------------------------------------------------------------------ */
+.eos-app .neg-resumen {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.eos-app .neg-resumen-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.eos-app .neg-resumen-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(26, 86, 219, 0.38);
+  box-shadow: 0 8px 24px rgba(26, 86, 219, 0.08);
+}
+.eos-app .neg-resumen-card svg { color: var(--blue); }
+.eos-app .neg-resumen-card > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+.eos-app .neg-resumen-card strong {
+  grid-column: 1 / -1;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.35px;
+}
+.eos-app .neg-resumen-card small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.eos-app .neg-resumen-card small.is-alert { color: var(--amber); font-weight: 700; }
+.eos-app .neg-resumen-card.is-primary {
+  background: linear-gradient(145deg, var(--blue-light), #fff);
+  border-color: rgba(26, 86, 219, 0.25);
+}
+.eos-app .neg-resumen-card.is-primary strong { font-size: 15px; color: var(--blue-dark); }
+
+.eos-app .neg-nav {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 22px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--line-soft);
+}
+.eos-app .neg-nav-item {
+  min-width: 0;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.eos-app .neg-nav-item span { display: block; font-size: 12px; font-weight: 750; }
+.eos-app .neg-nav-item small {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .neg-nav-item.active {
+  background: #fff;
+  color: var(--blue-dark);
+  box-shadow: 0 2px 8px rgba(7, 19, 42, 0.07);
+}
+.eos-app .neg-load-error {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid rgba(194, 123, 26, 0.3);
+  border-radius: 14px;
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .neg-load-error p { margin: 4px 0 10px; color: var(--muted); font-size: 12.5px; }
+.eos-app .neg-module-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border: 1px solid rgba(26, 86, 219, 0.22);
+  border-radius: 13px;
+  background: var(--blue-light);
+}
+.eos-app .neg-module-note strong { color: var(--blue-dark); font-size: 13px; }
+.eos-app .neg-module-note p { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; }
+
+@media (max-width: 760px) {
+  .eos-app .neg-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eos-app .neg-nav {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .eos-app .neg-nav::-webkit-scrollbar { display: none; }
+  .eos-app .neg-nav-item { flex: 0 0 auto; min-width: 104px; }
+}
+@media (max-width: 420px) {
+  .eos-app .neg-resumen { grid-template-columns: 1fr 1fr; gap: 7px; }
+  .eos-app .neg-resumen-card { padding: 11px; }
+  .eos-app .neg-resumen-card strong { font-size: 18px; }
+}
+
 .eos-app .neg-form {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 10px 0 12px;
+}
+
+/* Cabeceras, métricas y feedback del ERP. Mantienen las acciones visibles y
+   convierten las pantallas vacías en un siguiente paso comprensible. */
+.eos-app .neg-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.eos-app .neg-section-heading .card-title,
+.eos-app .neg-section-heading .card-sub {
+  margin-bottom: 0;
+}
+
+.eos-app .neg-section-heading .reco-btn,
+.eos-app .neg-feedback,
+.eos-app .neg-form-title,
+.eos-app .neg-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.eos-app .neg-metricas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.eos-app .neg-metrica {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 90%, var(--blue) 10%);
+}
+
+.eos-app .neg-metrica span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.eos-app .neg-metrica strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eos-app .neg-feedback {
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.eos-app .neg-feedback.is-ok {
+  color: #18794e;
+  background: #e9f8ef;
+}
+
+.eos-app .neg-inline-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 4px;
+  color: #18794e;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.eos-app .neg-form-title {
+  margin: 17px 0 9px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.eos-app .neg-field {
+  flex: 1 1 190px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.eos-app .neg-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  padding: 0 11px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.eos-app .neg-search:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 14%, transparent);
+}
+
+.eos-app .neg-search input {
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+}
+
+.eos-app .neg-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+  background: color-mix(in srgb, var(--panel) 94%, var(--blue) 6%);
+}
+
+.eos-app .neg-empty-state strong {
+  margin-top: 9px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.eos-app .neg-empty-state p {
+  max-width: 510px;
+  margin: 5px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.eos-app .neg-empty-state.is-error {
+  color: #b42318;
+  background: #fff4f2;
+}
+
+.eos-app .neg-loading {
+  justify-content: center;
+  padding: 28px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.eos-app .neg-loading span {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: eos-spin .7s linear infinite;
+}
+
+@keyframes eos-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 680px) {
+  .eos-app .neg-section-heading { align-items: stretch; flex-direction: column; }
+  .eos-app .neg-section-heading .reco-btn { justify-content: center; width: 100%; }
+  .eos-app .neg-metricas { grid-template-columns: 1fr 1fr; }
+  .eos-app .neg-metrica:last-child { grid-column: 1 / -1; }
+  .eos-app .neg-search { max-width: none; }
 }
 .eos-app .neg-input {
   flex: 1 1 160px;
@@ -3157,6 +3477,85 @@
   margin: 8px 0 0;
   font-size: 12.5px;
   color: var(--red);
+}
+
+.eos-app .neg-field-wide { flex-basis: 100%; }
+.eos-app .neg-field-small { flex: 0 1 130px; }
+.eos-app .neg-field .neg-input { width: 100%; }
+.eos-app .neg-empty-state > svg { flex: 0 0 auto; color: var(--blue); }
+.eos-app .neg-empty-state.compact { padding: 14px; }
+.eos-app .crm-pipeline {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(210px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  padding-bottom: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+.eos-app .crm-columna {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--line-soft) 45%, white);
+  scroll-snap-align: start;
+}
+.eos-app .crm-columna > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 9px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .35px;
+}
+.eos-app .crm-columna > header strong {
+  min-width: 21px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fff;
+  text-align: center;
+}
+.eos-app .crm-columna-lista { display: grid; gap: 8px; }
+.eos-app .crm-columna-vacia {
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: center;
+}
+.eos-app .crm-oportunidad {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(7 19 42 / 4%);
+}
+.eos-app .crm-fecha { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.eos-app .crm-acciones { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 3px; }
+.eos-app .crm-contacto-icono {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.eos-app a.crm-contacto-accion { text-decoration: none; }
+
+@media (max-width: 640px) {
+  .eos-app .crm-pipeline { grid-template-columns: repeat(6, minmax(82vw, 1fr)); }
+  .eos-app .neg-empty-state { align-items: flex-start; padding: 15px; }
+  .eos-app .neg-empty-state .reco-btn { margin-left: auto; }
+  .eos-app .neg-field,
+  .eos-app .neg-field-small { flex-basis: 100%; }
+  .eos-app .crm-contacto-accion { min-height: 36px; }
 }
 
 /* Las etapas del embudo, en fila. Una etapa vacía también informa: "no hay

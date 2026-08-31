@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, Paperclip, Send } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
+import { debeEnviarConEnter } from "@/lib/eos/composer";
 
 type PromptCard = {
   key: string;
@@ -95,7 +96,16 @@ export default function ChatView({
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
+  const [esMovil, setEsMovil] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 700px)");
+    const actualizar = () => setEsMovil(media.matches);
+    actualizar();
+    media.addEventListener("change", actualizar);
+    return () => media.removeEventListener("change", actualizar);
+  }, []);
 
   const primerNombre = nombre.split(" ")[0] || nombre;
   const palabrasSaludo = `Hola, ${primerNombre}`.split(" ");
@@ -104,8 +114,15 @@ export default function ChatView({
     onEnviar(texto);
   }
 
-  function manejarTecla(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+  function manejarTecla(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      debeEnviarConEnter({
+        key: event.key,
+        shiftKey: event.shiftKey,
+        isComposing: event.nativeEvent.isComposing,
+        esMovil,
+      })
+    ) {
       event.preventDefault();
       enviar();
     }
@@ -158,6 +175,7 @@ export default function ChatView({
               onEnviar={() => enviar()}
               onArchivoClick={() => fileInputRef.current?.click()}
               onQuitarArchivo={onQuitarArchivo}
+              esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
             />
@@ -202,6 +220,7 @@ export default function ChatView({
               onEnviar={() => enviar()}
               onArchivoClick={() => fileInputRef.current?.click()}
               onQuitarArchivo={onQuitarArchivo}
+              esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
             />
@@ -221,10 +240,11 @@ type ComposerProps = {
   focused: boolean;
   setFocused: (v: boolean) => void;
   onMensajeChange: (v: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onEnviar: () => void;
   onArchivoClick: () => void;
   onQuitarArchivo: () => void;
+  esMovil: boolean;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
 };
@@ -240,10 +260,19 @@ function Composer({
   onEnviar,
   onArchivoClick,
   onQuitarArchivo,
+  esMovil,
   obtenerEtiquetaArchivo,
   formatearTamanio,
 }: ComposerProps) {
   const listo = mensaje.trim().length > 0 || Boolean(archivoAdjunto);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`;
+  }, [mensaje]);
 
   return (
     <>
@@ -269,8 +298,9 @@ function Composer({
         <button type="button" className="icon-btn" onClick={onArchivoClick} aria-label="Adjuntar archivo">
           <Paperclip size={18} />
         </button>
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
+          rows={1}
           placeholder="Escribile a EOS..."
           value={mensaje}
           onChange={(e) => onMensajeChange(e.target.value)}
@@ -290,6 +320,9 @@ function Composer({
         >
           <Send size={16} />
         </button>
+      </div>
+      <div className="composer-help">
+        {esMovil ? "Enter crea un salto · Tocá enviar para mandar" : "Enter para enviar · Shift + Enter para un salto"}
       </div>
       <div className="hint">EOS puede cometer errores. Verificá la información importante antes de tomar decisiones.</div>
     </>

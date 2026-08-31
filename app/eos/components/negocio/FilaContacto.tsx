@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Building2, Pencil, Phone } from "lucide-react";
 import type { Contacto } from "./tipos";
 
 /**
@@ -32,6 +32,9 @@ export default function FilaContacto({ contacto, onCambio }: Props) {
 
   return (
     <div className="neg-fila">
+      <div className="crm-contacto-icono" aria-hidden="true">
+        <Building2 size={16} />
+      </div>
       <div className="neg-fila-texto">
         <strong>{contacto.nombre}</strong>
         <small>
@@ -44,6 +47,12 @@ export default function FilaContacto({ contacto, onCambio }: Props) {
 
       <span className="neg-estado">{rol}</span>
 
+      {contacto.telefono && !editando && (
+        <a className="chip crm-contacto-accion" href={`tel:${contacto.telefono}`} aria-label={`Llamar a ${contacto.nombre}`}>
+          <Phone size={11} /> Llamar
+        </a>
+      )}
+
       {editando ? (
         <Editar
           contacto={contacto}
@@ -54,7 +63,7 @@ export default function FilaContacto({ contacto, onCambio }: Props) {
           }}
         />
       ) : (
-        <button type="button" className="chip" onClick={() => setEditando(true)}>
+        <button type="button" className="chip crm-contacto-accion" onClick={() => setEditando(true)}>
           <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
           Editar
         </button>
@@ -170,7 +179,7 @@ function Editar({
         </button>
       </div>
 
-      {error && <p className="anular-error">{error}</p>}
+      {error && <p className="anular-error" role="alert">{error}</p>}
 
       <div className="anular-acciones">
         <button type="button" className="chip active" disabled={guardando} onClick={guardar}>

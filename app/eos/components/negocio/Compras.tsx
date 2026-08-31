@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
-import { Check } from "lucide-react";
+import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -43,12 +43,28 @@ export default function Compras({
   const [lineas, setLineas] = useState<LineaEnEdicion[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [errorCarga, setErrorCarga] = useState("");
+  const [exito, setExito] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [pagandoId, setPagandoId] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
-    return fetch("/api/erp/compras", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+    return Promise.resolve()
+      .then(() => {
+        setErrorCarga("");
+        setCargando(true);
+        return fetch("/api/erp/compras", { cache: "no-store" });
+      })
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(data?.error || "No se pudieron cargar las compras.");
+        return data;
+      })
       .then((data) => setCompras(data?.compras ?? []))
-      .catch((err) => console.error("No se pudieron cargar las compras:", err))
+      .catch((err) => {
+        console.error("No se pudieron cargar las compras:", err);
+        setErrorCarga(err instanceof Error ? err.message : "No se pudieron cargar las compras.");
+      })
       .finally(() => setCargando(false));
   }, []);
 
@@ -57,6 +73,21 @@ export default function Compras({
   }, [cargar]);
 
   const totales = useMemo(() => calcularVenta(lineas), [lineas]);
+  const productosVisibles = useMemo(() => {
+    const termino = busqueda.trim().toLocaleLowerCase("es");
+    if (!termino) return productos;
+    return productos.filter((p) =>
+      `${p.nombre} ${p.codigo ?? ""}`.toLocaleLowerCase("es").includes(termino),
+    );
+  }, [busqueda, productos]);
+  const resumen = useMemo(() => {
+    const pendientes = compras.filter((c) => !c.movimiento_id);
+    const monedas = new Set(compras.map((c) => c.moneda));
+    const montoPendiente = monedas.size <= 1
+      ? pendientes.reduce((suma, c) => suma + Number(c.total || 0), 0)
+      : null;
+    return { pendientes: pendientes.length, montoPendiente, moneda: compras[0]?.moneda ?? "PYG" };
+  }, [compras]);
 
   // La moneda sale de los productos que están EN esta compra, no del primero
   // del catálogo: con un solo producto en dólares arriba de la lista, toda
@@ -103,6 +134,10 @@ export default function Compras({
 
   async function registrar() {
     if (lineas.length === 0 || guardando) return;
+    if (lineas.some((l) => l.cantidad <= 0 || l.precio_unitario <= 0)) {
+      setError("Revisá las cantidades y costos: deben ser mayores que cero.");
+      return;
+    }
 
     // La base lo rechaza igual (trigger v93), pero enterarse acá evita perder
     // la carga entera contra un error que ya se podía ver.
@@ -113,6 +148,7 @@ export default function Compras({
 
     setGuardando(true);
     setError("");
+    setExito("");
 
     try {
       const respuesta = await fetch("/api/erp/compras", {
@@ -138,8 +174,11 @@ export default function Compras({
 
       setLineas([]);
       setComprobante("");
+      setContactoId("");
+      setCondicion("contado");
       setAbierto(false);
-      void cargar();
+      setExito("Compra registrada. El stock y los indicadores ya están actualizados.");
+      await cargar();
       // El panel financiero cambió: la compra pagada ya descontó.
       onCambio();
     } catch (err) {
@@ -150,69 +189,75 @@ export default function Compras({
   }
 
   async function pagar(compra: Compra) {
-    const respuesta = await fetch(`/api/erp/compras/${compra.id}/pagar`, { method: "POST" });
-
-    if (respuesta.ok) {
-      void cargar();
+    if (pagandoId) return;
+    setPagandoId(compra.id);
+    setError("");
+    setExito("");
+    try {
+      const respuesta = await fetch(`/api/erp/compras/${compra.id}/pagar`, { method: "POST" });
+      const resultado = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo registrar el pago.");
+      setExito("Pago registrado en el panel financiero.");
+      await cargar();
       onCambio();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
+    } finally {
+      setPagandoId(null);
     }
   }
 
   return (
     <>
       <div className="card">
-        <div className="card-title">Registrar una compra</div>
+        <div className="neg-section-heading">
+          <div>
+            <div className="card-title">Compras y abastecimiento</div>
+            <div className="card-sub">Registrá facturas, actualizá costos y mantené el stock al día.</div>
+          </div>
+          {productos.length > 0 && !abierto && (
+            <button type="button" className="reco-btn" onClick={() => { setAbierto(true); setExito(""); }}>
+              <Plus size={16} /> Nueva compra
+            </button>
+          )}
+        </div>
+
+        {!cargando && compras.length > 0 && (
+          <div className="neg-metricas" aria-label="Resumen de compras">
+            <div className="neg-metrica"><span>Compras registradas</span><strong>{compras.length}</strong></div>
+            <div className="neg-metrica"><span>Pagos pendientes</span><strong>{resumen.pendientes}</strong></div>
+            <div className="neg-metrica"><span>Saldo pendiente</span><strong>{resumen.montoPendiente === null ? "Varias monedas" : formatearMonto(resumen.montoPendiente, resumen.moneda)}</strong></div>
+          </div>
+        )}
+
+        {exito && <p className="neg-feedback is-ok" role="status"><Check size={15} /> {exito}</p>}
 
         {productos.length === 0 ? (
-          <p className="empty-note">
-            Primero cargá los productos que comprás, en la pestaña Productos.
-          </p>
-        ) : !abierto ? (
-          <button type="button" className="reco-btn" onClick={() => setAbierto(true)}>
-            Nueva compra
-          </button>
-        ) : (
+          <div className="neg-empty-state">
+            <PackagePlus size={28} />
+            <strong>Prepará tu catálogo antes de comprar</strong>
+            <p>Cargá al menos un producto en la pestaña Productos. Después vas a poder registrar facturas y actualizar existencias automáticamente.</p>
+          </div>
+        ) : abierto ? (
           <>
+            <div className="neg-form-title"><ReceiptText size={17} /> Datos de la factura</div>
             <div className="neg-form">
-              <select
-                className="neg-input"
-                value={contactoId}
-                onChange={(e) => setContactoId(e.target.value)}
-              >
-                <option value="">Sin proveedor</option>
-                {contactos.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="neg-input"
-                placeholder="Nº de factura del proveedor"
-                value={comprobante}
-                maxLength={40}
-                onChange={(e) => setComprobante(e.target.value)}
-              />
-              <select
-                className="neg-input"
-                value={condicion}
-                onChange={(e) =>
-                  setCondicion(e.target.value === "credito" ? "credito" : "contado")
-                }
-              >
-                <option value="contado">Contado</option>
-                <option value="credito">Crédito</option>
-              </select>
+              <label className="neg-field"><span>Proveedor</span><select className="neg-input" value={contactoId} onChange={(e) => setContactoId(e.target.value)}><option value="">Sin proveedor asignado</option>{contactos.filter((c) => c.es_proveedor).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></label>
+              <label className="neg-field"><span>Nº de factura</span><input className="neg-input" placeholder="Ej. 001-001-0001234" value={comprobante} maxLength={40} onChange={(e) => setComprobante(e.target.value)} /></label>
+              <label className="neg-field"><span>Condición</span><select className="neg-input" value={condicion} onChange={(e) => setCondicion(e.target.value === "credito" ? "credito" : "contado")}><option value="contado">Contado · registrar pago ahora</option><option value="credito">Crédito · pagar después</option></select></label>
             </div>
 
+            <div className="neg-form-title"><ShoppingCart size={17} /> Productos de la compra</div>
+            <label className="neg-search"><Search size={15} /><input value={busqueda} placeholder="Buscar por nombre o código" onChange={(e) => setBusqueda(e.target.value)} /></label>
             <div className="neg-catalogo">
-              {productos.map((p) => (
+              {productosVisibles.map((p) => (
                 <button key={p.id} type="button" className="neg-chip" onClick={() => agregar(p)}>
                   {p.nombre}
-                  <span>{p.controla_stock ? `${p.stock_actual} en stock` : "sin stock"}</span>
+                  <span>{p.codigo ? `${p.codigo} · ` : ""}{p.controla_stock ? `${p.stock_actual} en stock` : "servicio"}</span>
                 </button>
               ))}
             </div>
+            {productosVisibles.length === 0 && <p className="empty-note">No encontramos productos con “{busqueda}”.</p>}
 
             {lineas.length > 0 && (
               <div className="neg-lineas">
@@ -283,7 +328,7 @@ export default function Compras({
               </div>
             )}
 
-            {error && <p className="neg-error">{error}</p>}
+            {error && <p className="neg-error" role="alert"><AlertCircle size={14} /> {error}</p>}
 
             <div className="chip-row" style={{ marginTop: 12 }}>
               <button
@@ -294,21 +339,23 @@ export default function Compras({
               >
                 {guardando ? "Registrando…" : "Registrar compra"}
               </button>
-              <button type="button" className="chip" onClick={() => setAbierto(false)}>
+              <button type="button" className="chip" disabled={guardando} onClick={() => { setAbierto(false); setLineas([]); setError(""); }}>
                 Cancelar
               </button>
             </div>
           </>
-        )}
+        ) : null}
       </div>
 
       <div className="card">
         <div className="card-title">Últimas compras</div>
 
         {cargando ? (
-          <p className="empty-note">Cargando…</p>
+          <div className="neg-loading" role="status"><span /> Cargando compras…</div>
+        ) : errorCarga ? (
+          <div className="neg-empty-state is-error"><AlertCircle size={25} /><strong>No pudimos cargar las compras</strong><p>{errorCarga}</p><button type="button" className="chip active" onClick={() => void cargar()}>Reintentar</button></div>
         ) : compras.length === 0 ? (
-          <p className="empty-note">Todavía no registraste ninguna compra.</p>
+          <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p>{productos.length > 0 && <button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button>}</div>
         ) : (
           <div className="neg-lista">
             {compras.map((c) => (
@@ -337,6 +384,8 @@ export default function Compras({
                     }
                     confirmar="Sí, pagar"
                     onConfirmar={() => void pagar(c)}
+                    ocupado={pagandoId === c.id}
+                    ocupadoTexto="Registrando…"
                   />
                 )}
 

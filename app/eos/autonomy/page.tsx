@@ -27,6 +27,9 @@ function actionLabel(action: string) {
   if (action === "CREAR_OBJETIVO") return "Crear objetivo";
   if (action === "CREAR_TAREA") return "Crear tarea";
   if (action === "GUARDAR_MEMORIA") return "Guardar memoria";
+  if (action === "REGISTRAR_VENTA") return "Registrar venta";
+  if (action === "AJUSTAR_STOCK") return "Actualizar stock";
+  if (action === "CREAR_CONTACTO") return "Crear contacto";
   return action.replaceAll("_", " ");
 }
 
@@ -78,7 +81,8 @@ export default function AutonomyApprovalsPage() {
   }, [load]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   async function decide(id: string, status: "approved" | "rejected") {

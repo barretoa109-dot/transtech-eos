@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { AlertTriangle, Check, Package, Plus, ShoppingCart, TrendingUp, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -76,13 +76,13 @@ type Pestania = "ventas" | "compras" | "productos" | "clientes" | "embudo" | "em
  * carga; las tres últimas son pantallas propias en `./negocio`, que es lo que
  * mantiene este archivo legible.
  */
-const PESTANIAS: { clave: Pestania; etiqueta: string }[] = [
-  { clave: "ventas", etiqueta: "Ventas" },
-  { clave: "compras", etiqueta: "Compras" },
-  { clave: "productos", etiqueta: "Productos" },
-  { clave: "clientes", etiqueta: "Clientes" },
-  { clave: "embudo", etiqueta: "Embudo" },
-  { clave: "emisor", etiqueta: "Facturación" },
+const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
+  { clave: "ventas", etiqueta: "Ventas", detalle: "Ingresos y cobros" },
+  { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
+  { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
+  { clave: "clientes", etiqueta: "Contactos", detalle: "Clientes y proveedores" },
+  { clave: "embudo", etiqueta: "CRM", detalle: "Oportunidades y tareas" },
+  { clave: "emisor", etiqueta: "Facturación", detalle: "Datos del emisor" },
 ];
 
 export default function NegocioView() {
@@ -91,8 +91,22 @@ export default function NegocioView() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
+  const [sinErp, setSinErp] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
+
+  const resumen = useMemo(() => {
+    const porCobrar = ventas.filter((venta) => !venta.movimiento_id);
+    const bajoMinimo = productos.filter((producto) => producto.bajo_minimo);
+
+    return {
+      ventas: ventas.length,
+      porCobrar: porCobrar.length,
+      productos: productos.length,
+      bajoMinimo: bajoMinimo.length,
+      contactos: contactos.length,
+    };
+  }, [contactos, productos, ventas]);
 
   /*
    * No prende el cartel de "cargando" al empezar.
@@ -117,25 +131,55 @@ export default function NegocioView() {
       fetch("/api/erp/ventas", { cache: "no-store" }),
     ])
       .then(async (respuestas) => {
+        if (respuestas.some((r) => r.status === 401)) {
+          throw new Error("SESSION_EXPIRED");
+        }
+
         // 403 es "no contrataste el módulo", y eso no es un error: es una
         // invitación. Mostrar "algo salió mal" ahí sería mentirle al usuario
         // sobre por qué no ve nada.
-        if (respuestas.some((r) => r.status === 403)) {
+        if (respuestas.every((r) => r.status === 403)) {
           setSinModulo(true);
           return;
+        }
+
+        const erpNoActivo = respuestas[1].status === 403 || respuestas[2].status === 403;
+        if (erpNoActivo) {
+          const contactosData = respuestas[0].ok
+            ? await respuestas[0].json().catch(() => null)
+            : null;
+          setContactos(contactosData?.contactos ?? []);
+          setProductos([]);
+          setVentas([]);
+          setSinModulo(false);
+          setSinErp(true);
+          setError("");
+          setPestania("embudo");
+          return;
+        }
+
+        if (respuestas.some((r) => !r.ok)) {
+          throw new Error("BUSINESS_UNAVAILABLE");
         }
 
         const [contactosData, productosData, ventasData] = await Promise.all(
           respuestas.map((r) => r.json().catch(() => null)),
         );
 
+        setSinModulo(false);
+        setSinErp(false);
+        setError("");
         setContactos(contactosData?.contactos ?? []);
         setProductos(productosData?.productos ?? []);
         setVentas(ventasData?.ventas ?? []);
       })
       .catch((err) => {
         console.error("No se pudo cargar el negocio:", err);
-        setError("No pudimos cargar tu negocio en este momento.");
+        setError(
+          err instanceof Error && err.message === "SESSION_EXPIRED"
+            ? "Tu sesión venció. Volvé a iniciar sesión para cargar los datos reales de tu negocio."
+            : "No pudimos cargar los datos de tu negocio. No los mostramos como vacíos porque podrían existir: reintentá la carga.",
+        );
       })
       .finally(() => setCargando(false));
   }, []);
@@ -178,32 +222,82 @@ export default function NegocioView() {
           <div className="page-eyebrow">Negocio</div>
           <div className="page-title">Tu ERP y tu CRM</div>
           <div className="page-sub">
-            Lo que vendés, a quién, y cuánto entró. Cada venta cobrada cae sola en tu panel.
+            Operaciones, inventario y relaciones comerciales en un solo lugar.
           </div>
         </div>
 
-        <div className="chip-row">
-          {PESTANIAS.map((p) => (
+        {!cargando && !error && !sinErp && (
+          <div className="neg-resumen" aria-label="Resumen operativo del negocio">
+            <button type="button" className="neg-resumen-card" onClick={() => setPestania("ventas")}>
+              <ShoppingCart size={17} />
+              <span>Ventas</span>
+              <strong>{resumen.ventas}</strong>
+              <small>{resumen.porCobrar ? `${resumen.porCobrar} por cobrar` : "Cobros al día"}</small>
+            </button>
+            <button type="button" className="neg-resumen-card" onClick={() => setPestania("productos")}>
+              <Package size={17} />
+              <span>Productos</span>
+              <strong>{resumen.productos}</strong>
+              <small className={resumen.bajoMinimo ? "is-alert" : ""}>
+                {resumen.bajoMinimo ? `${resumen.bajoMinimo} con stock bajo` : "Stock controlado"}
+              </small>
+            </button>
+            <button type="button" className="neg-resumen-card" onClick={() => setPestania("clientes")}>
+              <Users size={17} />
+              <span>Contactos</span>
+              <strong>{resumen.contactos}</strong>
+              <small>Clientes y proveedores</small>
+            </button>
+            <button type="button" className="neg-resumen-card is-primary" onClick={() => setPestania("embudo")}>
+              <TrendingUp size={17} />
+              <span>CRM</span>
+              <strong>Ver embudo</strong>
+              <small>Oportunidades y seguimiento</small>
+            </button>
+          </div>
+        )}
+
+        <nav className="neg-nav" aria-label="Áreas del negocio">
+          {PESTANIAS.filter((p) => !sinErp || p.clave === "clientes" || p.clave === "embudo").map((p) => (
             <button
               key={p.clave}
               type="button"
-              className={`chip ${pestania === p.clave ? "active" : ""}`}
+              className={`neg-nav-item ${pestania === p.clave ? "active" : ""}`}
               onClick={() => setPestania(p.clave)}
+              aria-current={pestania === p.clave ? "page" : undefined}
             >
-              {p.etiqueta}
+              <span>{p.etiqueta}</span>
+              <small>{p.detalle}</small>
             </button>
           ))}
-        </div>
+        </nav>
+
+        {sinErp && !cargando && (
+          <div className="neg-module-note">
+            <div>
+              <strong>Tu CRM está activo</strong>
+              <p>Podés gestionar contactos, oportunidades y seguimientos. Activá ERP cuando quieras sumar productos, ventas y compras.</p>
+            </div>
+            <a className="chip" href="/planes">Ver ERP</a>
+          </div>
+        )}
 
         {error && (
-          <div className="card" style={{ borderColor: "var(--amber)", color: "var(--amber)" }}>
-            {error}
+          <div className="neg-load-error" role="alert">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>No mostramos ceros si no pudimos verificar los datos</strong>
+              <p>{error}</p>
+              <button type="button" className="chip" onClick={() => { setError(""); setCargando(true); void cargar(); }}>
+                Reintentar
+              </button>
+            </div>
           </div>
         )}
 
         {cargando ? (
           <p className="empty-note">Cargando tu negocio…</p>
-        ) : pestania === "ventas" ? (
+        ) : error ? null : pestania === "ventas" ? (
           <Ventas
             ventas={ventas}
             contactos={contactos}
