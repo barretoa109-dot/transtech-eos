@@ -5,6 +5,13 @@ import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { armarPanorama } from "@/lib/finanzas/panorama";
 import { codigoMoneda } from "@/lib/finanzas/monedas";
 import { detectarRiesgo, redactarAviso } from "@/lib/finanzas/riesgo";
+import {
+  detectarRiesgosNegocio,
+  redactarRiesgoNegocio,
+  type ProductoStock,
+  type VentaACobrar,
+} from "@/lib/erp/riesgos-negocio";
+import { formatearMonto } from "@/lib/finanzas/formato";
 import { trazarTrayectoria } from "@/lib/finanzas/trayectoria";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
@@ -141,12 +148,56 @@ export async function GET() {
     ingresos: panorama.ingresos,
   });
 
+  /*
+   * Los riesgos del negocio salen por la MISMA ruta que los de la caja.
+   *
+   * Si la pantalla y el correo se calcularan por caminos distintos, el usuario
+   * recibiría un aviso que no coincide con lo que ve al entrar — y entonces no
+   * le cree a ninguno de los dos. Es la misma lección que ya está escrita en
+   * `lib/finanzas/avisarRiesgos` sobre la moneda principal.
+   *
+   * Se leen con la sesión del usuario, así que la RLS los filtra sola: acá no
+   * hace falta el cliente de servicio.
+   */
+  const [productos, ventasACobrar] = await Promise.all([
+    supabase
+      .from("eos_erp_productos")
+      .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
+      .eq("usuario_id", user.id)
+      .eq("activo", true)
+      .eq("controla_stock", true),
+    supabase
+      .from("eos_erp_ventas")
+      .select("id,fecha,total,moneda")
+      .eq("usuario_id", user.id)
+      .is("movimiento_id", null)
+      .not("estado", "in", '("anulada","cobrada")'),
+  ]);
+
+  const riesgosNegocio = detectarRiesgosNegocio({
+    hoy,
+    productos: ((productos.data ?? []) as ProductoStock[]).map((p) => ({
+      ...p,
+      stock_actual: Number(p.stock_actual ?? 0),
+      stock_minimo: Number(p.stock_minimo ?? 0),
+    })),
+    ventasACobrar: ((ventasACobrar.data ?? []) as VentaACobrar[]).map((v) => ({
+      ...v,
+      total: Number(v.total ?? 0),
+    })),
+  });
+
   return NextResponse.json(
     {
       configurado: true,
       moneda: principal,
       riesgo,
       aviso: riesgo ? redactarAviso(riesgo, principal) : null,
+      // Vacío la mayoría de los días, igual que `riesgo`. Eso es el éxito.
+      negocio: riesgosNegocio.map((r) => ({
+        ...r,
+        aviso: redactarRiesgoNegocio(r, formatearMonto),
+      })),
       trayectoria,
       // Sirve para que la interfaz pueda decir "miré los próximos 45 días" en
       // vez de dejar al usuario adivinando qué tan lejos alcanza la promesa.

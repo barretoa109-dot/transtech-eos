@@ -21,7 +21,7 @@ import type { Fijo } from "./fijos.ts";
 const MAX_USUARIOS = 50;
 const HORIZONTE_DIAS = 45;
 
-type EnviarCorreo = (args: { para: string; asunto: string; texto: string }) => Promise<void>;
+export type EnviarCorreo = (args: { para: string; asunto: string; texto: string }) => Promise<void>;
 
 export type ResumenAvisos = {
   evaluados: number;
@@ -213,7 +213,7 @@ export async function avisarRiesgos(
       }
 
       const texto = redactarAviso(riesgo, principal);
-      const entregado = await entregar(admin, uid, texto, opciones.enviarCorreo);
+      const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo);
 
       if (!entregado) {
         // Sin canal no se anota el aviso: si mañana el usuario activa el push,
@@ -257,7 +257,7 @@ export async function avisarRiesgos(
  * dónde activarlo; borrarlo obligaría a reescribir el reintento, el recorte
  * del texto y la limpieza de suscripciones muertas desde cero.
  */
-async function entregar(
+export async function entregarAviso(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver arriba
   admin: any,
   usuarioId: string,

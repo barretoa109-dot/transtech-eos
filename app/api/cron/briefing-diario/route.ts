@@ -6,6 +6,7 @@ import { Resend } from "resend";
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
+import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -134,6 +135,25 @@ export async function GET(request: Request) {
       });
 
       console.log("Riesgo: avisos del día", resumen);
+
+      // Los riesgos del negocio van en el mismo `after` pero en su propio
+      // recorrido: evalúan a quien tiene el módulo ERP, que no es la misma
+      // gente que definió su Constitución Financiera. Ver `lib/erp/avisar-negocio`.
+      const negocio = await avisarRiesgosNegocio(cliente, {
+        hoy: hoyEnParaguay(),
+        enviarCorreo: clave
+          ? async ({ para, asunto, texto }) => {
+              await new Resend(clave).emails.send({
+                from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+                to: para,
+                subject: asunto,
+                text: texto,
+              });
+            }
+          : undefined,
+      });
+
+      console.log("Negocio: avisos del día", negocio);
     } catch (error) {
       console.error("Briefing: falló la detección de riesgos:", error);
     }
