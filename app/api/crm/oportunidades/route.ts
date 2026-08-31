@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
-import { ETAPAS, esEtapa, porEtapa, siguienteEtapa, valorPonderado } from "@/lib/crm/embudo";
+import { ETAPAS, embudoPorMoneda, esEtapa, siguienteEtapa } from "@/lib/crm/embudo";
 
 export const dynamic = "force-dynamic";
 
@@ -49,32 +49,29 @@ export async function GET() {
    * cualquier informe. Calcularla en cada pantalla es garantizar que un día no
    * coincidan.
    */
-  const abiertas = oportunidades.filter(
-    (o) => o.etapa !== "ganada" && o.etapa !== "perdida",
-  );
-
-  const enJuego = abiertas.reduce((total, o) => total + Number(o.monto ?? 0), 0);
-  const ganadas = oportunidades.filter((o) => o.etapa === "ganada");
-
-  const paraPonderar = oportunidades.map((o) => ({
+  /*
+   * Y se calcula UNA VEZ POR MONEDA.
+   *
+   * Antes se sumaba `monto` de todas las oportunidades sin mirar la moneda, y
+   * la pantalla etiquetaba el resultado con la moneda de la primera de la
+   * lista. Con una oportunidad de USD 10.000 y otra de Gs. 5.000.000 el embudo
+   * decía "en juego Gs. 5.010.000": un número que no existe en ninguna moneda
+   * y que el usuario no tiene forma de detectar.
+   *
+   * Un total pertenece a una moneda. Si hay dos monedas hay dos totales.
+   */
+  const conMoneda = oportunidades.map((o) => ({
     monto: Number(o.monto ?? 0),
     etapa: String(o.etapa),
+    moneda: monedaConocida(o.moneda),
   }));
 
   return NextResponse.json(
     {
       oportunidades,
-      resumen: {
-        abiertas: abiertas.length,
-        // Lo que suma el embudo entero. Es cierto y no significa nada solo.
-        en_juego: Math.round(enJuego),
-        // Lo que razonablemente va a entrar, según en qué etapa está cada una.
-        // Es la cifra que se puede mirar sin gastar plata que no existe.
-        esperado: valorPonderado(paraPonderar),
-        ganadas: ganadas.length,
-        ganado: Math.round(ganadas.reduce((t, o) => t + Number(o.monto ?? 0), 0)),
-        por_etapa: porEtapa(paraPonderar),
-      },
+      // Un embudo por moneda, con la del negocio primero. Vacío si no hay
+      // ninguna oportunidad todavía.
+      embudos: embudoPorMoneda(conMoneda),
       etapas: ETAPAS,
     },
     { headers: noStore() },

@@ -131,6 +131,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Trigger v93: un producto en una moneda dentro de un documento en otra.
+    if (texto.includes("EOS_MONEDA_INCOMPATIBLE")) {
+      return NextResponse.json(
+        {
+          error:
+            "Hay un producto en otra moneda que la de la compra. Un total no puede estar en dos monedas.",
+        },
+        { status: 400, headers: noStore() },
+      );
+    }
+
     console.error("ERP: no se pudo registrar la compra:", error);
     return NextResponse.json(
       { error: "No pudimos registrar la compra." },

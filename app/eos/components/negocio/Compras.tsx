@@ -5,6 +5,7 @@ import Anular from "./Anular";
 import { Check } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
+import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import type { Compra, Contacto, Producto } from "./tipos";
 
 /**
@@ -55,7 +56,23 @@ export default function Compras({
   }, [cargar]);
 
   const totales = useMemo(() => calcularVenta(lineas), [lineas]);
-  const moneda = productos[0]?.moneda ?? "PYG";
+
+  // La moneda sale de los productos que están EN esta compra, no del primero
+  // del catálogo: con un solo producto en dólares arriba de la lista, toda
+  // compra en guaraníes se registraba como USD. Ver `lib/erp/moneda-documento`.
+  const monedaDocumento = useMemo(
+    () => monedaDelDocumento(lineas.map((l) => productos.find((p) => p.id === l.producto_id)?.moneda)),
+    [lineas, productos],
+  );
+
+  const moneda = monedaDocumento.ok ? monedaDocumento.moneda : "PYG";
+  const mezclaMonedas = !monedaDocumento.ok;
+
+  /** Cada línea se muestra en la moneda de SU producto, mezcladas o no. */
+  function monedaDeLinea(productoId: string | null | undefined) {
+    const resultado = monedaDelDocumento([productos.find((p) => p.id === productoId)?.moneda]);
+    return resultado.ok ? resultado.moneda : moneda;
+  }
 
   function agregar(producto: Producto) {
     setLineas((actual) => {
@@ -85,6 +102,13 @@ export default function Compras({
 
   async function registrar() {
     if (lineas.length === 0 || guardando) return;
+
+    // La base lo rechaza igual (trigger v93), pero enterarse acá evita perder
+    // la carga entera contra un error que ya se podía ver.
+    if (!monedaDocumento.ok) {
+      setError(avisoMonedasMezcladas(monedaDocumento.monedas));
+      return;
+    }
 
     setGuardando(true);
     setError("");
@@ -226,7 +250,9 @@ export default function Compras({
                         )
                       }
                     />
-                    <span className="neg-linea-total">{formatearMonto(l.total, moneda)}</span>
+                    <span className="neg-linea-total">
+                      {formatearMonto(l.total, monedaDeLinea(lineas[i]?.producto_id))}
+                    </span>
                     <button
                       type="button"
                       className="neg-quitar"
@@ -238,10 +264,21 @@ export default function Compras({
                   </div>
                 ))}
 
-                <div className="neg-total">
-                  <span>IVA incluido {formatearMonto(totales.iva_total, moneda)}</span>
-                  <strong>{formatearMonto(totales.total, moneda)}</strong>
-                </div>
+                {/*
+                  Con dos monedas adentro no se muestra ningún total: el único
+                  que se podría dibujar sería la suma de guaraníes con dólares,
+                  y ese número no existe. Se dice el problema en su lugar.
+                */}
+                {mezclaMonedas ? (
+                  <p className="neg-error" role="alert">
+                    {avisoMonedasMezcladas(monedaDocumento.monedas)}
+                  </p>
+                ) : (
+                  <div className="neg-total">
+                    <span>IVA incluido {formatearMonto(totales.iva_total, moneda)}</span>
+                    <strong>{formatearMonto(totales.total, moneda)}</strong>
+                  </div>
+                )}
               </div>
             )}
 
@@ -251,7 +288,7 @@ export default function Compras({
               <button
                 type="button"
                 className="reco-btn"
-                disabled={lineas.length === 0 || guardando}
+                disabled={lineas.length === 0 || guardando || mezclaMonedas}
                 onClick={registrar}
               >
                 {guardando ? "Registrando…" : "Registrar compra"}

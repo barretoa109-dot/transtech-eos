@@ -100,3 +100,64 @@ export function porEtapa(
     };
   });
 }
+
+/**
+ * El embudo, una vez por moneda.
+ *
+ * ============================================================
+ * POR QUÉ NO PUEDE HABER UN SOLO "EN JUEGO"
+ * ============================================================
+ *
+ * El resumen sumaba `monto` de todas las oportunidades sin mirar la moneda, y
+ * la pantalla etiquetaba el resultado con la moneda de la PRIMERA de la lista.
+ * Con una oportunidad de USD 10.000 y otra de Gs. 5.000.000, el embudo decía
+ * "en juego Gs. 5.010.000" — un número que no existe en ninguna moneda y que
+ * nadie puede detectar mirándolo.
+ *
+ * Es el mismo error que el panel financiero ya corrigió por su lado. La regla
+ * es una sola y vale para todo EOS: **un total pertenece a una moneda.** Si hay
+ * dos monedas hay dos totales, uno debajo del otro, cada uno con su símbolo.
+ *
+ * El orden no es alfabético ni por monto: primero la moneda del negocio, para
+ * que lo que el usuario mira todos los días esté siempre arriba.
+ */
+export type OportunidadConMoneda = OportunidadResumen & { moneda: string };
+
+export type EmbudoDeMoneda = {
+  moneda: string;
+  abiertas: number;
+  en_juego: number;
+  esperado: number;
+  ganadas: number;
+  ganado: number;
+  por_etapa: ReturnType<typeof porEtapa>;
+};
+
+export function embudoPorMoneda(
+  oportunidades: OportunidadConMoneda[],
+  principal = "PYG",
+): EmbudoDeMoneda[] {
+  const monedas = [...new Set(oportunidades.map((o) => o.moneda))];
+
+  monedas.sort((a, b) => {
+    if (a === principal) return -1;
+    if (b === principal) return 1;
+    return a.localeCompare(b);
+  });
+
+  return monedas.map((moneda) => {
+    const suyas = oportunidades.filter((o) => o.moneda === moneda);
+    const abiertas = suyas.filter((o) => o.etapa !== "ganada" && o.etapa !== "perdida");
+    const ganadas = suyas.filter((o) => o.etapa === "ganada");
+
+    return {
+      moneda,
+      abiertas: abiertas.length,
+      en_juego: Math.round(abiertas.reduce((t, o) => t + o.monto, 0)),
+      esperado: valorPonderado(suyas),
+      ganadas: ganadas.length,
+      ganado: Math.round(ganadas.reduce((t, o) => t + o.monto, 0)),
+      por_etapa: porEtapa(suyas),
+    };
+  });
+}

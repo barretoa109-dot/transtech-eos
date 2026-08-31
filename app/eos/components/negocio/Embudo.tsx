@@ -31,7 +31,21 @@ import type { Actividad, Contacto, Oportunidad } from "./tipos";
  * día en una semana — y un embudo desactualizado miente peor que no tenerlo.
  */
 
-type Resumen = {
+/*
+ * ============================================================
+ * Y UN EMBUDO POR MONEDA, NO UNO SOLO
+ * ============================================================
+ *
+ * Antes había un único "en juego" con la moneda de la primera oportunidad de
+ * la lista pegada al lado. Alcanzaba con tener una en dólares para que la cifra
+ * dejara de existir: guaraníes sumados a dólares no dan nada. Ahora cada moneda
+ * tiene su bloque, con la del negocio primero.
+ *
+ * Los conteos por etapa sí van juntos: "tres en propuesta" se puede contar
+ * entre monedas porque no es plata, es cuántas hay.
+ */
+type EmbudoDeMoneda = {
+  moneda: string;
   abiertas: number;
   en_juego: number;
   esperado: number;
@@ -43,7 +57,7 @@ type Resumen = {
 export default function Embudo({ contactos }: { contactos: Contacto[] }) {
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);
   const [actividades, setActividades] = useState<Actividad[]>([]);
-  const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [embudos, setEmbudos] = useState<EmbudoDeMoneda[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
   const [cargando, setCargando] = useState(true);
 
@@ -64,7 +78,7 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
         );
 
         setOportunidades(oportunidadesData?.oportunidades ?? []);
-        setResumen(oportunidadesData?.resumen ?? null);
+        setEmbudos(oportunidadesData?.embudos ?? []);
         setActividades(actividadesData?.actividades ?? []);
       })
       .catch((err) => console.error("No se pudo cargar el embudo:", err))
@@ -102,41 +116,64 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
 
   if (cargando) return <p className="empty-note">Cargando tu embudo…</p>;
 
-  const moneda = oportunidades[0]?.moneda ?? "PYG";
+  const abiertasTotales = embudos.reduce((t, e) => t + e.abiertas, 0);
+  const variasMonedas = embudos.length > 1;
+
+  // Los conteos por etapa se suman entre monedas: son cuántas hay, no plata.
+  const etapas = (embudos[0]?.por_etapa ?? []).map((etapa) => ({
+    ...etapa,
+    cantidad: embudos.reduce(
+      (t, e) => t + (e.por_etapa.find((x) => x.clave === etapa.clave)?.cantidad ?? 0),
+      0,
+    ),
+  }));
 
   return (
     <>
-      {resumen && resumen.abiertas > 0 && (
+      {abiertasTotales > 0 && (
         <div className="card">
           <div className="card-title">Tu embudo</div>
           <div className="card-sub">
-            {resumen.abiertas} {resumen.abiertas === 1 ? "oportunidad abierta" : "oportunidades abiertas"}
+            {abiertasTotales} {abiertasTotales === 1 ? "oportunidad abierta" : "oportunidades abiertas"}
+            {variasMonedas && ` en ${embudos.length} monedas`}
           </div>
 
-          <div className="kpi-grid" style={{ marginTop: 10 }}>
-            <div className="kpi-card">
-              <div className="l">En juego</div>
-              <div className="v">{formatearMonto(resumen.en_juego, moneda)}</div>
-              <div className="d">suma de todo lo abierto</div>
-            </div>
-            <div className="kpi-card">
-              <div className="l">Esperado</div>
-              <div className="v">{formatearMonto(resumen.esperado, moneda)}</div>
-              <div className="d">ponderado por etapa</div>
-            </div>
-            <div className="kpi-card">
-              <div className="l">Ganado</div>
-              <div className="v">{formatearMonto(resumen.ganado, moneda)}</div>
-              <div className="d">
-                {resumen.ganadas} {resumen.ganadas === 1 ? "cerrada" : "cerradas"}
+          {embudos.map((e) => (
+            <div key={e.moneda}>
+              {/* El nombre de la moneda solo aparece si hay más de una: con una
+                  sola sería ruido, con dos es la diferencia entre entender y no. */}
+              {variasMonedas && (
+                <div className="card-sub" style={{ marginTop: 14, fontWeight: 600 }}>
+                  {e.moneda}
+                </div>
+              )}
+
+              <div className="kpi-grid" style={{ marginTop: 10 }}>
+                <div className="kpi-card">
+                  <div className="l">En juego</div>
+                  <div className="v">{formatearMonto(e.en_juego, e.moneda)}</div>
+                  <div className="d">suma de todo lo abierto</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="l">Esperado</div>
+                  <div className="v">{formatearMonto(e.esperado, e.moneda)}</div>
+                  <div className="d">ponderado por etapa</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="l">Ganado</div>
+                  <div className="v">{formatearMonto(e.ganado, e.moneda)}</div>
+                  <div className="d">
+                    {e.ganadas} {e.ganadas === 1 ? "cerrada" : "cerradas"}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          ))}
 
           {/* Una etapa vacía también informa: "no hay nada en propuesta"
               explica por qué el mes que viene va a estar flojo. */}
           <div className="neg-etapas">
-            {resumen.por_etapa
+            {etapas
               .filter((e) => e.clave !== "perdida")
               .map((e) => (
                 <div className="neg-etapa" key={e.clave}>

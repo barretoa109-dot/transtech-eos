@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   esEtapa,
   etiquetaDeEtapa,
+  embudoPorMoneda,
   porEtapa,
   probabilidadDe,
   siguienteEtapa,
@@ -71,4 +72,57 @@ test("el conteo por etapa trae todas, incluso las vacías", () => {
 test("las etiquetas se muestran en castellano", () => {
   assert.equal(etiquetaDeEtapa("negociacion"), "Negociación");
   assert.equal(etiquetaDeEtapa("lo_que_sea"), "lo_que_sea");
+});
+
+// ============================================================
+// El embudo no puede sumar guaraníes con dólares
+// ============================================================
+
+test("cada moneda tiene su propio embudo, sin mezclarse", () => {
+  const resultado = embudoPorMoneda([
+    { monto: 5_000_000, etapa: "propuesta", moneda: "PYG" },
+    { monto: 10_000, etapa: "propuesta", moneda: "USD" },
+    { monto: 2_000_000, etapa: "ganada", moneda: "PYG" },
+  ]);
+
+  assert.equal(resultado.length, 2);
+
+  const pyg = resultado.find((r) => r.moneda === "PYG")!;
+  const usd = resultado.find((r) => r.moneda === "USD")!;
+
+  assert.equal(pyg.en_juego, 5_000_000);
+  assert.equal(pyg.ganado, 2_000_000);
+  assert.equal(usd.en_juego, 10_000);
+  assert.equal(usd.ganado, 0);
+
+  // Lo que importa: en ningún lado aparece 5.010.000.
+  for (const fila of resultado) {
+    assert.notEqual(fila.en_juego, 5_010_000);
+  }
+});
+
+test("la moneda del negocio va siempre primero", () => {
+  const mezcla = [
+    { monto: 1, etapa: "nueva", moneda: "USD" },
+    { monto: 1, etapa: "nueva", moneda: "BRL" },
+    { monto: 1, etapa: "nueva", moneda: "PYG" },
+  ];
+
+  assert.equal(embudoPorMoneda(mezcla)[0].moneda, "PYG");
+  assert.equal(embudoPorMoneda(mezcla, "USD")[0].moneda, "USD");
+});
+
+test("una sola moneda da un solo embudo, como antes", () => {
+  const resultado = embudoPorMoneda([
+    { monto: 100, etapa: "nueva", moneda: "PYG" },
+    { monto: 200, etapa: "ganada", moneda: "PYG" },
+  ]);
+
+  assert.equal(resultado.length, 1);
+  assert.equal(resultado[0].en_juego, 100);
+  assert.equal(resultado[0].ganado, 200);
+});
+
+test("sin oportunidades no hay ninguna moneda que mostrar", () => {
+  assert.deepEqual(embudoPorMoneda([]), []);
 });
