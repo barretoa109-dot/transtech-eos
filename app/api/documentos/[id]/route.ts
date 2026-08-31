@@ -7,6 +7,7 @@ import { crearExcelDocumento } from "@/lib/documentos/excel";
 import { crearPdfDocumento } from "@/lib/documentos/pdf";
 import { crearWordDocumento } from "@/lib/documentos/word";
 import { esFormato, nombreDeArchivo, FORMATOS } from "@/lib/documentos/guardar";
+import { verificarArchivo } from "@/lib/documentos/verificar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,6 +91,20 @@ export async function GET(request: Request, contexto: { params: Promise<{ id: st
     console.error(`Documentos: falló la generación del ${formato}:`, fallo);
     return NextResponse.json(
       { error: "No pudimos generar el archivo." },
+      { status: 500, headers: noStore() },
+    );
+  }
+
+  // Ninguna de las tres bibliotecas lanza un error cuando entrega de menos: un
+  // archivo vacío o cortado sale con 200 y su Content-Type, y del otro lado es
+  // "EOS me mandó algo que no abre". Antes de entregarlo se mira que sea lo que
+  // dice ser.
+  const integridad = verificarArchivo(formato, cuerpo);
+
+  if (!integridad.ok) {
+    console.error(`Documentos: el ${formato} de ${id} no se entrega — ${integridad.motivo}`);
+    return NextResponse.json(
+      { error: "El archivo salió dañado. Volvé a pedirlo." },
       { status: 500, headers: noStore() },
     );
   }

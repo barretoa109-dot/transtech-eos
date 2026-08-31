@@ -9,6 +9,7 @@ import { crearExcelInforme } from "@/lib/informes/excel";
 import { crearPdfInforme } from "@/lib/informes/pdf";
 import { crearWordInforme } from "@/lib/informes/word";
 import { esClavePeriodo, resolverPeriodo, type ClavePeriodo } from "@/lib/informes/periodo";
+import { verificarArchivo } from "@/lib/documentos/verificar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,6 +179,18 @@ export async function GET(request: Request) {
     console.error(`Informe: falló la generación del ${formato}:`, error);
     return NextResponse.json(
       { error: "No pudimos generar el archivo." },
+      { status: 500, headers: noStore() },
+    );
+  }
+
+  // El balance es el documento que más caro sale roto: si una vez llega
+  // cortado, nadie vuelve a confiar en los otros. Se mira antes de entregarlo.
+  const integridad = verificarArchivo(formato as Formato, cuerpo);
+
+  if (!integridad.ok) {
+    console.error(`Informe: el ${formato} no se entrega — ${integridad.motivo}`);
+    return NextResponse.json(
+      { error: "El archivo salió dañado. Volvé a pedirlo." },
       { status: 500, headers: noStore() },
     );
   }
