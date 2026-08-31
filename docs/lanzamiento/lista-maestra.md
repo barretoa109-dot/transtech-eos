@@ -14,13 +14,13 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **439/439 en verde**. Empezó el día en 379.
+- `npm test` → **463/463 en verde**. Empezó el día en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **24 errores, 6 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
 - `supabase migration list --linked` → **169 aplicadas, local y remoto coinciden
   en todas. Cero pendientes.**
-- `npm run certificar` → **100 de 102 en verde**, 2 en amarillo porque la cuenta
+- `npm run certificar` → **113 de 115 en verde**, 2 en amarillo porque la cuenta
   de certificación no tiene tarjeta catastrada. Ninguna en rojo.
 
 ---
@@ -81,8 +81,8 @@ lista** y no depende de nadie externo.
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
 | 25 | Conexiones automáticas | **abierto** | Solo lectura de correo. Ninguna integración bancaria. El alcance congelado lo saca del anuncio. |
 | 26 | Fijos, deudas y vencimientos | **parcial** | `api/finanzas/fijos` y `api/finanzas/deudas`. Faltan cuotas, pagos parciales e intereses. |
-| 27 | Cálculos de dinero | **parcial** | Cubierto por tests (`lib/finanzas`, `evals/casos/importes.ts`) y reforzado hoy: un precio inválido ya no se guarda como cero. Falta el caso de montos grandes y redondeo de PYG sin decimales. |
-| 28 | Informes por período | **parcial** | `api/informes` y `api/finanzas/periodo`. Falta probar que dos corridas iguales den lo mismo. |
+| 27 | Cálculos de dinero | **cerrado** (con reserva) | Tests de `lib/finanzas`, `evals/casos/importes.ts`, la validación de entrada, y desde el 31 de agosto `lib/erp/dinero-limites.test.ts`: la invariante `subtotal + iva = total` con 1 a 200 líneas y precios no redondos, montos de nueve y doce dígitos sin perder un guaraní, guaraní sin decimales y dólar con ellos, cantidades fraccionadas, y la tasa ausente cobrada al 10% y no como exenta. **Reserva:** falta el recorrido de una persona distinta. |
+| 28 | Informes por período | **parcial** | `api/informes` y `api/finanzas/periodo`, y desde el 31 de agosto probado que **dos corridas iguales dan exactamente el mismo informe**: el orden de los movimientos no cambia los totales, lo de afuera del período se queda afuera, y agosto pedido en diciembre da lo mismo que agosto pedido en septiembre. **Falta** el filtro por moneda y zona horaria bajo prueba. |
 | 29 | Word, PDF y Excel | **parcial** | `docx`, `exceljs` y `pdfkit` integrados; `docs/documentos-a-pedido.md`. Falta cubrir todos los pedidos posibles. |
 | 30 | Validar antes de entregar | **cerrado** (con reserva) | `lib/documentos/verificar.ts` mira bytes, tamaño mínimo, firma y marca de cierre —probado contra archivos reales de exceljs, pdfkit y docx para no rechazar los sanos— **y desde el 31 de agosto también contrasta las cifras**: una tabla cuya fila TOTAL no suma sus filas se frena con 422 en vez de entregarse. Cuida los subtotales, el redondeo y las tablas de una línea para no dar falsos positivos. Los datos de otro usuario los frena la sesión + RLS. **Reserva:** falta el recorrido de una persona distinta. |
 
@@ -111,7 +111,7 @@ lista** y no depende de nadie externo.
 
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
-| 43 | Auditoría de acceso | **parcial** | RLS en todas las tablas, revocación de `anon` (v72), endurecimiento de relaciones por tenant (v76), triggers de contacto ajeno. Falta la prueba activa de que ningún usuario alcanza datos de otro. |
+| 43 | Auditoría de acceso | **cerrado** (con reserva) | **Probado, no afirmado**: el caso 12 de certificación crea una víctima y un intruso con sesión real e intenta, sobre las **64 tablas con `usuario_id`**, leerlas con sesión ajena, leerlas sin sesión con sólo la clave pública, editar y borrar filas ajenas, plantar un movimiento a nombre de otro, y llamar las funciones `security definer`. **13 de 13 en verde contra la base real**, cero fugas. La lista de tablas se descubre leyendo las migraciones, así que una tabla nueva queda cubierta desde que existe. **Reserva:** falta el recorrido de una persona distinta. |
 | 44 | Sin rutas de prueba | **cerrado** | Relevado hoy: no hay rutas de test, debug ni demo en `app/`. Las tres bajo `api/internal` están autorizadas por firma. |
 | 45 | Interfaces externas | **parcial** | Firma de webhook Bancard, `worker-authorize`, `no-store` y `Vary: Cookie` en las APIs. Falta límite de solicitudes y prevención de repetición generalizados. |
 | 46 | Secretos y datos sensibles | **parcial** | `lib/seguridad/cifrado.ts` con AES-GCM ligado a usuario y proveedor, rotación de clave y 14 tests. Falta la revisión de que ningún registro imprima datos privados. |
