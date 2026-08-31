@@ -944,7 +944,7 @@ export async function POST(req: Request) {
 
     const timeout = error instanceof Error && error.name === "AbortError";
 
-    console.log("Error proxy EOS:", error);
+    console.error("Error proxy EOS:", error);
 
     return Response.json(
       {

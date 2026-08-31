@@ -59,9 +59,18 @@ export type ContextoNegocio = {
  */
 export type MontoPorMoneda = { moneda: string; total?: number; monto?: number };
 
+/**
+ * El resultado de una RPC cruza una frontera sin garantías de runtime: durante
+ * un despliegue puede convivir código nuevo con la forma anterior del JSON.
+ * Un valor escalar legado no debe derribar todo el chat por intentar mapearlo.
+ */
+function lista<T>(valor: unknown): T[] {
+  return Array.isArray(valor) ? (valor as T[]) : [];
+}
+
 /** "Gs. 1.250.000" o, con dos monedas, "Gs. 1.250.000 y USD 300". */
-function montos(filas: MontoPorMoneda[] | undefined): string | null {
-  const conPlata = (filas ?? [])
+function montos(filas: unknown): string | null {
+  const conPlata = lista<MontoPorMoneda>(filas)
     .map((f) => ({ moneda: f.moneda, valor: Number(f.total ?? f.monto ?? 0) }))
     .filter((f) => f.valor > 0);
 
@@ -83,7 +92,9 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
 
   const partes: string[] = [];
 
-  const finanzas = (contexto.finanzas ?? []).filter(
+  const finanzas = lista<NonNullable<ContextoNegocio["finanzas"]>[number]>(
+    contexto.finanzas,
+  ).filter(
     (f) => f.ingresos_mes > 0 || f.gastos_mes > 0,
   );
 
@@ -120,12 +131,16 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
 
     if (linea.length > 0) partes.push(`Negocio este mes: ${linea.join("; ")}.`);
 
-    if (erp.mas_vendidos && erp.mas_vendidos.length > 0) {
-      partes.push(`Lo que más sale: ${erp.mas_vendidos.join(", ")}.`);
+    const masVendidos = lista<string>(erp.mas_vendidos);
+    if (masVendidos.length > 0) {
+      partes.push(`Lo que más sale: ${masVendidos.join(", ")}.`);
     }
 
-    if (erp.bajo_minimo && erp.bajo_minimo.length > 0) {
-      const items = erp.bajo_minimo.map((p) => `${p.nombre} (${p.stock})`);
+    const bajoMinimo = lista<NonNullable<NonNullable<ContextoNegocio["erp"]>["bajo_minimo"]>[number]>(
+      erp.bajo_minimo,
+    );
+    if (bajoMinimo.length > 0) {
+      const items = bajoMinimo.map((p) => `${p.nombre} (${p.stock})`);
       partes.push(`Por faltar: ${items.join(", ")}.`);
     }
   }

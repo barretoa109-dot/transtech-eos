@@ -190,3 +190,19 @@ test("una cifra sin monedas con plata se dice sin monto, no en cero", () => {
   assert.ok(texto.includes("4 ventas"));
   assert.ok(!texto.includes(" por "));
 });
+
+test("una forma escalar legada de la RPC no derriba todo el chat", () => {
+  const legado = {
+    finanzas: 0,
+    erp: {
+      ventas_mes: { cantidad: 2, por_moneda: 125_000 },
+      por_cobrar_monedas: 80_000,
+      por_pagar_monedas: { moneda: "PYG", total: 25_000 },
+      bajo_minimo: { nombre: "Harina", stock: 1 },
+      mas_vendidos: "Harina",
+    },
+  } as unknown as ContextoNegocio;
+
+  assert.doesNotThrow(() => textoContexto(legado));
+  assert.equal(textoContexto(legado), "Negocio este mes: 2 ventas.");
+});
