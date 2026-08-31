@@ -52,10 +52,16 @@ export default function AdminPagosPage() {
   const [procesandoId, setProcesandoId] = useState("");
   const [error, setError] = useState("");
 
+  /*
+   * Ningún `setState` antes del primer `await`.
+   *
+   * Al montar, `cargando` ya arranca en true y `error` en "", así que
+   * ponerlos de nuevo no cambiaba nada y sí costaba un render extra en
+   * cascada — que es lo que marca `react-hooks/set-state-in-effect` en
+   * React 19. Mostrar el spinner de nuevo solo tiene sentido cuando alguien
+   * aprieta Actualizar, y eso lo hace `recargar`.
+   */
   const cargarPagos = useCallback(async () => {
-    setCargando(true);
-    setError("");
-
     try {
       const respuesta = await fetch("/api/admin/pagos/listar", {
         cache: "no-store",
@@ -72,6 +78,9 @@ export default function AdminPagosPage() {
       }
 
       setPagos(resultado?.pagos || []);
+      // Lograrlo limpia el error de la vez anterior, que es lo que antes
+      // hacía el `setError("")` de arriba.
+      setError("");
     } catch (err) {
       setError(
         err instanceof Error
@@ -83,8 +92,14 @@ export default function AdminPagosPage() {
     }
   }, []);
 
+  /** Actualizar a mano sí vuelve a mostrar el spinner. */
+  const recargar = useCallback(() => {
+    setCargando(true);
+    void cargarPagos();
+  }, [cargarPagos]);
+
   useEffect(() => {
-    cargarPagos();
+    void cargarPagos();
   }, [cargarPagos]);
 
   async function ejecutarAccion(
@@ -148,7 +163,7 @@ export default function AdminPagosPage() {
           <button
             type="button"
             className="refresh-button"
-            onClick={cargarPagos}
+            onClick={recargar}
             disabled={cargando}
           >
             {cargando ? (

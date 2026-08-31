@@ -69,7 +69,22 @@ export default function PagoTarjeta() {
   const [registrando, setRegistrando] = useState(false);
   const [pagando, setPagando] = useState(false);
   const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
+  /*
+   * El aviso de la vuelta de Bancard nace del estado inicial, no de un efecto.
+   *
+   * Antes se ponía con `setAviso` dentro del efecto, de forma síncrona: el
+   * usuario veía un primer render en blanco y el mensaje recién en el segundo.
+   * En la vuelta de un pago ese parpadeo es exactamente el momento en el que
+   * alguien se pregunta si perdió la plata. Calculado acá, el mensaje está en
+   * la primera pintura.
+   */
+  const [aviso, setAviso] = useState(() => {
+    if (!params.get("ref")) return "";
+
+    return params.get("cancelado")
+      ? "Cancelaste el pago. Podés intentarlo de nuevo cuando quieras."
+      : "Confirmando tu pago...";
+  });
   const [exito, setExito] = useState<null | { plan: string; dias: number | null }>(null);
 
   const contenedorIframe = useRef<HTMLDivElement | null>(null);
@@ -283,16 +298,12 @@ export default function PagoTarjeta() {
 
     yaConsultado.current = true;
 
-    if (cancelado) {
-      setAviso("Cancelaste el pago. Podés intentarlo de nuevo cuando quieras.");
-      return;
-    }
+    // Los dos avisos de esta pantalla ya salieron con el estado inicial.
+    if (cancelado) return;
 
     let cancelada = false;
 
     (async () => {
-      setAviso("Confirmando tu pago...");
-
       // El webhook puede tardar un instante en llegar.
       for (let intento = 0; intento < 6 && !cancelada; intento += 1) {
         const res = await fetch(

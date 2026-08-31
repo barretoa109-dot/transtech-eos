@@ -38,10 +38,9 @@ export default function SaludPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
+  // Ningún `setState` antes del primer `await`: al montar el estado ya
+  // arranca así, y hacerlo costaba un render extra en cascada.
   const cargar = useCallback(async () => {
-    setCargando(true);
-    setError("");
-
     try {
       const respuesta = await fetch("/api/admin/salud", { cache: "no-store" });
 
@@ -53,6 +52,7 @@ export default function SaludPage() {
       if (!respuesta.ok) throw new Error("No se pudo consultar.");
 
       setReporte((await respuesta.json()) as Reporte);
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo consultar.");
     } finally {
@@ -60,8 +60,14 @@ export default function SaludPage() {
     }
   }, []);
 
+  /** Volver a consultar a mano sí muestra el spinner otra vez. */
+  const recargar = useCallback(() => {
+    setCargando(true);
+    void cargar();
+  }, [cargar]);
+
   useEffect(() => {
-    cargar();
+    void cargar();
   }, [cargar]);
 
   const vigilados = (reporte?.chequeos ?? []).filter((c) => !INFORMATIVOS.test(c.nombre));
@@ -86,7 +92,7 @@ export default function SaludPage() {
           Peor todavía, en desarrollo a veces parece andar y sólo falla en el
           build de producción.
         */}
-        <button type="button" onClick={cargar} disabled={cargando}>
+        <button type="button" onClick={recargar} disabled={cargando}>
           <span className={cargando ? "girando" : ""}>
             <RefreshCw size={15} />
           </span>

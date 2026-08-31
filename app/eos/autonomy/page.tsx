@@ -45,10 +45,9 @@ export default function AutonomyApprovalsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  // Ningún `setState` antes del primer `await`: al montar el estado ya
+  // arranca así, y hacerlo costaba un render extra en cascada.
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
       const response = await fetch("/api/autonomy/approvals", {
         cache: "no-store",
@@ -60,6 +59,7 @@ export default function AutonomyApprovalsPage() {
       }
 
       setApprovals(Array.isArray(payload?.approvals) ? payload.approvals : []);
+      setError("");
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -70,6 +70,12 @@ export default function AutonomyApprovalsPage() {
       setLoading(false);
     }
   }, []);
+
+  /** Actualizar a mano sí vuelve a mostrar el spinner. */
+  const recargar = useCallback(() => {
+    setLoading(true);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -126,7 +132,7 @@ export default function AutonomyApprovalsPage() {
           </div>
 
           <div className="headerActions">
-            <button type="button" onClick={() => void load()} disabled={loading}>
+            <button type="button" onClick={recargar} disabled={loading}>
               <RefreshCw size={15} /> Actualizar
             </button>
             <Link href="/eos/chat">Volver al chat</Link>
