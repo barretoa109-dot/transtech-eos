@@ -1,6 +1,6 @@
 # Lista maestra de lanzamiento — estado verificado
 
-Fecha del relevamiento: **31 de agosto de 2026**. Rama: `agent/eos-lanzamiento-lista-maestra`.
+Fecha del relevamiento: **31 de agosto de 2026**. Ya mergeado a `main` y desplegado.
 
 Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
@@ -18,9 +18,10 @@ Medición de hoy, para no discutirla dos veces:
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **24 errores, 6 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **163 aplicadas, local y remoto coinciden
-  en todas**. Hay **cinco más escritas y sin aplicar** a propósito: van después
-  del deploy. Ver la tabla del final.
+- `supabase migration list --linked` → **169 aplicadas, local y remoto coinciden
+  en todas. Cero pendientes.**
+- `npm run certificar` → **100 de 102 en verde**, 2 en amarillo porque la cuenta
+  de certificación no tiene tarjeta catastrada. Ninguna en rojo.
 
 ---
 
@@ -30,11 +31,11 @@ Medición de hoy, para no discutirla dos veces:
 | --- | --- | --- | --- |
 | 1 | Congelar el alcance | **parcial** | Redactado en `docs/lanzamiento/alcance-congelado.md`. Falta la firma de producto, legal y técnica, y la decisión sobre rotular ERP y CRM como beta. |
 | 2 | Cerrar los cambios pendientes | **cerrado** | Árbol limpio. Tres commits: invariantes de anulación, validación de entrada de productos, higiene del repo. Los 21 MB de video y presentación quedaron ignorados, no commiteados. |
-| 3 | Sincronizar migraciones | **parcial** | Las 163 aplicadas coinciden local y remoto, verificado hoy. **Pero hay un solo proyecto Supabase**: desarrollo, pruebas y producción son la misma base. No hay nada que sincronizar porque no hay contra qué. |
+| 3 | Sincronizar migraciones | **parcial** | Las 169 aplicadas coinciden local y remoto, verificado hoy. **Pero hay un solo proyecto Supabase**: desarrollo, pruebas y producción son la misma base. No hay nada que sincronizar porque no hay contra qué. |
 | 4 | Instalación desde cero | **bloqueado** | Imposible sin una segunda base. Ver la nota de infraestructura abajo. |
 | 5 | Actualización realista | **bloqueado** | Idem. Hoy toda migración se estrena contra datos de usuarios reales. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
-| 7 | Compra real controlada | **parcial** | Los siete finales están cubiertos. El caso 03 ya hacía aprobado, rechazado y abandonado —el tracker decía que no, y estaba mal—. El caso 11, nuevo, hace duplicado y demorado (**verdes contra la base real**) y reversado, que queda amarillo hasta aplicar la v95. **Falta** el 3DS, que se completa en el navegador y la suite no puede recorrer sola. |
+| 7 | Compra real controlada | **cerrado** (con reserva) | Los siete finales cubiertos y **verdes contra la base real**: aprobado, rechazado y abandonado en el caso 03; duplicado, demorado y reversado en el 11. La reversión deshace plan, módulos, solicitud e historial, y repetirla no descuenta dos veces. **Reservas:** el 3DS se completa en el navegador y la suite no puede recorrerlo sola, y el cobro con tarjeta queda en amarillo hasta catastrar una de prueba. |
 | 8 | Requisitos de publicación | **externo** | D-U-N-S, cuentas de tienda, políticas y verificaciones sin empezar. El alcance congelado saca las apps del lanzamiento: se sale por web. |
 | 9 | Revisión legal | **externo** | Existen `/terminos` y `/privacidad`. Ningún profesional los revisó. |
 | 10 | Decisión formal de lanzamiento | **abierto** | La regla está escrita en el alcance congelado; falta el acta. |
@@ -46,7 +47,7 @@ imposibles, no en pendientes: no se puede probar una instalación desde cero ni
 una actualización realista contra la base donde viven los usuarios. Y la
 definición de terminado exige "producción o un entorno idéntico".
 
-Un segundo proyecto Supabase (`transtech-eos-staging`), con las mismas 163
+Un segundo proyecto Supabase (`transtech-eos-staging`), con las mismas 169
 migraciones aplicadas desde cero y datos sintéticos, destraba de una vez los
 puntos 3, 4, 5, 7, 43 y 50. **Es la pieza de mayor rendimiento de toda la
 lista** y no depende de nadie externo.
@@ -59,14 +60,14 @@ lista** y no depende de nadie externo.
 | --- | --- | --- | --- |
 | 11 | Registro e inicio de sesión | **parcial** | Correo, Google y Apple, recuperación, cierre de sesión y verificación contra contraseñas filtradas (`lib/pwnedPassword.ts`). Falta el recorrido certificado de enlace vencido, sesión expirada y cuenta duplicada. |
 | 12 | Onboarding conversacional | **parcial** | `/eos/onboarding` y `api/onboarding`, caso 07 de certificación. Falta verificar que cubra país, moneda, zona horaria y tipo de usuario sin formulario. |
-| 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** aplicar la v96 y el recorrido con sesión. |
+| 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** el recorrido con sesión. |
 | 14 | Chat de punta a punta | **parcial** | Enviar, recibir y recuperar conversaciones andan. Falta certificar reintento, detención, adjuntos y reanudación tras desconexión. |
 | 15 | No inventar respuestas | **parcial** | `npm run evals` con corpus y auditoría por mutación (`evals:mutacion`). Falta el caso explícito de "no afirmar una acción no confirmada". |
 | 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate ya exigía aprobación para las acciones ERP del chat. El 31 de agosto se cubrió lo que faltaba en pantalla: cobrar, pagar y emitir un comprobante no confirmaban nada. Ahora los tres dicen qué va a pasar con el monto adentro (`negocio/Confirmar.tsx`), no un "¿estás seguro?". **Falta** el mismo criterio en las eliminaciones de producto y contacto. |
-| 17 | Memoria de EOS | **parcial** | Hecho el 31 de agosto: ver (la recomendación ahora se muestra; antes solo el patrón), corregir con sus palabras, descartar —deja de llegarle a EOS—, restaurar y eliminar (`eos_gestionar_aprendizaje_v96`). Los descartados quedan plegados, no desaparecen. **Falta** aplicar la v96 y el recorrido con sesión. |
+| 17 | Memoria de EOS | **parcial** | Hecho el 31 de agosto: ver (la recomendación ahora se muestra; antes solo el patrón), corregir con sus palabras, descartar —deja de llegarle a EOS—, restaurar y eliminar (`eos_gestionar_aprendizaje_v96`). Los descartados quedan plegados, no desaparecen. **Falta** el recorrido con sesión. |
 | 18 | Decisiones y seguimiento | **parcial** | `api/decisions` y `api/decisions/[id]/results`. Falta certificar responsable, fecha y vínculo con la conversación de origen. |
 | 19 | Briefing diario | **parcial** | `api/cron/briefing-diario` y preferencias. Falta certificar horario paraguayo, no-duplicado y el enlace correcto. |
-| 20 | Alertas de riesgo | **parcial** | Faltante de plata y vencimientos ya estaban, con control de repetición. El 31 de agosto se sumaron **inventario bajo y cobros demorados** (`lib/erp/riesgos-negocio.ts`, 12 tests), con una clave por riesgo que impide repetirlo y lo vuelve a permitir si el problema se resolvió y volvió. Salen por la misma ruta que ve la pantalla. **Falta** aplicar la v97 y los "gastos anormales", que no se encienden hasta poder distinguirlos de la compra anual del seguro. |
+| 20 | Alertas de riesgo | **parcial** | Faltante de plata y vencimientos ya estaban, con control de repetición. El 31 de agosto se sumaron **inventario bajo y cobros demorados** (`lib/erp/riesgos-negocio.ts`, 12 tests), con una clave por riesgo que impide repetirlo y lo vuelve a permitir si el problema se resolvió y volvió. Salen por la misma ruta que ve la pantalla. **Falta** los "gastos anormales", que no se encienden hasta poder distinguirlos de la compra anual del seguro. |
 
 ---
 
@@ -75,7 +76,7 @@ lista** y no depende de nadie externo.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. Falta patrimonio y evolución. |
-| 22 | Multimoneda | **parcial** | Cerrado el 31 de agosto en ERP, CRM y contexto del chat: la moneda del documento sale de sus líneas, un trigger (v93) rechaza mezclarlas —verificado contra la base real—, el embudo se calcula por moneda y `eos_contexto_negocio` (v94) devuelve una cifra por moneda. **Falta** mostrar tipo de cambio con origen y fecha, y aplicar la v94, que va después del deploy. |
+| 22 | Multimoneda | **parcial** | Cerrado el 31 de agosto en ERP, CRM y contexto del chat: la moneda del documento sale de sus líneas, un trigger (v93) rechaza mezclarlas —verificado contra la base real—, el embudo se calcula por moneda y `eos_contexto_negocio` (v94) devuelve una cifra por moneda. **Falta** mostrar tipo de cambio con origen y fecha. |
 | 23 | Trazabilidad de cada número | **parcial** | Hecho el 31 de agosto. Cada cifra del panel se abre: las que son suma muestran sus movimientos con la ventana de fechas; las que son cuenta (`disponible real`) muestran la operación, con cada término abrible a su vez. El detalle sale de los mismos arrays que se sumaron, y cada traza se comprueba a sí misma (`lib/finanzas/trazabilidad.ts`). **Falta** el recorrido con una cuenta con datos —necesita sesión— y llevar lo mismo a los informes y a los reportes del ERP. |
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
 | 25 | Conexiones automáticas | **abierto** | Solo lectura de correo. Ninguna integración bancaria. El alcance congelado lo saca del anuncio. |
@@ -102,7 +103,7 @@ lista** y no depende de nadie externo.
 | 39 | CRM | **parcial** | Contactos, oportunidades y actividades. Falta embudo, conversión y razones de pérdida. |
 | 40 | Reportes empresariales | **parcial** | `api/eos-kpis` y `api/eos-tendencias`. Faltan rotación, margen, cartera y desempeño. |
 | 41 | Facturación electrónica | **cerrado en su rotulado** | La v87 renombró el módulo a "Comprobantes de venta (beta)" y el papel sale como borrador. SIFEN sigue **externo**. |
-| 42 | Auditoría de cambios | **parcial** | Hecho el 31 de agosto: las nueve operaciones sensibles del ERP —registrar, cobrar, pagar, anular venta y compra, ajustar stock, emitir comprobante— escriben en la bitácora encadenada con actor, fecha, antes/después, motivo, origen y resultado. Los intentos rechazados también. El antes/después va dentro de `detalle`, que está hasheado; una columna nueva quedaría fuera de la cadena. **Falta** aplicar la v98, y empresa/sucursal, que no existen hasta la fase 1. |
+| 42 | Auditoría de cambios | **parcial** | Hecho el 31 de agosto: las nueve operaciones sensibles del ERP —registrar, cobrar, pagar, anular venta y compra, ajustar stock, emitir comprobante— escriben en la bitácora encadenada con actor, fecha, antes/después, motivo, origen y resultado. Los intentos rechazados también. El antes/después va dentro de `detalle`, que está hasheado; una columna nueva quedaría fuera de la cadena. **Falta** empresa/sucursal, que no existen hasta la fase 1. |
 
 ---
 
@@ -225,19 +226,31 @@ próxima retome desde v94.
 
 ---
 
-## Migraciones escritas y todavía sin aplicar
+## Las migraciones v94 a v98, aplicadas y verificadas
 
-Cinco. **Ninguna depende del orden**: se pueden aplicar antes o después del
-deploy sin dejar nada roto en el medio. Eso costó dos nombres de clave feos en
-la v94, y vale la pena — ver su cabecera.
+Se aplicaron el 31 de agosto. Cada una quedó **comprobada contra la base real**,
+no dada por buena porque `db push` no devolvió error.
 
-| Migración | Qué trae | Por qué espera |
+| Migración | Qué trae | Cómo se comprobó |
 | --- | --- | --- |
-| `20260831160000_..._v94` | `eos_contexto_negocio` devuelve una cifra por moneda | Ya **no** depende del orden: las claves viejas se quedan con su valor viejo y las nuevas van al lado. "Aplicala después del deploy" es una instrucción que funciona hasta que alguien la aplica antes. |
-| `20260831180000_..._v95` | Revertir un cobro de Bancard | Aditiva, no rompe nada. Va junto con la v94 porque `db push` no las separa. |
-| `20260831200000_..._v96` | Corregir aprendizajes y rehacer el onboarding | Idem. |
-| `20260831220000_..._v97` | Recordar qué aviso del negocio ya se mandó | Idem. Sin ella, los avisos de inventario y cobros no se envían (el código calla si no puede leer el historial, que es lo correcto). |
-| `20260901000000_..._v98` | Permitir los eventos del ERP en la bitácora | Idem. Sin ella, cada operación intenta asentarse y la fila se rechaza por el `check`; el registro falla en silencio y solo grita en el log. |
+| `v94` | `eos_contexto_negocio` por moneda | Se llamó a la función: devuelve las claves nuevas (`por_moneda`, `por_cobrar_monedas`) **y** las viejas al lado. Esa convivencia es lo que la vuelve independiente del orden de deploy. |
+| `v95` | Revertir un cobro de Bancard | Caso 11 de certificación, entero en verde: devuelve el vencimiento anterior, deja el historial en `reversado` con su motivo, repetirla no descuenta dos veces, y un cobro revertido no se puede reconfirmar. |
+| `v96` | Corregir aprendizajes y rehacer el onboarding | Las dos funciones responden; reiniciar el onboarding devolvió `{ok:true, paso:'bienvenida'}`. |
+| `v97` | Recordar qué aviso del negocio ya se mandó | La tabla existe y se lee. |
+| `v98` | Eventos del ERP en la bitácora | Se insertó un `stock_ajustado` con antes/después y la cadena lo aceptó. Esa fila de sonda **queda para siempre** en la cuenta de certificación: la bitácora es append-only por diseño. |
 
-Después de aplicarlas: `npm run certificar -- 11` tiene que pasar de 7/8 a 8/8,
-y las tres comprobaciones amarillas de la reversión ponerse verdes.
+### La lección que dejó la v94
+
+Su primera versión reemplazaba las claves viejas por las nuevas, y su cabecera
+decía "aplicala después del deploy".
+
+Eso es una instrucción que funciona hasta que alguien la aplica antes — y de
+hecho **otra sesión corrió `supabase db push` en paralelo** mientras se
+trabajaba en el repositorio. Si la migración hubiera seguido siendo la original,
+el prompt de cada conversación se habría llenado de `₲ NaN` sin que nadie lo
+pidiera ni lo notara.
+
+Se salvó porque para ese momento ya era compatible hacia atrás. La regla que
+queda: **una migración cuya corrección depende de que alguien lea un comentario
+no es una migración correcta.** Si el orden importa, hay que quitarle la
+importancia al orden, no documentarla.
