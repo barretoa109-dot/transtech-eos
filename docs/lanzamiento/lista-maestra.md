@@ -14,7 +14,7 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **379/379 en verde**.
+- `npm test` → **389/389 en verde** (379 al empezar el día, +10 del verificador de archivos).
 - `npm run build` → **en verde**.
 - `npm run lint` → **42 errores, 39 avisos**. No bloquea el merge (`continue-on-error`).
 - `supabase migration list --linked` → **161 migraciones, local y remoto coinciden en todas**.
@@ -80,7 +80,7 @@ lista** y no depende de nadie externo.
 | 27 | Cálculos de dinero | **parcial** | Cubierto por tests (`lib/finanzas`, `evals/casos/importes.ts`) y reforzado hoy: un precio inválido ya no se guarda como cero. Falta el caso de montos grandes y redondeo de PYG sin decimales. |
 | 28 | Informes por período | **parcial** | `api/informes` y `api/finanzas/periodo`. Falta probar que dos corridas iguales den lo mismo. |
 | 29 | Word, PDF y Excel | **parcial** | `docx`, `exceljs` y `pdfkit` integrados; `docs/documentos-a-pedido.md`. Falta cubrir todos los pedidos posibles. |
-| 30 | Validar antes de entregar | **abierto** | No hay control que impida descargar un archivo vacío, cortado o con datos de otro. **Es un punto de queja directa y es barato de cerrar.** |
+| 30 | Validar antes de entregar | **parcial** | Cerrado hoy el archivo roto: `lib/documentos/verificar.ts` mira bytes, tamaño mínimo, firma y marca de cierre antes de entregar, en `/api/documentos/[id]` y `/api/informes`. Probado contra archivos reales de exceljs, pdfkit y docx para no rechazar los sanos. **Falta** el contraste de cifras (que un total coincida con sus filas). Los datos de otro usuario ya los frena la sesión + RLS. |
 
 ---
 
@@ -147,8 +147,8 @@ Por rendimiento, no por número de punto.
 
 1. **Segundo proyecto Supabase.** Destraba 3, 4, 5, 7, 43 y 50. Nada más de esta
    lista rinde tanto.
-2. **Punto 30 — validar el documento antes de entregarlo.** Barato, y evita la
-   queja más visible que existe: un archivo roto o con datos de otro.
+2. ~~**Punto 30 — validar el documento antes de entregarlo.**~~ Hecho el 31 de
+   agosto en su parte de integridad. Queda el contraste de cifras.
 3. **Punto 49 — que el lint bloquee.** 42 errores; 36 son `any` en Bancard y el
    worker, 6 son `setState` dentro de efectos en React 19, que sí son reales.
 4. **Punto 7 — los siete finales de pago.** Rechazado, cancelado, duplicado,
