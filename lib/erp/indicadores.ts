@@ -1,6 +1,16 @@
 import { sinIva } from "./margen.ts";
 import type { TasaIva } from "./impuestos.ts";
 import { monedaConocida } from "../finanzas/monedas.ts";
+import { dentroDe, periodoAnterior } from "../kpi/periodo.ts";
+import type { Periodo } from "../kpi/periodo.ts";
+
+/**
+ * `periodoAnterior` vivía acá; se mudó a `lib/kpi/periodo.ts` para que el
+ * motor de KPIs (`lib/kpi/**`) la use sin importar de un módulo de ERP. Se
+ * reexporta para no romper a quien ya la importaba de acá.
+ */
+export { periodoAnterior };
+export type { Periodo };
 
 /**
  * Los números con los que se dirige un negocio.
@@ -62,8 +72,6 @@ export type GastoIndicador = {
   monto: number;
 };
 
-export type Periodo = { desde: string; hasta: string };
-
 export type Indicadores = {
   moneda: string;
   ventas: { cantidad: number; neto: number };
@@ -85,30 +93,6 @@ export type Indicadores = {
   ventas_sin_costo: number;
 };
 
-function dias(desde: string, hasta: string): number {
-  return (
-    Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000) + 1
-  );
-}
-
-function correr(fecha: string, cantidadDias: number): string {
-  return new Date(Date.parse(`${fecha}T00:00:00Z`) + cantidadDias * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-}
-
-/** El período anterior, del mismo largo y pegado al que se pide. */
-export function periodoAnterior(periodo: Periodo): Periodo {
-  const largo = dias(periodo.desde, periodo.hasta);
-
-  return {
-    desde: correr(periodo.desde, -largo),
-    hasta: correr(periodo.desde, -1),
-  };
-}
-
-const dentro = (fecha: string, p: Periodo) => fecha >= p.desde && fecha <= p.hasta;
-
 export function calcularIndicadores(datos: {
   periodo: Periodo;
   ventas: VentaIndicador[];
@@ -127,8 +111,8 @@ export function calcularIndicadores(datos: {
   return [...monedas].sort().map((moneda) => {
     const esta = (m: { moneda: string | null }) => monedaConocida(m.moneda) === moneda;
 
-    const ventasPeriodo = datos.ventas.filter((v) => esta(v) && dentro(v.fecha, datos.periodo));
-    const ventasAntes = datos.ventas.filter((v) => esta(v) && dentro(v.fecha, anterior));
+    const ventasPeriodo = datos.ventas.filter((v) => esta(v) && dentroDe(v.fecha, datos.periodo));
+    const ventasAntes = datos.ventas.filter((v) => esta(v) && dentroDe(v.fecha, anterior));
 
     /*
      * El neto de cada venta, no el bruto, y línea por línea.
@@ -176,11 +160,11 @@ export function calcularIndicadores(datos: {
     const ganancia = hayCosto ? netoConCosto - costoNeto : null;
 
     const ingresosPeriodo = datos.ingresos
-      .filter((m) => esta(m) && dentro(m.fecha, datos.periodo))
+      .filter((m) => esta(m) && dentroDe(m.fecha, datos.periodo))
       .reduce((s, m) => s + m.monto, 0);
 
     const gastosPeriodo = datos.gastos
-      .filter((m) => esta(m) && dentro(m.fecha, datos.periodo))
+      .filter((m) => esta(m) && dentroDe(m.fecha, datos.periodo))
       .reduce((s, m) => s + m.monto, 0);
 
     // ---------- Concentración de clientes ----------
