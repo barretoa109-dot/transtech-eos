@@ -188,6 +188,57 @@ Por rendimiento, no por número de punto.
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.
 
+### 0. Cinco de seis usuarios corrían en un nivel que descarta las acciones — CERRADO
+
+El hallazgo más caro de toda la lista, y el que peor pinta tenía desde afuera:
+una clienta le dictaba una venta a EOS por chat, EOS contestaba *«Operación
+lista para registrar»*, y no quedaba nada. Ni la venta, ni una aprobación
+pendiente que ella pudiera confirmar. La pantalla de aprobaciones, vacía.
+
+El gate decide según el nivel de autonomía del usuario: 0 recomendar, 1
+preparar, 2 pedir aprobación, 3 ejecutar solo. Ese nivel sale de
+`eos_autonomy_profiles_v12`, y **de los seis usuarios de producción uno solo
+tenía fila ahí**. Los otros cinco caían en un valor por defecto que terminó
+siendo 1.
+
+Nivel 1 no ejecuta y tampoco pregunta: prepara la acción y la descarta. Es el
+único escalón del que no se sale nunca, porque no deja rastro que el usuario
+pueda accionar.
+
+La evidencia, en `eos_autonomy_events_v12`:
+
+```
+2026-08-31T23:10  CREAR_TAREA  decision=prepare  execute=false  configured_level=1
+```
+
+Todas las evaluaciones de catorce días dicen lo mismo, y la última aprobación
+creada es del 20 de agosto. No era un problema del ERP: `CREAR_TAREA` y
+`GUARDAR_MEMORIA` tampoco se ejecutaron nunca en ese período.
+
+**Lo que enseña, que vale más que el arreglo:** una política de seguridad cuyo
+valor por defecto vive en un `const` del código no es auditable. Nadie podía
+*ver* que cinco usuarios estaban en nivel 1, porque no había ninguna fila que
+mirar. El síntoma tampoco ayudaba: el sistema no fallaba, mentía.
+
+Arreglado en tres partes:
+
+- **v101** — el default de la columna pasa a 2 y cada usuario existente tiene
+  su fila explícita. Al que ya tenía la suya no se lo tocó.
+- `lib/worker-gate-handler.ts` — el gate escribe la fila cuando la lee y no
+  está, con `on conflict do nothing` para no pisar la configuración de nadie.
+  Sin esto el agujero se reabría con el próximo registro.
+- n8n `01 INT Preparar` — la lista de acciones permitidas no incluía
+  `REGISTRAR_VENTA`, `AJUSTAR_STOCK` ni `CREAR_CONTACTO`. Necesario, pero no
+  era la causa: aun con la lista corregida el gate habría contestado `prepare`.
+
+Verificado contra la base real: los seis usuarios en nivel 2, el default de la
+columna en 2, y el upsert probado contra una fila del 18 de agosto a la que se
+le mandó un nivel distinto a propósito — no se movió, `updated_at` incluido.
+
+**Falta la prueba de punta a punta**: que alguien dicte una venta por chat y
+aparezca la aprobación. Es lo único que cierra el punto según la definición de
+terminado, y no lo puedo hacer yo: necesita una sesión de usuario real.
+
 ### 1. `eos_contexto_negocio` (v82) suma monedas distintas — ABIERTO
 
 La función que le arma a EOS el contexto del negocio calcula:
