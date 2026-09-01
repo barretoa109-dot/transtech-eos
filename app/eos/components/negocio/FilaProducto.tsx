@@ -258,6 +258,28 @@ function Editar({
       </div>
 
       {/*
+        La ganancia, mientras escribe.
+
+        Es el momento en que sirve: la pregunta "¿a cuánto lo pongo?" se
+        contesta moviendo el precio y mirando qué pasa. Mostrarlo recién al
+        guardar obligaría a guardar, mirar, volver a entrar y corregir.
+      */}
+      <p
+        className={`fila-margen${
+          margenEnVivo.conocido && margenEnVivo.pierde ? " is-perdida" : ""
+        }`}
+      >
+        {textoMargen(margenEnVivo)}
+        {margenEnVivo.conocido && (
+          <span className="fila-margen-detalle">
+            {" · "}
+            {margenEnVivo.pierde ? "perdés" : "ganás"}{" "}
+            {formatearMonto(Math.abs(margenEnVivo.ganancia), producto.moneda)} por unidad
+          </span>
+        )}
+      </p>
+
+      {/*
         Se dice por qué no está el stock acá. Sin esta línea, quien busca
         corregir "12 que en realidad son 9" abre este formulario, no lo
         encuentra y concluye que el sistema no lo deja.

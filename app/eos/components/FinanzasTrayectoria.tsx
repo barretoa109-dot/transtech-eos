@@ -182,6 +182,30 @@ function CurvaSaldo({
   const cabenEtiquetas = Math.max(2, Math.floor((W - padL - padR) / 56));
   const paso = Math.max(1, Math.ceil((puntos.length - 1) / (cabenEtiquetas - 1)));
 
+  /*
+   * Sin nada que proyectar, no se dibuja una proyección.
+   *
+   * Con cero movimientos y cero reserva, la curva es una línea recta en cero
+   * con una etiqueta que dice "Tu reserva · ₲ 0". No comunica nada y parece
+   * un gráfico roto — que es exactamente cómo lo leyó una clienta: "no se
+   * mueve por nada".
+   *
+   * Un gráfico vacío es peor que ningún gráfico: el vacío se explica, el
+   * gráfico plano se interpreta como una falla del producto.
+   */
+  const sinNadaQueProyectar =
+    reservaMinima === 0 && puntos.every((p) => p.saldo === 0);
+
+  if (sinNadaQueProyectar) {
+    return (
+      <p className="empty-note">
+        Todavía no hay movimientos con los que proyectar. En cuanto cargues el
+        primero —o EOS lea un aviso de tu banco— acá vas a ver cómo evoluciona tu
+        saldo día por día.
+      </p>
+    );
+  }
+
   return (
     <div className="tray-caja" ref={contenedor}>
     <svg className="tray-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img"

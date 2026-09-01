@@ -2711,11 +2711,41 @@
    `.eos-app svg { width: 18px }` para los iconos de lucide, y sin esto el
    gráfico entero se encoge a 18 pixeles. Como el viewBox se arma con el ancho
    medido, el 100% da escala 1:1 y el texto no se deforma. */
+/*
+  El ancho lo manda el atributo, NO el CSS.
+
+  Tenía `width: 100%`, que pisaba el `width={W}` que el componente calcula
+  midiendo el contenedor. Con el `viewBox` puesto en W, el navegador estiraba
+  el dibujo hasta el ancho real: en una pantalla de 880px sobre un viewBox de
+  640, todo se escalaba 1,37 veces. De ahí que el texto saliera gigante,
+  borroso —el escalado no entero desdibuja el trazo— y con las últimas fechas
+  encimadas, porque el paso entre etiquetas se había calculado para 640 y se
+  dibujaba sobre 880.
+
+  Sin `width: 100%`, el SVG mide exactamente lo que dice medir y la escala es
+  siempre 1:1. El `max-width` queda como red por si el contenedor se achica
+  entre dos mediciones.
+*/
 .eos-app .tray-svg {
   display: block;
-  width: 100%;
+  max-width: 100%;
   height: 210px;
   overflow: visible;
+}
+
+/*
+  Y las fechas necesitan su estilo acá.
+
+  La regla de `axis-label` estaba escrita como `.chart-svg .axis-label`, y este
+  gráfico es `.tray-svg`: las etiquetas quedaban sin ninguna regla, o sea con
+  el tamaño por defecto que el navegador le da al texto SVG —16px— en vez de
+  los 10,5 del resto. Escalado además por lo de arriba, terminaba en unos 22px
+  en negrita.
+*/
+.eos-app .tray-svg .axis-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--muted);
 }
 .eos-app .tray-zona {
   fill: var(--amber);
@@ -4057,4 +4087,39 @@
   gap: 4px;
   color: #b3423f;
   font-weight: 600;
+}
+
+/* ============================================================
+   La ganancia por producto (margen y marcaje)
+   ============================================================
+
+   Va al lado del precio en la lista y debajo de los campos en el formulario,
+   donde se contesta la pregunta que importa: "¿a cuánto lo pongo?".
+
+   El IVA ya está descontado de las dos puntas. La resta obvia —precio menos
+   costo— da casi tres mil guaraníes de más sobre una venta de cien mil, y
+   sobre esa creencia se fijan precios. */
+
+.eos-app .neg-margen {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--green);
+  white-space: nowrap;
+}
+.eos-app .neg-margen.is-perdida {
+  color: var(--red);
+}
+
+.eos-app .fila-margen {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--green);
+}
+.eos-app .fila-margen.is-perdida {
+  color: var(--red);
+}
+.eos-app .fila-margen-detalle {
+  font-weight: 500;
+  color: var(--muted);
 }
