@@ -145,9 +145,39 @@ export const OPORTUNIDADES_ESTANCADAS: DefinicionKPI = {
   },
 };
 
+/**
+ * Cuántos días pasan, en promedio, entre que se crea una oportunidad y se
+ * gana. Solo las ganadas: es "cuánto tarda una venta en cerrarse", no cuánto
+ * tarda en descartarse — eso último ya lo cubre `oportunidades_estancadas`
+ * de otra forma. Es de período (no `instantanea`): el ciclo de venta de
+ * agosto comparado con el de julio es una pregunta con sentido.
+ */
+export const CICLO_VENTA: DefinicionKPI = {
+  id: "ciclo_venta",
+  nombre: "Ciclo de venta",
+  familia: "crm",
+  unidad: "dias",
+  direccion: "menos_es_mejor",
+  necesita: ["oportunidades"],
+  calcular(hechos, periodo): ValorKPI[] {
+    const ganadas = (hechos.oportunidades ?? []).filter(
+      (o) => o.etapa === "ganada" && o.cerrada_en !== null && o.cerrada_en >= periodo.desde && o.cerrada_en <= periodo.hasta,
+    );
+    const monedas = new Set(ganadas.map((o) => monedaConocida(o.moneda)));
+
+    return [...monedas].sort().map((moneda) => {
+      const deMoneda = ganadas.filter((o) => monedaConocida(o.moneda) === moneda);
+      const dias = deMoneda.map((o) => diasEntre(o.creado_en, o.cerrada_en as string));
+      const promedio = dias.reduce((s, d) => s + d, 0) / dias.length;
+      return valorConocido(moneda, Math.round(promedio * 10) / 10);
+    });
+  },
+};
+
 export const DEFINICIONES_CRM: DefinicionKPI[] = [
   VALOR_PIPELINE,
   PIPELINE_PONDERADO,
   TASA_CONVERSION,
   OPORTUNIDADES_ESTANCADAS,
+  CICLO_VENTA,
 ];

@@ -8,6 +8,7 @@ import {
   MARGEN_BRUTO,
   ROI,
   TICKET_PROMEDIO,
+  UNIDADES_POR_TICKET,
   VENTAS_NETAS,
 } from "./ventas.ts";
 import type { Hechos, VentaHecho } from "../tipos.ts";
@@ -19,8 +20,11 @@ function venta(p: Partial<VentaHecho> & { total: number; costo?: number | null }
     id: p.id ?? "v1",
     fecha: p.fecha ?? "2026-08-15",
     moneda: p.moneda ?? "PYG",
+    estado: p.estado ?? "emitida",
     contacto_id: p.contacto_id ?? null,
     contacto_nombre: p.contacto_nombre ?? null,
+    // En estos fixtures la venta tiene un único ítem: la cabecera coincide.
+    total: p.total,
     items: p.items ?? [
       {
         total: p.total,
@@ -33,8 +37,9 @@ function venta(p: Partial<VentaHecho> & { total: number; costo?: number | null }
   };
 }
 
-test("cada definición declara los mismos insumos: ventas, movimientos y fijos", () => {
+test("las definiciones que salen de calcularIndicadores declaran los mismos insumos", () => {
   for (const def of DEFINICIONES_VENTAS) {
+    if (def.id === "unidades_por_ticket") continue; // cuenta directo sobre ventas, no pasa por indicadores.ts
     assert.deepEqual([...def.necesita].sort(), ["fijos", "movimientos", "ventas"]);
   }
 });
@@ -125,4 +130,25 @@ test("el motor calcula la tendencia de ventas_netas comparando contra el mes ant
   assert.equal(r.anterior, 100);
   assert.equal(r.tendencia, "sube");
   assert.equal(r.variacion_pct, 100);
+});
+
+test("unidades_por_ticket cuenta las unidades de todos los ítems, no las líneas", () => {
+  const hechos: Hechos = {
+    ventas: [
+      venta({
+        id: "v1",
+        total: 330,
+        items: [
+          { total: 220, iva: 10, cantidad: 4, costo_unitario: null, producto_id: "p1" },
+          { total: 110, iva: 10, cantidad: 2, costo_unitario: null, producto_id: "p2" },
+        ],
+      }),
+      venta({ id: "v2", total: 110, items: [{ total: 110, iva: 10, cantidad: 3, costo_unitario: null, producto_id: "p1" }] }),
+    ],
+    movimientos: [],
+    fijos: [],
+  };
+  const [r] = calcular([UNIDADES_POR_TICKET], hechos, AGOSTO);
+  // (4+2) + 3 = 9 unidades entre 2 ventas.
+  assert.equal(r.valor, 4.5);
 });

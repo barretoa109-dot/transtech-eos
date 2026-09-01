@@ -67,12 +67,22 @@ export type ItemVentaHecho = {
   producto_id: string | null;
 };
 
+export type EstadoVenta = "borrador" | "emitida" | "cobrada" | "anulada";
+
 export type VentaHecho = {
   id: string;
   fecha: string;
   moneda: string | null;
+  estado: EstadoVenta;
   contacto_id: string | null;
   contacto_nombre: string | null;
+  /**
+   * El total de la cabecera, con IVA incluido — el mismo número que la suma
+   * de `items[].total`, pero ya calculado por la base. Para indicadores que
+   * no necesitan desglose por línea (como cobros demorados) no hace falta
+   * recorrer los ítems para llegar a un número que la base ya tiene.
+   */
+  total: number;
   items: ItemVentaHecho[];
 };
 
@@ -125,6 +135,19 @@ export type ActividadHecho = {
   hecha: boolean;
 };
 
+export type EstadoCompra = "registrada" | "pagada" | "anulada";
+
+export type CompraHecho = {
+  id: string;
+  fecha: string;
+  moneda: string | null;
+  estado: EstadoCompra;
+  proveedor_id: string | null;
+  proveedor_nombre: string | null;
+  /** Con IVA incluido. */
+  total: number;
+};
+
 /**
  * Todo lo que el motor necesita para calcular cualquier indicador de este
  * catálogo. Cada definición declara en `necesita` qué claves usa; el motor no
@@ -134,6 +157,7 @@ export type ActividadHecho = {
  */
 export type Hechos = {
   ventas?: VentaHecho[];
+  compras?: CompraHecho[];
   movimientos?: MovimientoHecho[];
   fijos?: FijoHecho[];
   productos?: ProductoHecho[];
@@ -149,7 +173,7 @@ export type ClaveHecho = keyof Hechos;
 
 export type Unidad = "moneda" | "porcentaje" | "cantidad" | "dias" | "ratio";
 export type Direccion = "mas_es_mejor" | "menos_es_mejor" | "neutro";
-export type Familia = "finanzas" | "ventas" | "crm" | "cartera" | "inventario";
+export type Familia = "finanzas" | "ventas" | "crm" | "cartera" | "inventario" | "compras";
 export type Estado = "bien" | "atencion" | "alerta" | "sin_datos";
 export type Tendencia = "sube" | "baja" | "estable" | "desconocida";
 

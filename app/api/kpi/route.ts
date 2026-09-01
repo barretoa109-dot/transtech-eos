@@ -8,7 +8,7 @@ import { CATALOGO, definicionesDe, resolver } from "@/lib/kpi/registro";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { esEtapa } from "@/lib/crm/embudo";
-import type { DefinicionKPI, Familia, Hechos } from "@/lib/kpi/tipos";
+import type { DefinicionKPI, EstadoCompra, EstadoVenta, Familia, Hechos } from "@/lib/kpi/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +30,21 @@ export const dynamic = "force-dynamic";
  * que la pantalla pueda ofrecer el módulo en vez de mostrar un error.
  */
 
-const FAMILIAS: Familia[] = ["finanzas", "ventas", "crm", "cartera", "inventario"];
+const FAMILIAS: Familia[] = ["finanzas", "ventas", "crm", "cartera", "inventario", "compras"];
 
 function esFamilia(valor: string | null): valor is Familia {
   return valor !== null && (FAMILIAS as string[]).includes(valor);
+}
+
+const ESTADOS_VENTA: EstadoVenta[] = ["borrador", "emitida", "cobrada", "anulada"];
+const ESTADOS_COMPRA: EstadoCompra[] = ["registrada", "pagada", "anulada"];
+
+function esEstadoVenta(valor: unknown): valor is EstadoVenta {
+  return typeof valor === "string" && (ESTADOS_VENTA as string[]).includes(valor);
+}
+
+function esEstadoCompra(valor: unknown): valor is EstadoCompra {
+  return typeof valor === "string" && (ESTADOS_COMPRA as string[]).includes(valor);
 }
 
 export async function GET(request: Request) {
@@ -99,21 +110,37 @@ export async function GET(request: Request) {
     })),
   };
 
-  // Ventas y productos: solo si el módulo ERP está vigente. Sin él, las
-  // definiciones que los `necesita` simplemente no se calculan — no es un
-  // error, es lo que corresponde cuando el usuario no contrató ese anexo.
+  // Ventas, compras y productos: solo si el módulo ERP está vigente. Sin él,
+  // las definiciones que los `necesita` simplemente no se calculan — no es
+  // un error, es lo que corresponde cuando el usuario no contrató ese anexo.
+  //
+  // Ventas y compras NO se filtran por `rango` a propósito: una factura de
+  // hace cuatro meses que todavía no se cobró tiene que seguir contando para
+  // `cuentas_por_cobrar`, aunque quede fuera del período o del anterior. Cada
+  // definición filtra por fecha adentro cuando el indicador es de período
+  // (`dentroDe`) y no filtra cuando es una foto de hoy (`instantanea`).
+  // `limit(500)` ordenado por fecha es el mismo límite que ya usa
+  // `app/api/erp/rentabilidad/route.ts`: un negocio con más de 500 ventas o
+  // compras sin cobrar/pagar puede subcontar acá — aceptable para esta
+  // primera versión, no para siempre.
   if (erp.permitido) {
-    const [ventasRes, productosRes] = await Promise.all([
+    const [ventasRes, comprasRes, productosRes] = await Promise.all([
       admin
         .from("eos_erp_ventas")
         .select(
-          "fecha,moneda,contacto:eos_crm_contactos(id,nombre)," +
+          "id,fecha,moneda,estado,total,contacto:eos_crm_contactos(id,nombre)," +
             "items:eos_erp_venta_items(producto_id,descripcion,cantidad,total,iva,costo_unitario)",
         )
         .eq("usuario_id", user.id)
         .neq("estado", "anulada")
-        .gte("fecha", rango.desde)
-        .lte("fecha", rango.hasta)
+        .order("fecha", { ascending: false })
+        .limit(500),
+      admin
+        .from("eos_erp_compras")
+        .select("id,fecha,moneda,estado,total,contacto:eos_crm_contactos(id,nombre)")
+        .eq("usuario_id", user.id)
+        .neq("estado", "anulada")
+        .order("fecha", { ascending: false })
         .limit(500),
       admin
         .from("eos_erp_productos")
@@ -129,8 +156,10 @@ export async function GET(request: Request) {
         id: String(venta.id ?? ""),
         fecha: String(venta.fecha ?? ""),
         moneda: (venta.moneda as string | null) ?? null,
+        estado: esEstadoVenta(venta.estado) ? venta.estado : "emitida",
         contacto_id: (venta.contacto as { id?: string } | null)?.id ?? null,
         contacto_nombre: (venta.contacto as { nombre?: string } | null)?.nombre ?? null,
+        total: Number(venta.total ?? 0),
         items: (Array.isArray(venta.items) ? venta.items : []).map((item: Record<string, unknown>) => ({
           total: Number(item.total ?? 0),
           iva: tasaValida(item.iva),
@@ -141,6 +170,20 @@ export async function GET(request: Request) {
               : Number(item.costo_unitario),
           producto_id: typeof item.producto_id === "string" ? item.producto_id : null,
         })),
+      }));
+    }
+
+    if (comprasRes.error) {
+      console.error("KPI: no se pudieron leer las compras:", comprasRes.error);
+    } else {
+      hechos.compras = (comprasRes.data ?? []).map((compra: Record<string, unknown>) => ({
+        id: String(compra.id ?? ""),
+        fecha: String(compra.fecha ?? ""),
+        moneda: (compra.moneda as string | null) ?? null,
+        estado: esEstadoCompra(compra.estado) ? compra.estado : "registrada",
+        proveedor_id: (compra.contacto as { id?: string } | null)?.id ?? null,
+        proveedor_nombre: (compra.contacto as { nombre?: string } | null)?.nombre ?? null,
+        total: Number(compra.total ?? 0),
       }));
     }
 

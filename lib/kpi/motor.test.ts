@@ -9,8 +9,10 @@ function venta(p: Partial<VentaHecho> = {}): VentaHecho {
     id: p.id ?? "v1",
     fecha: p.fecha ?? "2026-08-15",
     moneda: p.moneda ?? "PYG",
+    estado: p.estado ?? "emitida",
     contacto_id: p.contacto_id ?? null,
     contacto_nombre: p.contacto_nombre ?? null,
+    total: p.total ?? 0,
     items: p.items ?? [],
   };
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calcular } from "../motor.ts";
 import {
+  CICLO_VENTA,
   DEFINICIONES_CRM,
   OPORTUNIDADES_ESTANCADAS,
   PIPELINE_PONDERADO,
@@ -23,10 +24,12 @@ function oportunidad(p: Partial<OportunidadHecho> & { id: string }): Oportunidad
   };
 }
 
-test("cada definición se declara instantanea salvo la tasa de conversión", () => {
-  const instantaneas = DEFINICIONES_CRM.filter((d) => d.id !== "tasa_conversion");
-  for (const def of instantaneas) assert.equal(def.instantanea, true);
-  assert.equal(TASA_CONVERSION.instantanea, undefined);
+test("solo tasa_conversion y ciclo_venta son de período: el resto es instantanea", () => {
+  const DE_PERIODO = new Set(["tasa_conversion", "ciclo_venta"]);
+  for (const def of DEFINICIONES_CRM) {
+    if (DE_PERIODO.has(def.id)) assert.equal(def.instantanea, undefined);
+    else assert.equal(def.instantanea, true);
+  }
 });
 
 test("valor_pipeline suma solo lo abierto, por moneda, igual que el embudo", () => {
@@ -117,4 +120,24 @@ test("sin actividades cargadas todavía, igual se puede calcular: no es un insum
   };
   const [r] = calcular([OPORTUNIDADES_ESTANCADAS], hechos, AGOSTO);
   assert.equal(r.valor, 1);
+});
+
+test("ciclo_venta promedia los días entre crear y ganar, solo de lo ganado en el período", () => {
+  const hechos: Hechos = {
+    oportunidades: [
+      oportunidad({ id: "o1", etapa: "ganada", creado_en: "2026-08-01", cerrada_en: "2026-08-11" }), // 10 días
+      oportunidad({ id: "o2", etapa: "ganada", creado_en: "2026-07-01", cerrada_en: "2026-08-21" }), // 51 días
+      // perdida no cuenta, aunque se haya cerrado en agosto.
+      oportunidad({ id: "o3", etapa: "perdida", creado_en: "2026-08-01", cerrada_en: "2026-08-05" }),
+      // ganada, pero cerrada en julio: no es de este período.
+      oportunidad({ id: "o4", etapa: "ganada", creado_en: "2026-06-01", cerrada_en: "2026-07-01" }),
+    ],
+  };
+  const [r] = calcular([CICLO_VENTA], hechos, AGOSTO);
+  assert.equal(r.valor, 30.5); // (10 + 51) / 2
+});
+
+test("sin ninguna ganada en el período, no hay moneda que informar", () => {
+  const hechos: Hechos = { oportunidades: [oportunidad({ id: "o1", etapa: "nueva" })] };
+  assert.deepEqual(calcular([CICLO_VENTA], hechos, AGOSTO), []);
 });

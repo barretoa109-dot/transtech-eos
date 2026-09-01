@@ -1,4 +1,6 @@
 import { calcularIndicadores, type GastoIndicador, type Indicadores, type VentaIndicador } from "../../erp/indicadores.ts";
+import { monedaConocida } from "../../finanzas/monedas.ts";
+import { dentroDe } from "../periodo.ts";
 import { valorConocido, valorDesconocido } from "../tipos.ts";
 import type { DefinicionKPI, Hechos, Periodo, ValorKPI } from "../tipos.ts";
 
@@ -126,6 +128,19 @@ export const ROI = definir(
   SIN_COSTO,
 );
 
+/*
+ * NO hay una definición "marcaje" separada.
+ *
+ * `lib/erp/margen.ts` distingue margen (ganancia sobre precio) de marcaje
+ * (ganancia sobre costo) porque un comerciante piensa en los dos. Pero el
+ * `roi` de arriba —`ganancia / costoNeto * 100`— YA ES esa segunda cuenta: el
+ * "ROI de mercadería" de este catálogo es, en los números, el marcaje
+ * agregado del período. Agregar otra definición con otro nombre para el
+ * mismo valor sería repetir el error que costó el commit que unificó el
+ * margen de Rentabilidad: dos etiquetas para una plata terminan pareciendo
+ * dos plata distintas.
+ */
+
 export const PUNTO_EQUILIBRIO = definir(
   { id: "punto_equilibrio", nombre: "Punto de equilibrio", familia: "finanzas", unidad: "moneda", direccion: "neutro" },
   (i) => i.punto_equilibrio,
@@ -163,9 +178,37 @@ export const VENTAS_SIN_COSTO = definir(
   "No se pudo calcular este valor.",
 );
 
+/**
+ * Cuántas unidades entran en cada venta, en promedio. A diferencia de las
+ * definiciones de arriba, no sale de `calcularIndicadores` —esa función no
+ * expone unidades— así que cuenta directo sobre `Hechos.ventas`.
+ */
+export const UNIDADES_POR_TICKET: DefinicionKPI = {
+  id: "unidades_por_ticket",
+  nombre: "Unidades por ticket",
+  familia: "ventas",
+  unidad: "cantidad",
+  direccion: "neutro",
+  necesita: ["ventas"],
+  calcular(hechos, periodo): ValorKPI[] {
+    const ventasPeriodo = (hechos.ventas ?? []).filter((v) => dentroDe(v.fecha, periodo));
+    const monedas = new Set(ventasPeriodo.map((v) => monedaConocida(v.moneda)));
+
+    return [...monedas].sort().map((moneda) => {
+      const deMoneda = ventasPeriodo.filter((v) => monedaConocida(v.moneda) === moneda);
+      const unidades = deMoneda.reduce(
+        (s, v) => s + v.items.reduce((t, it) => t + it.cantidad, 0),
+        0,
+      );
+      return valorConocido(moneda, unidades / deMoneda.length);
+    });
+  },
+};
+
 export const DEFINICIONES_VENTAS: DefinicionKPI[] = [
   VENTAS_NETAS,
   TICKET_PROMEDIO,
+  UNIDADES_POR_TICKET,
   GANANCIA,
   MARGEN_BRUTO,
   ROI,

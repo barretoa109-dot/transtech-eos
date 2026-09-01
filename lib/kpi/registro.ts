@@ -1,4 +1,7 @@
+import { DEFINICIONES_CARTERA } from "./definiciones/cartera.ts";
+import { DEFINICIONES_COMPRAS } from "./definiciones/compras.ts";
 import { DEFINICIONES_CRM } from "./definiciones/crm.ts";
+import { DEFINICIONES_FINANZAS } from "./definiciones/finanzas.ts";
 import { DEFINICIONES_INVENTARIO } from "./definiciones/inventario.ts";
 import { DEFINICIONES_VENTAS } from "./definiciones/ventas.ts";
 import type { DefinicionKPI, Familia } from "./tipos.ts";
@@ -9,8 +12,11 @@ import type { DefinicionKPI, Familia } from "./tipos.ts";
  */
 export const CATALOGO: DefinicionKPI[] = [
   ...DEFINICIONES_VENTAS,
+  ...DEFINICIONES_FINANZAS,
   ...DEFINICIONES_CRM,
   ...DEFINICIONES_INVENTARIO,
+  ...DEFINICIONES_CARTERA,
+  ...DEFINICIONES_COMPRAS,
 ];
 
 const POR_ID = new Map(CATALOGO.map((def) => [def.id, def]));
