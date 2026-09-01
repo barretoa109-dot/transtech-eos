@@ -8,6 +8,7 @@ test("las acciones de negocio muestran cómo completar el registro", () => {
     "Dejé la venta lista para confirmar.",
     [{ tipo: "REGISTRAR_VENTA" }],
     "https://transtech.com.py",
+    true,
   );
 
   assert.match(respuesta, /aprobá la operación pendiente/i);
@@ -16,7 +17,7 @@ test("las acciones de negocio muestran cómo completar el registro", () => {
 
 test("una respuesta informativa no agrega una aprobación", () => {
   assert.equal(
-    agregarAccesoAprobacion("Este es tu resumen.", [], "https://transtech.com.py"),
+    agregarAccesoAprobacion("Este es tu resumen.", [], "https://transtech.com.py", false),
     "Este es tu resumen.",
   );
 });
@@ -103,4 +104,69 @@ test("la corrección va ADELANTE, para que se lea antes que la afirmación falsa
   const corregida = corregirAfirmacionSinAccion("Ya quedó guardado.", [], "guardá este dato");
 
   assert.ok(corregida.indexOf("No lo registré") < corregida.indexOf("Ya quedó guardado"));
+});
+
+// ============================================================
+// Y que no prometa una aprobación que no existe
+// ============================================================
+//
+// Lo encontró una clienta: el chat le mostraba "Operación lista para
+// registrar" con su botón, apretaba, y la pantalla de aprobaciones decía "No
+// tenés aprobaciones pendientes". La última aprobación que el sistema había
+// creado era de once días antes.
+
+test("sin aprobación real, dice que NO se guardó nada", () => {
+  const respuesta = agregarAccesoAprobacion(
+    "Dejo lista para confirmar la venta de 1 jean blanco a Caro por Gs. 145.000.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    "https://transtech.com.py",
+    false,
+  );
+
+  assert.ok(respuesta.startsWith("⚠️ **No llegué a dejarlo listo.**"));
+  assert.match(respuesta, /no se guardó nada/i);
+  assert.ok(!respuesta.includes("/eos/autonomy"), "mandó a una pantalla vacía");
+});
+
+test("y le dice dónde cargarlo para que quede de verdad", () => {
+  const respuesta = agregarAccesoAprobacion(
+    "Listo para confirmar.",
+    [{ tipo: "AJUSTAR_STOCK" }],
+    "https://transtech.com.py",
+    false,
+  );
+
+  assert.match(respuesta, /secci[óo]n Negocio/i);
+});
+
+test("con aprobación real, sí manda al camino que la completa", () => {
+  const respuesta = agregarAccesoAprobacion(
+    "Listo para confirmar.",
+    [{ tipo: "CREAR_CONTACTO" }],
+    "https://transtech.com.py",
+    true,
+  );
+
+  assert.match(respuesta, /https:\/\/transtech\.com\.py\/eos\/autonomy/);
+  assert.ok(!respuesta.includes("No llegué a dejarlo listo"));
+});
+
+test("el aviso va adelante: la promesa falsa no se lee primero", () => {
+  const respuesta = agregarAccesoAprobacion(
+    "Dejo lista la venta.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    "https://transtech.com.py",
+    false,
+  );
+
+  assert.ok(respuesta.indexOf("No llegué") < respuesta.indexOf("Dejo lista"));
+});
+
+test("una acción que no es de negocio no toca la respuesta", () => {
+  const respuesta = "Te armé el resumen.";
+
+  assert.equal(
+    agregarAccesoAprobacion(respuesta, [{ tipo: "RESPONDER" }], "https://x.py", false),
+    respuesta,
+  );
 });

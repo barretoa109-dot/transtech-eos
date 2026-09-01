@@ -10,7 +10,11 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
-import { agregarAccesoAprobacion, corregirAfirmacionSinAccion } from "@/lib/eos/acciones-chat";
+import {
+  agregarAccesoAprobacion,
+  corregirAfirmacionSinAccion,
+  requiereAprobacion,
+} from "@/lib/eos/acciones-chat";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -814,10 +818,48 @@ export async function POST(req: Request) {
       mensaje,
     );
 
+    /*
+     * ¿La aprobación existe de verdad?
+     *
+     * Se consulta la base en vez de deducirlo de que el modelo pidió una
+     * acción. Que el modelo la pida y que quede registrada como pendiente son
+     * dos cosas distintas, y entre ellas está el Worker Gate, que puede no
+     * haber hecho su parte — como pasó con una clienta, que veía "Operación
+     * lista para registrar", apretaba, y la pantalla de aprobaciones estaba
+     * vacía.
+     *
+     * Solo cuenta lo reciente: una aprobación de la semana pasada, todavía
+     * vigente, no es la de este mensaje.
+     */
+    let hayAprobacionPendiente = false;
+
+    if (requiereAprobacion(resultado.acciones)) {
+      const desde = new Date(Date.now() - 3 * 60_000).toISOString();
+
+      const { data: pendientes } = await adminSinTipos()
+        .from("eos_action_approvals_v12")
+        .select("id")
+        .eq("usuario_id", user.id)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .gte("created_at", desde)
+        .limit(1);
+
+      hayAprobacionPendiente = (pendientes?.length ?? 0) > 0;
+
+      if (!hayAprobacionPendiente) {
+        console.error(
+          "EOS: el modelo pidió una acción de negocio y no quedó ninguna aprobación pendiente.",
+          { acciones: resultado.acciones.length },
+        );
+      }
+    }
+
     resultado.respuesta = agregarAccesoAprobacion(
       resultado.respuesta,
       resultado.acciones,
       new URL(req.url).origin,
+      hayAprobacionPendiente,
     );
 
     /*

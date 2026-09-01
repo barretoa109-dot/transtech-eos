@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { AlertTriangle, Check, Pencil, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { calcularMargen, textoMargen } from "@/lib/erp/margen";
+import { tasaValida } from "@/lib/erp/impuestos";
 import type { Producto } from "./tipos";
 
 /**
@@ -34,6 +36,12 @@ export default function FilaProducto({ producto, onCambio }: Props) {
   const [modo, setModo] = useState<"ver" | "editar" | "ajustar">("ver");
   const [aviso, setAviso] = useState("");
 
+  const margen = calcularMargen({
+    costo: producto.costo,
+    precio_venta: producto.precio_venta,
+    iva: tasaValida(producto.iva),
+  });
+
   function listo(mensaje: string) {
     setModo("ver");
     setAviso(mensaje);
@@ -59,6 +67,26 @@ export default function FilaProducto({ producto, onCambio }: Props) {
       <span className="neg-fila-monto">
         {formatearMonto(producto.precio_venta, producto.moneda)}
       </span>
+
+      {/*
+        Cuánto se gana con este producto, calculado solo.
+
+        Va al lado del precio y no escondido en la ficha porque es el número
+        que decide si conviene seguir vendiéndolo, y hasta ahora había que
+        sacarlo a mano — mal, casi siempre, porque la resta obvia no descuenta
+        el IVA y da una ganancia que no existe.
+      */}
+      {margen.conocido && (
+        <span
+          className={`neg-margen${margen.pierde ? " is-perdida" : ""}`}
+          title={
+            `Ganás ${formatearMonto(margen.ganancia, producto.moneda)} por unidad, ` +
+            `ya descontado el IVA de las dos puntas.`
+          }
+        >
+          {textoMargen(margen)}
+        </span>
+      )}
 
       {producto.bajo_minimo && (
         <span className="neg-estado is-mal">
@@ -118,10 +146,26 @@ function Editar({
 }) {
   const [nombre, setNombre] = useState(producto.nombre);
   const [precio, setPrecio] = useState(String(producto.precio_venta));
+  const [costo, setCosto] = useState(
+    producto.costo == null ? "" : String(producto.costo),
+  );
   const [iva, setIva] = useState<0 | 5 | 10>(producto.iva);
   const [minimo, setMinimo] = useState(String(producto.stock_minimo ?? 0));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  /*
+   * El margen se recalcula mientras escribe, no al guardar.
+   *
+   * Es el momento en que sirve: la pregunta "¿a cuánto lo pongo?" se contesta
+   * moviendo el precio y mirando qué pasa con la ganancia. Mostrarlo recién
+   * después de guardar obligaría a guardar, mirar, volver a entrar y corregir.
+   */
+  const margenEnVivo = calcularMargen({
+    costo: costo === "" ? null : Number(costo),
+    precio_venta: Number(precio),
+    iva: tasaValida(iva),
+  });
 
   async function guardar() {
     if (!nombre.trim()) {
@@ -139,6 +183,9 @@ function Editar({
         body: JSON.stringify({
           nombre: nombre.trim(),
           precio_venta: Number(precio) || 0,
+          // Vacío significa "no sé cuánto me cuesta", que es distinto de cero:
+          // un costo en cero mostraría 100% de margen, que es falso.
+          costo: costo.trim() === "" ? null : Number(costo),
           iva,
           ...(producto.controla_stock ? { stock_minimo: Number(minimo) || 0 } : {}),
         }),
@@ -171,8 +218,19 @@ function Editar({
           className="neg-input neg-cantidad"
           type="number"
           min={0}
+          value={costo}
+          placeholder="Costo"
+          title="Lo que te cuesta a vos, con IVA incluido como viene en la factura del proveedor"
+          onChange={(e) => setCosto(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
           value={precio}
           placeholder="Precio"
+          title="Lo que cobrás, con IVA incluido"
           onChange={(e) => setPrecio(e.target.value)}
         />
 

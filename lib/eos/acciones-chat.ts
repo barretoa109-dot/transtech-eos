@@ -6,16 +6,61 @@ const ACCIONES_NEGOCIO_CON_APROBACION = new Set([
 
 type AccionEOS = { tipo?: unknown };
 
+export function requiereAprobacion(acciones: AccionEOS[]): boolean {
+  return acciones.some((accion) =>
+    ACCIONES_NEGOCIO_CON_APROBACION.has(String(accion?.tipo || "").trim().toUpperCase()),
+  );
+}
+
+/**
+ * Lo que se le dice cuando la operación NO llegó a quedar pendiente.
+ *
+ * Es el caso que encontró una clienta: el chat le mostraba "Operación lista
+ * para registrar" con su botón, apretaba, y la pantalla de aprobaciones decía
+ * "No tenés aprobaciones pendientes". Nada se guardaba, y no había forma de
+ * darse cuenta de por qué.
+ */
+export const AVISO_SIN_APROBACION =
+  "⚠️ **No llegué a dejarlo listo.** Entendí lo que querés registrar, pero la " +
+  "operación no quedó pendiente de aprobación, así que **no se guardó nada**. " +
+  "Cargalo desde la sección Negocio y ahí sí queda.\n\nEsto es lo que había entendido:";
+
+/**
+ * El enlace a aprobaciones, SOLO si la aprobación existe de verdad.
+ *
+ * ============================================================
+ * POR QUÉ HAY QUE COMPROBARLO Y NO ALCANZA CON DEDUCIRLO
+ * ============================================================
+ *
+ * La versión anterior agregaba el enlace cuando el modelo devolvía una acción
+ * de negocio. Parecía razonable: si pidió registrar una venta, alguien va a
+ * tener que aprobarla.
+ *
+ * Pero el modelo pedir una acción y que la acción quede registrada como
+ * pendiente son dos cosas distintas, y entre ellas hay un sistema entero —el
+ * Worker Gate, que vive en n8n— que puede no haber hecho su parte. Cuando eso
+ * pasa, el enlace lleva a una pantalla vacía y el usuario se queda esperando
+ * algo que nunca va a llegar.
+ *
+ * Así que ahora quien llama consulta la base y pasa el resultado. Si hay
+ * aprobación, se muestra el camino; si no la hay, se dice que no se guardó
+ * nada. La diferencia entre las dos frases es la diferencia entre un producto
+ * en el que se puede confiar y uno en el que no.
+ */
 export function agregarAccesoAprobacion(
   respuesta: string,
   acciones: AccionEOS[],
   origen: string,
+  hayAprobacionPendiente: boolean,
 ): string {
-  const requiereAprobacion = acciones.some((accion) =>
-    ACCIONES_NEGOCIO_CON_APROBACION.has(String(accion?.tipo || "").trim().toUpperCase()),
-  );
+  if (!requiereAprobacion(acciones)) return respuesta;
+  if (respuesta.includes(AVISO_SIN_APROBACION)) return respuesta;
 
-  if (!requiereAprobacion || respuesta.includes("/eos/autonomy")) return respuesta;
+  if (!hayAprobacionPendiente) {
+    return `${AVISO_SIN_APROBACION}\n\n${respuesta}`;
+  }
+
+  if (respuesta.includes("/eos/autonomy")) return respuesta;
 
   return `${respuesta}\n\nPara completar el registro, revisá y aprobá la operación pendiente en ${origen}/eos/autonomy`;
 }
