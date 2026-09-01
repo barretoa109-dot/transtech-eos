@@ -14,7 +14,7 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
 Medición de hoy, para no discutirla dos veces:
 
-- `npm test` → **477/477 en verde**. Empezó el día en 379.
+- `npm test` → **494/494 en verde**. Empezó el día en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **24 errores, 5 avisos**. Empezó el día en 42 y 39.
   Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
@@ -31,9 +31,9 @@ Medición de hoy, para no discutirla dos veces:
 | --- | --- | --- | --- |
 | 1 | Congelar el alcance | **parcial** | Redactado en `docs/lanzamiento/alcance-congelado.md`. Falta la firma de producto, legal y técnica, y la decisión sobre rotular ERP y CRM como beta. |
 | 2 | Cerrar los cambios pendientes | **cerrado** | Árbol limpio. Tres commits: invariantes de anulación, validación de entrada de productos, higiene del repo. Los 21 MB de video y presentación quedaron ignorados, no commiteados. |
-| 3 | Sincronizar migraciones | **parcial** | Las 169 aplicadas coinciden local y remoto, verificado hoy. **Pero hay un solo proyecto Supabase**: desarrollo, pruebas y producción son la misma base. No hay nada que sincronizar porque no hay contra qué. |
-| 4 | Instalación desde cero | **bloqueado** | Imposible sin una segunda base. Ver la nota de infraestructura abajo. |
-| 5 | Actualización realista | **bloqueado** | Idem. Hoy toda migración se estrena contra datos de usuarios reales. |
+| 3 | Sincronizar migraciones | **parcial** | Las 169 aplicadas coinciden local y remoto, verificado hoy. **Pero todo corre contra el proyecto de producción**: no hay un entorno de pruebas en uso, así que no hay contra qué sincronizar. Hay un segundo proyecto sano disponible — ver la nota de infraestructura. |
+| 4 | Instalación desde cero | **abierto** | Ya **no está bloqueado**: hay un segundo proyecto Supabase sano y sin uso conocido. Ver la nota de infraestructura abajo. Aplicarle las 170 migraciones desde cero ES la prueba de este punto. |
+| 5 | Actualización realista | **abierto** | Idem: deja de estar bloqueado. Hoy toda migración se sigue estrenando contra datos de usuarios reales, y eso es lo que hay que dejar de hacer. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
 | 7 | Compra real controlada | **cerrado** (con reserva) | Los siete finales cubiertos y **verdes contra la base real**: aprobado, rechazado y abandonado en el caso 03; duplicado, demorado y reversado en el 11. La reversión deshace plan, módulos, solicitud e historial, y repetirla no descuenta dos veces. **Reservas:** el 3DS se completa en el navegador y la suite no puede recorrerlo sola, y el cobro con tarjeta queda en amarillo hasta catastrar una de prueba. |
 | 8 | Requisitos de publicación | **externo** | D-U-N-S, cuentas de tienda, políticas y verificaciones sin empezar. El alcance congelado saca las apps del lanzamiento: se sale por web. |
@@ -42,15 +42,31 @@ Medición de hoy, para no discutirla dos veces:
 
 ### La nota de infraestructura que ordena A
 
-**Hay un solo proyecto Supabase.** Eso convierte los puntos 4, 5 y 50 en
-imposibles, no en pendientes: no se puede probar una instalación desde cero ni
-una actualización realista contra la base donde viven los usuarios. Y la
-definición de terminado exige "producción o un entorno idéntico".
+**Corregido el 31 de agosto por la noche.** Durante todo el día esta nota decía
+que había un solo proyecto Supabase y que por eso los puntos 4, 5 y 50 estaban
+bloqueados. Estaba mal, y el error fue mío: nunca lo comprobé, lo di por sentado
+porque el CLI apunta a uno solo.
 
-Un segundo proyecto Supabase (`transtech-eos-staging`), con las mismas 169
-migraciones aplicadas desde cero y datos sintéticos, destraba de una vez los
-puntos 3, 4, 5, 7, 43 y 50. **Es la pieza de mayor rendimiento de toda la
-lista** y no depende de nadie externo.
+`supabase projects list` dice que en la misma organización hay **tres**:
+
+| Proyecto | Ref | Región | Estado |
+| --- | --- | --- | --- |
+| TransTech EOS | `dirugpkamzgvyshcnsxs` | us-east-2 | **producción**, sano |
+| EOS Financial Autopilot Validation | `biulwebdgrcrsnzuqhky` | us-east-2 | sano, **sin uso conocido** |
+| barretoa109@gmail.com's Project | `crihlzpsgdcqseltiqim` | us-east-1 | inactivo |
+
+El segundo está sano, en la misma región que producción, y creado el 16 de
+agosto. **Si está vacío o es descartable, es el entorno de staging que hacía
+falta**, y los puntos 4, 5 y 50 dejan de estar bloqueados sin gastar un peso ni
+esperar a nadie.
+
+Lo que hay que decidir antes de tocarlo: qué tiene adentro. Si guarda algo de la
+validación de agosto, se crea uno nuevo; si no, se le aplican las 170
+migraciones desde cero —que es, en sí misma, la prueba del punto 4— y se le
+cargan datos sintéticos.
+
+**Sigue siendo la pieza de mayor rendimiento de toda la lista**: destraba los
+puntos 3, 4, 5, 7 y 50 de una vez.
 
 ---
 
@@ -114,8 +130,8 @@ lista** y no depende de nadie externo.
 | 43 | Auditoría de acceso | **cerrado** (con reserva) | **Probado, no afirmado**: el caso 12 de certificación crea una víctima y un intruso con sesión real e intenta, sobre las **64 tablas con `usuario_id`**, leerlas con sesión ajena, leerlas sin sesión con sólo la clave pública, editar y borrar filas ajenas, plantar un movimiento a nombre de otro, y llamar las funciones `security definer`. **13 de 13 en verde contra la base real**, cero fugas. La lista de tablas se descubre leyendo las migraciones, así que una tabla nueva queda cubierta desde que existe. **Reserva:** falta el recorrido de una persona distinta. |
 | 44 | Sin rutas de prueba | **cerrado** | Relevado hoy: no hay rutas de test, debug ni demo en `app/`. Las tres bajo `api/internal` están autorizadas por firma. |
 | 45 | Interfaces externas | **parcial** | Firma de webhook Bancard, `worker-authorize`, `no-store` y `Vary: Cookie`. El 31 de agosto se sumó el **techo de solicitudes** (`lib/seguridad/limite.ts` + v99), aplicado a `/api/ventas/contacto`, que era la única ruta totalmente pública y mandaba correo sin ningún tope. La clave va hasheada: no se guarda ninguna IP. Verificado contra la base real. **Falta** aplicarlo a `/api/soporte` y a los webhooks, y la prevención de repetición generalizada. |
-| 46 | Secretos y datos sensibles | **parcial** | `lib/seguridad/cifrado.ts` con AES-GCM ligado a usuario y proveedor, rotación de clave y 14 tests. Falta la revisión de que ningún registro imprima datos privados. |
-| 47 | Recuperación ante incidentes | **parcial** | `docs/rollback-runbook.md` cubre Vercel y Supabase, con el drift de migraciones ya resuelto y documentado. Falta restauración verificada y procedimiento para caída de n8n, correo e IA. |
+| 46 | Secretos y datos sensibles | **cerrado** (con reserva) | Cifrado AES-GCM ligado a usuario y proveedor con rotación de clave. Verificado el 31 de agosto: **ningún archivo `.env` estuvo nunca en el historial de git** y no hay credenciales en el árbol versionado. Y se taparon **tres fugas reales al log del servidor** —el cuerpo crudo de la respuesta de n8n, la fila de un efecto del worker y el objeto de autorización— con `lib/seguridad/registro.ts`, que deja pasar la forma del error y no el contenido. **Reserva:** falta el recorrido de una persona distinta y la rotación practicada de verdad. |
+| 47 | Recuperación ante incidentes | **parcial** | `docs/rollback-runbook.md` cubre Vercel, Supabase y —desde el 31 de agosto— **qué pasa y qué hacer cuando se cae cada una de las cinco dependencias**: Supabase, n8n, Resend, OpenAI y Bancard, escrito contra lo que el código hace hoy. **Falta**, y está listado ahí sin adornos: la restauración nunca se verificó, hay que confirmar si PITR está habilitado, el respaldo de n8n está diez días desactualizado, y la alerta viaja por el mismo canal que vigila. |
 
 ---
 
@@ -125,7 +141,7 @@ lista** y no depende de nadie externo.
 | --- | --- | --- | --- |
 | 48 | Experiencia y accesibilidad | **abierto** | Sin auditoría de teclado, contraste, lectores de pantalla, estados vacíos ni conexión lenta. |
 | 49 | Puerta automática de calidad | **parcial** | El CI corre `npm test`, `npm run evals`, `tsc --noEmit` y ahora `npm run lint:tope`, los cuatro bloqueando. El lint todavía no exige cero —quedan 24 errores heredados— pero **ya no puede subir**: el trinquete falla si crece, y también si baja sin actualizar el tope, para que ese número no mienta. Deuda: 42 → 24 errores, 39 → 7 avisos. Ya existe la primera prueba SQL (`supabase/tests/`). Faltan las de seguridad y los recorridos de navegador. |
-| 50 | Piloto y simulacro | **bloqueado** | Depende del segundo proyecto Supabase. |
+| 50 | Piloto y simulacro | **abierto** | Deja de depender de crear un proyecto: ya existe uno sano. Falta decidir si se usa ese o se crea otro, y después el piloto en sí. |
 
 ---
 
