@@ -3215,6 +3215,47 @@
   white-space: nowrap;
 }
 
+/*
+ * La nota debajo del número: qué significa, o por qué no se pudo calcular.
+ *
+ * Va chica y apagada a propósito. Es la diferencia entre un tablero que se
+ * mira y uno que se entiende sin preguntarle a nadie qué es el ROI.
+ */
+.eos-app .neg-metrica-nota {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.eos-app .neg-falta {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.eos-app .neg-falta > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.eos-app .neg-falta ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.eos-app .neg-falta li + li { margin-top: 7px; }
+.eos-app .neg-falta strong { color: var(--ink); }
+
 .eos-app .neg-feedback {
   padding: 10px 12px;
   margin: 0 0 14px;

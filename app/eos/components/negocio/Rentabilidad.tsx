@@ -1,13 +1,51 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, BadgeDollarSign, CircleAlert, RefreshCw, TrendingUp } from "lucide-react";
+import { AlertCircle, BadgeDollarSign, CircleAlert, Info, RefreshCw, Target, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { calcularMargen } from "@/lib/erp/margen";
+import type { Indicadores } from "@/lib/erp/indicadores";
 import type { ResumenRentabilidad } from "@/lib/erp/rentabilidad";
 import type { Producto } from "./tipos";
 
+/** Un decimal. Más dígitos en un porcentaje de negocio es precisión falsa. */
+function pct(valor: number | null, signo = false): string {
+  if (valor === null || !Number.isFinite(valor)) return "—";
+  return `${signo && valor > 0 ? "+" : ""}${valor.toFixed(1)}%`;
+}
+
+function dia(iso: string): string {
+  const [, mes, numero] = iso.split("-");
+  return `${numero}/${mes}`;
+}
+
+/*
+ * Una métrica que sabe decir que no sabe.
+ *
+ * Cuando el número no se puede calcular muestra un guion Y la razón, en vez
+ * de un cero. Un cero se lee como "vendiste cero", que es una respuesta
+ * distinta a "todavía no cargaste el costo".
+ */
+function Metrica({ titulo, valor, nota, tono }: {
+  titulo: string;
+  valor: string;
+  nota?: string;
+  tono?: "good" | "danger";
+}) {
+  return (
+    <div className={`neg-metrica${tono ? ` is-${tono}` : ""}`}>
+      <span>{titulo}</span>
+      <strong title={valor}>{valor}</strong>
+      {nota && <small className="neg-metrica-nota">{nota}</small>}
+    </div>
+  );
+}
+
 export default function Rentabilidad({ productos }: { productos: Producto[] }) {
   const [resumen, setResumen] = useState<ResumenRentabilidad[]>([]);
+  const [indicadores, setIndicadores] = useState<Indicadores[]>([]);
+  const [periodo, setPeriodo] = useState<{ desde: string; hasta: string } | null>(null);
+  const [falta, setFalta] = useState<{ indicador: string; necesita: string }[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
@@ -19,6 +57,9 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
         const datos = await respuesta.json().catch(() => null);
         if (!respuesta.ok) throw new Error(datos?.error || "No pudimos calcular los márgenes.");
         setResumen(Array.isArray(datos?.resumen) ? datos.resumen : []);
+        setIndicadores(Array.isArray(datos?.indicadores) ? datos.indicadores : []);
+        setPeriodo(datos?.periodo ?? null);
+        setFalta(Array.isArray(datos?.falta) ? datos.falta : []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "No pudimos calcular los márgenes."))
       .finally(() => setCargando(false));
@@ -32,11 +73,20 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
   const catalogo = useMemo(() => productos.map((producto) => {
     const precio = Number(producto.precio_venta || 0);
     const costo = producto.costo === null || producto.costo === undefined ? null : Number(producto.costo);
-    const margen = costo === null ? null : precio - costo;
+    /*
+     * El mismo cálculo que la ficha del producto y que los indicadores de
+     * abajo: se le saca el IVA a las dos puntas antes de restar.
+     *
+     * Restar precio − costo a secas daba una ganancia inflada, y era el tercer
+     * lugar de la app con una cuenta distinta para la misma plata. Dos
+     * pantallas que muestran dos márgenes del mismo producto no se discuten:
+     * se deja de creer en las dos.
+     */
+    const cuenta = calcularMargen({ costo, precio_venta: precio, iva: producto.iva });
     return {
       ...producto,
-      margen,
-      porcentaje: margen !== null && precio > 0 ? (margen / precio) * 100 : null,
+      margen: cuenta.conocido ? cuenta.ganancia : null,
+      porcentaje: cuenta.conocido ? cuenta.margen : null,
     };
   }).sort((a, b) => (b.margen ?? -Infinity) - (a.margen ?? -Infinity)), [productos]);
 
@@ -48,6 +98,122 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
 
   return (
     <>
+      {indicadores.length > 0 && (
+        <div className="card">
+          <div className="neg-section-heading">
+            <div>
+              <div className="card-title">Cómo va el negocio</div>
+              <div className="card-sub">
+                {periodo ? `Del ${dia(periodo.desde)} al ${dia(periodo.hasta)}` : "Mes en curso"}
+                {" · "}Todo neto de IVA: el IVA se cobra para la SET, no es plata del negocio.
+              </div>
+            </div>
+            <Target size={24} />
+          </div>
+
+          {indicadores.map((i) => (
+            <section className="neg-margin-group" key={i.moneda}>
+              <header>
+                <strong>{i.moneda}</strong>
+                {i.ventas_sin_costo > 0 && (
+                  <span className="neg-estado">
+                    {i.ventas_sin_costo} {i.ventas_sin_costo === 1 ? "venta" : "ventas"} sin costo cargado
+                  </span>
+                )}
+              </header>
+
+              <div className="neg-metricas">
+                <Metrica
+                  titulo="Vendido"
+                  valor={formatearMonto(i.ventas.neto, i.moneda)}
+                  nota={`${i.ventas.cantidad} ${i.ventas.cantidad === 1 ? "venta" : "ventas"}`}
+                />
+                <Metrica
+                  titulo="Ticket promedio"
+                  valor={i.ticket_promedio === null ? "—" : formatearMonto(i.ticket_promedio, i.moneda)}
+                  nota={i.ticket_promedio === null ? "Sin ventas en el período" : "Cuánto deja cada venta"}
+                />
+                <Metrica
+                  titulo="Ganancia"
+                  valor={i.ganancia === null ? "—" : formatearMonto(i.ganancia, i.moneda)}
+                  nota={i.ganancia === null ? "Cargá el costo de lo que vendés" : "Después del costo de lo vendido"}
+                  tono={i.ganancia === null ? undefined : i.ganancia < 0 ? "danger" : "good"}
+                />
+                <Metrica
+                  titulo="Margen"
+                  valor={pct(i.margen)}
+                  nota="De cada 100 vendidos, cuánto queda"
+                  tono={i.margen === null ? undefined : i.margen < 0 ? "danger" : "good"}
+                />
+                <Metrica
+                  titulo="ROI"
+                  valor={pct(i.roi)}
+                  nota="Lo que volvió por cada guaraní puesto en mercadería"
+                  tono={i.roi === null ? undefined : i.roi < 0 ? "danger" : "good"}
+                />
+                <Metrica
+                  titulo="Balance del período"
+                  valor={formatearMonto(i.balance, i.moneda)}
+                  nota="Lo que entró menos lo que salió"
+                  tono={i.balance < 0 ? "danger" : "good"}
+                />
+                <Metrica
+                  titulo="Crecimiento"
+                  valor={pct(i.crecimiento_ventas, true)}
+                  nota={
+                    i.crecimiento_ventas === null
+                      ? "Todavía no hay período anterior con ventas"
+                      : "Contra el período anterior de igual largo"
+                  }
+                  tono={
+                    i.crecimiento_ventas === null
+                      ? undefined
+                      : i.crecimiento_ventas < 0
+                        ? "danger"
+                        : "good"
+                  }
+                />
+                <Metrica
+                  titulo="Punto de equilibrio"
+                  valor={i.punto_equilibrio === null ? "—" : formatearMonto(i.punto_equilibrio, i.moneda)}
+                  nota={
+                    i.punto_equilibrio === null
+                      ? "Necesita gastos fijos declarados y un margen positivo"
+                      : "Cuánto hay que vender por mes para cubrir los fijos"
+                  }
+                />
+              </div>
+
+              {i.concentracion && i.concentracion.porcentaje >= 40 && (
+                <p className="neg-growth-alert">
+                  <Users size={15} /> {i.concentracion.nombre} concentra el{" "}
+                  {i.concentracion.porcentaje.toFixed(0)}% de lo vendido. Un negocio que
+                  depende de un solo cliente queda expuesto si ese cliente se va.
+                </p>
+              )}
+
+              {i.crecimiento_ventas !== null && i.crecimiento_ventas < -15 && (
+                <p className="neg-growth-alert">
+                  <TrendingDown size={15} /> Vendiste{" "}
+                  {Math.abs(i.crecimiento_ventas).toFixed(0)}% menos que el período anterior.
+                </p>
+              )}
+            </section>
+          ))}
+
+          {falta.length > 0 && (
+            <details className="neg-falta">
+              <summary><Info size={14} /> Indicadores que EOS todavía no puede calcular</summary>
+              <ul>
+                {falta.map((f) => (
+                  <li key={f.indicador}><strong>{f.indicador}.</strong> {f.necesita}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="neg-section-heading">
           <div><div className="card-title">Rentabilidad del negocio</div><div className="card-sub">Cuánto queda después del costo directo de lo vendido. No incluye todavía alquileres, salarios ni otros gastos fijos.</div></div>
