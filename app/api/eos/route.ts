@@ -10,7 +10,7 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
-import { agregarAccesoAprobacion } from "@/lib/eos/acciones-chat";
+import { agregarAccesoAprobacion, corregirAfirmacionSinAccion } from "@/lib/eos/acciones-chat";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -797,6 +797,23 @@ export async function POST(req: Request) {
     }
 
     const resultado = normalizarRespuestaConDocumento(rawText);
+
+    /*
+     * Primero: que no diga que hizo algo que no hizo.
+     *
+     * Va ANTES del aviso de aprobación porque son dos casos distintos que se
+     * excluyen. Si hubo acción, la operación existe y solo falta aprobarla —y
+     * de eso avisa la línea de abajo—. Si NO hubo ninguna acción y la
+     * respuesta igual afirma haber registrado algo que el usuario pidió
+     * registrar, la afirmación es falsa con certeza, y eso se corrige antes de
+     * que la persona siga con su día creyendo que quedó guardado.
+     */
+    resultado.respuesta = corregirAfirmacionSinAccion(
+      resultado.respuesta,
+      resultado.acciones,
+      mensaje,
+    );
+
     resultado.respuesta = agregarAccesoAprobacion(
       resultado.respuesta,
       resultado.acciones,
