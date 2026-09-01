@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 type PagoPendiente = {
   id: string;
@@ -212,12 +213,7 @@ export default function AdminPagosPage() {
                     </div>
 
                     <div className="amount">
-                      <strong>
-                        Gs.{" "}
-                        {new Intl.NumberFormat("es-PY", {
-                          maximumFractionDigits: 0,
-                        }).format(Number(pago.monto))}
-                      </strong>
+                      <strong>{formatearMonto(Number(pago.monto), pago.moneda)}</strong>
                       <span>{pago.periodicidad}</span>
                     </div>
                   </div>

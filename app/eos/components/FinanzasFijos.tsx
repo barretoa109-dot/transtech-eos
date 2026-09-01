@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Plus, Repeat, X } from "lucide-react";
+import { formatearMonto } from "@/lib/finanzas/formato";
+import { simboloDe } from "@/lib/finanzas/monedas";
 
 type Fijo = {
   tipo: "ingreso" | "gasto";
@@ -59,7 +61,7 @@ export default function FinanzasFijos({
 
   if (fijos === null) return null;
 
-  const simbolo = moneda === "PYG" ? "₲" : "US$";
+  const simbolo = simboloDe(moneda);
 
   async function guardar() {
     setGuardando(true);
@@ -120,10 +122,7 @@ export default function FinanzasFijos({
                     {f.descripcion} · día {f.dia_del_mes}
                   </span>
                   <span className={`fin-row-value ${f.tipo === "ingreso" ? "is-ok" : ""}`}>
-                    {f.tipo === "ingreso" ? "+" : "−"} {simbolo}{" "}
-                    {new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
-                      Number(f.monto) || 0,
-                    )}
+                    {f.tipo === "ingreso" ? "+" : "−"} {formatearMonto(Number(f.monto) || 0, moneda)}
                   </span>
                 </div>
               ))}

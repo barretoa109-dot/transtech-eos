@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { FileSpreadsheet, Upload } from "lucide-react";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 /**
  * Traer el catálogo desde la planilla que ya tenés.
@@ -161,12 +162,13 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
                       <div className="neg-fila-texto">
                         <strong>{p.nombre}</strong>
                         <small>
-                          IVA {p.iva}%{p.costo !== null ? ` · costo ${p.costo.toLocaleString("es-PY")}` : ""}
+                          IVA {p.iva}%{p.costo !== null ? ` · costo ${formatearMonto(p.costo, "PYG")}` : ""}
                           {` · stock ${p.stock_actual}`}
                         </small>
                       </div>
+                      {/* El importador todavía no lee moneda de la planilla: crea en PYG. */}
                       <span className="neg-fila-monto">
-                        Gs. {p.precio_venta.toLocaleString("es-PY")}
+                        {formatearMonto(p.precio_venta, "PYG")}
                       </span>
                     </div>
                   ))}
