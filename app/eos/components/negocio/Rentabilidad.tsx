@@ -240,7 +240,7 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
       <div className="card">
         <div className="card-title">Oportunidades para crecer</div>
         <div className="neg-growth-grid">
-          <article className={sinCosto ? "needs-attention" : "is-ready"}><strong>{sinCosto}</strong><span>productos sin costo</span><p>{sinCosto ? "Completá el costo para saber si realmente dejan ganancia." : "Tu catálogo tiene costos para decidir con datos."}</p></article>
+          <article className={sinCosto ? "needs-attention" : "is-ready"}><strong>{sinCosto}</strong><span>productos sin costo</span><p>{sinCosto ? "Sin costo no hay margen que calcular. Cargalo en Productos, o todos de una vez con Importar si los tenés en una planilla." : "Tu catálogo tiene costos para decidir con datos."}</p></article>
           <article className={conPerdida ? "needs-attention" : "is-ready"}><strong>{conPerdida}</strong><span>productos vendidos bajo costo</span><p>{conPerdida ? "Revisá precios o negociá mejor con proveedores." : "No detectamos precios por debajo del costo actual."}</p></article>
           <article><strong>{catalogo.filter((p) => p.bajo_minimo).length}</strong><span>productos con stock bajo</span><p>Priorizá reposición donde haya margen y demanda.</p></article>
         </div>
