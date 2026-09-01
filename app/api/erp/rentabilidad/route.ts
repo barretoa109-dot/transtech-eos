@@ -41,6 +41,7 @@ export async function GET() {
       descripcion: String(item.descripcion ?? "Producto"),
       cantidad: Number(item.cantidad ?? 0),
       venta: Number(item.total ?? 0),
+      iva: tasaValida(item.iva),
       costo_unitario: item.costo_unitario === null || item.costo_unitario === undefined
         ? null
         : Number(item.costo_unitario),
