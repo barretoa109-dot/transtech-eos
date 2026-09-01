@@ -45,6 +45,15 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
   CREAR_CONTACTO: { tier: 2, points: 3, maxLevel: 2 },
 };
 
+/*
+ * El perfil de quien todavía no tiene fila propia.
+ *
+ * Tiene que decir lo mismo que el default de la columna en la base
+ * (v101). Cuando dijeron cosas distintas, cinco de los seis usuarios de
+ * producción corrieron catorce días en nivel 1 —que ni ejecuta ni
+ * pregunta— mientras el chat les decía que sí. Si cambia uno, cambia el
+ * otro.
+ */
 const DEFAULT_PROFILE = {
   default_level: 2,
   max_auto_actions_per_day: 5,
@@ -397,6 +406,34 @@ export async function POST(request: Request) {
     }
 
     const profile = { ...DEFAULT_PROFILE, ...(profileResult.data || {}) };
+
+    /*
+     * Y si no tenía fila, se la crea con lo que se acaba de usar.
+     *
+     * No es cosmético: mientras el nivel es un valor implícito nadie puede
+     * verlo ni cambiarlo, y una diferencia entre este archivo y la base pasa
+     * inadvertida hasta que un usuario reporta que EOS le miente. Con la fila
+     * escrita, el nivel es un dato: se lee, se audita y se edita.
+     *
+     * Si el insert falla no se corta la evaluación —el usuario no tiene la
+     * culpa de que no se haya podido escribir una preferencia— y la carrera
+     * entre dos evaluaciones simultáneas la resuelve el propio unique.
+     */
+    if (!profileResult.data) {
+      const { error: altaError } = await admin
+        .from("eos_autonomy_profiles_v12")
+        .upsert(
+          { usuario_id: usuarioId, ...DEFAULT_PROFILE },
+          // `ignoreDuplicates` lo vuelve un `on conflict do nothing`: si entre
+          // la lectura y esta escritura otra evaluación ya creó la fila —o el
+          // usuario ya había elegido su nivel—, no se pisa nada.
+          { onConflict: "usuario_id", ignoreDuplicates: true },
+        );
+
+      if (altaError) {
+        console.error("Worker gate: no se pudo crear el perfil de autonomía:", altaError);
+      }
+    }
     const rule = ruleResult.data;
     const masterContext = masterContextResult.data;
     const requiresFreshContext = rule?.require_fresh_context === true;
