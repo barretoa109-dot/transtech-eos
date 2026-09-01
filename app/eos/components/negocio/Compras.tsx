@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
-import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart } from "lucide-react";
+import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -38,7 +38,14 @@ export default function Compras({
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState(false);
   const [contactoId, setContactoId] = useState("");
+  const [proveedorNuevo, setProveedorNuevo] = useState<Contacto | null>(null);
+  const [creandoProveedor, setCreandoProveedor] = useState(false);
+  const [nombreProveedor, setNombreProveedor] = useState("");
+  const [telefonoProveedor, setTelefonoProveedor] = useState("");
+  const [guardandoProveedor, setGuardandoProveedor] = useState(false);
   const [comprobante, setComprobante] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [notas, setNotas] = useState("");
   const [condicion, setCondicion] = useState<"contado" | "credito">("contado");
   const [lineas, setLineas] = useState<LineaEnEdicion[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -46,6 +53,9 @@ export default function Compras({
   const [errorCarga, setErrorCarga] = useState("");
   const [exito, setExito] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [concepto, setConcepto] = useState("");
+  const [costoConcepto, setCostoConcepto] = useState("");
+  const [ivaConcepto, setIvaConcepto] = useState<0 | 5 | 10>(10);
   const [pagandoId, setPagandoId] = useState<string | null>(null);
 
   const cargar = useCallback(() => {
@@ -73,6 +83,12 @@ export default function Compras({
   }, [cargar]);
 
   const totales = useMemo(() => calcularVenta(lineas), [lineas]);
+  const proveedores = useMemo(
+    () => proveedorNuevo && !contactos.some((c) => c.id === proveedorNuevo.id)
+      ? [...contactos, proveedorNuevo]
+      : contactos,
+    [contactos, proveedorNuevo],
+  );
   const productosVisibles = useMemo(() => {
     const termino = busqueda.trim().toLocaleLowerCase("es");
     if (!termino) return productos;
@@ -132,6 +148,53 @@ export default function Compras({
     });
   }
 
+  function agregarConcepto() {
+    const descripcion = concepto.trim();
+    const costo = Number(costoConcepto);
+    if (!descripcion) return setError("Escribí qué compraste.");
+    if (!Number.isFinite(costo) || costo <= 0) return setError("Ingresá un costo mayor que cero.");
+
+    setLineas((actual) => [
+      ...actual,
+      { producto_id: null, descripcion, cantidad: 1, precio_unitario: costo, iva: ivaConcepto },
+    ]);
+    setConcepto("");
+    setCostoConcepto("");
+    setError("");
+  }
+
+  async function crearProveedor() {
+    if (!nombreProveedor.trim() || guardandoProveedor) return;
+    setGuardandoProveedor(true);
+    setError("");
+    try {
+      const respuesta = await fetch("/api/erp/contactos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: nombreProveedor,
+          telefono: telefonoProveedor || null,
+          es_cliente: false,
+          es_proveedor: true,
+        }),
+      });
+      const resultado = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo guardar el proveedor.");
+      const proveedor = resultado?.contacto as Contacto | undefined;
+      if (!proveedor) throw new Error("El proveedor se guardó, pero no pudimos seleccionarlo.");
+      setProveedorNuevo(proveedor);
+      setContactoId(proveedor.id);
+      setNombreProveedor("");
+      setTelefonoProveedor("");
+      setCreandoProveedor(false);
+      setExito("Proveedor guardado y seleccionado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar el proveedor.");
+    } finally {
+      setGuardandoProveedor(false);
+    }
+  }
+
   async function registrar() {
     if (lineas.length === 0 || guardando) return;
     if (lineas.some((l) => l.cantidad <= 0 || l.precio_unitario <= 0)) {
@@ -156,7 +219,9 @@ export default function Compras({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contacto_id: contactoId || null,
+          fecha: fecha || null,
           numero_comprobante: comprobante || null,
+          notas: notas || null,
           condicion,
           moneda,
           items: lineas.map((l) => ({
@@ -174,6 +239,8 @@ export default function Compras({
 
       setLineas([]);
       setComprobante("");
+      setFecha("");
+      setNotas("");
       setContactoId("");
       setCondicion("contado");
       setAbierto(false);
@@ -215,7 +282,7 @@ export default function Compras({
             <div className="card-title">Compras y abastecimiento</div>
             <div className="card-sub">Registrá facturas, actualizá costos y mantené el stock al día.</div>
           </div>
-          {productos.length > 0 && !abierto && (
+          {!abierto && (
             <button type="button" className="reco-btn" onClick={() => { setAbierto(true); setExito(""); }}>
               <Plus size={16} /> Nueva compra
             </button>
@@ -232,38 +299,58 @@ export default function Compras({
 
         {exito && <p className="neg-feedback is-ok" role="status"><Check size={15} /> {exito}</p>}
 
-        {productos.length === 0 ? (
-          <div className="neg-empty-state">
-            <PackagePlus size={28} />
-            <strong>Prepará tu catálogo antes de comprar</strong>
-            <p>Cargá al menos un producto en la pestaña Productos. Después vas a poder registrar facturas y actualizar existencias automáticamente.</p>
-          </div>
-        ) : abierto ? (
+        {abierto ? (
           <>
             <div className="neg-form-title"><ReceiptText size={17} /> Datos de la factura</div>
             <div className="neg-form">
-              <label className="neg-field"><span>Proveedor</span><select className="neg-input" value={contactoId} onChange={(e) => setContactoId(e.target.value)}><option value="">Sin proveedor asignado</option>{contactos.filter((c) => c.es_proveedor).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></label>
+              <label className="neg-field"><span>Proveedor</span><select className="neg-input" value={contactoId} onChange={(e) => setContactoId(e.target.value)}><option value="">Sin proveedor asignado</option>{proveedores.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.es_proveedor ? "" : " · contacto existente"}</option>)}</select></label>
               <label className="neg-field"><span>Nº de factura</span><input className="neg-input" placeholder="Ej. 001-001-0001234" value={comprobante} maxLength={40} onChange={(e) => setComprobante(e.target.value)} /></label>
+              <label className="neg-field"><span>Fecha</span><input className="neg-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
               <label className="neg-field"><span>Condición</span><select className="neg-input" value={condicion} onChange={(e) => setCondicion(e.target.value === "credito" ? "credito" : "contado")}><option value="contado">Contado · registrar pago ahora</option><option value="credito">Crédito · pagar después</option></select></label>
+              <label className="neg-field neg-field-wide"><span>Notas</span><input className="neg-input" placeholder="Observación, orden de compra o referencia (opcional)" value={notas} maxLength={2000} onChange={(e) => setNotas(e.target.value)} /></label>
             </div>
 
-            <div className="neg-form-title"><ShoppingCart size={17} /> Productos de la compra</div>
-            <label className="neg-search"><Search size={15} /><input value={busqueda} placeholder="Buscar por nombre o código" onChange={(e) => setBusqueda(e.target.value)} /></label>
-            <div className="neg-catalogo">
-              {productosVisibles.map((p) => (
-                <button key={p.id} type="button" className="neg-chip" onClick={() => agregar(p)}>
-                  {p.nombre}
-                  <span>{p.codigo ? `${p.codigo} · ` : ""}{p.controla_stock ? `${p.stock_actual} en stock` : "servicio"}</span>
-                </button>
-              ))}
+            <button type="button" className="chip neg-inline-action" onClick={() => setCreandoProveedor((actual) => !actual)}>
+              <UserPlus size={14} /> {creandoProveedor ? "Cancelar proveedor nuevo" : "Agregar proveedor nuevo"}
+            </button>
+            {creandoProveedor && (
+              <div className="neg-inline-create">
+                <label className="neg-field"><span>Nombre o razón social *</span><input className="neg-input" value={nombreProveedor} maxLength={160} onChange={(e) => setNombreProveedor(e.target.value)} /></label>
+                <label className="neg-field"><span>Teléfono</span><input className="neg-input" value={telefonoProveedor} maxLength={40} onChange={(e) => setTelefonoProveedor(e.target.value)} /></label>
+                <button type="button" className="reco-btn" disabled={!nombreProveedor.trim() || guardandoProveedor} onClick={() => void crearProveedor()}>{guardandoProveedor ? "Guardando…" : "Guardar proveedor"}</button>
+              </div>
+            )}
+
+            <div className="neg-form-title"><ShoppingCart size={17} /> Qué compraste y cuánto costó</div>
+            <div className="neg-manual-item">
+              <label className="neg-field neg-field-wide"><span>Producto, servicio o gasto *</span><input className="neg-input" placeholder="Ej. Cajas de embalaje" value={concepto} maxLength={300} onChange={(e) => setConcepto(e.target.value)} /></label>
+              <label className="neg-field"><span>Costo unitario *</span><input className="neg-input" inputMode="numeric" placeholder="0" value={costoConcepto} onChange={(e) => setCostoConcepto(e.target.value.replace(/[^\d]/g, ""))} /></label>
+              <label className="neg-field neg-field-small"><span>IVA incluido</span><select className="neg-input" value={ivaConcepto} onChange={(e) => setIvaConcepto(tasaValida(Number(e.target.value)))}><option value={10}>10%</option><option value={5}>5%</option><option value={0}>Exenta</option></select></label>
+              <button type="button" className="chip active" onClick={agregarConcepto}><Plus size={14} /> Agregar línea</button>
             </div>
-            {productosVisibles.length === 0 && <p className="empty-note">No encontramos productos con “{busqueda}”.</p>}
+
+            {productos.length > 0 && (
+              <details className="neg-catalog-details">
+                <summary><PackagePlus size={15} /> Elegir del catálogo para actualizar stock</summary>
+                <label className="neg-search"><Search size={15} /><input value={busqueda} placeholder="Buscar por nombre o código" onChange={(e) => setBusqueda(e.target.value)} /></label>
+                <div className="neg-catalogo">
+                  {productosVisibles.map((p) => (
+                    <button key={p.id} type="button" className="neg-chip" onClick={() => agregar(p)}>
+                      {p.nombre}
+                      <span>{p.codigo ? `${p.codigo} · ` : ""}{p.controla_stock ? `${p.stock_actual} en stock` : "servicio"}</span>
+                    </button>
+                  ))}
+                </div>
+                {productosVisibles.length === 0 && <p className="empty-note">No encontramos productos con “{busqueda}”.</p>}
+              </details>
+            )}
 
             {lineas.length > 0 && (
               <div className="neg-lineas">
                 {totales.lineas.map((l, i) => (
                   <div className="neg-linea" key={`${l.descripcion}-${i}`}>
-                    <span className="neg-linea-nombre">{l.descripcion}</span>
+                    <span className="neg-linea-nombre"><small>Concepto</small>{l.descripcion}</span>
+                    <label className="neg-linea-control"><small>Cantidad</small>
                     <input
                       className="neg-input neg-cantidad"
                       type="number"
@@ -277,7 +364,8 @@ export default function Compras({
                           ),
                         )
                       }
-                    />
+                    /></label>
+                    <label className="neg-linea-control"><small>Costo unitario</small>
                     <input
                       className="neg-input neg-cantidad"
                       inputMode="numeric"
@@ -295,7 +383,7 @@ export default function Compras({
                           ),
                         )
                       }
-                    />
+                    /></label>
                     <span className="neg-linea-total">
                       {formatearMonto(l.total, monedaDeLinea(lineas[i]?.producto_id))}
                     </span>
@@ -344,6 +432,13 @@ export default function Compras({
               </button>
             </div>
           </>
+        ) : productos.length === 0 ? (
+          <div className="neg-empty-state">
+            <PackagePlus size={28} />
+            <strong>Podés registrar una compra aunque todavía no tengas catálogo</strong>
+            <p>Agregá el proveedor y escribí cada concepto con su costo. Si después cargás productos, EOS también actualizará el stock automáticamente.</p>
+            <button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button>
+          </div>
         ) : null}
       </div>
 
@@ -355,7 +450,7 @@ export default function Compras({
         ) : errorCarga ? (
           <div className="neg-empty-state is-error"><AlertCircle size={25} /><strong>No pudimos cargar las compras</strong><p>{errorCarga}</p><button type="button" className="chip active" onClick={() => void cargar()}>Reintentar</button></div>
         ) : compras.length === 0 ? (
-          <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p>{productos.length > 0 && <button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button>}</div>
+          <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p><button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button></div>
         ) : (
           <div className="neg-lista">
             {compras.map((c) => (

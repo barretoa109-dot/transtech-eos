@@ -306,7 +306,7 @@ export default function NegocioView() {
           />
         ) : pestania === "compras" ? (
           <Compras
-            contactos={contactos.filter((c) => c.es_proveedor || !c.es_cliente)}
+            contactos={contactos}
             productos={productos}
             onCambio={() => void cargar()}
           />
