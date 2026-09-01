@@ -5,6 +5,7 @@ import { AlertTriangle, BadgeDollarSign, Check, Package, Plus, ShoppingCart, Tre
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
+import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Rentabilidad from "./negocio/Rentabilidad";
@@ -742,11 +743,25 @@ function Facturar({ ventaId }: { ventaId: string }) {
 function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: () => void }) {
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
+  const [costo, setCosto] = useState("");
   const [iva, setIva] = useState<TasaIva>(10);
   const [controlaStock, setControlaStock] = useState(false);
   const [stock, setStock] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  /*
+   * El margen se calcula mientras escribe, no después.
+   *
+   * Es el único momento en que sirve: quien está poniendo el precio todavía
+   * puede cambiarlo. Verlo recién en un informe, tres semanas más tarde, es
+   * enterarse de que se estuvo vendiendo a pérdida.
+   */
+  const margen = calcularMargen({
+    costo: costo.trim() === "" ? null : Number(costo),
+    precio_venta: Number(precio) || 0,
+    iva,
+  });
 
   async function guardar() {
     if (!nombre.trim() || guardando) return;
@@ -761,6 +776,9 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
         body: JSON.stringify({
           nombre,
           precio_venta: Number(precio) || 0,
+          // Vacío es null, no cero: un costo en cero mostraría 100% de
+          // margen en todo producto nuevo, que es un número precioso y falso.
+          costo: costo.trim() === "" ? null : Number(costo),
           iva,
           controla_stock: controlaStock,
           stock_actual: Number(stock) || 0,
@@ -772,6 +790,7 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
 
       setNombre("");
       setPrecio("");
+      setCosto("");
       setStock("");
       onCambio();
     } catch (err) {
@@ -785,7 +804,7 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
     <>
       <div className="card">
         <div className="card-title">Nuevo producto o servicio</div>
-        <div className="card-sub">El precio va como se lo decís al cliente: con IVA adentro.</div>
+        <div className="card-sub">El precio va como se lo decís al cliente: con IVA adentro. Si cargás el costo, EOS te dice el margen antes de guardar.</div>
 
         <div className="neg-form">
           <input
@@ -801,6 +820,13 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
             inputMode="numeric"
             value={precio}
             onChange={(e) => setPrecio(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className="neg-input"
+            placeholder="Costo (opcional)"
+            inputMode="numeric"
+            value={costo}
+            onChange={(e) => setCosto(e.target.value.replace(/[^\d]/g, ""))}
           />
           <select
             className="neg-input"
@@ -829,6 +855,19 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
             />
           )}
         </div>
+
+        {Number(precio) > 0 && (
+          <p className={`fila-margen${margen.conocido && margen.pierde ? " is-perdida" : ""}`}>
+            {textoMargen(margen)}
+            {margen.conocido && (
+              <span className="fila-margen-detalle">
+                {" · "}
+                {margen.pierde ? "perdés" : "ganás"}{" "}
+                {formatearMonto(Math.abs(margen.ganancia), "PYG")} por unidad
+              </span>
+            )}
+          </p>
+        )}
 
         {error && <p className="neg-error">{error}</p>}
 
