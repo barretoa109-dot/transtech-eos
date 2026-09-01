@@ -1,2287 +1,1119 @@
 {
-  "updatedAt": "2026-08-18T04:47:24.656Z",
-  "createdAt": "2026-08-17T04:19:09.232Z",
-  "id": "iUMdg9fhAg54irmy",
-  "name": "EOS 4.0 - Background Worker WORKER GATE RC1",
-  "description": null,
-  "active": true,
-  "isArchived": false,
-  "nodes": [
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "eos-worker-rc1-internal",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "91beb339-ec29-4b23-83f6-bff57c8946c9",
-      "name": "00 INT Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        0
-      ],
-      "webhookId": "c5160ae2-1643-4eca-bcc2-0dce1d9c9a63"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-      },
-      "id": "06409967-57ef-4d87-be9b-98df8c0e205e",
-      "name": "01 INT Preparar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        224,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "2ea15723-5f20-4ee7-bb88-2b18bb598939",
-      "name": "02 INT Autorizar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        464,
-        0
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('01 INT Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\n\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-effects/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { command_id: auth.command_id }\n      : src.authorize_body\n  }\n}];"
-      },
-      "id": "df383035-d423-407e-84d9-fedd47b34464",
-      "name": "03 INT Preparar Efecto",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        704,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $json.target_url }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "8b88967d-46ca-43c7-a2bf-431db433c646",
-      "name": "04 INT Efecto o Revalidar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        944,
-        0
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 1000,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const prep = $('03 INT Preparar Efecto').first().json || {};\nconst result = $input.first().json || {};\nconst auth = prep.auth || {};\n\nconst doneText = {\n  CREAR_TAREA: 'La tarea quedó registrada.',\n  CREAR_OBJETIVO: 'El objetivo quedó creado.',\n  GUARDAR_MEMORIA: 'Guardé esa información en la memoria empresarial.'\n};\n\nif (!prep.execute) {\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed) respuesta = 'Esta acción ya había sido completada y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'Esta acción requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La acción quedó sin ejecución automática por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La acción fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      resultado: auth.resultado || {}\n    }\n  }];\n}\n\nconst success = result.ok === true && result.command_id;\nreturn [{\n  json: {\n    ok: Boolean(success),\n    executed: Boolean(success),\n    idempotent: result.idempotent === true,\n    request_id: prep.request_id,\n    command_id: result.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: result.estado || (success ? 'completada' : 'error'),\n    effect_type: result.effect_type || '',\n    effect_id: result.effect_id || null,\n    resultado: result.resultado || {},\n    respuesta: success\n      ? (doneText[prep.accion] || 'La acción quedó completada.')\n      : (result.error || 'No fue posible completar la acción interna.')\n  }\n}];"
-      },
-      "id": "45da5c74-2aaa-4871-81e2-f99015e2721b",
-      "name": "05 INT Respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1184,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
-      },
-      "id": "40c072d6-51af-4c9e-acb5-c577ab082f73",
-      "name": "06 INT Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1424,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "eos-worker-rc1-file",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "3c4ab429-0887-445d-a81d-bfe41baebf2a",
-      "name": "00 FILE Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        432
-      ],
-      "webhookId": "7b6fc211-92c0-4b51-8114-ed39f1444056"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-      },
-      "id": "82893b1b-e458-4eda-a35e-dee5f527a857",
-      "name": "01 FILE Preparar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        224,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "a068a56d-d09b-44c6-9058-754a6b1c45df",
-      "name": "02 FILE Autorizar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        464,
-        432
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('01 FILE Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-claims/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { operation: 'claim', command_id: auth.command_id, lease_seconds: 300 }\n      : src.authorize_body\n  }\n}];"
-      },
-      "id": "c4fa189c-5354-4ef8-91d2-4339a0e9f4a6",
-      "name": "03 FILE Preparar Claim",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        704,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $json.target_url }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "8f3798f2-25ac-4177-a7ae-474e6ecd1bb2",
-      "name": "04 FILE Claim o Revalidar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        944,
-        432
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 1000,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const prep = $('03 FILE Preparar Claim').first().json || {};\nconst claim = $input.first().json || {};\nconst auth = prep.auth || {};\nconst datos = prep.accion_datos || {};\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\n\n/* =========================================================\n   HELPERS\n========================================================= */\n\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(v || '')\n  );\n\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\n\n/*\n  n8n Code sandbox no expone URLSearchParams\n  en esta versión.\n\n  Construimos el query string manualmente\n  usando encodeURIComponent.\n*/\nconst construirQuery = (params) => {\n  return Object.entries(params)\n    .map(([key, value]) => {\n      const k = encodeURIComponent(\n        String(key ?? '')\n      );\n\n      const v = encodeURIComponent(\n        String(value ?? '')\n      );\n\n      return `${k}=${v}`;\n    })\n    .join('&');\n};\n\n\n/* =========================================================\n   VALIDAR CLAIM\n========================================================= */\n\nconst claimed =\n  prep.execute === true &&\n  claim.ok === true &&\n  claim.claimed === true &&\n  isUuid(claim.command_id) &&\n  isUuid(claim.lease_token) &&\n  Number.isInteger(\n    Number(claim.attempt_count)\n  ) &&\n  Number(claim.attempt_count) > 0;\n\n\n/* =========================================================\n   VALORES TERMINALES POR DEFECTO\n========================================================= */\n\nlet archivo_url = '';\nlet archivo_tipo = '';\nlet archivo_nombre = '';\n\nlet estado = 'no_disponible';\n\nlet resultado = {};\n\nlet error_code = null;\nlet error_message = null;\n\n\n/* =========================================================\n   GENERAR_EXCEL\n========================================================= */\n\nif (\n  claimed &&\n  prep.accion === 'GENERAR_EXCEL'\n) {\n\n  const textoCompleto = [\n    prep.mensaje,\n    datos.tema,\n    datos.tipo,\n    datos.rubro,\n    datos.negocio,\n    datos.descripcion\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n\n  /* -------------------------------------------------------\n     ELEGIR PLANTILLA\n  ------------------------------------------------------- */\n\n  let plantilla = 'business';\n\n  let rubro =\n    datos.rubro ||\n    'negocio_general';\n\n\n  if (\n    /finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(\n      textoCompleto\n    )\n  ) {\n    plantilla = 'personal';\n    rubro = 'persona_fisica';\n\n  } else if (\n    /restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(\n      textoCompleto\n    )\n  ) {\n    rubro = 'gastronomia';\n  }\n\n\n  /* -------------------------------------------------------\n     NOMBRE DEL ARCHIVO\n  ------------------------------------------------------- */\n\n  const nombreBase =\n    datos.negocio ||\n    datos.nombre ||\n    prep.nombre ||\n    'usuario';\n\n\n  archivo_nombre =\n    plantilla === 'personal'\n      ? `plan_financiero_eos_${normalizar(nombreBase)}.xlsx`\n      : `control_negocio_eos_${normalizar(nombreBase)}.xlsx`;\n\n\n  /* -------------------------------------------------------\n     QUERY STRING\n\n     IMPORTANTE:\n     Ya NO usamos URLSearchParams.\n  ------------------------------------------------------- */\n\n  const query = construirQuery({\n    tipo: 'excel',\n\n    plantilla,\n\n    nombre:\n      archivo_nombre.replace(\n        /\\.xlsx$/i,\n        ''\n      ),\n\n    rubro:\n      String(rubro),\n\n    negocio:\n      String(nombreBase),\n\n    tema:\n      String(\n        datos.tema ||\n        prep.mensaje ||\n        'control general'\n      ),\n\n    command_id:\n      String(claim.command_id)\n  });\n\n\n  /* -------------------------------------------------------\n     URL GOBERNADA\n  ------------------------------------------------------- */\n\n  archivo_url =\n    `${base}/descargar?${query}`;\n\n\n  archivo_tipo = 'excel';\n\n  estado = 'completada';\n\n\n  /* -------------------------------------------------------\n     RESULTADO DURABLE\n  ------------------------------------------------------- */\n\n  resultado = {\n    archivo_url,\n    archivo_tipo,\n    archivo_nombre,\n\n    artifact_key:\n      `${claim.command_id}.xlsx`,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   PDF / WORD\n\n   Todavía no conectados.\n========================================================= */\n\nelse if (claimed) {\n\n  archivo_tipo =\n    prep.accion === 'GENERAR_PDF'\n      ? 'pdf'\n      : 'word';\n\n\n  estado =\n    'no_disponible';\n\n\n  error_code =\n    prep.accion === 'GENERAR_PDF'\n      ? 'PDF_GENERATOR_NOT_CONNECTED'\n      : 'WORD_GENERATOR_NOT_CONNECTED';\n\n\n  error_message =\n    prep.accion === 'GENERAR_PDF'\n      ? 'El generador PDF todavía no está conectado al Worker Gate RC1.'\n      : 'El generador Word todavía no está conectado al Worker Gate RC1.';\n\n\n  resultado = {\n    archivo_tipo,\n\n    disponible: false,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   TARGET FINAL\n========================================================= */\n\nconst target_url =\n  claimed\n    ? `${base}/api/internal/action-results/v1`\n    : `${base}/api/internal/worker-authorize/v1`;\n\n\nconst target_body =\n  claimed\n    ? {\n        command_id:\n          claim.command_id,\n\n        lease_token:\n          claim.lease_token,\n\n        attempt_count:\n          Number(\n            claim.attempt_count\n          ),\n\n        estado,\n\n        resultado,\n\n        error_code,\n\n        error_message\n      }\n    : prep.authorize_body;\n\n\n/* =========================================================\n   SALIDA\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...prep,\n\n      claim,\n\n      claimed,\n\n      archivo_url,\n\n      archivo_tipo,\n\n      archivo_nombre,\n\n      terminal_estado:\n        estado,\n\n      terminal_resultado:\n        resultado,\n\n      target_url,\n\n      target_body\n    }\n  }\n];"
-      },
-      "id": "b85e9789-63b2-4a5b-8046-06cee8b11151",
-      "name": "05 FILE Preparar Resultado",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1184,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $json.target_url }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "5ce72aea-d837-49be-a3e3-4a3431bb7184",
-      "name": "06 FILE Finalizar o Revalidar",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        1424,
-        432
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 1000,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const prep = $('05 FILE Preparar Resultado').first().json || {};\nconst final = $input.first().json || {};\nconst auth = prep.auth || {};\nconst claim = prep.claim || {};\n\nif (!prep.execute) {\n  const r = auth.resultado || {};\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed && r.archivo_url) respuesta = `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`;\n  else if (completed) respuesta = 'Esta generación ya había terminado y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'La generación requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La generación no se ejecutó automáticamente por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La generación fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nif (!prep.claimed) {\n  const r = claim.resultado || {};\n  const completed = claim.code === 'EOS_COMMAND_ALREADY_COMPLETED' || claim.estado === 'completada';\n  return [{\n    json: {\n      ok: claim.ok !== false,\n      executed: false,\n      idempotent: claim.idempotent === true,\n      decision: claim.code || 'not_claimed',\n      reason: claim.error || claim.code || '',\n      respuesta: completed && r.archivo_url\n        ? `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`\n        : completed\n          ? 'Esta generación ya estaba completada y no se repitió.'\n          : 'La generación ya está siendo procesada por otro Worker; no se inició una segunda copia.',\n      request_id: prep.request_id,\n      command_id: claim.command_id || prep.command_id,\n      accion: prep.accion,\n      estado: claim.estado || null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nconst finalized = final.ok === true;\nconst isExcel = prep.accion === 'GENERAR_EXCEL';\nreturn [{\n  json: {\n    ok: finalized,\n    executed: finalized && prep.terminal_estado === 'completada',\n    idempotent: final.idempotent === true,\n    request_id: prep.request_id,\n    command_id: final.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: final.estado || prep.terminal_estado,\n    archivo_url: finalized && isExcel ? prep.archivo_url : '',\n    archivo_tipo: prep.archivo_tipo,\n    archivo_nombre: prep.archivo_nombre,\n    resultado: final.resultado || prep.terminal_resultado || {},\n    respuesta: finalized\n      ? (isExcel\n          ? `Tu Excel ya está listo.\\n\\nDescargar archivo: ${prep.archivo_url}`\n          : 'Ese formato todavía no está disponible para generación gobernada en EOS.')\n      : (final.error || 'No fue posible cerrar el resultado del archivo de forma segura.')\n  }\n}];"
-      },
-      "id": "0808aff3-03c2-4e21-9e87-5ac7956afdfa",
-      "name": "07 FILE Respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1664,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
-      },
-      "id": "c57bf5d4-cf21-46f2-a721-4647da62e093",
-      "name": "08 FILE Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1904,
-        432
-      ]
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "eos-worker-rc1-dashboard",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "0f9a2e89-a0a8-4282-a820-0b578f963dc9",
-      "name": "00 DASH Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        848
-      ],
-      "webhookId": "f572626b-ffab-44a7-b72e-b35ced9464f2"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_DASHBOARD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-      },
-      "id": "71ad0f16-330f-492a-a8c8-710aa25da6d3",
-      "name": "01 DASH Preparar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        224,
-        848
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({}) }}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "cd185772-4257-48cf-8dd9-36d41896b8c0",
-      "name": "02 DASH Auth Ping",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        464,
-        848
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('01 DASH Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
-      },
-      "id": "0faa34ec-131b-4e07-8261-76ff41d5b220",
-      "name": "03 DASH Gate",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        704,
-        848
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "eos_dashboard_metrics",
-        "limit": 10,
-        "orderBy": "updated_at.desc",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "usuario_id",
-              "condition": "eq",
-              "keyValue": "={{ $('03 DASH Gate').first().json.effective_user_id }}"
-            }
-          ]
-        }
-      },
-      "id": "a14787f4-721f-4948-98fe-b305cac3736e",
-      "name": "04 DASH Leer",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        944,
-        848
-      ],
-      "credentials": {
-        "supabaseApi": {
-          "id": "BXf6r1VynLo3h7o3",
-          "name": "Supabase account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('03 DASH Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst metricas = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nlet lineas = metricas.map(m => `- ${m.metric_label || m.metric_key || 'Métrica'}: ${m.metric_value || m.metric_number || 'sin valor'}`).join('\\n');\nif (!lineas) lineas = 'Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{\n  ok:true,executed:true,request_id:src.request_id,accion:src.accion,\n  respuesta:`Dashboard EOS:\\n${lineas}`,tipo:'texto'\n}}];"
-      },
-      "id": "0a838ba1-1efe-47a1-8c9e-13f324881487",
-      "name": "05 DASH Respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1184,
-        848
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
-      },
-      "id": "684050ed-9110-44c5-bdd2-36ac61d08ecb",
-      "name": "06 DASH Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1424,
-        848
-      ]
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "eos-worker-rc1-briefing",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "1e8b83cc-8a92-43e3-b51a-03295f970535",
-      "name": "00 BRIEF Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        1184
-      ],
-      "webhookId": "bc102c85-bd21-434f-963b-acb6014136c7"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_BRIEFING'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-      },
-      "id": "aeaf6017-0c6c-4500-bdf0-1e95cca58f3d",
-      "name": "01 BRIEF Preparar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        224,
-        1184
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({}) }}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "2b198ec0-f2db-41ee-822e-9273f5a1ad96",
-      "name": "02 BRIEF Auth Ping",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        464,
-        1184
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('01 BRIEF Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
-      },
-      "id": "16280ae6-3ebf-4e48-8d68-6e5aa8073e31",
-      "name": "03 BRIEF Gate",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        704,
-        1184
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "eos_daily_briefings",
-        "limit": 1,
-        "orderBy": "created_at.desc",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "usuario_id",
-              "condition": "eq",
-              "keyValue": "={{ $('03 BRIEF Gate').first().json.effective_user_id }}"
-            }
-          ]
-        }
-      },
-      "id": "3f90857b-9912-424d-890c-206e9e674b4d",
-      "name": "04 BRIEF Leer",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        944,
-        1184
-      ],
-      "credentials": {
-        "supabaseApi": {
-          "id": "BXf6r1VynLo3h7o3",
-          "name": "Supabase account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('03 BRIEF Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst b = $input.first().json || {};\nconst respuesta = b.resumen\n  ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1 || 'Sin prioridad'}\\n2. ${b.prioridad_2 || 'Sin prioridad'}\\n3. ${b.prioridad_3 || 'Sin prioridad'}`\n  : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{ok:true,executed:true,request_id:src.request_id,accion:src.accion,respuesta,tipo:'texto'}}];"
-      },
-      "id": "b0ac51f6-3cdf-4758-b86d-13ef6da2c6a8",
-      "name": "05 BRIEF Respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1184,
-        1184
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
-      },
-      "id": "93b8c0ad-f98e-4770-9b06-cb314b62b8ec",
-      "name": "06 BRIEF Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1424,
-        1184
-      ]
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "eos-worker-rc1-respond",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "435a635b-2ffb-4acd-8b41-9c6fe5822b70",
-      "name": "00 RESP Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        1520
-      ],
-      "webhookId": "05950990-7e67-450e-a75e-fd9a126ff557"
-    },
-    {
-      "parameters": {
-        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'RESPONDER'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-      },
-      "id": "90c7942d-2ff0-4b1a-b583-b42a71dfb4f8",
-      "name": "01 RESP Preparar",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        224,
-        1520
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ $json.authorization }}"
-            },
-            {
-              "name": "x-vercel-protection-bypass",
-              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({}) }}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "66d80b51-0770-4deb-9e0c-c23fb5b8075f",
-      "name": "02 RESP Auth Ping",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        464,
-        1520
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const src = $('01 RESP Preparar').first().json || {};\nconst ping = $input.first().json || {};\nreturn [{json:{\n  ok: ping.ok === true,\n  executed: false,\n  request_id: src.request_id,\n  accion: 'RESPONDER',\n  respuesta: src.respuesta_gateway || '',\n  tipo: 'texto',\n  ...(ping.ok === true ? {} : {error:'Worker no autorizado.'})\n}}];"
-      },
-      "id": "557b2110-6a62-432e-8b67-1bcf60a67a4a",
-      "name": "03 RESP Respuesta",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        704,
-        1520
-      ]
-    },
-    {
-      "parameters": {
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
-      },
-      "id": "eb06f390-c9e7-411f-810e-b895beb2b4cd",
-      "name": "04 RESP Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        944,
-        1520
-      ]
+ "name": "EOS 4.0 - Background Worker WORKER GATE RC1",
+ "nodes": [
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "eos-worker-rc1-internal",
+    "responseMode": "responseNode",
+    "options": {
+     "allowedOrigins": "*"
     }
-  ],
-  "connections": {
-    "00 INT Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 INT Preparar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "01 INT Preparar": {
-      "main": [
-        [
-          {
-            "node": "02 INT Autorizar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 INT Autorizar": {
-      "main": [
-        [
-          {
-            "node": "03 INT Preparar Efecto",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 INT Preparar Efecto": {
-      "main": [
-        [
-          {
-            "node": "04 INT Efecto o Revalidar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 INT Efecto o Revalidar": {
-      "main": [
-        [
-          {
-            "node": "05 INT Respuesta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "05 INT Respuesta": {
-      "main": [
-        [
-          {
-            "node": "06 INT Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "00 FILE Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 FILE Preparar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "01 FILE Preparar": {
-      "main": [
-        [
-          {
-            "node": "02 FILE Autorizar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 FILE Autorizar": {
-      "main": [
-        [
-          {
-            "node": "03 FILE Preparar Claim",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 FILE Preparar Claim": {
-      "main": [
-        [
-          {
-            "node": "04 FILE Claim o Revalidar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 FILE Claim o Revalidar": {
-      "main": [
-        [
-          {
-            "node": "05 FILE Preparar Resultado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "05 FILE Preparar Resultado": {
-      "main": [
-        [
-          {
-            "node": "06 FILE Finalizar o Revalidar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "06 FILE Finalizar o Revalidar": {
-      "main": [
-        [
-          {
-            "node": "07 FILE Respuesta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "07 FILE Respuesta": {
-      "main": [
-        [
-          {
-            "node": "08 FILE Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "00 DASH Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 DASH Preparar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "01 DASH Preparar": {
-      "main": [
-        [
-          {
-            "node": "02 DASH Auth Ping",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 DASH Auth Ping": {
-      "main": [
-        [
-          {
-            "node": "03 DASH Gate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 DASH Gate": {
-      "main": [
-        [
-          {
-            "node": "04 DASH Leer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 DASH Leer": {
-      "main": [
-        [
-          {
-            "node": "05 DASH Respuesta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "05 DASH Respuesta": {
-      "main": [
-        [
-          {
-            "node": "06 DASH Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "00 BRIEF Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 BRIEF Preparar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "01 BRIEF Preparar": {
-      "main": [
-        [
-          {
-            "node": "02 BRIEF Auth Ping",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 BRIEF Auth Ping": {
-      "main": [
-        [
-          {
-            "node": "03 BRIEF Gate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 BRIEF Gate": {
-      "main": [
-        [
-          {
-            "node": "04 BRIEF Leer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "04 BRIEF Leer": {
-      "main": [
-        [
-          {
-            "node": "05 BRIEF Respuesta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "05 BRIEF Respuesta": {
-      "main": [
-        [
-          {
-            "node": "06 BRIEF Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "00 RESP Webhook": {
-      "main": [
-        [
-          {
-            "node": "01 RESP Preparar",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "01 RESP Preparar": {
-      "main": [
-        [
-          {
-            "node": "02 RESP Auth Ping",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "02 RESP Auth Ping": {
-      "main": [
-        [
-          {
-            "node": "03 RESP Respuesta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "03 RESP Respuesta": {
-      "main": [
-        [
-          {
-            "node": "04 RESP Respond",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+   },
+   "id": "91beb339-ec29-4b23-83f6-bff57c8946c9",
+   "name": "00 INT Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    0,
+    0
+   ],
+   "webhookId": "c5160ae2-1643-4eca-bcc2-0dce1d9c9a63"
   },
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": false
+  {
+   "parameters": {
+    "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA',\n\n  /*\n    Las tres del negocio. Estaban listas en todos lados menos acá.\n\n    El modelo las sabia pedir, el prompt se las ensenaba, el gateway tenia su\n    ruta, la tabla de riesgo del gate les daba tier 3, los constraints de la\n    base las admitian desde la v83 y el ejecutor existia desde la v84. Pero\n    esta lista no las incluia, asi que el worker las rechazaba antes de\n    llegar a pedir autorizacion.\n\n    Efecto visible: el chat mostraba 'Operacion lista para registrar' y la\n    pantalla de aprobaciones quedaba vacia. Una clienta lo reporto el 31 de\n    agosto de 2026; el gate no habia visto un REGISTRAR_VENTA en su vida.\n  */\n  'REGISTRAR_VENTA',\n  'AJUSTAR_STOCK',\n  'CREAR_CONTACTO'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+   },
+   "id": "06409967-57ef-4d87-be9b-98df8c0e205e",
+   "name": "01 INT Preparar",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    0
+   ]
   },
-  "staticData": null,
-  "meta": null,
-  "nodeGroups": [],
-  "pinData": {},
-  "versionId": "2d738a8d-9e43-4b26-9505-d92ddae6963d",
-  "activeVersionId": "2d738a8d-9e43-4b26-9505-d92ddae6963d",
-  "versionCounter": 6,
-  "triggerCount": 5,
-  "sourceWorkflowId": null,
-  "shared": [
-    {
-      "updatedAt": "2026-08-17T04:19:09.232Z",
-      "createdAt": "2026-08-17T04:19:09.232Z",
-      "role": "workflow:owner",
-      "workflowId": "iUMdg9fhAg54irmy",
-      "projectId": "tG9GhlytYuG18VzU",
-      "project": {
-        "updatedAt": "2026-06-05T21:16:13.176Z",
-        "createdAt": "2026-06-05T21:00:41.892Z",
-        "id": "tG9GhlytYuG18VzU",
-        "name": "Augusto Barreto <barretoa109@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
       }
-    }
-  ],
-  "tags": [],
-  "activeVersion": {
-    "updatedAt": "2026-08-18T04:47:24.661Z",
-    "createdAt": "2026-08-18T04:47:24.661Z",
-    "versionId": "2d738a8d-9e43-4b26-9505-d92ddae6963d",
-    "workflowId": "iUMdg9fhAg54irmy",
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "eos-worker-rc1-internal",
-          "responseMode": "responseNode",
-          "options": {
-            "allowedOrigins": "*"
-          }
-        },
-        "id": "91beb339-ec29-4b23-83f6-bff57c8946c9",
-        "name": "00 INT Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          0
-        ],
-        "webhookId": "c5160ae2-1643-4eca-bcc2-0dce1d9c9a63"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-        },
-        "id": "06409967-57ef-4d87-be9b-98df8c0e205e",
-        "name": "01 INT Preparar",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          0
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
-          "options": {
-            "timeout": 30000
-          }
-        },
-        "id": "2ea15723-5f20-4ee7-bb88-2b18bb598939",
-        "name": "02 INT Autorizar",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          464,
-          0
-        ],
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('01 INT Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\n\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-effects/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { command_id: auth.command_id }\n      : src.authorize_body\n  }\n}];"
-        },
-        "id": "df383035-d423-407e-84d9-fedd47b34464",
-        "name": "03 INT Preparar Efecto",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          704,
-          0
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $json.target_url }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-          "options": {
-            "timeout": 30000
-          }
-        },
-        "id": "8b88967d-46ca-43c7-a2bf-431db433c646",
-        "name": "04 INT Efecto o Revalidar",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          944,
-          0
-        ],
-        "retryOnFail": true,
-        "maxTries": 2,
-        "waitBetweenTries": 1000,
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const prep = $('03 INT Preparar Efecto').first().json || {};\nconst result = $input.first().json || {};\nconst auth = prep.auth || {};\n\nconst doneText = {\n  CREAR_TAREA: 'La tarea quedó registrada.',\n  CREAR_OBJETIVO: 'El objetivo quedó creado.',\n  GUARDAR_MEMORIA: 'Guardé esa información en la memoria empresarial.'\n};\n\nif (!prep.execute) {\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed) respuesta = 'Esta acción ya había sido completada y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'Esta acción requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La acción quedó sin ejecución automática por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La acción fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      resultado: auth.resultado || {}\n    }\n  }];\n}\n\nconst success = result.ok === true && result.command_id;\nreturn [{\n  json: {\n    ok: Boolean(success),\n    executed: Boolean(success),\n    idempotent: result.idempotent === true,\n    request_id: prep.request_id,\n    command_id: result.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: result.estado || (success ? 'completada' : 'error'),\n    effect_type: result.effect_type || '',\n    effect_id: result.effect_id || null,\n    resultado: result.resultado || {},\n    respuesta: success\n      ? (doneText[prep.accion] || 'La acción quedó completada.')\n      : (result.error || 'No fue posible completar la acción interna.')\n  }\n}];"
-        },
-        "id": "45da5c74-2aaa-4871-81e2-f99015e2721b",
-        "name": "05 INT Respuesta",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1184,
-          0
-        ]
-      },
-      {
-        "parameters": {
-          "options": {
-            "responseHeaders": {
-              "entries": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            }
-          }
-        },
-        "id": "40c072d6-51af-4c9e-acb5-c577ab082f73",
-        "name": "06 INT Respond",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.5,
-        "position": [
-          1424,
-          0
-        ]
-      },
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "eos-worker-rc1-file",
-          "responseMode": "responseNode",
-          "options": {
-            "allowedOrigins": "*"
-          }
-        },
-        "id": "3c4ab429-0887-445d-a81d-bfe41baebf2a",
-        "name": "00 FILE Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          432
-        ],
-        "webhookId": "7b6fc211-92c0-4b51-8114-ed39f1444056"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-        },
-        "id": "82893b1b-e458-4eda-a35e-dee5f527a857",
-        "name": "01 FILE Preparar",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          432
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
-          "options": {
-            "timeout": 30000
-          }
-        },
-        "id": "a068a56d-d09b-44c6-9058-754a6b1c45df",
-        "name": "02 FILE Autorizar",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          464,
-          432
-        ],
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('01 FILE Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-claims/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { operation: 'claim', command_id: auth.command_id, lease_seconds: 300 }\n      : src.authorize_body\n  }\n}];"
-        },
-        "id": "c4fa189c-5354-4ef8-91d2-4339a0e9f4a6",
-        "name": "03 FILE Preparar Claim",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          704,
-          432
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $json.target_url }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-          "options": {
-            "timeout": 30000
-          }
-        },
-        "id": "8f3798f2-25ac-4177-a7ae-474e6ecd1bb2",
-        "name": "04 FILE Claim o Revalidar",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          944,
-          432
-        ],
-        "retryOnFail": true,
-        "maxTries": 2,
-        "waitBetweenTries": 1000,
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const prep = $('03 FILE Preparar Claim').first().json || {};\nconst claim = $input.first().json || {};\nconst auth = prep.auth || {};\nconst datos = prep.accion_datos || {};\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\n\n/* =========================================================\n   HELPERS\n========================================================= */\n\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(v || '')\n  );\n\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\n\n/*\n  n8n Code sandbox no expone URLSearchParams\n  en esta versión.\n\n  Construimos el query string manualmente\n  usando encodeURIComponent.\n*/\nconst construirQuery = (params) => {\n  return Object.entries(params)\n    .map(([key, value]) => {\n      const k = encodeURIComponent(\n        String(key ?? '')\n      );\n\n      const v = encodeURIComponent(\n        String(value ?? '')\n      );\n\n      return `${k}=${v}`;\n    })\n    .join('&');\n};\n\n\n/* =========================================================\n   VALIDAR CLAIM\n========================================================= */\n\nconst claimed =\n  prep.execute === true &&\n  claim.ok === true &&\n  claim.claimed === true &&\n  isUuid(claim.command_id) &&\n  isUuid(claim.lease_token) &&\n  Number.isInteger(\n    Number(claim.attempt_count)\n  ) &&\n  Number(claim.attempt_count) > 0;\n\n\n/* =========================================================\n   VALORES TERMINALES POR DEFECTO\n========================================================= */\n\nlet archivo_url = '';\nlet archivo_tipo = '';\nlet archivo_nombre = '';\n\nlet estado = 'no_disponible';\n\nlet resultado = {};\n\nlet error_code = null;\nlet error_message = null;\n\n\n/* =========================================================\n   GENERAR_EXCEL\n========================================================= */\n\nif (\n  claimed &&\n  prep.accion === 'GENERAR_EXCEL'\n) {\n\n  const textoCompleto = [\n    prep.mensaje,\n    datos.tema,\n    datos.tipo,\n    datos.rubro,\n    datos.negocio,\n    datos.descripcion\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n\n  /* -------------------------------------------------------\n     ELEGIR PLANTILLA\n  ------------------------------------------------------- */\n\n  let plantilla = 'business';\n\n  let rubro =\n    datos.rubro ||\n    'negocio_general';\n\n\n  if (\n    /finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(\n      textoCompleto\n    )\n  ) {\n    plantilla = 'personal';\n    rubro = 'persona_fisica';\n\n  } else if (\n    /restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(\n      textoCompleto\n    )\n  ) {\n    rubro = 'gastronomia';\n  }\n\n\n  /* -------------------------------------------------------\n     NOMBRE DEL ARCHIVO\n  ------------------------------------------------------- */\n\n  const nombreBase =\n    datos.negocio ||\n    datos.nombre ||\n    prep.nombre ||\n    'usuario';\n\n\n  archivo_nombre =\n    plantilla === 'personal'\n      ? `plan_financiero_eos_${normalizar(nombreBase)}.xlsx`\n      : `control_negocio_eos_${normalizar(nombreBase)}.xlsx`;\n\n\n  /* -------------------------------------------------------\n     QUERY STRING\n\n     IMPORTANTE:\n     Ya NO usamos URLSearchParams.\n  ------------------------------------------------------- */\n\n  const query = construirQuery({\n    tipo: 'excel',\n\n    plantilla,\n\n    nombre:\n      archivo_nombre.replace(\n        /\\.xlsx$/i,\n        ''\n      ),\n\n    rubro:\n      String(rubro),\n\n    negocio:\n      String(nombreBase),\n\n    tema:\n      String(\n        datos.tema ||\n        prep.mensaje ||\n        'control general'\n      ),\n\n    command_id:\n      String(claim.command_id)\n  });\n\n\n  /* -------------------------------------------------------\n     URL GOBERNADA\n  ------------------------------------------------------- */\n\n  archivo_url =\n    `${base}/descargar?${query}`;\n\n\n  archivo_tipo = 'excel';\n\n  estado = 'completada';\n\n\n  /* -------------------------------------------------------\n     RESULTADO DURABLE\n  ------------------------------------------------------- */\n\n  resultado = {\n    archivo_url,\n    archivo_tipo,\n    archivo_nombre,\n\n    artifact_key:\n      `${claim.command_id}.xlsx`,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   PDF / WORD\n\n   Todavía no conectados.\n========================================================= */\n\nelse if (claimed) {\n\n  archivo_tipo =\n    prep.accion === 'GENERAR_PDF'\n      ? 'pdf'\n      : 'word';\n\n\n  estado =\n    'no_disponible';\n\n\n  error_code =\n    prep.accion === 'GENERAR_PDF'\n      ? 'PDF_GENERATOR_NOT_CONNECTED'\n      : 'WORD_GENERATOR_NOT_CONNECTED';\n\n\n  error_message =\n    prep.accion === 'GENERAR_PDF'\n      ? 'El generador PDF todavía no está conectado al Worker Gate RC1.'\n      : 'El generador Word todavía no está conectado al Worker Gate RC1.';\n\n\n  resultado = {\n    archivo_tipo,\n\n    disponible: false,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   TARGET FINAL\n========================================================= */\n\nconst target_url =\n  claimed\n    ? `${base}/api/internal/action-results/v1`\n    : `${base}/api/internal/worker-authorize/v1`;\n\n\nconst target_body =\n  claimed\n    ? {\n        command_id:\n          claim.command_id,\n\n        lease_token:\n          claim.lease_token,\n\n        attempt_count:\n          Number(\n            claim.attempt_count\n          ),\n\n        estado,\n\n        resultado,\n\n        error_code,\n\n        error_message\n      }\n    : prep.authorize_body;\n\n\n/* =========================================================\n   SALIDA\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...prep,\n\n      claim,\n\n      claimed,\n\n      archivo_url,\n\n      archivo_tipo,\n\n      archivo_nombre,\n\n      terminal_estado:\n        estado,\n\n      terminal_resultado:\n        resultado,\n\n      target_url,\n\n      target_body\n    }\n  }\n];"
-        },
-        "id": "b85e9789-63b2-4a5b-8046-06cee8b11151",
-        "name": "05 FILE Preparar Resultado",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1184,
-          432
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $json.target_url }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
-          "options": {
-            "timeout": 30000
-          }
-        },
-        "id": "5ce72aea-d837-49be-a3e3-4a3431bb7184",
-        "name": "06 FILE Finalizar o Revalidar",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          1424,
-          432
-        ],
-        "retryOnFail": true,
-        "maxTries": 2,
-        "waitBetweenTries": 1000,
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const prep = $('05 FILE Preparar Resultado').first().json || {};\nconst final = $input.first().json || {};\nconst auth = prep.auth || {};\nconst claim = prep.claim || {};\n\nif (!prep.execute) {\n  const r = auth.resultado || {};\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed && r.archivo_url) respuesta = `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`;\n  else if (completed) respuesta = 'Esta generación ya había terminado y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'La generación requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La generación no se ejecutó automáticamente por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La generación fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nif (!prep.claimed) {\n  const r = claim.resultado || {};\n  const completed = claim.code === 'EOS_COMMAND_ALREADY_COMPLETED' || claim.estado === 'completada';\n  return [{\n    json: {\n      ok: claim.ok !== false,\n      executed: false,\n      idempotent: claim.idempotent === true,\n      decision: claim.code || 'not_claimed',\n      reason: claim.error || claim.code || '',\n      respuesta: completed && r.archivo_url\n        ? `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`\n        : completed\n          ? 'Esta generación ya estaba completada y no se repitió.'\n          : 'La generación ya está siendo procesada por otro Worker; no se inició una segunda copia.',\n      request_id: prep.request_id,\n      command_id: claim.command_id || prep.command_id,\n      accion: prep.accion,\n      estado: claim.estado || null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nconst finalized = final.ok === true;\nconst isExcel = prep.accion === 'GENERAR_EXCEL';\nreturn [{\n  json: {\n    ok: finalized,\n    executed: finalized && prep.terminal_estado === 'completada',\n    idempotent: final.idempotent === true,\n    request_id: prep.request_id,\n    command_id: final.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: final.estado || prep.terminal_estado,\n    archivo_url: finalized && isExcel ? prep.archivo_url : '',\n    archivo_tipo: prep.archivo_tipo,\n    archivo_nombre: prep.archivo_nombre,\n    resultado: final.resultado || prep.terminal_resultado || {},\n    respuesta: finalized\n      ? (isExcel\n          ? `Tu Excel ya está listo.\\n\\nDescargar archivo: ${prep.archivo_url}`\n          : 'Ese formato todavía no está disponible para generación gobernada en EOS.')\n      : (final.error || 'No fue posible cerrar el resultado del archivo de forma segura.')\n  }\n}];"
-        },
-        "id": "0808aff3-03c2-4e21-9e87-5ac7956afdfa",
-        "name": "07 FILE Respuesta",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1664,
-          432
-        ]
-      },
-      {
-        "parameters": {
-          "options": {
-            "responseHeaders": {
-              "entries": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            }
-          }
-        },
-        "id": "c57bf5d4-cf21-46f2-a721-4647da62e093",
-        "name": "08 FILE Respond",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.5,
-        "position": [
-          1904,
-          432
-        ]
-      },
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "eos-worker-rc1-dashboard",
-          "responseMode": "responseNode",
-          "options": {
-            "allowedOrigins": "*"
-          }
-        },
-        "id": "0f9a2e89-a0a8-4282-a820-0b578f963dc9",
-        "name": "00 DASH Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          848
-        ],
-        "webhookId": "f572626b-ffab-44a7-b72e-b35ced9464f2"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_DASHBOARD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-        },
-        "id": "71ad0f16-330f-492a-a8c8-710aa25da6d3",
-        "name": "01 DASH Preparar",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          848
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({}) }}",
-          "options": {
-            "timeout": 15000
-          }
-        },
-        "id": "cd185772-4257-48cf-8dd9-36d41896b8c0",
-        "name": "02 DASH Auth Ping",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          464,
-          848
-        ],
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('01 DASH Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
-        },
-        "id": "0faa34ec-131b-4e07-8261-76ff41d5b220",
-        "name": "03 DASH Gate",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          704,
-          848
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "tableId": "eos_dashboard_metrics",
-          "limit": 10,
-          "orderBy": "updated_at.desc",
-          "filters": {
-            "conditions": [
-              {
-                "keyName": "usuario_id",
-                "condition": "eq",
-                "keyValue": "={{ $('03 DASH Gate').first().json.effective_user_id }}"
-              }
-            ]
-          }
-        },
-        "id": "a14787f4-721f-4948-98fe-b305cac3736e",
-        "name": "04 DASH Leer",
-        "type": "n8n-nodes-base.supabase",
-        "typeVersion": 1,
-        "position": [
-          944,
-          848
-        ],
-        "credentials": {
-          "supabaseApi": {
-            "id": "BXf6r1VynLo3h7o3",
-            "name": "Supabase account"
-          }
-        },
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('03 DASH Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst metricas = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nlet lineas = metricas.map(m => `- ${m.metric_label || m.metric_key || 'Métrica'}: ${m.metric_value || m.metric_number || 'sin valor'}`).join('\\n');\nif (!lineas) lineas = 'Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{\n  ok:true,executed:true,request_id:src.request_id,accion:src.accion,\n  respuesta:`Dashboard EOS:\\n${lineas}`,tipo:'texto'\n}}];"
-        },
-        "id": "0a838ba1-1efe-47a1-8c9e-13f324881487",
-        "name": "05 DASH Respuesta",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1184,
-          848
-        ]
-      },
-      {
-        "parameters": {
-          "options": {
-            "responseHeaders": {
-              "entries": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            }
-          }
-        },
-        "id": "684050ed-9110-44c5-bdd2-36ac61d08ecb",
-        "name": "06 DASH Respond",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.5,
-        "position": [
-          1424,
-          848
-        ]
-      },
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "eos-worker-rc1-briefing",
-          "responseMode": "responseNode",
-          "options": {
-            "allowedOrigins": "*"
-          }
-        },
-        "id": "1e8b83cc-8a92-43e3-b51a-03295f970535",
-        "name": "00 BRIEF Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          1184
-        ],
-        "webhookId": "bc102c85-bd21-434f-963b-acb6014136c7"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_BRIEFING'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-        },
-        "id": "aeaf6017-0c6c-4500-bdf0-1e95cca58f3d",
-        "name": "01 BRIEF Preparar",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          1184
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({}) }}",
-          "options": {
-            "timeout": 15000
-          }
-        },
-        "id": "2b198ec0-f2db-41ee-822e-9273f5a1ad96",
-        "name": "02 BRIEF Auth Ping",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          464,
-          1184
-        ],
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('01 BRIEF Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
-        },
-        "id": "16280ae6-3ebf-4e48-8d68-6e5aa8073e31",
-        "name": "03 BRIEF Gate",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          704,
-          1184
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "getAll",
-          "tableId": "eos_daily_briefings",
-          "limit": 1,
-          "orderBy": "created_at.desc",
-          "filters": {
-            "conditions": [
-              {
-                "keyName": "usuario_id",
-                "condition": "eq",
-                "keyValue": "={{ $('03 BRIEF Gate').first().json.effective_user_id }}"
-              }
-            ]
-          }
-        },
-        "id": "3f90857b-9912-424d-890c-206e9e674b4d",
-        "name": "04 BRIEF Leer",
-        "type": "n8n-nodes-base.supabase",
-        "typeVersion": 1,
-        "position": [
-          944,
-          1184
-        ],
-        "credentials": {
-          "supabaseApi": {
-            "id": "BXf6r1VynLo3h7o3",
-            "name": "Supabase account"
-          }
-        },
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('03 BRIEF Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst b = $input.first().json || {};\nconst respuesta = b.resumen\n  ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1 || 'Sin prioridad'}\\n2. ${b.prioridad_2 || 'Sin prioridad'}\\n3. ${b.prioridad_3 || 'Sin prioridad'}`\n  : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{ok:true,executed:true,request_id:src.request_id,accion:src.accion,respuesta,tipo:'texto'}}];"
-        },
-        "id": "b0ac51f6-3cdf-4758-b86d-13ef6da2c6a8",
-        "name": "05 BRIEF Respuesta",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1184,
-          1184
-        ]
-      },
-      {
-        "parameters": {
-          "options": {
-            "responseHeaders": {
-              "entries": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            }
-          }
-        },
-        "id": "93b8c0ad-f98e-4770-9b06-cb314b62b8ec",
-        "name": "06 BRIEF Respond",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.5,
-        "position": [
-          1424,
-          1184
-        ]
-      },
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "eos-worker-rc1-respond",
-          "responseMode": "responseNode",
-          "options": {
-            "allowedOrigins": "*"
-          }
-        },
-        "id": "435a635b-2ffb-4acd-8b41-9c6fe5822b70",
-        "name": "00 RESP Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          0,
-          1520
-        ],
-        "webhookId": "05950990-7e67-450e-a75e-fd9a126ff557"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'RESPONDER'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
-        },
-        "id": "90c7942d-2ff0-4b1a-b583-b42a71dfb4f8",
-        "name": "01 RESP Preparar",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          1520
-        ]
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Authorization",
-                "value": "={{ $json.authorization }}"
-              },
-              {
-                "name": "x-vercel-protection-bypass",
-                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
-              },
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({}) }}",
-          "options": {
-            "timeout": 15000
-          }
-        },
-        "id": "66d80b51-0770-4deb-9e0c-c23fb5b8075f",
-        "name": "02 RESP Auth Ping",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.4,
-        "position": [
-          464,
-          1520
-        ],
-        "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const src = $('01 RESP Preparar').first().json || {};\nconst ping = $input.first().json || {};\nreturn [{json:{\n  ok: ping.ok === true,\n  executed: false,\n  request_id: src.request_id,\n  accion: 'RESPONDER',\n  respuesta: src.respuesta_gateway || '',\n  tipo: 'texto',\n  ...(ping.ok === true ? {} : {error:'Worker no autorizado.'})\n}}];"
-        },
-        "id": "557b2110-6a62-432e-8b67-1bcf60a67a4a",
-        "name": "03 RESP Respuesta",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          704,
-          1520
-        ]
-      },
-      {
-        "parameters": {
-          "options": {
-            "responseHeaders": {
-              "entries": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                }
-              ]
-            }
-          }
-        },
-        "id": "eb06f390-c9e7-411f-810e-b895beb2b4cd",
-        "name": "04 RESP Respond",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.5,
-        "position": [
-          944,
-          1520
-        ]
-      }
-    ],
-    "connections": {
-      "00 INT Webhook": {
-        "main": [
-          [
-            {
-              "node": "01 INT Preparar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "01 INT Preparar": {
-        "main": [
-          [
-            {
-              "node": "02 INT Autorizar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "02 INT Autorizar": {
-        "main": [
-          [
-            {
-              "node": "03 INT Preparar Efecto",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "03 INT Preparar Efecto": {
-        "main": [
-          [
-            {
-              "node": "04 INT Efecto o Revalidar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "04 INT Efecto o Revalidar": {
-        "main": [
-          [
-            {
-              "node": "05 INT Respuesta",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "05 INT Respuesta": {
-        "main": [
-          [
-            {
-              "node": "06 INT Respond",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "00 FILE Webhook": {
-        "main": [
-          [
-            {
-              "node": "01 FILE Preparar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "01 FILE Preparar": {
-        "main": [
-          [
-            {
-              "node": "02 FILE Autorizar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "02 FILE Autorizar": {
-        "main": [
-          [
-            {
-              "node": "03 FILE Preparar Claim",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "03 FILE Preparar Claim": {
-        "main": [
-          [
-            {
-              "node": "04 FILE Claim o Revalidar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "04 FILE Claim o Revalidar": {
-        "main": [
-          [
-            {
-              "node": "05 FILE Preparar Resultado",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "05 FILE Preparar Resultado": {
-        "main": [
-          [
-            {
-              "node": "06 FILE Finalizar o Revalidar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "06 FILE Finalizar o Revalidar": {
-        "main": [
-          [
-            {
-              "node": "07 FILE Respuesta",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "07 FILE Respuesta": {
-        "main": [
-          [
-            {
-              "node": "08 FILE Respond",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "00 DASH Webhook": {
-        "main": [
-          [
-            {
-              "node": "01 DASH Preparar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "01 DASH Preparar": {
-        "main": [
-          [
-            {
-              "node": "02 DASH Auth Ping",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "02 DASH Auth Ping": {
-        "main": [
-          [
-            {
-              "node": "03 DASH Gate",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "03 DASH Gate": {
-        "main": [
-          [
-            {
-              "node": "04 DASH Leer",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "04 DASH Leer": {
-        "main": [
-          [
-            {
-              "node": "05 DASH Respuesta",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "05 DASH Respuesta": {
-        "main": [
-          [
-            {
-              "node": "06 DASH Respond",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "00 BRIEF Webhook": {
-        "main": [
-          [
-            {
-              "node": "01 BRIEF Preparar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "01 BRIEF Preparar": {
-        "main": [
-          [
-            {
-              "node": "02 BRIEF Auth Ping",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "02 BRIEF Auth Ping": {
-        "main": [
-          [
-            {
-              "node": "03 BRIEF Gate",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "03 BRIEF Gate": {
-        "main": [
-          [
-            {
-              "node": "04 BRIEF Leer",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "04 BRIEF Leer": {
-        "main": [
-          [
-            {
-              "node": "05 BRIEF Respuesta",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "05 BRIEF Respuesta": {
-        "main": [
-          [
-            {
-              "node": "06 BRIEF Respond",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "00 RESP Webhook": {
-        "main": [
-          [
-            {
-              "node": "01 RESP Preparar",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "01 RESP Preparar": {
-        "main": [
-          [
-            {
-              "node": "02 RESP Auth Ping",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "02 RESP Auth Ping": {
-        "main": [
-          [
-            {
-              "node": "03 RESP Respuesta",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "03 RESP Respuesta": {
-        "main": [
-          [
-            {
-              "node": "04 RESP Respond",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
+     ]
     },
-    "nodeGroups": [],
-    "authors": "Augusto Barreto",
-    "name": null,
-    "description": null,
-    "autosaved": false,
-    "workflowPublishHistory": [
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+    "options": {
+     "timeout": 30000
+    }
+   },
+   "id": "2ea15723-5f20-4ee7-bb88-2b18bb598939",
+   "name": "02 INT Autorizar",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    464,
+    0
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('01 INT Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\n\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-effects/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { command_id: auth.command_id }\n      : src.authorize_body\n  }\n}];"
+   },
+   "id": "df383035-d423-407e-84d9-fedd47b34464",
+   "name": "03 INT Preparar Efecto",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $json.target_url }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
       {
-        "createdAt": "2026-08-18T04:47:25.110Z",
-        "id": 562,
-        "workflowId": "iUMdg9fhAg54irmy",
-        "versionId": "2d738a8d-9e43-4b26-9505-d92ddae6963d",
-        "event": "activated",
-        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3"
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
       }
-    ]
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+    "options": {
+     "timeout": 30000
+    }
+   },
+   "id": "8b88967d-46ca-43c7-a2bf-431db433c646",
+   "name": "04 INT Efecto o Revalidar",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    944,
+    0
+   ],
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const prep = $('03 INT Preparar Efecto').first().json || {};\nconst result = $input.first().json || {};\nconst auth = prep.auth || {};\n\nconst doneText = {\n  CREAR_TAREA: 'La tarea quedó registrada.',\n  CREAR_OBJETIVO: 'El objetivo quedó creado.',\n  GUARDAR_MEMORIA: 'Guardé esa información en la memoria empresarial.'\n};\n\nif (!prep.execute) {\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed) respuesta = 'Esta acción ya había sido completada y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'Esta acción requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La acción quedó sin ejecución automática por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La acción fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      resultado: auth.resultado || {}\n    }\n  }];\n}\n\nconst success = result.ok === true && result.command_id;\nreturn [{\n  json: {\n    ok: Boolean(success),\n    executed: Boolean(success),\n    idempotent: result.idempotent === true,\n    request_id: prep.request_id,\n    command_id: result.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: result.estado || (success ? 'completada' : 'error'),\n    effect_type: result.effect_type || '',\n    effect_id: result.effect_id || null,\n    resultado: result.resultado || {},\n    respuesta: success\n      ? (doneText[prep.accion] || 'La acción quedó completada.')\n      : (result.error || 'No fue posible completar la acción interna.')\n  }\n}];"
+   },
+   "id": "45da5c74-2aaa-4871-81e2-f99015e2721b",
+   "name": "05 INT Respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1184,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "id": "40c072d6-51af-4c9e-acb5-c577ab082f73",
+   "name": "06 INT Respond",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1424,
+    0
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "eos-worker-rc1-file",
+    "responseMode": "responseNode",
+    "options": {
+     "allowedOrigins": "*"
+    }
+   },
+   "id": "3c4ab429-0887-445d-a81d-bfe41baebf2a",
+   "name": "00 FILE Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    0,
+    432
+   ],
+   "webhookId": "7b6fc211-92c0-4b51-8114-ed39f1444056"
+  },
+  {
+   "parameters": {
+    "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+   },
+   "id": "82893b1b-e458-4eda-a35e-dee5f527a857",
+   "name": "01 FILE Preparar",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    432
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+    "options": {
+     "timeout": 30000
+    }
+   },
+   "id": "a068a56d-d09b-44c6-9058-754a6b1c45df",
+   "name": "02 FILE Autorizar",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    464,
+    432
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('01 FILE Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-claims/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { operation: 'claim', command_id: auth.command_id, lease_seconds: 300 }\n      : src.authorize_body\n  }\n}];"
+   },
+   "id": "c4fa189c-5354-4ef8-91d2-4339a0e9f4a6",
+   "name": "03 FILE Preparar Claim",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    432
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $json.target_url }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+    "options": {
+     "timeout": 30000
+    }
+   },
+   "id": "8f3798f2-25ac-4177-a7ae-474e6ecd1bb2",
+   "name": "04 FILE Claim o Revalidar",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    944,
+    432
+   ],
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const prep = $('03 FILE Preparar Claim').first().json || {};\nconst claim = $input.first().json || {};\nconst auth = prep.auth || {};\nconst datos = prep.accion_datos || {};\nconst base = $env.EOS_APP_BASE_URL.replace(/\\/$/, '');\n\n\n/* =========================================================\n   HELPERS\n========================================================= */\n\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(v || '')\n  );\n\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\n\n/*\n  n8n Code sandbox no expone URLSearchParams\n  en esta versión.\n\n  Construimos el query string manualmente\n  usando encodeURIComponent.\n*/\nconst construirQuery = (params) => {\n  return Object.entries(params)\n    .map(([key, value]) => {\n      const k = encodeURIComponent(\n        String(key ?? '')\n      );\n\n      const v = encodeURIComponent(\n        String(value ?? '')\n      );\n\n      return `${k}=${v}`;\n    })\n    .join('&');\n};\n\n\n/* =========================================================\n   VALIDAR CLAIM\n========================================================= */\n\nconst claimed =\n  prep.execute === true &&\n  claim.ok === true &&\n  claim.claimed === true &&\n  isUuid(claim.command_id) &&\n  isUuid(claim.lease_token) &&\n  Number.isInteger(\n    Number(claim.attempt_count)\n  ) &&\n  Number(claim.attempt_count) > 0;\n\n\n/* =========================================================\n   VALORES TERMINALES POR DEFECTO\n========================================================= */\n\nlet archivo_url = '';\nlet archivo_tipo = '';\nlet archivo_nombre = '';\n\nlet estado = 'no_disponible';\n\nlet resultado = {};\n\nlet error_code = null;\nlet error_message = null;\n\n\n/* =========================================================\n   GENERAR_EXCEL\n========================================================= */\n\nif (\n  claimed &&\n  prep.accion === 'GENERAR_EXCEL'\n) {\n\n  const textoCompleto = [\n    prep.mensaje,\n    datos.tema,\n    datos.tipo,\n    datos.rubro,\n    datos.negocio,\n    datos.descripcion\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n\n  /* -------------------------------------------------------\n     ELEGIR PLANTILLA\n  ------------------------------------------------------- */\n\n  let plantilla = 'business';\n\n  let rubro =\n    datos.rubro ||\n    'negocio_general';\n\n\n  if (\n    /finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(\n      textoCompleto\n    )\n  ) {\n    plantilla = 'personal';\n    rubro = 'persona_fisica';\n\n  } else if (\n    /restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(\n      textoCompleto\n    )\n  ) {\n    rubro = 'gastronomia';\n  }\n\n\n  /* -------------------------------------------------------\n     NOMBRE DEL ARCHIVO\n  ------------------------------------------------------- */\n\n  const nombreBase =\n    datos.negocio ||\n    datos.nombre ||\n    prep.nombre ||\n    'usuario';\n\n\n  archivo_nombre =\n    plantilla === 'personal'\n      ? `plan_financiero_eos_${normalizar(nombreBase)}.xlsx`\n      : `control_negocio_eos_${normalizar(nombreBase)}.xlsx`;\n\n\n  /* -------------------------------------------------------\n     QUERY STRING\n\n     IMPORTANTE:\n     Ya NO usamos URLSearchParams.\n  ------------------------------------------------------- */\n\n  const query = construirQuery({\n    tipo: 'excel',\n\n    plantilla,\n\n    nombre:\n      archivo_nombre.replace(\n        /\\.xlsx$/i,\n        ''\n      ),\n\n    rubro:\n      String(rubro),\n\n    negocio:\n      String(nombreBase),\n\n    tema:\n      String(\n        datos.tema ||\n        prep.mensaje ||\n        'control general'\n      ),\n\n    command_id:\n      String(claim.command_id)\n  });\n\n\n  /* -------------------------------------------------------\n     URL GOBERNADA\n  ------------------------------------------------------- */\n\n  archivo_url =\n    `${base}/descargar?${query}`;\n\n\n  archivo_tipo = 'excel';\n\n  estado = 'completada';\n\n\n  /* -------------------------------------------------------\n     RESULTADO DURABLE\n  ------------------------------------------------------- */\n\n  resultado = {\n    archivo_url,\n    archivo_tipo,\n    archivo_nombre,\n\n    artifact_key:\n      `${claim.command_id}.xlsx`,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   PDF / WORD\n\n   Todavía no conectados.\n========================================================= */\n\nelse if (claimed) {\n\n  archivo_tipo =\n    prep.accion === 'GENERAR_PDF'\n      ? 'pdf'\n      : 'word';\n\n\n  estado =\n    'no_disponible';\n\n\n  error_code =\n    prep.accion === 'GENERAR_PDF'\n      ? 'PDF_GENERATOR_NOT_CONNECTED'\n      : 'WORD_GENERATOR_NOT_CONNECTED';\n\n\n  error_message =\n    prep.accion === 'GENERAR_PDF'\n      ? 'El generador PDF todavía no está conectado al Worker Gate RC1.'\n      : 'El generador Word todavía no está conectado al Worker Gate RC1.';\n\n\n  resultado = {\n    archivo_tipo,\n\n    disponible: false,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   TARGET FINAL\n========================================================= */\n\nconst target_url =\n  claimed\n    ? `${base}/api/internal/action-results/v1`\n    : `${base}/api/internal/worker-authorize/v1`;\n\n\nconst target_body =\n  claimed\n    ? {\n        command_id:\n          claim.command_id,\n\n        lease_token:\n          claim.lease_token,\n\n        attempt_count:\n          Number(\n            claim.attempt_count\n          ),\n\n        estado,\n\n        resultado,\n\n        error_code,\n\n        error_message\n      }\n    : prep.authorize_body;\n\n\n/* =========================================================\n   SALIDA\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...prep,\n\n      claim,\n\n      claimed,\n\n      archivo_url,\n\n      archivo_tipo,\n\n      archivo_nombre,\n\n      terminal_estado:\n        estado,\n\n      terminal_resultado:\n        resultado,\n\n      target_url,\n\n      target_body\n    }\n  }\n];"
+   },
+   "id": "b85e9789-63b2-4a5b-8046-06cee8b11151",
+   "name": "05 FILE Preparar Resultado",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1184,
+    432
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $json.target_url }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+    "options": {
+     "timeout": 30000
+    }
+   },
+   "id": "5ce72aea-d837-49be-a3e3-4a3431bb7184",
+   "name": "06 FILE Finalizar o Revalidar",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    1424,
+    432
+   ],
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const prep = $('05 FILE Preparar Resultado').first().json || {};\nconst final = $input.first().json || {};\nconst auth = prep.auth || {};\nconst claim = prep.claim || {};\n\nif (!prep.execute) {\n  const r = auth.resultado || {};\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed && r.archivo_url) respuesta = `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`;\n  else if (completed) respuesta = 'Esta generación ya había terminado y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'La generación requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La generación no se ejecutó automáticamente por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La generación fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nif (!prep.claimed) {\n  const r = claim.resultado || {};\n  const completed = claim.code === 'EOS_COMMAND_ALREADY_COMPLETED' || claim.estado === 'completada';\n  return [{\n    json: {\n      ok: claim.ok !== false,\n      executed: false,\n      idempotent: claim.idempotent === true,\n      decision: claim.code || 'not_claimed',\n      reason: claim.error || claim.code || '',\n      respuesta: completed && r.archivo_url\n        ? `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`\n        : completed\n          ? 'Esta generación ya estaba completada y no se repitió.'\n          : 'La generación ya está siendo procesada por otro Worker; no se inició una segunda copia.',\n      request_id: prep.request_id,\n      command_id: claim.command_id || prep.command_id,\n      accion: prep.accion,\n      estado: claim.estado || null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nconst finalized = final.ok === true;\nconst isExcel = prep.accion === 'GENERAR_EXCEL';\nreturn [{\n  json: {\n    ok: finalized,\n    executed: finalized && prep.terminal_estado === 'completada',\n    idempotent: final.idempotent === true,\n    request_id: prep.request_id,\n    command_id: final.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: final.estado || prep.terminal_estado,\n    archivo_url: finalized && isExcel ? prep.archivo_url : '',\n    archivo_tipo: prep.archivo_tipo,\n    archivo_nombre: prep.archivo_nombre,\n    resultado: final.resultado || prep.terminal_resultado || {},\n    respuesta: finalized\n      ? (isExcel\n          ? `Tu Excel ya está listo.\\n\\nDescargar archivo: ${prep.archivo_url}`\n          : 'Ese formato todavía no está disponible para generación gobernada en EOS.')\n      : (final.error || 'No fue posible cerrar el resultado del archivo de forma segura.')\n  }\n}];"
+   },
+   "id": "0808aff3-03c2-4e21-9e87-5ac7956afdfa",
+   "name": "07 FILE Respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1664,
+    432
+   ]
+  },
+  {
+   "parameters": {
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "id": "c57bf5d4-cf21-46f2-a721-4647da62e093",
+   "name": "08 FILE Respond",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1904,
+    432
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "eos-worker-rc1-dashboard",
+    "responseMode": "responseNode",
+    "options": {
+     "allowedOrigins": "*"
+    }
+   },
+   "id": "0f9a2e89-a0a8-4282-a820-0b578f963dc9",
+   "name": "00 DASH Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    0,
+    848
+   ],
+   "webhookId": "f572626b-ffab-44a7-b72e-b35ced9464f2"
+  },
+  {
+   "parameters": {
+    "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_DASHBOARD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+   },
+   "id": "71ad0f16-330f-492a-a8c8-710aa25da6d3",
+   "name": "01 DASH Preparar",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    848
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({}) }}",
+    "options": {
+     "timeout": 15000
+    }
+   },
+   "id": "cd185772-4257-48cf-8dd9-36d41896b8c0",
+   "name": "02 DASH Auth Ping",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    464,
+    848
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('01 DASH Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+   },
+   "id": "0faa34ec-131b-4e07-8261-76ff41d5b220",
+   "name": "03 DASH Gate",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    848
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "getAll",
+    "tableId": "eos_dashboard_metrics",
+    "limit": 10,
+    "orderBy": "updated_at.desc",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "usuario_id",
+       "condition": "eq",
+       "keyValue": "={{ $('03 DASH Gate').first().json.effective_user_id }}"
+      }
+     ]
+    }
+   },
+   "id": "a14787f4-721f-4948-98fe-b305cac3736e",
+   "name": "04 DASH Leer",
+   "type": "n8n-nodes-base.supabase",
+   "typeVersion": 1,
+   "position": [
+    944,
+    848
+   ],
+   "credentials": {
+    "supabaseApi": {
+     "id": "BXf6r1VynLo3h7o3",
+     "name": "Supabase account"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('03 DASH Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst metricas = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nlet lineas = metricas.map(m => `- ${m.metric_label || m.metric_key || 'Métrica'}: ${m.metric_value || m.metric_number || 'sin valor'}`).join('\\n');\nif (!lineas) lineas = 'Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{\n  ok:true,executed:true,request_id:src.request_id,accion:src.accion,\n  respuesta:`Dashboard EOS:\\n${lineas}`,tipo:'texto'\n}}];"
+   },
+   "id": "0a838ba1-1efe-47a1-8c9e-13f324881487",
+   "name": "05 DASH Respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1184,
+    848
+   ]
+  },
+  {
+   "parameters": {
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "id": "684050ed-9110-44c5-bdd2-36ac61d08ecb",
+   "name": "06 DASH Respond",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1424,
+    848
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "eos-worker-rc1-briefing",
+    "responseMode": "responseNode",
+    "options": {
+     "allowedOrigins": "*"
+    }
+   },
+   "id": "1e8b83cc-8a92-43e3-b51a-03295f970535",
+   "name": "00 BRIEF Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    0,
+    1184
+   ],
+   "webhookId": "bc102c85-bd21-434f-963b-acb6014136c7"
+  },
+  {
+   "parameters": {
+    "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_BRIEFING'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+   },
+   "id": "aeaf6017-0c6c-4500-bdf0-1e95cca58f3d",
+   "name": "01 BRIEF Preparar",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    1184
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({}) }}",
+    "options": {
+     "timeout": 15000
+    }
+   },
+   "id": "2b198ec0-f2db-41ee-822e-9273f5a1ad96",
+   "name": "02 BRIEF Auth Ping",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    464,
+    1184
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('01 BRIEF Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+   },
+   "id": "16280ae6-3ebf-4e48-8d68-6e5aa8073e31",
+   "name": "03 BRIEF Gate",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    1184
+   ]
+  },
+  {
+   "parameters": {
+    "operation": "getAll",
+    "tableId": "eos_daily_briefings",
+    "limit": 1,
+    "orderBy": "created_at.desc",
+    "filters": {
+     "conditions": [
+      {
+       "keyName": "usuario_id",
+       "condition": "eq",
+       "keyValue": "={{ $('03 BRIEF Gate').first().json.effective_user_id }}"
+      }
+     ]
+    }
+   },
+   "id": "3f90857b-9912-424d-890c-206e9e674b4d",
+   "name": "04 BRIEF Leer",
+   "type": "n8n-nodes-base.supabase",
+   "typeVersion": 1,
+   "position": [
+    944,
+    1184
+   ],
+   "credentials": {
+    "supabaseApi": {
+     "id": "BXf6r1VynLo3h7o3",
+     "name": "Supabase account"
+    }
+   },
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('03 BRIEF Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst b = $input.first().json || {};\nconst respuesta = b.resumen\n  ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1 || 'Sin prioridad'}\\n2. ${b.prioridad_2 || 'Sin prioridad'}\\n3. ${b.prioridad_3 || 'Sin prioridad'}`\n  : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{ok:true,executed:true,request_id:src.request_id,accion:src.accion,respuesta,tipo:'texto'}}];"
+   },
+   "id": "b0ac51f6-3cdf-4758-b86d-13ef6da2c6a8",
+   "name": "05 BRIEF Respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    1184,
+    1184
+   ]
+  },
+  {
+   "parameters": {
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "id": "93b8c0ad-f98e-4770-9b06-cb314b62b8ec",
+   "name": "06 BRIEF Respond",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    1424,
+    1184
+   ]
+  },
+  {
+   "parameters": {
+    "httpMethod": "POST",
+    "path": "eos-worker-rc1-respond",
+    "responseMode": "responseNode",
+    "options": {
+     "allowedOrigins": "*"
+    }
+   },
+   "id": "435a635b-2ffb-4acd-8b41-9c6fe5822b70",
+   "name": "00 RESP Webhook",
+   "type": "n8n-nodes-base.webhook",
+   "typeVersion": 2.1,
+   "position": [
+    0,
+    1520
+   ],
+   "webhookId": "05950990-7e67-450e-a75e-fd9a126ff557"
+  },
+  {
+   "parameters": {
+    "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'RESPONDER'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+   },
+   "id": "90c7942d-2ff0-4b1a-b583-b42a71dfb4f8",
+   "name": "01 RESP Preparar",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    224,
+    1520
+   ]
+  },
+  {
+   "parameters": {
+    "method": "POST",
+    "url": "={{ $env.EOS_APP_BASE_URL.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+    "sendHeaders": true,
+    "headerParameters": {
+     "parameters": [
+      {
+       "name": "Authorization",
+       "value": "={{ $json.authorization }}"
+      },
+      {
+       "name": "x-vercel-protection-bypass",
+       "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+      },
+      {
+       "name": "Content-Type",
+       "value": "application/json"
+      }
+     ]
+    },
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={{ JSON.stringify({}) }}",
+    "options": {
+     "timeout": 15000
+    }
+   },
+   "id": "66d80b51-0770-4deb-9e0c-c23fb5b8075f",
+   "name": "02 RESP Auth Ping",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.4,
+   "position": [
+    464,
+    1520
+   ],
+   "onError": "continueRegularOutput"
+  },
+  {
+   "parameters": {
+    "jsCode": "const src = $('01 RESP Preparar').first().json || {};\nconst ping = $input.first().json || {};\nreturn [{json:{\n  ok: ping.ok === true,\n  executed: false,\n  request_id: src.request_id,\n  accion: 'RESPONDER',\n  respuesta: src.respuesta_gateway || '',\n  tipo: 'texto',\n  ...(ping.ok === true ? {} : {error:'Worker no autorizado.'})\n}}];"
+   },
+   "id": "557b2110-6a62-432e-8b67-1bcf60a67a4a",
+   "name": "03 RESP Respuesta",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    704,
+    1520
+   ]
+  },
+  {
+   "parameters": {
+    "options": {
+     "responseHeaders": {
+      "entries": [
+       {
+        "name": "Content-Type",
+        "value": "application/json"
+       }
+      ]
+     }
+    }
+   },
+   "id": "eb06f390-c9e7-411f-810e-b895beb2b4cd",
+   "name": "04 RESP Respond",
+   "type": "n8n-nodes-base.respondToWebhook",
+   "typeVersion": 1.5,
+   "position": [
+    944,
+    1520
+   ]
   }
+ ],
+ "connections": {
+  "00 INT Webhook": {
+   "main": [
+    [
+     {
+      "node": "01 INT Preparar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "01 INT Preparar": {
+   "main": [
+    [
+     {
+      "node": "02 INT Autorizar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 INT Autorizar": {
+   "main": [
+    [
+     {
+      "node": "03 INT Preparar Efecto",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 INT Preparar Efecto": {
+   "main": [
+    [
+     {
+      "node": "04 INT Efecto o Revalidar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04 INT Efecto o Revalidar": {
+   "main": [
+    [
+     {
+      "node": "05 INT Respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05 INT Respuesta": {
+   "main": [
+    [
+     {
+      "node": "06 INT Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "00 FILE Webhook": {
+   "main": [
+    [
+     {
+      "node": "01 FILE Preparar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "01 FILE Preparar": {
+   "main": [
+    [
+     {
+      "node": "02 FILE Autorizar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 FILE Autorizar": {
+   "main": [
+    [
+     {
+      "node": "03 FILE Preparar Claim",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 FILE Preparar Claim": {
+   "main": [
+    [
+     {
+      "node": "04 FILE Claim o Revalidar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04 FILE Claim o Revalidar": {
+   "main": [
+    [
+     {
+      "node": "05 FILE Preparar Resultado",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05 FILE Preparar Resultado": {
+   "main": [
+    [
+     {
+      "node": "06 FILE Finalizar o Revalidar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "06 FILE Finalizar o Revalidar": {
+   "main": [
+    [
+     {
+      "node": "07 FILE Respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07 FILE Respuesta": {
+   "main": [
+    [
+     {
+      "node": "08 FILE Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "00 DASH Webhook": {
+   "main": [
+    [
+     {
+      "node": "01 DASH Preparar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "01 DASH Preparar": {
+   "main": [
+    [
+     {
+      "node": "02 DASH Auth Ping",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 DASH Auth Ping": {
+   "main": [
+    [
+     {
+      "node": "03 DASH Gate",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 DASH Gate": {
+   "main": [
+    [
+     {
+      "node": "04 DASH Leer",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04 DASH Leer": {
+   "main": [
+    [
+     {
+      "node": "05 DASH Respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05 DASH Respuesta": {
+   "main": [
+    [
+     {
+      "node": "06 DASH Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "00 BRIEF Webhook": {
+   "main": [
+    [
+     {
+      "node": "01 BRIEF Preparar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "01 BRIEF Preparar": {
+   "main": [
+    [
+     {
+      "node": "02 BRIEF Auth Ping",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 BRIEF Auth Ping": {
+   "main": [
+    [
+     {
+      "node": "03 BRIEF Gate",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 BRIEF Gate": {
+   "main": [
+    [
+     {
+      "node": "04 BRIEF Leer",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04 BRIEF Leer": {
+   "main": [
+    [
+     {
+      "node": "05 BRIEF Respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05 BRIEF Respuesta": {
+   "main": [
+    [
+     {
+      "node": "06 BRIEF Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "00 RESP Webhook": {
+   "main": [
+    [
+     {
+      "node": "01 RESP Preparar",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "01 RESP Preparar": {
+   "main": [
+    [
+     {
+      "node": "02 RESP Auth Ping",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 RESP Auth Ping": {
+   "main": [
+    [
+     {
+      "node": "03 RESP Respuesta",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 RESP Respuesta": {
+   "main": [
+    [
+     {
+      "node": "04 RESP Respond",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "binaryMode": "separate",
+  "availableInMCP": false
+ }
 }
