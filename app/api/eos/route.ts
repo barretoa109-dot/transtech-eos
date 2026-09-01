@@ -14,6 +14,7 @@ import { agregarAccesoAprobacion } from "@/lib/eos/acciones-chat";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -756,7 +757,19 @@ export async function POST(req: Request) {
     const rawText = await response.text();
 
     if (!response.ok) {
-      console.error("Error desde n8n:", response.status, rawText.slice(0, 1_000));
+      /*
+       * El cuerpo NO se registra.
+       *
+       * Antes iban mil caracteres crudos al log de Vercel. Ese cuerpo puede
+       * traer de vuelta el mensaje que escribió la persona —n8n suele
+       * devolver la entrada adentro del error— y el log de Vercel queda
+       * guardado, lo ve cualquiera con acceso al panel, y no se borra cuando
+       * el usuario pide que lo borren.
+       *
+       * Lo que sirve para diagnosticar es el código y el tamaño. Si alguna vez
+       * hace falta el cuerpo, se reproduce.
+       */
+      console.error("Error desde n8n:", resumenDeRespuesta(response.status, rawText));
       await releaseQuota(`n8n_http_${response.status}`);
 
       return Response.json(

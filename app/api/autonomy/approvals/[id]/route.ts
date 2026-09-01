@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { paraRegistro } from "@/lib/seguridad/registro";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -227,7 +228,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     authorization?.execute !== true ||
     !isUuid(authorization?.command_id)
   ) {
-    console.error("Aprobación EOS no pudo revalidarse:", authorization);
+    console.error("Aprobación EOS no pudo revalidarse:", paraRegistro(authorization));
     return NextResponse.json(
       {
         error: "La aprobación quedó registrada, pero no pudo revalidarse para ejecución.",
@@ -250,7 +251,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const execution = await parseJson(effectResponse);
 
   if (!effectResponse.ok || execution?.ok !== true) {
-    console.error("Aprobación EOS autorizada pero no ejecutada:", execution);
+    console.error("Aprobación EOS autorizada pero no ejecutada:", paraRegistro(execution));
     return NextResponse.json(
       {
         error: "La acción fue autorizada, pero no pudo completarse.",

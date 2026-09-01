@@ -2,6 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { paraRegistro } from "@/lib/seguridad/registro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -186,7 +187,8 @@ export async function POST(request: Request) {
     const effect = Array.isArray(data) ? data[0] || null : data;
 
     if (!effect || !isUuid(effect.command_id) || !isUuid(effect.effect_id)) {
-      console.error("Worker effect executor returned an invalid row:", effect);
+      // Sin el payload: la fila trae adentro lo que el usuario pidió hacer.
+      console.error("Worker effect executor returned an invalid row:", paraRegistro(effect));
       return respond(
         { ok: false, error: "El ejecutor devolvió una respuesta inválida." },
         500,
