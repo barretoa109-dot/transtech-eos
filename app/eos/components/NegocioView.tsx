@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Package, Plus, ShoppingCart, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, Check, Package, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
+import Rentabilidad from "./negocio/Rentabilidad";
 import Emisor from "./negocio/Emisor";
 import Confirmar from "./negocio/Confirmar";
 import Anular from "./negocio/Anular";
@@ -65,7 +66,7 @@ type Venta = {
   items: VentaItem[];
 };
 
-type Pestania = "ventas" | "compras" | "productos" | "clientes" | "embudo" | "emisor";
+type Pestania = "ventas" | "compras" | "rentabilidad" | "productos" | "clientes" | "embudo" | "emisor";
 
 /*
  * El orden es el del día de trabajo, no el del organigrama: primero lo que
@@ -79,6 +80,7 @@ type Pestania = "ventas" | "compras" | "productos" | "clientes" | "embudo" | "em
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "ventas", etiqueta: "Ventas", detalle: "Ingresos y cobros" },
   { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
+  { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
   { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
   { clave: "clientes", etiqueta: "Contactos", detalle: "Clientes y proveedores" },
   { clave: "embudo", etiqueta: "CRM", detalle: "Oportunidades y tareas" },
@@ -254,6 +256,12 @@ export default function NegocioView() {
               <strong>Ver embudo</strong>
               <small>Oportunidades y seguimiento</small>
             </button>
+            <button type="button" className="neg-resumen-card" onClick={() => setPestania("rentabilidad")}>
+              <BadgeDollarSign size={17} />
+              <span>Rentabilidad</span>
+              <strong>Ver márgenes</strong>
+              <small>Ganancia por producto</small>
+            </button>
           </div>
         )}
 
@@ -310,6 +318,8 @@ export default function NegocioView() {
             productos={productos}
             onCambio={() => void cargar()}
           />
+        ) : pestania === "rentabilidad" ? (
+          <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (
           <Productos productos={productos} onCambio={() => void cargar()} />
         ) : pestania === "embudo" ? (
@@ -582,41 +592,60 @@ function Ventas({
           <p className="empty-note">Todavía no cargaste ninguna venta.</p>
         ) : (
           <div className="neg-lista">
-            {ventas.map((v) => (
-              <div className="neg-fila" key={v.id}>
-                <div className="neg-fila-texto">
-                  <strong>{v.contacto?.nombre ?? "Consumidor final"}</strong>
-                  <small>
-                    {v.fecha} · {v.items?.length ?? 0}{" "}
-                    {(v.items?.length ?? 0) === 1 ? "ítem" : "ítems"} ·{" "}
-                    {v.condicion === "credito" ? "a crédito" : "contado"}
-                  </small>
+            {ventas.map((v) => {
+              /*
+               * Una venta anulada tiene que VERSE anulada. Ver el comentario
+               * largo en `negocio/Compras.tsx`: es el mismo error, reportado
+               * por una clienta usando EOS de verdad. Anular borra el
+               * movimiento, así que la fila volvía a ofrecer "Cobrar" y
+               * "Anular" y parecía que el botón no había hecho nada.
+               */
+              const anulada = v.estado === "anulada";
+
+              return (
+                <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={v.id}>
+                  <div className="neg-fila-texto">
+                    <strong>{v.contacto?.nombre ?? "Consumidor final"}</strong>
+                    <small>
+                      {v.fecha} · {v.items?.length ?? 0}{" "}
+                      {(v.items?.length ?? 0) === 1 ? "ítem" : "ítems"} ·{" "}
+                      {v.condicion === "credito" ? "a crédito" : "contado"}
+                    </small>
+                  </div>
+
+                  <span className="neg-fila-monto">{formatearMonto(v.total, v.moneda)}</span>
+
+                  {anulada ? (
+                    <span className="neg-estado is-anulada">
+                      <Undo2 size={12} /> anulada
+                    </span>
+                  ) : (
+                    <>
+                      {v.movimiento_id ? (
+                        <span className="neg-estado is-ok">
+                          <Check size={12} /> cobrada
+                        </span>
+                      ) : (
+                        <Confirmar
+                          etiqueta="Cobrar"
+                          consecuencia={
+                            `Se registra un ingreso de ${formatearMonto(v.total, v.moneda)} en tu panel, ` +
+                            "con la fecha de hoy. Si te equivocaste de venta, se corrige anulándola."
+                          }
+                          confirmar="Sí, cobrar"
+                          onConfirmar={() => void cobrar(v)}
+                        />
+                      )}
+
+                      <Facturar ventaId={v.id} />
+
+                      {/* Anular va al final: se lee después de las acciones normales. */}
+                      <Anular recurso="ventas" id={v.id} onAnulado={onCambio} />
+                    </>
+                  )}
                 </div>
-
-                <span className="neg-fila-monto">{formatearMonto(v.total, v.moneda)}</span>
-
-                {v.movimiento_id ? (
-                  <span className="neg-estado is-ok">
-                    <Check size={12} /> cobrada
-                  </span>
-                ) : (
-                  <Confirmar
-                    etiqueta="Cobrar"
-                    consecuencia={
-                      `Se registra un ingreso de ${formatearMonto(v.total, v.moneda)} en tu panel, ` +
-                      "con la fecha de hoy. Si te equivocaste de venta, se corrige anulándola."
-                    }
-                    confirmar="Sí, cobrar"
-                    onConfirmar={() => void cobrar(v)}
-                  />
-                )}
-
-                <Facturar ventaId={v.id} />
-
-                {/* Anular va al final: se lee después de las acciones normales. */}
-                <Anular recurso="ventas" id={v.id} onAnulado={onCambio} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
-import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart, UserPlus } from "lucide-react";
+import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -453,40 +453,70 @@ export default function Compras({
           <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p><button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button></div>
         ) : (
           <div className="neg-lista">
-            {compras.map((c) => (
-              <div className="neg-fila" key={c.id}>
-                <div className="neg-fila-texto">
-                  <strong>{c.contacto?.nombre ?? "Sin proveedor"}</strong>
-                  <small>
-                    {c.fecha}
-                    {c.numero_comprobante ? ` · ${c.numero_comprobante}` : ""} ·{" "}
-                    {c.condicion === "credito" ? "a crédito" : "contado"}
-                  </small>
+            {compras.map((c) => {
+              /*
+               * Una compra anulada tiene que VERSE anulada.
+               *
+               * Hasta ahora la lista la mostraba igual que una viva. Y como
+               * anular borra el movimiento financiero, la fila volvía a
+               * ofrecer "Pagar" y "Anular" — así que después de anular no
+               * cambiaba nada en pantalla y la conclusión razonable era que
+               * el botón no funcionaba. Funcionaba: no se veía.
+               *
+               * Lo reportó una clienta usando EOS de verdad, y es el tipo de
+               * error que ninguna prueba de base detecta, porque en la base
+               * estaba todo bien.
+               */
+              const anulada = c.estado === "anulada";
+
+              return (
+                <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={c.id}>
+                  <div className="neg-fila-texto">
+                    <strong>{c.contacto?.nombre ?? "Sin proveedor"}</strong>
+                    <small>
+                      {c.fecha}
+                      {c.numero_comprobante ? ` · ${c.numero_comprobante}` : ""} ·{" "}
+                      {c.condicion === "credito" ? "a crédito" : "contado"}
+                    </small>
+                  </div>
+
+                  <span className="neg-fila-monto">{formatearMonto(c.total, c.moneda)}</span>
+
+                  {anulada ? (
+                    /*
+                     * Y no se le ofrece nada más que hacer. La base rechaza
+                     * pagar una compra anulada con EOS_COMPRA_ANULADA, así
+                     * que el botón solo servía para llevarla a un error.
+                     */
+                    <span className="neg-estado is-anulada">
+                      <Undo2 size={12} /> anulada
+                    </span>
+                  ) : (
+                    <>
+                      {c.movimiento_id ? (
+                        <span className="neg-estado is-ok">
+                          <Check size={12} /> pagada
+                        </span>
+                      ) : (
+                        <Confirmar
+                          etiqueta="Pagar"
+                          consecuencia={
+                            `Se registra un egreso de ${formatearMonto(c.total, c.moneda)} en tu panel, ` +
+                            "con la fecha de hoy. Si te equivocaste de compra, se corrige anulándola."
+                          }
+                          confirmar="Sí, pagar"
+                          onConfirmar={() => void pagar(c)}
+                          ocupado={pagandoId === c.id}
+                          ocupadoTexto="Registrando…"
+                        />
+                      )}
+
+                      <Anular recurso="compras" id={c.id} onAnulado={cargar} />
+                    </>
+                  )}
                 </div>
-
-                <span className="neg-fila-monto">{formatearMonto(c.total, c.moneda)}</span>
-
-                {c.movimiento_id ? (
-                  <span className="neg-estado is-ok">
-                    <Check size={12} /> pagada
-                  </span>
-                ) : (
-                  <Confirmar
-                    etiqueta="Pagar"
-                    consecuencia={
-                      `Se registra un egreso de ${formatearMonto(c.total, c.moneda)} en tu panel, ` +
-                      "con la fecha de hoy. Si te equivocaste de compra, se corrige anulándola."
-                    }
-                    confirmar="Sí, pagar"
-                    onConfirmar={() => void pagar(c)}
-                    ocupado={pagandoId === c.id}
-                    ocupadoTexto="Registrando…"
-                  />
-                )}
-
-                <Anular recurso="compras" id={c.id} onAnulado={cargar} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
