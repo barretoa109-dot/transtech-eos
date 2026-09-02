@@ -188,6 +188,57 @@ Por rendimiento, no por número de punto.
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.
 
+### -1. n8n le hablaba a un despliegue de hace 185 commits — ABIERTO, BLOQUEANTE
+
+Está numerado con un negativo a propósito: es anterior a todos los demás y
+los explica. El hallazgo 0, el de la lista de acciones del worker y cualquier
+otro arreglo que se haya hecho al Worker Gate son ciertos y siguen siendo
+necesarios, pero ninguno cambió nada mientras esto estuvo así.
+
+El worker de n8n arma la URL del autorizador con `$env.EOS_APP_BASE_URL`. En
+el n8n de Railway esa variable vale:
+
+```
+https://transtech-eos-git-release-eos-40-rc1-trans-tech.vercel.app
+```
+
+El preview de la rama `release/eos-4.0-rc1`. No producción. Esa rama está
+**185 commits atrás de main**, no tiene ni una aparición de `REGISTRAR_VENTA`
+y trae `default_level: 1`.
+
+De ahí salen los tres síntomas, todos de la misma causa:
+
+| Síntoma | Por qué |
+|---|---|
+| `configured_level: 1` en catorce días de evaluaciones | El build viejo tiene `DEFAULT_PROFILE.default_level = 1`. El cambio a 2 está en main desde el 18 de agosto y nunca llegó a esa rama. |
+| `400 Solicitud de gate inválida` al registrar una venta | `SYSTEM_RISK["REGISTRAR_VENTA"]` no existe en ese build, así que el gate rechaza la acción antes de evaluarla. |
+| Ningún arreglo del gate se notaba | Se desplegaban a producción, y producción no era quien contestaba. |
+
+La evidencia está en la ejecución 4278 del worker, del 2 de septiembre:
+el nodo `01 INT Preparar` arma un cuerpo impecable —UUIDs válidos, `accion:
+"REGISTRAR_VENTA"`, payload completo— y `02 INT Autorizar` recibe un 400 de
+esa URL.
+
+Ese 400 tampoco deja fila en `eos_worker_gate_audit_v15`, porque la
+validación de entrada devuelve antes de auditar. Por eso la auditoría seguía
+mostrando el 31 de agosto como último movimiento aunque el chat se estuviera
+usando: **el gate no registra lo que rechaza en la puerta**, y eso es un
+segundo hallazgo dentro del primero.
+
+**Qué falta hacer, en orden de preferencia:**
+
+1. Cambiar `EOS_APP_BASE_URL` en Railway a `https://www.transtech.com.py`.
+   Es el arreglo de fondo y deja una sola fuente de verdad.
+2. Mientras tanto, apuntar los ocho nodos del worker a producción
+   directamente. El script está escrito y los workflows respaldados en
+   `n8n/respaldos/`.
+
+**Lo que enseña:** un sistema con dos despliegues y una variable de entorno
+que elige entre ellos no tiene forma de avisar que está apuntando al viejo.
+No hay error, no hay alerta, no hay log: hay respuestas correctas de un
+código equivocado. Antes de lanzar, el gate debería responder de qué commit
+es, y la app debería comprobarlo.
+
 ### 0. Cinco de seis usuarios corrían en un nivel que descarta las acciones — CERRADO
 
 El hallazgo más caro de toda la lista, y el que peor pinta tenía desde afuera:
