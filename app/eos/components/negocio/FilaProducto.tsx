@@ -5,6 +5,7 @@ import { AlertTriangle, Check, Pencil, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import { tasaValida } from "@/lib/erp/impuestos";
+import Confirmar from "./Confirmar";
 import type { Producto } from "./tipos";
 
 /**
@@ -34,6 +35,19 @@ type Props = { producto: Producto; onCambio: () => void };
 
 export default function FilaProducto({ producto, onCambio }: Props) {
   const [modo, setModo] = useState<"ver" | "editar" | "ajustar">("ver");
+
+  /** La baja es lógica: las ventas que ya lo nombran no se tocan. */
+  async function darDeBaja() {
+    const respuesta = await fetch(`/api/erp/productos/${producto.id}`, { method: "DELETE" });
+
+    if (!respuesta.ok) {
+      const datos = await respuesta.json().catch(() => null);
+      window.alert(datos?.error || "No pudimos darlo de baja.");
+      return;
+    }
+
+    onCambio();
+  }
   const [aviso, setAviso] = useState("");
 
   const margen = calcularMargen({
@@ -107,6 +121,30 @@ export default function FilaProducto({ producto, onCambio }: Props) {
               Ajustar
             </button>
           )}
+
+          {/*
+            Dar de baja, con la consecuencia adentro.
+
+            La ruta existía desde siempre y ninguna pantalla la llamaba: no
+            había forma de sacar un producto cargado por error, y un catálogo
+            del que no se puede sacar nada junta duplicados hasta que el
+            informe de ventas deja de significar algo.
+
+            La baja es lógica, no un borrado: las ventas viejas apuntan acá y
+            borrarlo dejaría el historial sin nombres. Eso se dice, porque es
+            la diferencia entre "lo perdí" y "lo saqué de la lista".
+          */}
+          <Confirmar
+            etiqueta="Dar de baja"
+            peligro
+            consecuencia={
+              `"${producto.nombre}" deja de aparecer para cargar ventas y compras. ` +
+              "Las ventas que ya lo incluyen no cambian: siguen mostrando su nombre y su importe. " +
+              "No se borra nada."
+            }
+            confirmar="Sí, darlo de baja"
+            onConfirmar={() => void darDeBaja()}
+          />
         </>
       )}
 
