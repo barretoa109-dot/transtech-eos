@@ -102,3 +102,22 @@ create policy eos_kpi_historia_select_own
 revoke all on table public.eos_kpi_historia_v105 from public, anon, authenticated;
 grant select on table public.eos_kpi_historia_v105 to authenticated;
 grant all on table public.eos_kpi_historia_v105 to service_role;
+
+-- ============================================================
+-- NOTA SOBRE EL NÚMERO DE ESTA MIGRACIÓN
+-- ============================================================
+--
+-- Este archivo nació como `20260902080000` y se corrió a `20260902100000`
+-- porque otra rama creó `20260902080000_eos_corregir_costo_venta_v105.sql` con
+-- el MISMO timestamp. Supabase usa el timestamp como clave de versión: con dos
+-- archivos iguales, una instalación desde cero aplica uno solo y saltea el otro
+-- EN SILENCIO, dejando código llamando a algo que no existe.
+--
+-- Los dos llevan la etiqueta v105 y eso queda así a propósito: los objetos que
+-- crean son distintos (`eos_kpi_historia_v105` es una tabla,
+-- `eos_erp_corregir_costo_venta_v105` es una función) y renombrar una tabla ya
+-- creada en producción para arreglar una etiqueta es más riesgo que el que
+-- resuelve. Lo que importaba —que las dos migraciones corran— está arreglado.
+--
+-- Todo lo de arriba es idempotente (`if not exists`, `drop policy if exists`),
+-- así que aplicarlo de nuevo bajo el número nuevo no cambia nada.
