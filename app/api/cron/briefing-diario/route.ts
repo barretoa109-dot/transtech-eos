@@ -7,6 +7,7 @@ import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
+import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -167,6 +168,27 @@ export async function GET(request: Request) {
       console.log("Límites: contadores vencidos borrados:", limpiados ?? 0);
     } catch (error) {
       console.error("Briefing: falló la detección de riesgos:", error);
+    }
+  });
+
+  /*
+   * La foto diaria de los indicadores, en su PROPIO `after`.
+   *
+   * Separado del bloque de avisos a propósito: son cosas distintas y un fallo
+   * de una no puede llevarse la otra. Avisar de un aprieto es urgente; guardar
+   * la historia es acumulativo —un día perdido es un hueco en la serie, no una
+   * noticia que no llegó— así que va después y aislado.
+   *
+   * Sin esto, la tendencia de un indicador nunca podría ser más que "este mes
+   * contra el anterior": el margen de julio no se puede recalcular hoy porque
+   * el costo del producto cambió, y el stock no tiene historia.
+   */
+  after(async () => {
+    try {
+      const captura = await capturarIndicadores(adminSinTipos(), { hoy: hoyEnParaguay() });
+      console.log("KPI: foto diaria de indicadores", captura);
+    } catch (error) {
+      console.error("KPI: falló la captura diaria de indicadores:", error);
     }
   });
 

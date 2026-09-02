@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import TarjetaKPI from "./TarjetaKPI";
+import HistoriaKPI from "./HistoriaKPI";
 import { porPrioridad } from "@/lib/kpi/formato";
 import type { Familia, ResultadoKPI } from "@/lib/kpi/tipos";
 
@@ -58,6 +59,7 @@ export default function PanelIndicadores() {
   const [error, setError] = useState("");
   const [moneda, setMoneda] = useState<string | null>(null);
   const [familia, setFamilia] = useState<Familia | "todas">("todas");
+  const [abierto, setAbierto] = useState<string | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -112,6 +114,11 @@ export default function PanelIndicadores() {
     const filtrados = familia === "todas" ? deMoneda : deMoneda.filter((r) => r.familia === familia);
     return porPrioridad(filtrados);
   }, [datos, monedaActiva, familia]);
+
+  // El indicador abierto sale de lo VISIBLE: si se cambia de moneda o de
+  // familia y el que estaba abierto ya no está en pantalla, el detalle se
+  // cierra solo en vez de quedar mostrando la historia de algo que no se ve.
+  const abiertoKpi = visibles.find((r) => r.id === abierto) ?? null;
 
   if (cargando) {
     return (
@@ -183,9 +190,38 @@ export default function PanelIndicadores() {
 
       <div className="kpi-grid">
         {visibles.map((kpi, i) => (
-          <TarjetaKPI key={kpi.id} kpi={kpi} retraso={Math.min(i, 8) * 0.04} />
+          <TarjetaKPI
+            key={kpi.id}
+            kpi={kpi}
+            retraso={Math.min(i, 8) * 0.04}
+            abierto={abierto === kpi.id}
+            onAbrir={() => setAbierto(abierto === kpi.id ? null : kpi.id)}
+          />
         ))}
       </div>
+
+      {/* La historia va DEBAJO de la grilla y no dentro de la tarjeta: adentro
+          la haría cuatro veces más alta y descolocaría toda la fila. Es el
+          mismo criterio de `Traza.tsx`, que abre el detalle en su propio
+          espacio en vez de empujar el panel. */}
+      {abiertoKpi && (
+        <div className="kpi-detalle">
+          <div className="kpi-detalle-head">
+            <strong>{abiertoKpi.nombre}</strong>
+            <button type="button" className="ghost-btn" onClick={() => setAbierto(null)}>
+              Cerrar
+            </button>
+          </div>
+          {/* La `key` hace que React lo remonte al cambiar de indicador o de
+              moneda: así el estado arranca en "cargando" sin que el efecto
+              tenga que resetearlo con un setState en cascada. */}
+          <HistoriaKPI
+            key={`${abiertoKpi.id}-${abiertoKpi.moneda}`}
+            id={abiertoKpi.id}
+            moneda={abiertoKpi.moneda}
+          />
+        </div>
+      )}
 
       {datos.faltan.length > 0 && (
         <details className="kpi-faltan">

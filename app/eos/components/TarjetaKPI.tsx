@@ -37,7 +37,17 @@ import type { ResultadoKPI } from "@/lib/kpi/tipos";
  * tarjeta, en Rentabilidad y —cuando exista— adentro de una respuesta del
  * chat.
  */
-export default function TarjetaKPI({ kpi, retraso }: { kpi: ResultadoKPI; retraso?: number }) {
+export default function TarjetaKPI({
+  kpi,
+  retraso,
+  abierto,
+  onAbrir,
+}: {
+  kpi: ResultadoKPI;
+  retraso?: number;
+  abierto?: boolean;
+  onAbrir?: () => void;
+}) {
   const variacion = formatearVariacion(kpi);
   const tono = tonoDeVariacion(kpi.tendencia, kpi.direccion);
   const aviso = avisoDeConfianza(kpi);
@@ -48,10 +58,22 @@ export default function TarjetaKPI({ kpi, retraso }: { kpi: ResultadoKPI; retras
   // es verde.
   const claseTono = tono === "bueno" ? "up" : tono === "malo" ? "down" : "";
 
+  /*
+   * Es un <button> y no un <div onClick>.
+   *
+   * Un div con onClick no recibe foco con Tab, no responde a Enter ni a la
+   * barra espaciadora, y un lector de pantalla lo anuncia como texto suelto.
+   * La tarjeta ya se ve clickeable; con esto también lo es para quien no usa
+   * mouse. El punto 48 de la lista de lanzamiento pide justamente esta
+   * auditoría, así que no vale la pena estrenar deuda nueva.
+   */
   return (
-    <div
-      className={`kpi-card kpi-estado-${kpi.estado}`}
+    <button
+      type="button"
+      className={`kpi-card kpi-estado-${kpi.estado}${abierto ? " is-abierto" : ""}`}
       style={retraso !== undefined ? { animationDelay: `${retraso}s` } : undefined}
+      onClick={onAbrir}
+      aria-expanded={abierto ?? false}
     >
       <div className="l">{kpi.nombre}</div>
 
@@ -79,6 +101,6 @@ export default function TarjetaKPI({ kpi, retraso }: { kpi: ResultadoKPI; retras
       )}
 
       {aviso && <div className="kpi-confianza">{aviso}</div>}
-    </div>
+    </button>
   );
 }

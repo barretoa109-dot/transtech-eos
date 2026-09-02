@@ -1366,6 +1366,100 @@
   margin-top: 6px;
 }
 
+/* La tarjeta es un <button> para que reciba foco y responda a Enter: hay que
+   apagarle el aspecto de botón y devolverle la alineación de un bloque. */
+.eos-app .kpi-card {
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.eos-app .kpi-card.is-abierto {
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px rgba(22, 86, 189, 0.1);
+}
+.eos-app .kpi-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---- historia de un indicador ---- */
+.eos-app .kpi-detalle {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-top: 4px;
+  background: var(--bg-sidebar);
+}
+.eos-app .kpi-detalle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* La caja es la que ocupa el ancho; el SVG recibe ese ancho MEDIDO en píxeles
+   reales. Nada de `width: 100%` sobre el SVG: eso es justo lo que lo escala y
+   achica el texto de adentro. */
+.eos-app .kpi-linea-caja {
+  width: 100%;
+}
+/* `width: auto` es obligatorio, no cosmético: la regla global `.eos-app svg`
+   fija 18x18 para los iconos de lucide y también agarra a este gráfico, que
+   colapsaba a un cuadrado de 18px. Con `auto` mandan los atributos width y
+   height que el componente calcula desde el ancho medido. */
+.eos-app .kpi-linea {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+.eos-app .kpi-linea-area {
+  fill: url(#kpiLineaGrad);
+}
+.eos-app .kpi-linea-trazo {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.eos-app .kpi-linea-hoy {
+  fill: var(--blue);
+}
+/* El puente sobre los días sin dato: punteado y pálido. El ojo sigue la serie,
+   pero el trazo no afirma un recorrido que nadie midió. */
+.eos-app .kpi-linea-hueco {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.4;
+}
+/* El tamaño de las etiquetas se declara acá y no anidado bajo un gráfico
+   puntual: anidarla bajo `.chart-svg` fue justamente lo que dejó las de
+   `.tray-svg` en 16px negrita del navegador. */
+.eos-app .kpi-linea .axis-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--muted);
+}
+.eos-app .kpi-historia-frase {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+.eos-app .kpi-historia-hueco {
+  font-size: 12.5px;
+  color: var(--amber);
+  margin: 6px 0 0;
+}
+.eos-app .kpi-historia-pie {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
 .eos-app .kpi-faltan {
   margin-top: 12px;
   font-size: 12.5px;
