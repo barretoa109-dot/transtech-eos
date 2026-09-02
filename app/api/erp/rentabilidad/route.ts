@@ -4,11 +4,25 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { calcularRentabilidad, type LineaRentabilidad } from "@/lib/erp/rentabilidad";
 import { calcularIndicadores, loQueFalta, periodoAnterior } from "@/lib/erp/indicadores";
 import { tasaValida } from "@/lib/erp/impuestos";
-import { hoyEnParaguay } from "@/lib/fecha";
+import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+/*
+ * Las tres ventanas que pidió el usuario: diaria, semanal y mensual.
+ *
+ * Son ventanas móviles y no el mes calendario, y ésa es la diferencia que
+ * importa. La primera versión anclaba al mes en curso, y el día que se
+ * estrenó era 1 de septiembre: "el mes en curso" eran veinticuatro horas y
+ * la pantalla salía vacía para todo el mundo. Un tablero que no sirve el
+ * primero de cada mes no sirve.
+ *
+ * Con ventana móvil el período anterior es siempre del mismo largo y está
+ * pegado al actual, así que la comparación es pareja cualquier día del año.
+ */
+const VENTANAS: Record<string, number> = { dia: 1, semana: 7, mes: 30 };
+
+export async function GET(request: Request) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
@@ -58,11 +72,16 @@ export async function GET() {
    * para la misma plata. Es la misma razón por la que la traza del panel
    * financiero viaja pegada a las cifras que explica.
    *
-   * El período es el mes en curso en Paraguay, que es el que mira alguien que
-   * abre esta pantalla un martes cualquiera.
+   * El período es una ventana móvil que termina hoy en Paraguay: un día, una
+   * semana o treinta días, según lo que pida la pantalla.
    */
+  const pedida = new URL(request.url).searchParams.get("ventana") ?? "mes";
+  const dias = VENTANAS[pedida] ?? VENTANAS.mes;
+  const ventana = dias === VENTANAS[pedida] ? pedida : "mes";
+
   const hoy = hoyEnParaguay();
-  const periodo = { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
+  // Inclusiva de los dos extremos: "7 días" son hoy y los seis anteriores.
+  const periodo = { desde: sumarDias(hoy, -(dias - 1)), hasta: hoy };
   const anterior = periodoAnterior(periodo);
 
   const [movimientos, fijos] = await Promise.all([
@@ -110,12 +129,20 @@ export async function GET() {
     })),
     ingresos: deTipo("ingreso"),
     gastos: deTipo("gasto"),
+    /*
+     * Los fijos, prorrateados a la ventana que se está mirando.
+     *
+     * Están declarados por mes. Compararlos enteros contra un día diría que
+     * hay que vender el alquiler completo antes del mediodía, y contra una
+     * semana diría algo cuatro veces peor de lo que es. El punto de equilibrio
+     * sólo significa algo si los dos lados hablan del mismo lapso.
+     */
     fijosMensuales: ((fijos.data ?? []) as Record<string, unknown>[])
       .filter((f) => f.tipo === "gasto")
       .map((f) => ({
         fecha: periodo.desde,
         moneda: (f.moneda as string) ?? null,
-        monto: Number(f.monto ?? 0),
+        monto: (Number(f.monto ?? 0) * dias) / 30,
       })),
   });
 
@@ -124,6 +151,7 @@ export async function GET() {
       resumen: calcularRentabilidad(lineas),
       indicadores,
       periodo,
+      ventana,
       // Lo que todavía no se puede calcular, dicho. Un tablero que admite lo
       // que no sabe vale más que uno que llena todos los casilleros.
       falta: loQueFalta(),

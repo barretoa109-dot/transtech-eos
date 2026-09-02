@@ -46,13 +46,17 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
   const [indicadores, setIndicadores] = useState<Indicadores[]>([]);
   const [periodo, setPeriodo] = useState<{ desde: string; hasta: string } | null>(null);
   const [falta, setFalta] = useState<{ indicador: string; necesita: string }[]>([]);
+  const [ventana, setVentana] = useState<"dia" | "semana" | "mes">("mes");
   const [cargando, setCargando] = useState(true);
+  // Sólo la primera carga tapa la pantalla. Cambiar de período no puede
+  // hacer desaparecer todo y volver: se ve como si se hubiera roto.
+  const [nuncaCargo, setNuncaCargo] = useState(true);
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
     setCargando(true);
     setError("");
-    return fetch("/api/erp/rentabilidad", { cache: "no-store" })
+    return fetch(`/api/erp/rentabilidad?ventana=${ventana}`, { cache: "no-store" })
       .then(async (respuesta) => {
         const datos = await respuesta.json().catch(() => null);
         if (!respuesta.ok) throw new Error(datos?.error || "No pudimos calcular los márgenes.");
@@ -62,8 +66,11 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
         setFalta(Array.isArray(datos?.falta) ? datos.falta : []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "No pudimos calcular los márgenes."))
-      .finally(() => setCargando(false));
-  }, []);
+      .finally(() => {
+        setCargando(false);
+        setNuncaCargo(false);
+      });
+  }, [ventana]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void cargar(), 0);
@@ -93,25 +100,61 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
   const sinCosto = catalogo.filter((p) => p.costo === null).length;
   const conPerdida = catalogo.filter((p) => p.margen !== null && p.margen < 0).length;
 
-  if (cargando) return <div className="neg-loading" role="status"><span /> Calculando rentabilidad…</div>;
+  if (cargando && nuncaCargo) return <div className="neg-loading" role="status"><span /> Calculando rentabilidad…</div>;
   if (error) return <div className="card neg-empty-state is-error" role="alert"><AlertCircle size={26} /><strong>No pudimos calcular los márgenes</strong><p>{error}</p><button type="button" className="chip active" onClick={() => void cargar()}><RefreshCw size={14} /> Reintentar</button></div>;
 
   return (
     <>
-      {indicadores.length > 0 && (
-        <div className="card">
-          <div className="neg-section-heading">
-            <div>
-              <div className="card-title">Cómo va el negocio</div>
-              <div className="card-sub">
-                {periodo ? `Del ${dia(periodo.desde)} al ${dia(periodo.hasta)}` : "Mes en curso"}
-                {" · "}Todo neto de IVA: el IVA se cobra para la SET, no es plata del negocio.
-              </div>
+      <div className="card">
+        <div className="neg-section-heading">
+          <div>
+            <div className="card-title">Cómo va el negocio</div>
+            <div className="card-sub">
+              {periodo ? `Del ${dia(periodo.desde)} al ${dia(periodo.hasta)}` : "Últimos 30 días"}
+              {" · "}Todo neto de IVA: el IVA se cobra para la SET, no es plata del negocio.
             </div>
-            <Target size={24} />
           </div>
+          <Target size={24} />
+        </div>
 
-          {indicadores.map((i) => (
+        {/*
+          Diario, semanal y mensual, como ventanas móviles que terminan hoy.
+
+          No es el mes calendario a propósito: la primera versión lo era, y
+          el día que se estrenó era 1 de septiembre — "el mes en curso" eran
+          veinticuatro horas y la pantalla salía vacía para todo el mundo.
+        */}
+        <div className="neg-ventanas" role="group" aria-label="Período">
+          {([
+            ["dia", "Hoy"],
+            ["semana", "7 días"],
+            ["mes", "30 días"],
+          ] as const).map(([clave, texto]) => (
+            <button
+              key={clave}
+              type="button"
+              className={`chip${ventana === clave ? " active" : ""}`}
+              aria-pressed={ventana === clave}
+              onClick={() => setVentana(clave)}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
+
+        {indicadores.length === 0 && (
+          <div className="neg-empty-state">
+            <TrendingUp size={28} />
+            <strong>Todavía no hay movimiento en este período</strong>
+            <p>
+              Estos números salen de tus ventas y de tus movimientos de dinero. Probá
+              con un período más largo, o registrá una venta en la pestaña Ventas y
+              volvé acá.
+            </p>
+          </div>
+        )}
+
+        {indicadores.map((i) => (
             <section className="neg-margin-group" key={i.moneda}>
               <header>
                 <strong>{i.moneda}</strong>
@@ -201,7 +244,7 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
             </section>
           ))}
 
-          {falta.length > 0 && (
+        {falta.length > 0 && (
             <details className="neg-falta">
               <summary><Info size={14} /> Indicadores que EOS todavía no puede calcular</summary>
               <ul>
@@ -211,8 +254,7 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
               </ul>
             </details>
           )}
-        </div>
-      )}
+      </div>
 
       <div className="card">
         <div className="neg-section-heading">
