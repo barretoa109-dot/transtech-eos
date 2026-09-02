@@ -188,6 +188,108 @@ Por rendimiento, no por número de punto.
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.
 
+### -1. n8n le hablaba a un despliegue de hace 185 commits — ABIERTO, BLOQUEANTE
+
+Está numerado con un negativo a propósito: es anterior a todos los demás y
+los explica. El hallazgo 0, el de la lista de acciones del worker y cualquier
+otro arreglo que se haya hecho al Worker Gate son ciertos y siguen siendo
+necesarios, pero ninguno cambió nada mientras esto estuvo así.
+
+El worker de n8n arma la URL del autorizador con `$env.EOS_APP_BASE_URL`. En
+el n8n de Railway esa variable vale:
+
+```
+https://transtech-eos-git-release-eos-40-rc1-trans-tech.vercel.app
+```
+
+El preview de la rama `release/eos-4.0-rc1`. No producción. Esa rama está
+**185 commits atrás de main**, no tiene ni una aparición de `REGISTRAR_VENTA`
+y trae `default_level: 1`.
+
+De ahí salen los tres síntomas, todos de la misma causa:
+
+| Síntoma | Por qué |
+|---|---|
+| `configured_level: 1` en catorce días de evaluaciones | El build viejo tiene `DEFAULT_PROFILE.default_level = 1`. El cambio a 2 está en main desde el 18 de agosto y nunca llegó a esa rama. |
+| `400 Solicitud de gate inválida` al registrar una venta | `SYSTEM_RISK["REGISTRAR_VENTA"]` no existe en ese build, así que el gate rechaza la acción antes de evaluarla. |
+| Ningún arreglo del gate se notaba | Se desplegaban a producción, y producción no era quien contestaba. |
+
+La evidencia está en la ejecución 4278 del worker, del 2 de septiembre:
+el nodo `01 INT Preparar` arma un cuerpo impecable —UUIDs válidos, `accion:
+"REGISTRAR_VENTA"`, payload completo— y `02 INT Autorizar` recibe un 400 de
+esa URL.
+
+Ese 400 tampoco deja fila en `eos_worker_gate_audit_v15`, porque la
+validación de entrada devuelve antes de auditar. Por eso la auditoría seguía
+mostrando el 31 de agosto como último movimiento aunque el chat se estuviera
+usando: **el gate no registra lo que rechaza en la puerta**, y eso es un
+segundo hallazgo dentro del primero.
+
+**Qué falta hacer, en orden de preferencia:**
+
+1. Cambiar `EOS_APP_BASE_URL` en Railway a `https://www.transtech.com.py`.
+   Es el arreglo de fondo y deja una sola fuente de verdad.
+2. Mientras tanto, apuntar los ocho nodos del worker a producción
+   directamente. El script está escrito y los workflows respaldados en
+   `n8n/respaldos/`.
+
+**Lo que enseña:** un sistema con dos despliegues y una variable de entorno
+que elige entre ellos no tiene forma de avisar que está apuntando al viejo.
+No hay error, no hay alerta, no hay log: hay respuestas correctas de un
+código equivocado. Antes de lanzar, el gate debería responder de qué commit
+es, y la app debería comprobarlo.
+
+### 0. Cinco de seis usuarios corrían en un nivel que descarta las acciones — CERRADO
+
+El hallazgo más caro de toda la lista, y el que peor pinta tenía desde afuera:
+una clienta le dictaba una venta a EOS por chat, EOS contestaba *«Operación
+lista para registrar»*, y no quedaba nada. Ni la venta, ni una aprobación
+pendiente que ella pudiera confirmar. La pantalla de aprobaciones, vacía.
+
+El gate decide según el nivel de autonomía del usuario: 0 recomendar, 1
+preparar, 2 pedir aprobación, 3 ejecutar solo. Ese nivel sale de
+`eos_autonomy_profiles_v12`, y **de los seis usuarios de producción uno solo
+tenía fila ahí**. Los otros cinco caían en un valor por defecto que terminó
+siendo 1.
+
+Nivel 1 no ejecuta y tampoco pregunta: prepara la acción y la descarta. Es el
+único escalón del que no se sale nunca, porque no deja rastro que el usuario
+pueda accionar.
+
+La evidencia, en `eos_autonomy_events_v12`:
+
+```
+2026-08-31T23:10  CREAR_TAREA  decision=prepare  execute=false  configured_level=1
+```
+
+Todas las evaluaciones de catorce días dicen lo mismo, y la última aprobación
+creada es del 20 de agosto. No era un problema del ERP: `CREAR_TAREA` y
+`GUARDAR_MEMORIA` tampoco se ejecutaron nunca en ese período.
+
+**Lo que enseña, que vale más que el arreglo:** una política de seguridad cuyo
+valor por defecto vive en un `const` del código no es auditable. Nadie podía
+*ver* que cinco usuarios estaban en nivel 1, porque no había ninguna fila que
+mirar. El síntoma tampoco ayudaba: el sistema no fallaba, mentía.
+
+Arreglado en tres partes:
+
+- **v101** — el default de la columna pasa a 2 y cada usuario existente tiene
+  su fila explícita. Al que ya tenía la suya no se lo tocó.
+- `lib/worker-gate-handler.ts` — el gate escribe la fila cuando la lee y no
+  está, con `on conflict do nothing` para no pisar la configuración de nadie.
+  Sin esto el agujero se reabría con el próximo registro.
+- n8n `01 INT Preparar` — la lista de acciones permitidas no incluía
+  `REGISTRAR_VENTA`, `AJUSTAR_STOCK` ni `CREAR_CONTACTO`. Necesario, pero no
+  era la causa: aun con la lista corregida el gate habría contestado `prepare`.
+
+Verificado contra la base real: los seis usuarios en nivel 2, el default de la
+columna en 2, y el upsert probado contra una fila del 18 de agosto a la que se
+le mandó un nivel distinto a propósito — no se movió, `updated_at` incluido.
+
+**Falta la prueba de punta a punta**: que alguien dicte una venta por chat y
+aparezca la aprobación. Es lo único que cierra el punto según la definición de
+terminado, y no lo puedo hacer yo: necesita una sesión de usuario real.
+
 ### 1. `eos_contexto_negocio` (v82) suma monedas distintas — ABIERTO
 
 La función que le arma a EOS el contexto del negocio calcula:

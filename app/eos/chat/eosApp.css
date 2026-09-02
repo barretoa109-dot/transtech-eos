@@ -3390,6 +3390,14 @@
  * Va chica y apagada a propósito. Es la diferencia entre un tablero que se
  * mira y uno que se entiende sin preguntarle a nadie qué es el ROI.
  */
+/* Diario, semanal, mensual. Van arriba de las cifras que gobiernan. */
+.eos-app .neg-ventanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 0 16px;
+}
+
 .eos-app .neg-metrica-nota {
   display: block;
   margin-top: 5px;
