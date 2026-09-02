@@ -3619,6 +3619,65 @@
   .eos-app .neg-costos-fila { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ============================================================
+   Gastos e ingresos de una persona
+   ============================================================ */
+
+/* Una línea y un botón. Sin formulario: cuatro campos matan el hábito. */
+.eos-app .gastos-alta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.eos-app .gastos-alta .neg-input { flex: 1 1 260px; }
+
+/*
+ * Lo que EOS entendió. Se queda visible hasta la próxima carga porque es la
+ * única defensa contra una lectura equivocada en un flujo que, por diseño, no
+ * pide confirmación.
+ */
+.eos-app .gastos-entendido {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--green, #16a34a) 35%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--green, #16a34a) 12%);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* El desplegable de categoría va chico: se usa poco y no debe competir con el monto. */
+.eos-app .gastos-categoria {
+  margin-top: 6px;
+  padding: 4px 8px;
+  max-width: 190px;
+  font-size: 11px;
+}
+
+.eos-app .gastos-signo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+}
+
+.eos-app .gastos-signo.ingreso {
+  background: color-mix(in srgb, var(--panel) 80%, var(--green, #16a34a) 20%);
+  color: var(--green, #16a34a);
+}
+
+.eos-app .gastos-signo.gasto {
+  background: color-mix(in srgb, var(--panel) 80%, var(--red, #dc2626) 20%);
+  color: var(--red, #dc2626);
+}
+
+.eos-app .neg-fila-monto.ingreso { color: var(--green, #16a34a); }
+.eos-app .neg-fila-monto.gasto { color: var(--ink); }
+
 .eos-app .neg-ventanas {
   display: flex;
   flex-wrap: wrap;
