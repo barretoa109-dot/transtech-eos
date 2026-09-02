@@ -227,12 +227,65 @@ export async function POST(request: Request) {
     const systemRisk = SYSTEM_RISK[action];
 
     if (!isUuid(usuarioId) || !isUuid(requestId) || !systemRisk) {
+      /*
+       * Un rechazo en la puerta también se audita.
+       *
+       * Antes se devolvía el 400 y se acababa: no quedaba fila en ningún
+       * lado. Eso costó dos semanas. El worker de n8n le estaba pegando a un
+       * despliegue viejo que no conocía REGISTRAR_VENTA, cada intento moría
+       * acá, y la auditoría del gate seguía mostrando como último movimiento
+       * uno de catorce días antes. Desde afuera era indistinguible de que
+       * nadie estuviera usando el chat.
+       *
+       * Se audita sólo cuando el usuario es identificable, que es lo único
+       * que hace falta para que alguien pueda mirar. Si ni eso se puede, no
+       * hay a quién atribuirle la fila y queda el log del servidor.
+       *
+       * El motivo va separado por campo y no en una frase armada: "la acción
+       * no existe en esta versión del gate" y "el request_id no es un UUID"
+       * llevan a lugares distintos, y con un solo mensaje genérico hay que
+       * adivinar cuál de los dos fue.
+       */
+      const motivo = !isUuid(usuarioId)
+        ? "usuario_id no es un UUID"
+        : !isUuid(requestId)
+          ? "request_id no es un UUID"
+          : "la acción no existe en esta versión del gate";
+
+      if (isUuid(usuarioId)) {
+        await logEvent(adminSinTipos(), {
+          usuarioId,
+          eventType: "auto_blocked",
+          detail: {
+            accion: action || null,
+            request_id: isUuid(requestId) ? requestId : null,
+            decision: "block",
+            reason: motivo,
+            rechazado_en: "entrada",
+            policy_version: POLICY_VERSION,
+          },
+        }).catch((error: unknown) => {
+          // Auditar no puede impedir contestar: el rechazo es el mismo con
+          // fila o sin ella.
+          console.error("Worker gate: no se pudo auditar el rechazo:", error);
+        });
+      }
+
+      console.error("Worker gate: solicitud rechazada en la entrada.", {
+        motivo,
+        accion: action || "(vacía)",
+      });
+
       return NextResponse.json(
         {
           ok: false,
           execute: false,
           decision: "block",
           error: "Solicitud de gate inválida.",
+          // Al worker se le dice cuál de las tres cosas fue. No es
+          // información sensible y es lo único que separa "arreglalo en un
+          // día" de "buscalo dos semanas".
+          motivo,
         },
         { status: 400, headers: noStoreHeaders() },
       );
