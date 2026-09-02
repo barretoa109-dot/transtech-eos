@@ -3222,6 +3222,69 @@
  * mira y uno que se entiende sin preguntarle a nadie qué es el ROI.
  */
 /* Diario, semanal, mensual. Van arriba de las cifras que gobiernan. */
+/*
+ * Corregir el costo de una venta ya hecha.
+ *
+ * Se abre dentro de la fila, no en un diálogo: quien está corrigiendo
+ * necesita seguir viendo a qué venta pertenece lo que toca.
+ */
+.eos-app .neg-costos {
+  flex-basis: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--blue) 8%);
+}
+
+.eos-app .neg-costos-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.eos-app .neg-costos-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.eos-app .neg-costos-nombre {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.eos-app .neg-costos-nombre small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.eos-app .neg-costos-fila .fila-margen {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.eos-app .neg-costos-nota {
+  margin: 6px 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .eos-app .neg-costos-fila { grid-template-columns: minmax(0, 1fr); }
+}
+
 .eos-app .neg-ventanas {
   display: flex;
   flex-wrap: wrap;

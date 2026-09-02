@@ -13,6 +13,7 @@ import Emisor from "./negocio/Emisor";
 import Confirmar from "./negocio/Confirmar";
 import Anular from "./negocio/Anular";
 import FilaProducto from "./negocio/FilaProducto";
+import CorregirCosto from "./negocio/CorregirCosto";
 import ImportarProductos from "./negocio/ImportarProductos";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto, Producto } from "./negocio/tipos";
@@ -52,6 +53,8 @@ type VentaItem = {
   iva: number;
   total: number;
   orden: number;
+  /** El costo congelado al venderse. Null cuando no se sabía. */
+  costo_unitario: number | null;
 };
 
 type Venta = {
@@ -66,6 +69,34 @@ type Venta = {
   contacto: { id: string; nombre: string } | null;
   items: VentaItem[];
 };
+
+/**
+ * Qué se vendió, para el renglón de la lista.
+ *
+ * Antes el renglón encabezaba con el cliente, y en un comercio que vende al
+ * mostrador eso son cuatro filas seguidas que dicen "Consumidor final" y no
+ * distinguen una venta de otra. Lo pidió una clienta usando EOS de verdad, y
+ * tiene razón: lo que identifica una venta es lo que salió del estante.
+ *
+ * El cliente no se pierde, baja a la segunda línea — donde importa cuando
+ * existe y no estorba cuando no.
+ */
+function loVendido(items: VentaItem[] | undefined): string {
+  if (!items || items.length === 0) return "Venta sin detalle";
+
+  const [primero, ...resto] = [...items].sort((a, b) => a.orden - b.orden);
+  const cantidad = Number(primero.cantidad);
+
+  // Diez unidades se dicen "10", no "10,00": el ruido decimal en una lista
+  // que se lee de un vistazo cuesta más de lo que aporta.
+  const veces = Number.isInteger(cantidad)
+    ? String(cantidad)
+    : String(cantidad).replace(".", ",");
+
+  const cabeza = cantidad === 1 ? primero.descripcion : `${veces} × ${primero.descripcion}`;
+
+  return resto.length === 0 ? cabeza : `${cabeza} y ${resto.length} más`;
+}
 
 type Pestania = "ventas" | "compras" | "rentabilidad" | "productos" | "clientes" | "embudo" | "emisor";
 
@@ -606,10 +637,9 @@ function Ventas({
               return (
                 <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={v.id}>
                   <div className="neg-fila-texto">
-                    <strong>{v.contacto?.nombre ?? "Consumidor final"}</strong>
+                    <strong>{loVendido(v.items)}</strong>
                     <small>
-                      {v.fecha} · {v.items?.length ?? 0}{" "}
-                      {(v.items?.length ?? 0) === 1 ? "ítem" : "ítems"} ·{" "}
+                      {v.fecha} · {v.contacto?.nombre ?? "Consumidor final"} ·{" "}
                       {v.condicion === "credito" ? "a crédito" : "contado"}
                     </small>
                   </div>
@@ -622,6 +652,18 @@ function Ventas({
                     </span>
                   ) : (
                     <>
+                      {/*
+                        Corregir el costo se ofrece en la venta y no sólo en el
+                        producto, porque el costo de una venta ya hecha quedó
+                        congelado: arreglar la ficha no arregla el margen de lo
+                        que ya se vendió.
+                      */}
+                      <CorregirCosto
+                        ventaId={v.id}
+                        moneda={v.moneda}
+                        items={v.items ?? []}
+                        onCorregido={onCambio}
+                      />
                       {v.movimiento_id ? (
                         <span className="neg-estado is-ok">
                           <Check size={12} /> cobrada
