@@ -102,7 +102,7 @@ export async function capturarIndicadores(
       // el mismo resultado, y si entre las dos corridas la persona cargó los
       // costos que faltaban, la segunda CORRIGE a la primera en vez de fallar.
       const { error: errorGuardar } = await admin
-        .from("eos_kpi_historia_v102")
+        .from("eos_kpi_historia_v105")
         .upsert(filas, { onConflict: "usuario_id,indicador,moneda,fecha" });
 
       if (errorGuardar) {

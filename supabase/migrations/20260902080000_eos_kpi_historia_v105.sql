@@ -1,4 +1,4 @@
--- La historia de cada indicador, una foto por día (v102).
+-- La historia de cada indicador, una foto por día (v105).
 --
 -- ============================================================
 -- POR QUÉ HACE FALTA GUARDARLA
@@ -49,7 +49,7 @@
 -- 6 de 15 ventas sin costo vale menos que una calculada con todas, y esa
 -- diferencia se pierde si solo se guarda el número.
 
-create table if not exists public.eos_kpi_historia_v102 (
+create table if not exists public.eos_kpi_historia_v105 (
   usuario_id uuid not null references auth.users(id) on delete cascade,
   indicador text not null,
   moneda text not null,
@@ -71,25 +71,25 @@ create table if not exists public.eos_kpi_historia_v102 (
   primary key (usuario_id, indicador, moneda, fecha)
 );
 
-comment on table public.eos_kpi_historia_v102 is
-  'v102: una foto diaria de cada indicador por moneda, para poder ver la tendencia real y no solo el período contra el anterior.';
+comment on table public.eos_kpi_historia_v105 is
+  'v105: una foto diaria de cada indicador por moneda, para poder ver la tendencia real y no solo el período contra el anterior.';
 
-comment on column public.eos_kpi_historia_v102.valor is
+comment on column public.eos_kpi_historia_v105.valor is
   'Null cuando el indicador no se pudo calcular ese día; el porqué va en motivo. Null no es cero.';
 
-comment on column public.eos_kpi_historia_v102.confianza is
+comment on column public.eos_kpi_historia_v105.confianza is
   'De 0 a 1. Menos de 1 significa que el número salió con datos incompletos (ej.: ventas sin costo cargado).';
 
 -- La consulta que sirve a la pantalla es siempre "la serie de ESTE indicador,
 -- en ESTA moneda, de los últimos N días", en orden.
 create index if not exists eos_kpi_historia_serie_idx
-  on public.eos_kpi_historia_v102 (usuario_id, indicador, moneda, fecha desc);
+  on public.eos_kpi_historia_v105 (usuario_id, indicador, moneda, fecha desc);
 
-alter table public.eos_kpi_historia_v102 enable row level security;
+alter table public.eos_kpi_historia_v105 enable row level security;
 
-drop policy if exists eos_kpi_historia_select_own on public.eos_kpi_historia_v102;
+drop policy if exists eos_kpi_historia_select_own on public.eos_kpi_historia_v105;
 create policy eos_kpi_historia_select_own
-  on public.eos_kpi_historia_v102
+  on public.eos_kpi_historia_v105
   for select to authenticated
   using ((select auth.uid()) = usuario_id);
 
@@ -99,6 +99,6 @@ create policy eos_kpi_historia_select_own
 --
 -- `authenticated` recibe SELECT y nada más: la escritura es del servidor. Si
 -- el dueño pudiera escribir su propia historia, dejaría de ser evidencia.
-revoke all on table public.eos_kpi_historia_v102 from public, anon, authenticated;
-grant select on table public.eos_kpi_historia_v102 to authenticated;
-grant all on table public.eos_kpi_historia_v102 to service_role;
+revoke all on table public.eos_kpi_historia_v105 from public, anon, authenticated;
+grant select on table public.eos_kpi_historia_v105 to authenticated;
+grant all on table public.eos_kpi_historia_v105 to service_role;

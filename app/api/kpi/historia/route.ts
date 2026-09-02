@@ -54,7 +54,7 @@ export async function GET(request: Request) {
    * el de acá es el que no se puede olvidar.
    */
   const { data, error } = await adminSinTipos()
-    .from("eos_kpi_historia_v102")
+    .from("eos_kpi_historia_v105")
     .select("fecha,valor,confianza,motivo")
     .eq("usuario_id", user.id)
     .eq("indicador", id)
