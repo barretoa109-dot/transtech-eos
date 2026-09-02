@@ -2,7 +2,9 @@ import { filaDesdeResultado, type FilaHistoria } from "./historia.ts";
 import { leerHechos } from "./leer.ts";
 import { calcular } from "./motor.ts";
 import { periodoAnterior } from "./periodo.ts";
-import { CATALOGO } from "./registro.ts";
+import { CATALOGO, CON_UMBRALES } from "./registro.ts";
+import { detectarAnomalias } from "./anomalias.ts";
+import { armarTwin, convieneEscribir, scorePrincipal } from "./twin.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 
 /**
@@ -47,13 +49,15 @@ export type ResumenCaptura = {
   usuarios: number;
   filas: number;
   fallidos: number;
+  /** Gemelos escritos. Menos que `usuarios` es lo normal: los sin cambios se saltean. */
+  gemelos: number;
 };
 
 export async function capturarIndicadores(
   admin: ClienteSinTipos,
   opciones: { hoy: string },
 ): Promise<ResumenCaptura> {
-  const resumen: ResumenCaptura = { usuarios: 0, filas: 0, fallidos: 0 };
+  const resumen: ResumenCaptura = { usuarios: 0, filas: 0, fallidos: 0, gemelos: 0 };
 
   const { data: activos, error } = await admin
     .from("eos_usuario_modulos")
@@ -113,6 +117,48 @@ export async function capturarIndicadores(
 
       resumen.usuarios++;
       resumen.filas += filas.length;
+
+      /*
+       * Y el gemelo del negocio, en la misma pasada.
+       *
+       * Va acá y no en su propio recorrido porque necesita exactamente los
+       * mismos `resultados` que se acaban de guardar: si se recalculara
+       * aparte, el gemelo podría contar una foto distinta de la que quedó en
+       * la historia, y nadie sabría cuál de las dos mirar.
+       *
+       * Un fallo del gemelo NO cuenta como fallo de la captura: la historia
+       * ya quedó guardada, que es lo que no se puede reconstruir después.
+       */
+      try {
+        const score = scorePrincipal(resultados, CON_UMBRALES);
+        if (score) {
+          const anomalias = detectarAnomalias(resultados.map((r) => ({ resultado: r })));
+          const fila = armarTwin({
+            usuarioId,
+            resultados,
+            anomalias,
+            score,
+            generadoEn: new Date().toISOString(),
+          });
+
+          const { data: previo } = await admin
+            .from("eos_business_twins_v14")
+            .select("source_fingerprint")
+            .eq("usuario_id", usuarioId)
+            .maybeSingle();
+
+          if (convieneEscribir(fila, previo?.source_fingerprint ?? null)) {
+            const { error: errorTwin } = await admin
+              .from("eos_business_twins_v14")
+              .upsert(fila, { onConflict: "usuario_id" });
+
+            if (errorTwin) console.error(`KPI: no se pudo guardar el gemelo de ${usuarioId}:`, errorTwin);
+            else resumen.gemelos++;
+          }
+        }
+      } catch (e) {
+        console.error(`KPI: falló el gemelo de ${usuarioId}:`, e);
+      }
     } catch (e) {
       console.error(`KPI: falló la captura de ${usuarioId}:`, e);
       resumen.fallidos++;

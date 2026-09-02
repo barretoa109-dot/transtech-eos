@@ -4,10 +4,12 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { verificarModulo } from "@/lib/modulos/acceso";
 import { calcular } from "@/lib/kpi/motor";
 import { periodoAnterior } from "@/lib/kpi/periodo";
-import { CATALOGO } from "@/lib/kpi/registro";
+import { CATALOGO, CON_UMBRALES } from "@/lib/kpi/registro";
 import { leerHechos } from "@/lib/kpi/leer";
 import { detectarAnomalias, type EntradaAnomalias } from "@/lib/kpi/anomalias";
 import { descomponerVentas, redactar } from "@/lib/kpi/causa";
+import { scorePrincipal } from "@/lib/kpi/twin";
+import { avisoDeCobertura } from "@/lib/kpi/score";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { hoyEnParaguay } from "@/lib/fecha";
 import type { PuntoHistoria } from "@/lib/kpi/historia";
@@ -120,8 +122,26 @@ export async function GET() {
     })
     .filter((c) => c.producto !== null || c.cliente !== null);
 
+  /*
+   * El score se calcula acá y no se lee del gemelo a propósito.
+   *
+   * El gemelo lo escribe el cron una vez por día; esta pantalla se abre en
+   * cualquier momento. Mostrar el score de ayer al lado de los indicadores de
+   * hoy sería mostrar dos fotos distintas como si fueran una. El gemelo queda
+   * como la versión guardada —para comparar contra el pasado—, y lo que se ve
+   * en pantalla sale de los mismos números que están debajo.
+   */
+  const score = scorePrincipal(resultados, CON_UMBRALES);
+
   return NextResponse.json(
-    { hallazgos: anomalias, causas, periodo, con_historia: series.size > 0 },
+    {
+      hallazgos: anomalias,
+      causas,
+      periodo,
+      con_historia: series.size > 0,
+      score,
+      aviso_score: score ? avisoDeCobertura(score) : null,
+    },
     { headers: noStore() },
   );
 }

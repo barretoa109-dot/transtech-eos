@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Info, Lightbulb, TrendingUp } from "lucide-react";
 import type { Anomalia, Severidad } from "@/lib/kpi/anomalias";
+import type { BusinessScore } from "@/lib/kpi/score";
 
 /**
  * "¿Qué debería preocuparme hoy?"
@@ -23,6 +24,8 @@ type Respuesta = {
   causas: Causa[];
   periodo: { desde: string; hasta: string };
   con_historia: boolean;
+  score: BusinessScore | null;
+  aviso_score: string | null;
 };
 
 const ICONO: Record<Severidad, typeof AlertTriangle> = {
@@ -61,10 +64,52 @@ export default function Hallazgos() {
   if (cargando || !datos) return null;
 
   const hayCausa = datos.causas.some((c) => c.producto || c.cliente);
-  if (datos.hallazgos.length === 0 && !hayCausa) return null;
+  const hayScore = datos.score?.puntaje !== null && datos.score !== null;
+  if (datos.hallazgos.length === 0 && !hayCausa && !hayScore) return null;
 
   return (
     <section className="card">
+      {/* El score va primero y grande: es la respuesta a "¿cómo está mi
+          empresa?", que es la pregunta con la que alguien abre el panel. Pero
+          nunca solo — al lado va sobre cuántas dimensiones se calculó. */}
+      {hayScore && datos.score && (
+        <div className="score-caja">
+          <div className="score-numero">
+            <strong>{datos.score.puntaje}</strong>
+            <span>/100</span>
+          </div>
+          <div className="score-lado">
+            <div className="score-titulo">EOS Business Score</div>
+            <div className="score-dims">
+              {datos.score.dimensiones
+                .filter((d) => d.puntaje !== null)
+                .map((d) => (
+                  <span key={d.id} className="score-dim" title={`${d.nombre}: ${d.puntaje}/100`}>
+                    {d.nombre} <strong>{d.puntaje}</strong>
+                  </span>
+                ))}
+            </div>
+            {datos.aviso_score && <div className="score-aviso">{datos.aviso_score}</div>}
+            <details className="score-metodo">
+              <summary>Cómo se calcula</summary>
+              <p>
+                Mide dos cosas: cómo está cada indicador contra el umbral que declara, y cómo se movió
+                contra el período anterior. <strong>No te compara con ninguna industria</strong> — EOS no
+                tiene esos datos para Paraguay y no los inventa. Un indicador sin umbral y sin período
+                anterior no puntúa: queda afuera y baja la cobertura.
+              </p>
+              {datos.score.dimensiones
+                .filter((d) => d.puntaje === null)
+                .map((d) => (
+                  <p key={d.id} className="score-sin">
+                    <strong>{d.nombre}:</strong> {d.motivo}
+                  </p>
+                ))}
+            </details>
+          </div>
+        </div>
+      )}
+
       <div className="card-title">
         EOS encontró {datos.hallazgos.length}{" "}
         {datos.hallazgos.length === 1 ? "situación" : "situaciones"} para mirar

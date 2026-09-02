@@ -29,6 +29,17 @@ export function definicionesDe(familia: Familia): DefinicionKPI[] {
   return CATALOGO.filter((def) => def.familia === familia);
 }
 
+/**
+ * Los ids que declaran umbral.
+ *
+ * Lo necesita el Business Score, que puntúa distinto a un indicador con umbral
+ * declarado que a uno sin él. Se calcula desde el catálogo —única fuente— en
+ * vez de mantener una segunda lista que podría quedar vieja.
+ */
+export const CON_UMBRALES: Set<string> = new Set(
+  CATALOGO.filter((def) => def.umbrales !== undefined).map((def) => def.id),
+);
+
 /** Resuelve una lista de ids pedidos, ignorando los que no existen en el catálogo. */
 export function resolver(ids: string[]): DefinicionKPI[] {
   return ids.map((id) => POR_ID.get(id)).filter((def): def is DefinicionKPI => def !== undefined);
