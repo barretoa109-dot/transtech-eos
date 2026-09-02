@@ -47,7 +47,8 @@ export async function GET(request: Request) {
     .select(
       "id,fecha,moneda,subtotal,iva_total,total,condicion,estado,movimiento_id,notas,creado_en," +
         "contacto:eos_crm_contactos(id,nombre,ruc,ruc_dv)," +
-        "items:eos_erp_venta_items(id,descripcion,cantidad,precio_unitario,iva,total,orden)",
+        "items:eos_erp_venta_items(id,descripcion,cantidad,precio_unitario,iva,total,orden," +
+        "costo_unitario)",
     )
     .eq("usuario_id", puerta.usuarioId)
     .order("fecha", { ascending: false })

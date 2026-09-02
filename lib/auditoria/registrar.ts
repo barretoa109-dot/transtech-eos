@@ -37,7 +37,8 @@ export type EventoAuditoria =
   | "compra_anulada"
   | "stock_ajustado"
   | "producto_modificado"
-  | "comprobante_emitido";
+  | "comprobante_emitido"
+  | "costo_corregido";
 
 export type OrigenAuditoria = "correo" | "documento" | "chat" | "panel" | "sistema";
 
@@ -266,6 +267,7 @@ export type OperacionErp = {
     | "stock_ajustado"
     | "producto_modificado"
     | "comprobante_emitido"
+  | "costo_corregido"
   >;
   /** `panel` si vino de la pantalla, `chat` si lo pidió EOS. */
   origen: Extract<OrigenAuditoria, "panel" | "chat">;
