@@ -193,7 +193,7 @@ negocio** —alguien que quiere anotar el combustible, el almuerzo y el sueldo�
 y que eso no estaba en ninguna parte de la lista.
 
 Tenía razón, y al ir a construirlo apareció algo peor que un hueco: casi todo
-ya existía.  interpreta «gasté 50 mil en nafta» desde
+ya existía. `/api/finanzas/rapido` interpreta «gasté 50 mil en nafta» desde
 hace tiempo —monto, dirección, fecha, moneda— y **no estaba conectado a
 ninguna pantalla**. El clasificador de destinos, el desglose y el panel
 también. Era un motor completo sin puerta de entrada.
