@@ -12,6 +12,7 @@ import ChatView from "../components/ChatView";
 import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
 import NegocioView from "../components/NegocioView";
+import GastosView from "../components/GastosView";
 import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
@@ -276,6 +277,7 @@ export default function EOSPage() {
         )}
 
         {vista === "negocio" && usuarioCargado && <NegocioView />}
+        {vista === "gastos" && usuarioCargado && <GastosView />}
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}
 

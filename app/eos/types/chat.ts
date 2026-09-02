@@ -50,6 +50,7 @@ export type VistaEOS =
   | "learnings"
   | "dashboard"
   | "negocio"
+  | "gastos"
   | "perfil";
 
 export type ArchivoAdjunto = {

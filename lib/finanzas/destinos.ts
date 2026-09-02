@@ -141,6 +141,12 @@ const REGLAS: { clave: string; etiqueta: string; patrones: RegExp[] }[] = [
       /\bbolt\b/,
       /\bmuv\b/,
       /\bpasaje\b/,
+
+      // Escritas a mano, no leídas de un extracto. Ver la nota en "comida".
+      /\bcolectivo\b/,
+      /\bremis\b/,
+      /\btaxi\b/,
+      /\bcubierta[s]?\b/,
     ],
   },
   {
@@ -154,6 +160,28 @@ const REGLAS: { clave: string; etiqueta: string; patrones: RegExp[] }[] = [
       /\bcafeteria\b/,
       /\bpizzeria\b/,
       /\bhamburgues/,
+
+      /*
+       * Las comidas por su nombre.
+       *
+       * Los patrones de arriba son marcas y locales: lo que aparece en el
+       * extracto del banco. Nadie escribe "PEDIDOSYA" cuando anota a mano —
+       * escribe "el almuerzo". Con la pantalla de gastos personales esta
+       * lista pasó a recibir texto escrito por una persona, y ahí las marcas
+       * no alcanzan.
+       *
+       * Sólo las inequívocas. "comida" a secas queda afuera a propósito:
+       * puede ser el súper o puede ser salir a comer, y un gasto mal
+       * clasificado se lee como respuesta mientras que uno sin clasificar se
+       * lee como pendiente. Para ésos está poder corregir la categoría a
+       * mano, que manda sobre lo que se infiere.
+       */
+      /\balmuerzo\b/,
+      /\balmorzar\b/,
+      /\bcena\b/,
+      /\bcenar\b/,
+      /\bdesayuno\b/,
+      /\bmerienda\b/,
     ],
   },
   {
@@ -235,6 +263,18 @@ export function clasificar(descripcion: string | null, categoria?: string | null
 
   return OTROS.clave;
 }
+
+/**
+ * Los destinos que EOS conoce, para que una pantalla pueda ofrecerlos.
+ *
+ * Se exporta la lista y no cada regla: quien corrige una categoría a mano
+ * elige de acá, y así la corrección usa las mismas claves que la inferencia
+ * en vez de crear un vocabulario paralelo que después nadie puede agrupar.
+ */
+export const DESTINOS: { clave: string; etiqueta: string }[] = [
+  ...REGLAS.map((r) => ({ clave: r.clave, etiqueta: r.etiqueta })),
+  OTROS,
+];
 
 export function etiquetaDe(clave: string): string {
   return POR_CLAVE.get(clave) ?? OTROS.etiqueta;
