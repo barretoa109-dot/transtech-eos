@@ -11,7 +11,8 @@
     "evals": "node evals/correr.ts",
     "evals:mutacion": "node evals/mutacion.mjs",
     "certificar": "node certificacion/correr.mjs",
-    "lint:tope": "node scripts/lint-tope.mjs"
+    "lint:tope": "node scripts/lint-tope.mjs",
+    "migraciones": "node scripts/migraciones-sanas.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
