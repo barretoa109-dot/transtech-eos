@@ -7,6 +7,7 @@ import FinanzasDestino from "./FinanzasDestino";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasDeudas from "./FinanzasDeudas";
 import FinanzasInforme from "./FinanzasInforme";
+import PanelIndicadores from "./PanelIndicadores";
 import type { Briefing } from "../types/briefing";
 
 type DashboardViewProps = {
@@ -81,6 +82,12 @@ export default function DashboardView({
         <FinanzasDestino />
         <FinanzasDeudas />
         <FinanzasInforme />
+
+        {/* Los indicadores del negocio van después del bloque financiero y no
+            antes: primero "¿tengo plata?", que es la pregunta de todos los
+            días, y después "¿cómo viene el negocio?". Se calla solo cuando no
+            hay nada cargado, igual que las tarjetas de arriba. */}
+        <PanelIndicadores />
 
         <div className="chip-row">
           {PERIODOS.map((p) => (

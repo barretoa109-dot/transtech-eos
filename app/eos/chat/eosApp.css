@@ -1315,6 +1315,60 @@
   color: var(--amber);
 }
 
+/* ---- panel de indicadores (lib/kpi) ----
+   Se apoya en .kpi-grid/.kpi-card de arriba; acá va solo lo que esas clases
+   no cubren: el estado del indicador, el valor ausente y la confianza. */
+
+/* El estado se marca con una barra al costado y NO pintando el número: un
+   valor en rojo se lee como un número negativo, que es otra cosa. */
+.eos-app .kpi-card.kpi-estado-alerta {
+  border-left: 3px solid var(--red);
+}
+.eos-app .kpi-card.kpi-estado-atencion {
+  border-left: 3px solid var(--amber);
+}
+
+.eos-app .kpi-card .v.kpi-sin-valor {
+  color: var(--line);
+}
+
+/* El motivo por el que no hay número ocupa el lugar de la variación: es
+   información para el usuario, no una nota al pie. */
+.eos-app .kpi-falta {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.eos-app .kpi-contra {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.eos-app .kpi-confianza {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--amber);
+  margin-top: 6px;
+}
+
+.eos-app .kpi-faltan {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.eos-app .kpi-faltan summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.eos-app .kpi-faltan ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
 /* ---- chart card ---- */
 .eos-app .chart-head {
   display: flex;
