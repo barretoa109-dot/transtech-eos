@@ -659,7 +659,8 @@ function Ventas({
                         que ya se vendió.
                       */}
                       <CorregirCosto
-                        ventaId={v.id}
+                        modo="venta"
+                        documentoId={v.id}
                         moneda={v.moneda}
                         items={v.items ?? []}
                         onCorregido={onCambio}

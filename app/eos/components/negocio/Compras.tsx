@@ -3,11 +3,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
+import CorregirCosto from "./CorregirCosto";
 import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
-import type { Compra, Contacto, Producto } from "./tipos";
+import type { Compra, Contacto, CompraItem, Producto } from "./tipos";
+
+/**
+ * Qué se compró, para el renglón de la lista.
+ *
+ * Mismo criterio que en ventas, por el mismo motivo: el proveedor se repite
+ * —una tienda a la que se le compra todas las semanas son diez filas
+ * iguales— y lo que distingue una compra de otra es la mercadería. El
+ * proveedor baja a la segunda línea, junto a la fecha y el comprobante.
+ */
+function loComprado(items: CompraItem[] | undefined): string {
+  if (!items || items.length === 0) return "Compra sin detalle";
+
+  const [primero, ...resto] = [...items].sort((a, b) => a.orden - b.orden);
+  const cantidad = Number(primero.cantidad);
+
+  const veces = Number.isInteger(cantidad)
+    ? String(cantidad)
+    : String(cantidad).replace(".", ",");
+
+  const cabeza = cantidad === 1 ? primero.descripcion : `${veces} × ${primero.descripcion}`;
+
+  return resto.length === 0 ? cabeza : `${cabeza} y ${resto.length} más`;
+}
 
 /**
  * Lo que el negocio compra.
@@ -472,9 +496,9 @@ export default function Compras({
               return (
                 <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={c.id}>
                   <div className="neg-fila-texto">
-                    <strong>{c.contacto?.nombre ?? "Sin proveedor"}</strong>
+                    <strong>{loComprado(c.items)}</strong>
                     <small>
-                      {c.fecha}
+                      {c.fecha} · {c.contacto?.nombre ?? "Sin proveedor"}
                       {c.numero_comprobante ? ` · ${c.numero_comprobante}` : ""} ·{" "}
                       {c.condicion === "credito" ? "a crédito" : "contado"}
                     </small>
@@ -493,6 +517,21 @@ export default function Compras({
                     </span>
                   ) : (
                     <>
+                      {/*
+                        Corregir se ofrece acá porque la compra es donde entra el
+                        costo: un número mal tipeado se vuelve el costo del
+                        producto, el margen de todo lo que se venda después y un
+                        gasto del panel. Antes la única salida era anular la
+                        compra entera y volver a cargarla.
+                      */}
+                      <CorregirCosto
+                        modo="compra"
+                        documentoId={c.id}
+                        moneda={c.moneda}
+                        items={c.items ?? []}
+                        onCorregido={cargar}
+                      />
+
                       {c.movimiento_id ? (
                         <span className="neg-estado is-ok">
                           <Check size={12} /> pagada
