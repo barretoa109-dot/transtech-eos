@@ -65,11 +65,14 @@ export default function TarjetaKPI({ kpi, retraso }: { kpi: ResultadoKPI; retras
           <div className="v" title={`${kpi.nombre}: ${formatearValor(kpi.valor, kpi.unidad, kpi.moneda)}`}>
             {formatearValor(kpi.valor, kpi.unidad, kpi.moneda)}
           </div>
+          {/* Sin "vs. período anterior" en cada tarjeta: el subtítulo del
+              panel ya dice contra qué se compara, y repetirlo veinte veces
+              es ruido que además envuelve a tres líneas en un teléfono. El
+              `title` lo deja disponible para quien lo necesite. */}
           {variacion && (
-            <div className={`d ${claseTono}`}>
+            <div className={`d ${claseTono}`} title="Comparado con el período anterior de igual largo">
               <span aria-hidden="true">{flechaDe(kpi.tendencia)}</span>
               <span>{variacion}</span>
-              <span className="kpi-contra">vs. período anterior</span>
             </div>
           )}
         </>

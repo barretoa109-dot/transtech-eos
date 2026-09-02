@@ -1319,6 +1319,14 @@
    Se apoya en .kpi-grid/.kpi-card de arriba; acá va solo lo que esas clases
    no cubren: el estado del indicador, el valor ausente y la confianza. */
 
+/* Los nombres de indicador son largos ("Concentración del cliente principal")
+   y envuelven a dos líneas, mientras otros entran en una. Sin esto, el valor
+   de esa tarjeta queda más abajo que el de sus vecinas y la fila se lee
+   torcida. Dos líneas de alto fijo alinean todos los valores. */
+.eos-app .kpi-card .l {
+  min-height: 2.4em;
+}
+
 /* El estado se marca con una barra al costado y NO pintando el número: un
    valor en rojo se lee como un número negativo, que es otra cosa. */
 .eos-app .kpi-card.kpi-estado-alerta {
@@ -1328,8 +1336,11 @@
   border-left: 3px solid var(--amber);
 }
 
+/* `--muted` y no `--line`: este último es color de borde (#e5e7eb) y sobre
+   blanco da un contraste de ~1.3:1, o sea invisible. Se distingue igual de un
+   valor real, que va en `--ink` casi negro. */
 .eos-app .kpi-card .v.kpi-sin-valor {
-  color: var(--line);
+  color: var(--muted);
 }
 
 /* El motivo por el que no hay número ocupa el lugar de la variación: es
@@ -1341,9 +1352,11 @@
   margin-top: 5px;
 }
 
-.eos-app .kpi-contra {
-  font-weight: 500;
-  color: var(--muted);
+/* El símbolo de moneda no se separa nunca de su número: en dos columnas de
+   teléfono, "₲ 700.000" partía en dos líneas y el ₲ quedaba solo arriba,
+   pareciendo un error de datos. */
+.eos-app .kpi-card .v {
+  white-space: nowrap;
 }
 
 .eos-app .kpi-confianza {
@@ -1898,6 +1911,14 @@
   .eos-app .kpi-grid,
   .eos-app .prompts {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* En dos columnas de teléfono un importe de millones a 22px no entra, y
+     como ahora no puede envolver (white-space: nowrap) se desbordaría. */
+  .eos-app .kpi-card .v {
+    font-size: 18px;
+  }
+  .eos-app .kpi-card {
+    padding: 14px;
   }
   .eos-app .pattern-grid {
     grid-template-columns: 1fr;
