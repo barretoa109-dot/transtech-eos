@@ -8,6 +8,7 @@ import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasDeudas from "./FinanzasDeudas";
 import FinanzasInforme from "./FinanzasInforme";
 import PanelIndicadores from "./PanelIndicadores";
+import Hallazgos from "./Hallazgos";
 import type { Briefing } from "../types/briefing";
 
 type DashboardViewProps = {
@@ -86,7 +87,13 @@ export default function DashboardView({
         {/* Los indicadores del negocio van después del bloque financiero y no
             antes: primero "¿tengo plata?", que es la pregunta de todos los
             días, y después "¿cómo viene el negocio?". Se calla solo cuando no
-            hay nada cargado, igual que las tarjetas de arriba. */}
+            hay nada cargado, igual que las tarjetas de arriba.
+
+            Y la LECTURA va antes que los números: los indicadores son el
+            material, los hallazgos son la conclusión. Un panel con veinte
+            cifras y ninguna conclusión le deja el trabajo de analista al
+            empresario. */}
+        <Hallazgos />
         <PanelIndicadores />
 
         <div className="chip-row">

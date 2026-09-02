@@ -1315,6 +1315,92 @@
   color: var(--amber);
 }
 
+/* ---- hallazgos (lib/kpi/anomalias) ---- */
+.eos-app .hallazgo-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.eos-app .hallazgo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.eos-app .hallazgo strong {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.eos-app .hallazgo-evidencia {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.eos-app .hallazgo-icono {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+/* El color va en el icono y en el borde, no en el texto: un titular en rojo
+   se lee como un error del sistema, no como una situación del negocio. */
+.eos-app .hallazgo.is-critico {
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.eos-app .hallazgo.is-critico .hallazgo-icono {
+  color: var(--red);
+}
+.eos-app .hallazgo.is-atencion {
+  border-color: var(--amber);
+  background: var(--amber-light);
+}
+.eos-app .hallazgo.is-atencion .hallazgo-icono {
+  color: var(--amber);
+}
+.eos-app .hallazgo.is-oportunidad {
+  border-color: var(--green);
+  background: var(--green-light);
+}
+.eos-app .hallazgo.is-oportunidad .hallazgo-icono {
+  color: var(--green);
+}
+.eos-app .hallazgo.is-info .hallazgo-icono {
+  color: var(--muted);
+}
+
+.eos-app .hallazgo-causas {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.eos-app .hallazgo-causas-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.eos-app .hallazgo-causas p {
+  margin: 0 0 4px;
+}
+.eos-app .hallazgo-nota {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
 /* ---- panel de indicadores (lib/kpi) ----
    Se apoya en .kpi-grid/.kpi-card de arriba; acá va solo lo que esas clases
    no cubren: el estado del indicador, el valor ausente y la confianza. */
