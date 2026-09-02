@@ -1315,6 +1315,253 @@
   color: var(--amber);
 }
 
+/* ---- hallazgos (lib/kpi/anomalias) ---- */
+.eos-app .hallazgo-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.eos-app .hallazgo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.eos-app .hallazgo strong {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+.eos-app .hallazgo-evidencia {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.eos-app .hallazgo-icono {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+/* El color va en el icono y en el borde, no en el texto: un titular en rojo
+   se lee como un error del sistema, no como una situación del negocio. */
+.eos-app .hallazgo.is-critico {
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.eos-app .hallazgo.is-critico .hallazgo-icono {
+  color: var(--red);
+}
+.eos-app .hallazgo.is-atencion {
+  border-color: var(--amber);
+  background: var(--amber-light);
+}
+.eos-app .hallazgo.is-atencion .hallazgo-icono {
+  color: var(--amber);
+}
+.eos-app .hallazgo.is-oportunidad {
+  border-color: var(--green);
+  background: var(--green-light);
+}
+.eos-app .hallazgo.is-oportunidad .hallazgo-icono {
+  color: var(--green);
+}
+.eos-app .hallazgo.is-info .hallazgo-icono {
+  color: var(--muted);
+}
+
+.eos-app .hallazgo-causas {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.eos-app .hallazgo-causas-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.eos-app .hallazgo-causas p {
+  margin: 0 0 4px;
+}
+.eos-app .hallazgo-nota {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+/* ---- panel de indicadores (lib/kpi) ----
+   Se apoya en .kpi-grid/.kpi-card de arriba; acá va solo lo que esas clases
+   no cubren: el estado del indicador, el valor ausente y la confianza. */
+
+/* Los nombres de indicador son largos ("Concentración del cliente principal")
+   y envuelven a dos líneas, mientras otros entran en una. Sin esto, el valor
+   de esa tarjeta queda más abajo que el de sus vecinas y la fila se lee
+   torcida. Dos líneas de alto fijo alinean todos los valores. */
+.eos-app .kpi-card .l {
+  min-height: 2.4em;
+}
+
+/* El estado se marca con una barra al costado y NO pintando el número: un
+   valor en rojo se lee como un número negativo, que es otra cosa. */
+.eos-app .kpi-card.kpi-estado-alerta {
+  border-left: 3px solid var(--red);
+}
+.eos-app .kpi-card.kpi-estado-atencion {
+  border-left: 3px solid var(--amber);
+}
+
+/* `--muted` y no `--line`: este último es color de borde (#e5e7eb) y sobre
+   blanco da un contraste de ~1.3:1, o sea invisible. Se distingue igual de un
+   valor real, que va en `--ink` casi negro. */
+.eos-app .kpi-card .v.kpi-sin-valor {
+  color: var(--muted);
+}
+
+/* El motivo por el que no hay número ocupa el lugar de la variación: es
+   información para el usuario, no una nota al pie. */
+.eos-app .kpi-falta {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+/* El símbolo de moneda no se separa nunca de su número: en dos columnas de
+   teléfono, "₲ 700.000" partía en dos líneas y el ₲ quedaba solo arriba,
+   pareciendo un error de datos. */
+.eos-app .kpi-card .v {
+  white-space: nowrap;
+}
+
+.eos-app .kpi-confianza {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--amber);
+  margin-top: 6px;
+}
+
+/* La tarjeta es un <button> para que reciba foco y responda a Enter: hay que
+   apagarle el aspecto de botón y devolverle la alineación de un bloque. */
+.eos-app .kpi-card {
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.eos-app .kpi-card.is-abierto {
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px rgba(22, 86, 189, 0.1);
+}
+.eos-app .kpi-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---- historia de un indicador ---- */
+.eos-app .kpi-detalle {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-top: 4px;
+  background: var(--bg-sidebar);
+}
+.eos-app .kpi-detalle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* La caja es la que ocupa el ancho; el SVG recibe ese ancho MEDIDO en píxeles
+   reales. Nada de `width: 100%` sobre el SVG: eso es justo lo que lo escala y
+   achica el texto de adentro. */
+.eos-app .kpi-linea-caja {
+  width: 100%;
+}
+/* `width: auto` es obligatorio, no cosmético: la regla global `.eos-app svg`
+   fija 18x18 para los iconos de lucide y también agarra a este gráfico, que
+   colapsaba a un cuadrado de 18px. Con `auto` mandan los atributos width y
+   height que el componente calcula desde el ancho medido. */
+.eos-app .kpi-linea {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+}
+.eos-app .kpi-linea-area {
+  fill: url(#kpiLineaGrad);
+}
+.eos-app .kpi-linea-trazo {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.eos-app .kpi-linea-hoy {
+  fill: var(--blue);
+}
+/* El puente sobre los días sin dato: punteado y pálido. El ojo sigue la serie,
+   pero el trazo no afirma un recorrido que nadie midió. */
+.eos-app .kpi-linea-hueco {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.4;
+}
+/* El tamaño de las etiquetas se declara acá y no anidado bajo un gráfico
+   puntual: anidarla bajo `.chart-svg` fue justamente lo que dejó las de
+   `.tray-svg` en 16px negrita del navegador. */
+.eos-app .kpi-linea .axis-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--muted);
+}
+.eos-app .kpi-historia-frase {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+.eos-app .kpi-historia-hueco {
+  font-size: 12.5px;
+  color: var(--amber);
+  margin: 6px 0 0;
+}
+.eos-app .kpi-historia-pie {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+.eos-app .kpi-faltan {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.eos-app .kpi-faltan summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.eos-app .kpi-faltan ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
 /* ---- chart card ---- */
 .eos-app .chart-head {
   display: flex;
@@ -1844,6 +2091,14 @@
   .eos-app .kpi-grid,
   .eos-app .prompts {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* En dos columnas de teléfono un importe de millones a 22px no entra, y
+     como ahora no puede envolver (white-space: nowrap) se desbordaría. */
+  .eos-app .kpi-card .v {
+    font-size: 18px;
+  }
+  .eos-app .kpi-card {
+    padding: 14px;
   }
   .eos-app .pattern-grid {
     grid-template-columns: 1fr;

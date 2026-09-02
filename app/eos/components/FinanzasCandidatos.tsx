@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, FileText, Loader2 } from "lucide-react";
+import { formatearMonto } from "@/lib/finanzas/formato";
 
 type Candidato = {
   finding_id: string;
@@ -111,7 +112,7 @@ export default function FinanzasCandidatos({ onImportado }: { onImportado: () =>
 
               <div className="fin-cand-cuerpo">
                 <div className="fin-cand-top">
-                  <span className="fin-cand-monto">{formatear(c.monto, c.moneda)}</span>
+                  <span className="fin-cand-monto">{formatearMonto(c.monto, c.moneda)}</span>
                   <select
                     className="fin-cand-tipo"
                     value={tipos[c.finding_id] ?? c.tipo}
@@ -155,9 +156,4 @@ export default function FinanzasCandidatos({ onImportado }: { onImportado: () =>
       </button>
     </div>
   );
-}
-
-function formatear(valor: number, moneda: string) {
-  const simbolo = moneda === "USD" ? "US$" : "₲";
-  return `${simbolo} ${new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(Math.round(valor))}`;
 }

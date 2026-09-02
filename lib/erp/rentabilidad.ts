@@ -1,8 +1,22 @@
+import { sinIva } from "./margen.ts";
+import type { TasaIva } from "./impuestos.ts";
+
+/**
+ * El margen de esta pantalla y el de `lib/erp/indicadores.ts` mostraban dos
+ * números distintos de la misma plata: este restaba `venta − costo` con el
+ * IVA todavía adentro de los dos, e indicadores.ts ya restaba neto. Una
+ * clienta viendo "Rentabilidad" y "Cómo va el negocio" en la misma pantalla
+ * podía leer dos márgenes distintos para el mismo mes. Por eso acá también se
+ * neta antes de restar — ver `lib/erp/margen.ts` para el porqué completo.
+ */
 export type LineaRentabilidad = {
   producto_id: string | null;
   descripcion: string;
   cantidad: number;
+  /** Con IVA incluido, tal como se guarda en el ítem de la venta. */
   venta: number;
+  iva: TasaIva;
+  /** Con IVA incluido, si se conoce. */
   costo_unitario: number | null;
   estimado: boolean;
   moneda: string;
@@ -38,8 +52,15 @@ export function calcularRentabilidad(lineas: LineaRentabilidad[]): ResumenRentab
 
   return [...monedas.entries()].map(([moneda, deMoneda]) => {
     const conCosto = deMoneda.filter((l) => l.costo_unitario !== null);
-    const ventas = conCosto.reduce((s, l) => s + numero(l.venta), 0);
-    const costo = conCosto.reduce((s, l) => s + numero(l.costo_unitario) * numero(l.cantidad), 0);
+
+    /** Lo cobrado, sin el IVA que le pertenece a la SET. */
+    const ventaNeta = (l: LineaRentabilidad) => sinIva(numero(l.venta), l.iva);
+    /** Lo pagado por esas unidades, con el mismo criterio del lado del costo. */
+    const costoNeto = (l: LineaRentabilidad) =>
+      sinIva(numero(l.costo_unitario) * numero(l.cantidad), l.iva);
+
+    const ventas = conCosto.reduce((s, l) => s + ventaNeta(l), 0);
+    const costo = conCosto.reduce((s, l) => s + costoNeto(l), 0);
     const grupos = new Map<string, typeof conCosto>();
     for (const linea of conCosto) {
       const clave = linea.producto_id || `libre:${linea.descripcion.toLocaleLowerCase("es")}`;
@@ -47,8 +68,8 @@ export function calcularRentabilidad(lineas: LineaRentabilidad[]): ResumenRentab
     }
 
     const productos = [...grupos.entries()].map(([clave, filas]) => {
-      const ventasProducto = filas.reduce((s, l) => s + numero(l.venta), 0);
-      const costoProducto = filas.reduce((s, l) => s + numero(l.costo_unitario) * numero(l.cantidad), 0);
+      const ventasProducto = filas.reduce((s, l) => s + ventaNeta(l), 0);
+      const costoProducto = filas.reduce((s, l) => s + costoNeto(l), 0);
       return {
         clave,
         nombre: filas[0]?.descripcion || "Producto",
