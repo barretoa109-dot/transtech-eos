@@ -1394,6 +1394,59 @@
   font-size: 11.5px;
 }
 
+/* ---- cartera (cuenta corriente, v107) ---- */
+.eos-app .cartera-tramos {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.eos-app .cartera-tramo {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+  font-size: 13px;
+}
+/* El tramo vencido se marca con la barra al costado, no pintando el monto:
+   un número en rojo se lee como negativo, y acá es plata que existe. */
+.eos-app .cartera-tramo.is-vencido {
+  border-left: 3px solid var(--amber);
+}
+.eos-app .cartera-tramo-nombre {
+  font-weight: 600;
+}
+.eos-app .cartera-tramo-monto {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .cartera-tramo-cuenta {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.eos-app .cartera-cobro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.eos-app .cartera-cobro .neg-cantidad {
+  width: 130px;
+}
+
+@media (max-width: 700px) {
+  .eos-app .cartera-tramo {
+    grid-template-columns: 1fr auto;
+  }
+  .eos-app .cartera-tramo-cuenta {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ---- hallazgos (lib/kpi/anomalias) ---- */
 .eos-app .hallazgo-lista {
   list-style: none;
