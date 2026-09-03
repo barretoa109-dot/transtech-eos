@@ -4701,3 +4701,116 @@
   font-weight: 500;
   color: var(--muted);
 }
+
+/* ---- mi empresa: el equipo (v114) ---- */
+.eos-app .emp-invitaciones {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+/* Una invitación recibida es lo único de esta tarjeta que espera una
+   decisión, así que se pinta como tal y va arriba de todo. */
+.eos-app .emp-invitacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--blue);
+  background: var(--blue-light);
+}
+.eos-app .emp-invitacion strong {
+  display: block;
+  font-size: 13.5px;
+}
+.eos-app .emp-invitacion small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.eos-app .emp-yo {
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--blue);
+  background: var(--blue-light);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.eos-app .emp-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.eos-app .emp-acciones .neg-input {
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.eos-app .emp-subtitulo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  margin: 16px 0 8px;
+}
+
+.eos-app .emp-invitar {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+/* La advertencia va en ámbar y ANTES del formulario: invitar da acceso a la
+   plata del negocio, y eso se dice antes de que alguien toque el botón. */
+.eos-app .emp-advertencia {
+  font-size: 12.5px;
+  color: var(--amber);
+  margin: 0 0 10px;
+}
+
+/* ---- botones con icono ----
+   La regla global `.eos-app svg { display: block }` existe para que los
+   iconos de lucide se vean parejos, pero convierte cada icono en un bloque:
+   adentro de un botón `display: block` el icono queda ARRIBA del texto en vez
+   de al lado, y el botón sale del doble de alto.
+
+   Se ve en cualquier `<Icono /> Texto` — Anular, Compras, Cartera y la
+   pantalla del equipo. Con inline-flex el icono vuelve a la línea; un botón
+   sin icono se ve exactamente igual que antes. */
+.eos-app .chip,
+.eos-app .reco-btn,
+.eos-app .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+@media (max-width: 560px) {
+  /* En pantalla angosta el botón le come el ancho al texto y la invitación
+     queda a una palabra por línea. Se apila: primero qué te ofrecen, después
+     el botón, que es el orden en que se lee. */
+  .eos-app .emp-invitacion {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .eos-app .emp-invitacion .reco-btn {
+    width: 100%;
+  }
+  /* Y el rol y "sacar" bajan debajo del nombre en vez de apretarlo. */
+  .eos-app .emp-acciones {
+    width: 100%;
+  }
+  .eos-app .emp-acciones .neg-input {
+    flex: 1;
+  }
+}
