@@ -4917,3 +4917,46 @@
   vertical-align: -2px;
   margin-right: 4px;
 }
+
+/* ===========================================================================
+   Resultado del período
+   =========================================================================== */
+
+.eos-app .res-lineas {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.eos-app .res-linea {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .res-linea strong {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eos-app .res-linea strong.is-danger {
+  color: var(--red);
+}
+/* El subtotal se marca con la línea de arriba y el peso de la letra, no con
+   color: los colores acá ya significan "entra" y "sale". */
+.eos-app .res-linea.is-subtotal {
+  border-top: 2px solid var(--line);
+  border-bottom: none;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* La advertencia de que esto no es contabilidad va en texto normal y arriba,
+   no en una nota al pie: quien la lee tarde ya mandó el número al contador. */
+.eos-app .res-advertencia {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}

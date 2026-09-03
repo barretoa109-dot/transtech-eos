@@ -11,6 +11,7 @@ import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
 import Pronostico from "./negocio/Pronostico";
 import Inventario from "./negocio/Inventario";
+import ResultadoView from "./negocio/Resultado";
 import Rentabilidad from "./negocio/Rentabilidad";
 import Emisor from "./negocio/Emisor";
 import Confirmar from "./negocio/Confirmar";
@@ -106,6 +107,7 @@ type Pestania =
   | "compras"
   | "cartera"
   | "pronostico"
+  | "resultado"
   | "rentabilidad"
   | "productos"
   | "inventario"
@@ -127,6 +129,7 @@ const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
   { clave: "cartera", etiqueta: "Cartera", detalle: "Lo que te deben y lo que debés" },
   { clave: "pronostico", etiqueta: "Pronóstico", detalle: "La caja de los próximos 90 días" },
+  { clave: "resultado", etiqueta: "Resultado", detalle: "Qué quedó y con qué contás" },
   { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
   { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
   { clave: "inventario", etiqueta: "Inventario", detalle: "Valor, rotación y stock quieto" },
@@ -372,6 +375,8 @@ export default function NegocioView() {
           <Pronostico />
         ) : pestania === "inventario" ? (
           <Inventario />
+        ) : pestania === "resultado" ? (
+          <ResultadoView />
         ) : pestania === "rentabilidad" ? (
           <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (
