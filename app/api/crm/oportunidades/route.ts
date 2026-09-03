@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { ETAPAS, embudoPorMoneda, esEtapa, siguienteEtapa } from "@/lib/crm/embudo";
 
@@ -27,10 +28,13 @@ export async function GET() {
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_crm_oportunidades")
     .select(COLUMNAS)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .order("cierre_estimado", { ascending: true, nullsFirst: false })
     .limit(MAX_FILAS);
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import {
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
   const esVenta = tipo === "cobrar";
 
   const admin = adminSinTipos();
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await empresaDe(admin, puerta.usuarioId);
   const hoy = hoyEnParaguay();
 
   const tabla = esVenta ? "eos_erp_ventas" : "eos_erp_compras";
@@ -43,14 +46,14 @@ export async function GET(request: Request) {
     admin
       .from(tabla)
       .select("id,fecha,vence_el,moneda,total,estado,contacto:eos_crm_contactos(id,nombre)")
-      .eq("usuario_id", puerta.usuarioId)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .neq("estado", "anulada")
       .order("fecha", { ascending: false })
       .limit(1000),
     admin
       .from("eos_erp_cuenta_movimientos_v107")
       .select("id,venta_id,compra_id,monto,moneda,fecha")
-      .eq("usuario_id", puerta.usuarioId)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .limit(5000),
   ]);
 

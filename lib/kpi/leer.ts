@@ -1,6 +1,7 @@
 import { esEtapa } from "../crm/embudo.ts";
 import { tasaValida } from "../erp/impuestos.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { empresaDe, filtroDeEmpresa } from "../empresa/acceso.ts";
 import type { EstadoCompra, EstadoVenta, Hechos, Periodo } from "./tipos.ts";
 
 /**
@@ -93,6 +94,15 @@ export async function leerHechos(
       .eq("activo", true),
   ]);
 
+  /*
+   * La empresa, resuelta una sola vez para toda la lectura.
+   *
+   * Va con las tablas del NEGOCIO y no con las de finanzas personales: los
+   * movimientos financieros y los gastos fijos son de la persona, no de una
+   * sociedad. Ver la v110 y `lib/empresa/acceso.ts`.
+   */
+  const empresaId = await empresaDe(admin, usuarioId);
+
   const hechos: Hechos = {};
 
   if (movimientosRes.error) {
@@ -124,21 +134,21 @@ export async function leerHechos(
           "id,fecha,moneda,estado,total,vence_el,contacto:eos_crm_contactos(id,nombre)," +
             "items:eos_erp_venta_items(producto_id,descripcion,cantidad,total,iva,costo_unitario)",
         )
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .neq("estado", "anulada")
         .order("fecha", { ascending: false })
         .limit(TECHO),
       admin
         .from("eos_erp_compras")
         .select("id,fecha,moneda,estado,total,vence_el,contacto:eos_crm_contactos(id,nombre)")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .neq("estado", "anulada")
         .order("fecha", { ascending: false })
         .limit(TECHO),
       admin
         .from("eos_erp_productos")
         .select("id,nombre,moneda,activo,controla_stock,stock_actual,stock_minimo,costo,costo_promedio,iva")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .limit(TECHO),
       // Los cobros parciales (v107). Sin esto, el saldo de un documento sería
       // su total y la cartera saldría inflada: una venta con la mitad abonada
@@ -146,7 +156,7 @@ export async function leerHechos(
       admin
         .from("eos_erp_cuenta_movimientos_v107")
         .select("venta_id,compra_id,monto")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .limit(5000),
       /*
        * El kardex (v108). Sin filtro por `rango` a propósito: la rotación
@@ -157,7 +167,7 @@ export async function leerHechos(
       admin
         .from("eos_erp_movimientos_stock")
         .select("fecha,tipo,cantidad,costo_unitario,valor_resultante,producto_id")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .order("fecha", { ascending: false })
         .limit(5000),
     ]);
@@ -270,12 +280,12 @@ export async function leerHechos(
       admin
         .from("eos_crm_oportunidades")
         .select("id,monto,moneda,etapa,creado_en,cerrada_en")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .limit(1000),
       admin
         .from("eos_crm_actividades")
         .select("oportunidad_id,fecha,hecha")
-        .eq("usuario_id", usuarioId)
+        .or(filtroDeEmpresa(usuarioId, empresaId))
         .order("fecha", { ascending: false })
         .limit(2000),
     ]);
