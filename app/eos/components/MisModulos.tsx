@@ -95,13 +95,22 @@ export default function MisModulos() {
                     ecosistema. Decir "sin vencimiento" es más honesto que dejar
                     el espacio vacío, que se lee como un dato que falta.
                   */}
-                  {dias === null
-                    ? m.origen === "cortesia"
-                      ? "de cortesía"
-                      : "sin vencimiento"
-                    : dias <= 0
-                      ? "vencida"
-                      : `vence en ${dias} ${dias === 1 ? "día" : "días"}`}
+                  {/*
+                    `origen: "empresa"` (v115) son los que llegan porque el
+                    dueño del negocio los contrató, no porque los haya
+                    contratado esta persona. Decirlo importa: si no, un
+                    invitado cree que son suyos y no entiende por qué los
+                    pierde el día que cambia de empresa o lo sacan del equipo.
+                  */}
+                  {m.origen === "empresa"
+                    ? "de tu empresa"
+                    : dias === null
+                      ? m.origen === "cortesia"
+                        ? "de cortesía"
+                        : "sin vencimiento"
+                      : dias <= 0
+                        ? "vencida"
+                        : `vence en ${dias} ${dias === 1 ? "día" : "días"}`}
                 </span>
               </div>
             );
