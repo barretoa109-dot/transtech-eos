@@ -9,6 +9,7 @@ import EliminarCuenta from "./EliminarCuenta";
 import RehacerOnboarding from "./RehacerOnboarding";
 import MisModulos from "./MisModulos";
 import MisTarjetas from "./MisTarjetas";
+import MiEmpresa from "./MiEmpresa";
 
 type ProfileViewProps = {
   nombre: string;
@@ -134,6 +135,10 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             </button>
           </div>
         </div>
+
+        {/* El equipo va antes que los módulos: quién entra al negocio es una
+            decisión sobre los datos, no sobre lo que se paga. */}
+        <MiEmpresa />
 
         <MisModulos />
 
