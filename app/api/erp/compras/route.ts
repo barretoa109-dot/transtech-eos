@@ -6,6 +6,7 @@ import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { normalizarItemsErp } from "@/lib/erp/entrada";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
 
@@ -33,6 +34,9 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const limite = Math.min(Number(new URL(request.url).searchParams.get("limite") ?? 50) || 50, 200);
 
+  // La empresa se resuelve una sola vez, antes de la consulta.
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
+
   const { data, error } = await supabase
     .from("eos_erp_compras")
     .select(
@@ -41,7 +45,7 @@ export async function GET(request: Request) {
         "contacto:eos_crm_contactos(id,nombre)," +
         "items:eos_erp_compra_items(id,descripcion,cantidad,precio_unitario,iva,total,orden)",
     )
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .order("fecha", { ascending: false })
     .order("creado_en", { ascending: false })
     .limit(limite);

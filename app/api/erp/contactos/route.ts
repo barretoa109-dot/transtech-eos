@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirAlgunModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,14 @@ export async function GET(request: Request) {
   const busqueda = (searchParams.get("busca") ?? "").trim().slice(0, 80);
   const rol = searchParams.get("rol");
 
+  // Las dos fronteras mientras dure la transición de la v109/v110: solo
+  // empresa haría desaparecer sin aviso una fila con la columna en null.
+  const empresaId = await miEmpresa(supabase);
+
   let consulta = supabase
     .from("eos_crm_contactos")
     .select(COLUMNAS)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .eq("activo", true)
     .order("nombre", { ascending: true })
     .limit(MAX_FILAS);
