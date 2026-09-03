@@ -120,9 +120,33 @@ export type ProductoHecho = {
   controla_stock: boolean;
   stock_actual: number;
   stock_minimo: number;
-  /** Con IVA incluido, si se conoce. */
+
+  /** Con IVA incluido, si se conoce. Es el ÚLTIMO costo pagado. */
   costo: number | null;
+
+  /**
+   * El promedio ponderado de lo que hay en stock (v108), con IVA incluido.
+   *
+   * Distinto de `costo` a propósito: aquel es el último que se pagó y sirve
+   * para decidir precios y para congelar en la venta; este es con el que se
+   * VALORIZA el inventario. Valorizar al último costo dice que las diez
+   * unidades valen lo que costó la décima.
+   */
+  costo_promedio: number | null;
+
   iva: TasaIva;
+};
+
+/** Una línea del kardex (v108). */
+export type MovimientoStockHecho = {
+  fecha: string;
+  tipo: "entrada" | "salida" | "ajuste";
+  cantidad: number;
+  costo_unitario: number | null;
+  /** Cuánto valía el stock del producto DESPUÉS de este movimiento. */
+  valor_resultante: number | null;
+  producto_id: string;
+  moneda: string;
 };
 
 export type EtapaOportunidad =
@@ -180,6 +204,7 @@ export type Hechos = {
   movimientos?: MovimientoHecho[];
   fijos?: FijoHecho[];
   productos?: ProductoHecho[];
+  movimientos_stock?: MovimientoStockHecho[];
   oportunidades?: OportunidadHecho[];
   actividades?: ActividadHecho[];
 };

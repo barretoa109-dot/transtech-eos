@@ -117,7 +117,7 @@ export async function leerHechos(
   }
 
   if (modulos.erp) {
-    const [ventasRes, comprasRes, productosRes, cobranzasRes] = await Promise.all([
+    const [ventasRes, comprasRes, productosRes, cobranzasRes, kardexRes] = await Promise.all([
       admin
         .from("eos_erp_ventas")
         .select(
@@ -137,7 +137,7 @@ export async function leerHechos(
         .limit(TECHO),
       admin
         .from("eos_erp_productos")
-        .select("id,nombre,moneda,activo,controla_stock,stock_actual,stock_minimo,costo,iva")
+        .select("id,nombre,moneda,activo,controla_stock,stock_actual,stock_minimo,costo,costo_promedio,iva")
         .eq("usuario_id", usuarioId)
         .limit(TECHO),
       // Los cobros parciales (v107). Sin esto, el saldo de un documento sería
@@ -147,6 +147,18 @@ export async function leerHechos(
         .from("eos_erp_cuenta_movimientos_v107")
         .select("venta_id,compra_id,monto")
         .eq("usuario_id", usuarioId)
+        .limit(5000),
+      /*
+       * El kardex (v108). Sin filtro por `rango` a propósito: la rotación
+       * necesita el valor del inventario ANTERIOR al período, y ese dato está
+       * en el último movimiento previo. Recortando por rango se perdería
+       * justamente el extremo que hace falta.
+       */
+      admin
+        .from("eos_erp_movimientos_stock")
+        .select("fecha,tipo,cantidad,costo_unitario,valor_resultante,producto_id")
+        .eq("usuario_id", usuarioId)
+        .order("fecha", { ascending: false })
         .limit(5000),
     ]);
 
@@ -220,7 +232,35 @@ export async function leerHechos(
         stock_actual: Number(p.stock_actual ?? 0),
         stock_minimo: Number(p.stock_minimo ?? 0),
         costo: p.costo === null || p.costo === undefined ? null : Number(p.costo),
+        costo_promedio:
+          p.costo_promedio === null || p.costo_promedio === undefined
+            ? null
+            : Number(p.costo_promedio),
         iva: tasaValida(p.iva),
+      }));
+    }
+
+    if (kardexRes.error) {
+      console.error("KPI: no se pudo leer el kardex:", kardexRes.error);
+    } else {
+      // La moneda del movimiento sale de su producto: el kardex no la guarda,
+      // y duplicarla ahí sería otra copia que se puede desincronizar.
+      const monedaDeProducto = new Map(
+        (hechos.productos ?? []).map((p) => [p.id, p.moneda ?? "PYG"]),
+      );
+
+      hechos.movimientos_stock = (kardexRes.data ?? []).map((m: Record<string, unknown>) => ({
+        fecha: String(m.fecha ?? ""),
+        tipo: m.tipo === "entrada" ? "entrada" : m.tipo === "salida" ? "salida" : "ajuste",
+        cantidad: Number(m.cantidad ?? 0),
+        costo_unitario:
+          m.costo_unitario === null || m.costo_unitario === undefined ? null : Number(m.costo_unitario),
+        valor_resultante:
+          m.valor_resultante === null || m.valor_resultante === undefined
+            ? null
+            : Number(m.valor_resultante),
+        producto_id: String(m.producto_id ?? ""),
+        moneda: monedaDeProducto.get(String(m.producto_id ?? "")) ?? "PYG",
       }));
     }
   }

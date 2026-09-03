@@ -112,7 +112,7 @@ test("sin score, ver_salud dice qué falta en vez de inventar un número", () =>
 
 test("explicar_movimiento aclara SIEMPRE que es reparto y no causa", () => {
   const hechos = {
-    productos: [{ id: "p1", nombre: "Taladro", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 1, stock_minimo: 0, costo: null, iva: 10 as const }],
+    productos: [{ id: "p1", nombre: "Taladro", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 1, stock_minimo: 0, costo: null, costo_promedio: null, iva: 10 as const }],
     ventas: [
       {
         id: "v1", fecha: "2026-08-20", moneda: "PYG", estado: "emitida" as const, contacto_id: null,

@@ -16,12 +16,21 @@ function producto(p: Partial<ProductoHecho> & { id: string }): ProductoHecho {
     stock_actual: p.stock_actual ?? 10,
     stock_minimo: p.stock_minimo ?? 5,
     costo: p.costo ?? null,
+    costo_promedio: p.costo_promedio ?? null,
     iva: p.iva ?? 10,
   };
 }
 
-test("las dos definiciones son instantaneas: el stock es un saldo del momento", () => {
-  for (const def of DEFINICIONES_INVENTARIO) assert.equal(def.instantanea, true);
+test("las fotos del stock son instantaneas; las que miden movimiento son de período", () => {
+  // El saldo es de ahora y no se compara contra el mes pasado. La rotación,
+  // en cambio, mide qué pasó DURANTE el período: ahí la comparación sí tiene
+  // sentido y por eso no lleva `instantanea`.
+  const DE_PERIODO = new Set(["rotacion_inventario", "dias_de_inventario", "stock_quieto"]);
+
+  for (const def of DEFINICIONES_INVENTARIO) {
+    if (DE_PERIODO.has(def.id)) assert.equal(def.instantanea, undefined, `${def.id} no debería ser instantanea`);
+    else assert.equal(def.instantanea, true, `${def.id} debería ser instantanea`);
+  }
 });
 
 test("productos_bajo_minimo usa el mismo criterio que el aviso proactivo del negocio", () => {
