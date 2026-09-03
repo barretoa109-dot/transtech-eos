@@ -15,6 +15,8 @@ function compra(p: Partial<CompraHecho> & { total: number }): CompraHecho {
     proveedor_id: p.proveedor_id ?? null,
     proveedor_nombre: p.proveedor_nombre ?? null,
     total: p.total,
+    vence_el: p.vence_el ?? null,
+    cobrado: p.cobrado ?? 0,
   };
 }
 

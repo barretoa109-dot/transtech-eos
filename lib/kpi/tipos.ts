@@ -83,6 +83,19 @@ export type VentaHecho = {
    * recorrer los ítems para llegar a un número que la base ya tiene.
    */
   total: number;
+
+  /** Cuándo vence, si se pactó plazo. Null no es lo mismo que vencido. */
+  vence_el: string | null;
+
+  /**
+   * Lo ya cobrado contra esta venta (v107).
+   *
+   * Con pagos parciales, `estado` ya no alcanza para saber qué falta: una
+   * venta con la mitad abonada sigue en 'emitida'. El saldo es
+   * `total - cobrado`.
+   */
+  cobrado: number;
+
   items: ItemVentaHecho[];
 };
 
@@ -146,6 +159,12 @@ export type CompraHecho = {
   proveedor_nombre: string | null;
   /** Con IVA incluido. */
   total: number;
+
+  /** Cuándo vence, si se pactó plazo. Null no es lo mismo que vencido. */
+  vence_el: string | null;
+
+  /** Lo ya pagado contra esta compra (v107). */
+  cobrado: number;
 };
 
 /**

@@ -8,6 +8,7 @@ import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-docu
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
+import Cartera from "./negocio/Cartera";
 import Rentabilidad from "./negocio/Rentabilidad";
 import Emisor from "./negocio/Emisor";
 import Confirmar from "./negocio/Confirmar";
@@ -98,7 +99,15 @@ function loVendido(items: VentaItem[] | undefined): string {
   return resto.length === 0 ? cabeza : `${cabeza} y ${resto.length} más`;
 }
 
-type Pestania = "ventas" | "compras" | "rentabilidad" | "productos" | "clientes" | "embudo" | "emisor";
+type Pestania =
+  | "ventas"
+  | "compras"
+  | "cartera"
+  | "rentabilidad"
+  | "productos"
+  | "clientes"
+  | "embudo"
+  | "emisor";
 
 /*
  * El orden es el del día de trabajo, no el del organigrama: primero lo que
@@ -112,6 +121,7 @@ type Pestania = "ventas" | "compras" | "rentabilidad" | "productos" | "clientes"
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "ventas", etiqueta: "Ventas", detalle: "Ingresos y cobros" },
   { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
+  { clave: "cartera", etiqueta: "Cartera", detalle: "Lo que te deben y lo que debés" },
   { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
   { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
   { clave: "clientes", etiqueta: "Contactos", detalle: "Clientes y proveedores" },
@@ -350,6 +360,8 @@ export default function NegocioView() {
             productos={productos}
             onCambio={() => void cargar()}
           />
+        ) : pestania === "cartera" ? (
+          <Cartera onCambio={() => void cargar()} />
         ) : pestania === "rentabilidad" ? (
           <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (

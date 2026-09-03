@@ -89,7 +89,10 @@ export const DIMENSIONES: { id: string; nombre: string; indicadores: string[] }[
   { id: "rentabilidad", nombre: "Rentabilidad", indicadores: ["margen_bruto", "roi", "ganancia"] },
   { id: "crecimiento", nombre: "Crecimiento", indicadores: ["ventas_netas", "ticket_promedio"] },
   { id: "clientes", nombre: "Clientes", indicadores: ["concentracion_clientes", "ciclo_venta"] },
-  { id: "cobros", nombre: "Cobros", indicadores: ["cobros_demorados", "cuentas_por_cobrar"] },
+  // `cartera_vencida` reemplazó a `cobros_demorados` en la v107: lo que era
+  // "hace más de 30 días de la fecha" ahora se cuenta desde el VENCIMIENTO,
+  // que es lo que realmente define un atraso.
+  { id: "cobros", nombre: "Cobros", indicadores: ["cartera_vencida", "cuentas_por_cobrar", "dias_de_cobro"] },
   { id: "inventario", nombre: "Inventario", indicadores: ["productos_bajo_minimo", "capital_inmovilizado"] },
   { id: "embudo", nombre: "Embudo", indicadores: ["tasa_conversion", "oportunidades_estancadas"] },
   { id: "caja", nombre: "Caja", indicadores: ["balance_periodo", "gastos_totales"] },

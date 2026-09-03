@@ -25,6 +25,8 @@ function venta(p: Partial<VentaHecho> & { total: number; costo?: number | null }
     contacto_nombre: p.contacto_nombre ?? null,
     // En estos fixtures la venta tiene un único ítem: la cabecera coincide.
     total: p.total,
+    vence_el: p.vence_el ?? null,
+    cobrado: p.cobrado ?? 0,
     items: p.items ?? [
       {
         total: p.total,

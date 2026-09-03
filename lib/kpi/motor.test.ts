@@ -13,6 +13,8 @@ function venta(p: Partial<VentaHecho> = {}): VentaHecho {
     contacto_id: p.contacto_id ?? null,
     contacto_nombre: p.contacto_nombre ?? null,
     total: p.total ?? 0,
+    vence_el: p.vence_el ?? null,
+    cobrado: p.cobrado ?? 0,
     items: p.items ?? [],
   };
 }
