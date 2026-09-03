@@ -12,16 +12,20 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 | **externo** | Depende de un tercero (SET, Bancard, tiendas, abogado). |
 | **bloqueado** | No se puede cerrar hasta resolver otra cosa. |
 
-Medición del 2 de septiembre, para no discutirla dos veces:
+Medición del 2-3 de septiembre, para no discutirla dos veces:
 
-- `npm test` → **709/709 en verde**. Arrancó el proyecto en 379.
+- `npm test` → **771/771 en verde**. Arrancó el proyecto en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **23 errores, 5 avisos**. Empezó en 42 y 39.
   **Bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **178 aplicadas, local y remoto coinciden
+- `supabase migration list --linked` → **187 aplicadas, local y remoto coinciden
   una a una. Cero pendientes.**
-- `npm run migraciones` → **178 archivos, 178 versiones distintas**, sin usos de
+- `npm run migraciones` → **187 archivos, 187 versiones distintas**, sin usos de
   tabla antes de crearla. Candado nuevo, también bloqueante en CI.
+- **Instalación desde cero, probada tres veces**: las 187 migraciones aplicadas
+  sobre una base vacía, comparada objeto por objeto contra producción —tablas,
+  vistas, funciones, triggers, políticas RLS—. Coincide exacto. Ver el punto 4
+  y el hallazgo de abajo.
 - `npm run certificar` → **113 de 115 en verde**, 2 en amarillo porque la cuenta
   de certificación no tiene tarjeta catastrada. Ninguna en rojo.
 
@@ -33,42 +37,33 @@ Medición del 2 de septiembre, para no discutirla dos veces:
 | --- | --- | --- | --- |
 | 1 | Congelar el alcance | **parcial** | Redactado en `docs/lanzamiento/alcance-congelado.md`. Falta la firma de producto, legal y técnica, y la decisión sobre rotular ERP y CRM como beta. |
 | 2 | Cerrar los cambios pendientes | **cerrado** | Árbol limpio. Tres commits: invariantes de anulación, validación de entrada de productos, higiene del repo. Los 21 MB de video y presentación quedaron ignorados, no commiteados. |
-| 3 | Sincronizar migraciones | **parcial** | Las 169 aplicadas coinciden local y remoto, verificado hoy. **Pero todo corre contra el proyecto de producción**: no hay un entorno de pruebas en uso, así que no hay contra qué sincronizar. Hay un segundo proyecto sano disponible — ver la nota de infraestructura. |
-| 4 | Instalación desde cero | **abierto** | Ya **no está bloqueado**: hay un segundo proyecto Supabase sano y sin uso conocido. Ver la nota de infraestructura abajo. Aplicarle las 170 migraciones desde cero ES la prueba de este punto. |
-| 5 | Actualización realista | **abierto** | Idem: deja de estar bloqueado. Hoy toda migración se sigue estrenando contra datos de usuarios reales, y eso es lo que hay que dejar de hacer. |
+| 3 | Sincronizar migraciones | **cerrado** | Las 187 aplicadas coinciden local y remoto, uno por uno, verificado el 2-3 de septiembre. Y ahora hay un segundo proyecto (`biulwebdgrcrsnzuqhky`) con el mismo esquema exacto, construido desde cero — ver el punto 4. |
+| 4 | Instalación desde cero | **cerrado** | **Probado de verdad, no afirmado.** Las 187 migraciones se aplicaron sobre una base vacía del segundo proyecto Supabase, de punta a punta, y el resultado se comparó objeto por objeto contra producción: mismas 128 tablas, 8 vistas, 162 funciones, 108 triggers, 181 políticas RLS. Cero diferencias, salvo una función puente documentada que sólo hace falta en la reconstrucción. El primer intento falló en la segunda migración —ver el hallazgo abajo—, así que esto no salió a la primera. |
+| 5 | Actualización realista | **cerrado** | El entorno del punto 4 es ese ensayo: un proyecto que arranca vacío, no con datos de usuarios reales, y a partir de ahora cualquier migración se puede probar ahí antes de tocar producción. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
 | 7 | Compra real controlada | **cerrado** (con reserva) | Los siete finales cubiertos y **verdes contra la base real**: aprobado, rechazado y abandonado en el caso 03; duplicado, demorado y reversado en el 11. La reversión deshace plan, módulos, solicitud e historial, y repetirla no descuenta dos veces. **Reservas:** el 3DS se completa en el navegador y la suite no puede recorrerlo sola, y el cobro con tarjeta queda en amarillo hasta catastrar una de prueba. |
 | 8 | Requisitos de publicación | **externo** | D-U-N-S, cuentas de tienda, políticas y verificaciones sin empezar. El alcance congelado saca las apps del lanzamiento: se sale por web. |
 | 9 | Revisión legal | **externo** | Existen `/terminos` y `/privacidad`. Ningún profesional los revisó. |
 | 10 | Decisión formal de lanzamiento | **abierto** | La regla está escrita en el alcance congelado; falta el acta. |
 
-### La nota de infraestructura que ordena A
+### La nota de infraestructura que ordena A — RESUELTA
 
-**Corregido el 31 de agosto por la noche.** Durante todo el día esta nota decía
-que había un solo proyecto Supabase y que por eso los puntos 4, 5 y 50 estaban
-bloqueados. Estaba mal, y el error fue mío: nunca lo comprobé, lo di por sentado
-porque el CLI apunta a uno solo.
-
-`supabase projects list` dice que en la misma organización hay **tres**:
+`supabase projects list` muestra tres proyectos en la organización:
 
 | Proyecto | Ref | Región | Estado |
 | --- | --- | --- | --- |
 | TransTech EOS | `dirugpkamzgvyshcnsxs` | us-east-2 | **producción**, sano |
-| EOS Financial Autopilot Validation | `biulwebdgrcrsnzuqhky` | us-east-2 | sano, **sin uso conocido** |
+| EOS Financial Autopilot Validation | `biulwebdgrcrsnzuqhky` | us-east-2 | sano, **ahora en uso** |
 | barretoa109@gmail.com's Project | `crihlzpsgdcqseltiqim` | us-east-1 | inactivo |
 
-El segundo está sano, en la misma región que producción, y creado el 16 de
-agosto. **Si está vacío o es descartable, es el entorno de staging que hacía
-falta**, y los puntos 4, 5 y 50 dejan de estar bloqueados sin gastar un peso ni
-esperar a nadie.
+El segundo estaba vacío. Se usó para el punto 4: se le vació el esquema
+`public` con permiso explícito, se le aplicaron las 187 migraciones desde
+cero tres veces (dos fallaron y se corrigieron, la tercera pasó completa), y
+el resultado se comparó objeto por objeto contra producción. Queda enlazado
+y disponible como entorno de pruebas para cualquier migración futura, antes
+de tocar producción.
 
-Lo que hay que decidir antes de tocarlo: qué tiene adentro. Si guarda algo de la
-validación de agosto, se crea uno nuevo; si no, se le aplican las 170
-migraciones desde cero —que es, en sí misma, la prueba del punto 4— y se le
-cargan datos sintéticos.
-
-**Sigue siendo la pieza de mayor rendimiento de toda la lista**: destraba los
-puntos 3, 4, 5, 7 y 50 de una vez.
+Destrabó los puntos 3, 4 y 5 de una vez, como se esperaba.
 
 ---
 
@@ -143,7 +138,7 @@ puntos 3, 4, 5, 7 y 50 de una vez.
 | --- | --- | --- | --- |
 | 48 | Experiencia y accesibilidad | **abierto** | Sin auditoría de teclado, contraste, lectores de pantalla, estados vacíos ni conexión lenta. |
 | 49 | Puerta automática de calidad | **parcial** | El CI corre `npm test`, `npm run evals`, `tsc --noEmit` y ahora `npm run lint:tope`, los cuatro bloqueando. El lint todavía no exige cero —quedan 24 errores heredados— pero **ya no puede subir**: el trinquete falla si crece, y también si baja sin actualizar el tope, para que ese número no mienta. Deuda: 42 → 24 errores, 39 → 7 avisos. Ya existe la primera prueba SQL (`supabase/tests/`). El 2 de septiembre se sumó el **quinto candado**: `npm run migraciones`, que encuentra sin base de datos las tres formas de romper una instalación desde cero —versiones repetidas, migraciones vacías, y usar una tabla antes de crearla—. Se probó **en rojo**, que es la única prueba que vale para un guardián: los cuatro casos se construyeron aparte y los cuatro fallan con el archivo y el motivo. Faltan las de seguridad y los recorridos de navegador. |
-| 50 | Piloto y simulacro | **abierto** | Deja de depender de crear un proyecto: ya existe uno sano. Falta decidir si se usa ese o se crea otro, y después el piloto en sí. |
+| 50 | Piloto y simulacro | **abierto** | El proyecto de validación (`biulwebdgrcrsnzuqhky`) ya tiene el esquema completo aplicado desde cero — ver el punto 4. Falta cargarle datos sintéticos y correr el piloto en sí. |
 
 ---
 
@@ -219,6 +214,59 @@ documento hay que actualizarlo antes, no después.
 ---
 
 ## Hallazgos abiertos, con nombre y apellido
+
+### -2. La instalación desde cero fallaba en la segunda migración — CERRADO
+
+El repositorio no podía reconstruir su propia base de datos. Sonaba abstracto
+hasta que se probó: `supabase db push` contra un proyecto vacío se caía en la
+migración número dos con
+
+```
+ERROR: relation "public.conversaciones" does not exist
+```
+
+**No era una tabla — eran 48, más una vista.** Todo el esquema original de
+EOS —`conversaciones`, `mensajes`, `usuarios`, `planes`, `eos_tasks`,
+`uso_mensual`, `solicitudes_pago`, y otras 41 más— se había creado a mano en
+el panel de Supabase antes de que existiera el versionado, y ninguna quedó
+escrita jamás en una migración. Producción nunca lo notó porque las tablas ya
+estaban ahí; el problema sólo existe al reconstruir desde cero, que es
+exactamente lo que nadie había hecho hasta ahora.
+
+Se sumaron, con el mismo patrón: **9 funciones** (entre ellas
+`eos_actualizar_updated_at`, el disparador genérico de `updated_at` que usan
+varios triggers) y **una función puente** para un problema distinto —
+`supabase db push` corre con un `search_path` más restrictivo que una sesión
+normal, así que una migración de hace semanas que llama a `gen_random_bytes`
+sin calificar el esquema falla sólo en este camino, nunca en producción.
+
+Las tablas se reconstruyeron desde el catálogo real
+(`information_schema` + `pg_catalog`), no a mano, en
+`20260801000000_esquema_base_heredado_v0.sql`, fechada antes que la primera
+migración real para que corra primero. Las funciones van en
+`20260812222511_eos_funciones_heredadas_v0.sql`. Ninguna se toca en
+producción: se marcan como aplicadas sin ejecutar (`migration repair`),
+porque ahí esas tablas y funciones ya existen.
+
+**Verificación:** las 187 migraciones se aplicaron sobre el proyecto de
+validación (`biulwebdgrcrsnzuqhky`) empezando de una base con cero tablas, y
+el resultado final se comparó objeto por objeto contra producción —tablas,
+funciones, triggers, políticas RLS—. Coinciden exactamente, salvo la función
+puente ya mencionada. Esto se repitió tres veces desde cero (no una) para
+confirmar que no fue casualidad de una corrida.
+
+**Un hallazgo de otra fase, encontrado en el camino:** `eos_erp_cuenta_movimientos_v107`
+era una de las tablas huérfanas —cero filas, sin ninguna migración— cuando se
+empezó este trabajo. Mientras se escribía la reconstrucción, la Fase 7
+(cuenta corriente) la formalizó con su propia migración
+(`20260902140000_eos_cuenta_corriente_v107.sql`) usando
+`create table if not exists`. **Ese `if not exists` va a no hacer nada en
+producción**, porque la tabla vieja ya está ahí: el esquema nuevo de la Fase
+7 —con sus columnas, sus checks, su índice de exclusión mutua venta/compra—
+nunca se va a aplicar salvo que alguien lo note y corrija esa migración
+específica antes de que se necesite de verdad. No se tocó acá porque es una
+decisión de esa fase, no de este cambio.
+
 
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.
