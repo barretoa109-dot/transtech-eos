@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
@@ -137,12 +138,15 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   // Sale del cliente del usuario: la RLS de la tabla ya impide tocar lo ajeno.
   const { data, error } = await supabase
     .from("eos_erp_productos")
     .update(cambios)
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select(COLUMNAS)
     .maybeSingle();
 
@@ -181,11 +185,14 @@ export async function DELETE(_request: Request, contexto: { params: Promise<{ id
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_erp_productos")
     .update({ activo: false, actualizado_en: new Date().toISOString() })
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select("id")
     .maybeSingle();
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
@@ -10,6 +11,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, contexto: { params: Promise<{ id: string }> }) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
+
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
 
   const { id } = await contexto.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return respuesta("Venta no encontrada.", 404);
@@ -27,7 +31,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     .from("eos_erp_ventas")
     .select("estado,total,moneda,fecha")
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .maybeSingle();
 
   const { data, error } = await admin.rpc("eos_erp_anular_venta", {

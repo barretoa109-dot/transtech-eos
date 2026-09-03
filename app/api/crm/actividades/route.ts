@@ -122,6 +122,9 @@ export async function POST(request: Request) {
   const hecha = typeof cuerpo.hecha === "boolean" ? cuerpo.hecha : tipo !== "tarea";
 
   const supabase = await createClient();
+
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
   const contactoId =
     typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null;
   const oportunidadId =
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
           .from("eos_crm_contactos")
           .select("id")
           .eq("id", contactoId)
-          .eq("usuario_id", puerta.usuarioId)
+          .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     oportunidadId
@@ -143,7 +146,7 @@ export async function POST(request: Request) {
           .from("eos_crm_oportunidades")
           .select("id,contacto_id")
           .eq("id", oportunidadId)
-          .eq("usuario_id", puerta.usuarioId)
+          .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -242,11 +245,14 @@ export async function PATCH(request: Request) {
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_crm_actividades")
     .update({ hecha: cuerpo.hecha !== false })
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select(COLUMNAS)
     .maybeSingle();
 

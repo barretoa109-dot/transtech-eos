@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { calcularRentabilidad, type LineaRentabilidad } from "@/lib/erp/rentabilidad";
 import { calcularIndicadores, loQueFalta, periodoAnterior } from "@/lib/erp/indicadores";
@@ -26,6 +27,9 @@ export async function GET(request: Request) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
+
   const admin = adminSinTipos();
 
   const { data, error } = await admin
@@ -35,7 +39,7 @@ export async function GET(request: Request) {
         "items:eos_erp_venta_items(" +
         "producto_id,descripcion,cantidad,total,iva,costo_unitario,costo_estimado)",
     )
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .neq("estado", "anulada")
     .order("fecha", { ascending: false })
     .limit(500);

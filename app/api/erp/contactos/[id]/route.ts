@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirAlgunModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
 
 export const dynamic = "force-dynamic";
@@ -111,11 +112,14 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_crm_contactos")
     .update(cambios)
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select(COLUMNAS)
     .maybeSingle();
 
@@ -146,11 +150,14 @@ export async function DELETE(_request: Request, contexto: { params: Promise<{ id
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_crm_contactos")
     .update({ activo: false, actualizado_en: new Date().toISOString() })
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select("id")
     .maybeSingle();
 
