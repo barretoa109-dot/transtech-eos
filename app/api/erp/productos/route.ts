@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { ivaIncluido, tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
@@ -30,10 +31,14 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const busqueda = (new URL(request.url).searchParams.get("busca") ?? "").trim().slice(0, 80);
 
+  // Las dos fronteras mientras dure la transición de la v109/v110: solo
+  // empresa haría desaparecer sin aviso una fila con la columna en null.
+  const empresaId = await miEmpresa(supabase);
+
   let consulta = supabase
     .from("eos_erp_productos")
     .select(COLUMNAS)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .eq("activo", true)
     .order("nombre", { ascending: true })
     .limit(MAX_FILAS);
