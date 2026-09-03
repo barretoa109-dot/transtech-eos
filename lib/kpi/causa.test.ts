@@ -34,8 +34,8 @@ function venta(p: {
 }
 
 const PRODUCTOS = [
-  { id: "p1", nombre: "Taladro", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 5, stock_minimo: 1, costo: null, iva: 10 as const },
-  { id: "p2", nombre: "Martillo", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 5, stock_minimo: 1, costo: null, iva: 10 as const },
+  { id: "p1", nombre: "Taladro", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 5, stock_minimo: 1, costo: null, costo_promedio: null, iva: 10 as const },
+  { id: "p2", nombre: "Martillo", moneda: "PYG", activo: true, controla_stock: true, stock_actual: 5, stock_minimo: 1, costo: null, costo_promedio: null, iva: 10 as const },
 ];
 
 test("descompone por producto usando el neto de IVA, no el bruto", () => {
