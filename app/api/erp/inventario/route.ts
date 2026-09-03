@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import {
@@ -36,6 +37,8 @@ export async function GET() {
   if (puerta.respuesta) return puerta.respuesta;
 
   const admin = adminSinTipos();
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await empresaDe(admin, puerta.usuarioId);
   const hasta = hoyEnParaguay();
   const desde = new Date(Date.parse(`${hasta}T00:00:00Z`) - DIAS * 86_400_000)
     .toISOString()
@@ -45,14 +48,14 @@ export async function GET() {
     admin
       .from("eos_erp_productos")
       .select("id,nombre,moneda,activo,controla_stock,stock_actual,costo_promedio")
-      .eq("usuario_id", puerta.usuarioId)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .limit(1000),
     // Sin filtro de fecha: la rotación necesita el valor del inventario
     // ANTERIOR al período, que vive en el último movimiento previo.
     admin
       .from("eos_erp_movimientos_stock")
       .select("fecha,tipo,cantidad,costo_unitario,valor_resultante,producto_id")
-      .eq("usuario_id", puerta.usuarioId)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .order("fecha", { ascending: false })
       .limit(5000),
   ]);

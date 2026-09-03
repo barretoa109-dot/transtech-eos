@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
+import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
@@ -37,10 +38,13 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   let consulta = supabase
     .from("eos_crm_actividades")
     .select(COLUMNAS)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .order("fecha", { ascending: false })
     .limit(MAX_FILAS);
 
