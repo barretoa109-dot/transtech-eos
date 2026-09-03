@@ -4814,3 +4814,106 @@
     flex: 1;
   }
 }
+
+/* ===========================================================================
+   Pronóstico de caja
+   ===========================================================================
+
+   Los supuestos van en texto normal y no detrás de un ícono: un pronóstico
+   cuyas condiciones hay que buscar se lee como un hecho. Por eso el bloque
+   tiene el mismo tamaño de letra que el resto y no el de una nota al pie. */
+
+.eos-app .pron-supuestos {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+}
+.eos-app .pron-supuestos-titulo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.eos-app .pron-supuestos ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.eos-app .pron-supuestos li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* Lo que quedó afuera del cálculo se marca en ámbar y no en rojo: no es un
+   error del sistema, es información que falta o plata que no se puede ubicar. */
+.eos-app .pron-faltantes {
+  margin-top: 10px;
+  border-left: 3px solid var(--amber);
+  padding-left: 10px;
+}
+.eos-app .pron-faltantes p {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.eos-app .pron-escenario {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .pron-escenario:last-child {
+  border-bottom: none;
+}
+.eos-app .pron-escenario strong {
+  font-size: 14px;
+}
+.eos-app .pron-escenario small {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.eos-app .pron-escenario-cifras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .pron-escenario-cifras .is-mejor {
+  color: var(--green);
+}
+.eos-app .pron-escenario-cifras .is-peor {
+  color: var(--red);
+}
+
+/* El monto de una salida se muestra en rojo porque acá el signo SÍ significa
+   que sale plata, a diferencia del tramo vencido de la cartera. */
+.eos-app .neg-fila-monto.is-danger {
+  color: var(--red);
+}
+
+/* El ícono del título de una tarjeta va AL LADO del texto, no encima.
+   `svg { display: block }` es global en esta hoja —lo necesitan los gráficos,
+   que si no arrastran el espacio de la línea base— y hace que cualquier ícono
+   dentro de un contenedor `block` empuje el texto a la línea siguiente. El
+   mismo problema que ya se arregló en `.chip`, `.reco-btn` y `.ghost-btn`;
+   acá aparece en `.card-title`, que quedó de 39px de alto para una sola
+   línea de texto. */
+.eos-app .card-title > svg {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* Lo mismo en el aviso de error: el ícono acompaña a la frase, no la encabeza.
+   Sin esto el triángulo se lleva una línea entera para él solo y el aviso
+   ocupa 37px de alto para decir algo que entra en 18. */
+.eos-app .neg-error > svg {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
+}

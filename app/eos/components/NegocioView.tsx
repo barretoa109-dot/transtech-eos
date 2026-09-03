@@ -9,6 +9,8 @@ import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
+import Pronostico from "./negocio/Pronostico";
+import Inventario from "./negocio/Inventario";
 import Rentabilidad from "./negocio/Rentabilidad";
 import Emisor from "./negocio/Emisor";
 import Confirmar from "./negocio/Confirmar";
@@ -103,8 +105,10 @@ type Pestania =
   | "ventas"
   | "compras"
   | "cartera"
+  | "pronostico"
   | "rentabilidad"
   | "productos"
+  | "inventario"
   | "clientes"
   | "embudo"
   | "emisor";
@@ -122,8 +126,10 @@ const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "ventas", etiqueta: "Ventas", detalle: "Ingresos y cobros" },
   { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
   { clave: "cartera", etiqueta: "Cartera", detalle: "Lo que te deben y lo que debés" },
+  { clave: "pronostico", etiqueta: "Pronóstico", detalle: "La caja de los próximos 90 días" },
   { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
   { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
+  { clave: "inventario", etiqueta: "Inventario", detalle: "Valor, rotación y stock quieto" },
   { clave: "clientes", etiqueta: "Contactos", detalle: "Clientes y proveedores" },
   { clave: "embudo", etiqueta: "CRM", detalle: "Oportunidades y tareas" },
   { clave: "emisor", etiqueta: "Facturación", detalle: "Datos del emisor" },
@@ -362,6 +368,10 @@ export default function NegocioView() {
           />
         ) : pestania === "cartera" ? (
           <Cartera onCambio={() => void cargar()} />
+        ) : pestania === "pronostico" ? (
+          <Pronostico />
+        ) : pestania === "inventario" ? (
+          <Inventario />
         ) : pestania === "rentabilidad" ? (
           <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (
