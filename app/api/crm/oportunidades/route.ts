@@ -102,6 +102,9 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
   const contactoId =
     typeof cuerpo.contacto_id === "string" && cuerpo.contacto_id ? cuerpo.contacto_id : null;
 
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
       .from("eos_crm_contactos")
       .select("id")
       .eq("id", contactoId)
-      .eq("usuario_id", puerta.usuarioId)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .maybeSingle();
 
     if (contactoError) {
@@ -197,6 +200,9 @@ export async function PATCH(request: Request) {
 
   const supabase = await createClient();
 
+  // Las dos fronteras mientras dure la transición de la v109/v110.
+  const empresaId = await miEmpresa(supabase);
+
   const { data, error } = await supabase
     .from("eos_crm_oportunidades")
     .update({
@@ -212,7 +218,7 @@ export async function PATCH(request: Request) {
       actualizado_en: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("usuario_id", puerta.usuarioId)
+    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .select(COLUMNAS)
     .maybeSingle();
 
