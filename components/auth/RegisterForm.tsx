@@ -35,6 +35,10 @@ export default function RegisterForm({ onLogin }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  // Se separa del error normal porque no hay nada roto: la persona ya tiene
+  // cuenta, y lo que necesita no es un mensaje de error sino un botón que la
+  // lleve a ingresar.
+  const [cuentaExistente, setCuentaExistente] = useState(false);
 
   async function register(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,6 +49,7 @@ export default function RegisterForm({ onLogin }: Props) {
 
     setErrorMessage("");
     setSuccessMessage("");
+    setCuentaExistente(false);
 
     if (!cleanName || !cleanEmail || !password) {
       setErrorMessage("Completa nombre, correo y contraseña.");
@@ -85,6 +90,22 @@ export default function RegisterForm({ onLogin }: Props) {
 
       if (!data.user) {
         throw new Error("Supabase no devolvió el usuario creado.");
+      }
+
+      /*
+       * Cuenta duplicada: Supabase no avisa con un error.
+       *
+       * Para no dejar adivinar desde afuera qué correos ya están registrados,
+       * signUp() con un correo ya confirmado responde SIN error, sin sesión,
+       * y con un usuario que tiene `identities: []` —hasta el `created_at`
+       * viene falsificado con la fecha de ahora—. Sin este chequeo, quien
+       * reintenta registrarse con su propio correo ve "Cuenta creada, revisá
+       * tu correo" y espera para siempre una confirmación que nunca llega,
+       * porque no se creó nada ni se mandó nada.
+       */
+      if (data.user.identities?.length === 0) {
+        setCuentaExistente(true);
+        return;
       }
 
       // Si la confirmación de correo está desactivada,
@@ -186,6 +207,20 @@ export default function RegisterForm({ onLogin }: Props) {
         {successMessage && (
           <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-300">
             {successMessage}
+          </div>
+        )}
+
+        {cuentaExistente && (
+          <div className="mt-4 rounded-xl border border-[#6fa3e8]/30 bg-[#2f72d6]/10 p-4 text-sm leading-6 text-[#a9c6ee]">
+            Ese correo ya tiene una cuenta en EOS.{" "}
+            <button
+              type="button"
+              onClick={onLogin}
+              className="font-bold underline underline-offset-2 hover:text-white"
+            >
+              Ingresá con tu contraseña
+            </button>{" "}
+            o recuperala si no la recordás.
           </div>
         )}
 

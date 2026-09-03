@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import LoginForm from "@/components/auth/LoginForm";
 import RegisterForm from "@/components/auth/RegisterForm";
@@ -12,8 +13,42 @@ import { loginTechCanvas } from "@/components/effects/techCanvasPresets";
 
 type Screen = "login" | "register" | "forgot";
 
-export default function LoginPage() {
+/*
+ * Por qué alguien vuelve a esta pantalla sin haberlo pedido.
+ *
+ * `/auth/callback` redirige acá con `?error=...` cuando un enlace de
+ * confirmación o de recuperación ya venció o ya se usó — y hasta ahora esa
+ * información se descartaba: la persona veía el formulario de login pelado,
+ * sin ninguna pista de qué pasó con el enlace que acababa de abrir.
+ *
+ * El middleware hace lo mismo sin `error`, sólo con `next`, cuando alguien
+ * sin sesión —o con la sesión vencida— entra a una ruta protegida. Ahí no se
+ * puede decir "tu sesión venció" con certeza: puede ser la primera visita.
+ * Por eso ese caso lleva un aviso neutro, no una acusación de expiración que
+ * podría ser falsa.
+ */
+function avisoPorParametros(searchParams: URLSearchParams): string {
+  const error = searchParams.get("error");
+
+  if (error === "sesion_no_valida") {
+    return "Ese enlace ya venció o ya se usó. Pedí uno nuevo para continuar.";
+  }
+
+  if (error === "callback_sin_codigo" || error === "usuario_no_encontrado") {
+    return "No pudimos validar ese enlace. Pedí uno nuevo para continuar.";
+  }
+
+  if (searchParams.get("next")) {
+    return "Iniciá sesión para continuar.";
+  }
+
+  return "";
+}
+
+function LoginPageContenido() {
   const [screen, setScreen] = useState<Screen>("login");
+  const searchParams = useSearchParams();
+  const aviso = avisoPorParametros(searchParams);
 
   return (
     <main
@@ -94,6 +129,12 @@ export default function LoginPage() {
                 Tecnología inteligente para organizar, crear y avanzar.
               </p>
             </div>
+
+            {aviso && screen === "login" && (
+              <div className="mb-5 rounded-xl border border-[#6fa3e8]/30 bg-[#2f72d6]/10 p-4 text-sm leading-6 text-[#a9c6ee]">
+                {aviso}
+              </div>
+            )}
 
             <div className="panel-rise relative">
               <div className="pointer-events-none absolute -inset-px rounded-[32px] bg-gradient-to-br from-[#2f72d6]/50 via-white/5 to-[#6fa3e8]/30" />
@@ -191,6 +232,14 @@ export default function LoginPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContenido />
+    </Suspense>
   );
 }
 
