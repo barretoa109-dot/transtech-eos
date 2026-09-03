@@ -117,11 +117,11 @@ export async function leerHechos(
   }
 
   if (modulos.erp) {
-    const [ventasRes, comprasRes, productosRes] = await Promise.all([
+    const [ventasRes, comprasRes, productosRes, cobranzasRes] = await Promise.all([
       admin
         .from("eos_erp_ventas")
         .select(
-          "id,fecha,moneda,estado,total,contacto:eos_crm_contactos(id,nombre)," +
+          "id,fecha,moneda,estado,total,vence_el,contacto:eos_crm_contactos(id,nombre)," +
             "items:eos_erp_venta_items(producto_id,descripcion,cantidad,total,iva,costo_unitario)",
         )
         .eq("usuario_id", usuarioId)
@@ -130,7 +130,7 @@ export async function leerHechos(
         .limit(TECHO),
       admin
         .from("eos_erp_compras")
-        .select("id,fecha,moneda,estado,total,contacto:eos_crm_contactos(id,nombre)")
+        .select("id,fecha,moneda,estado,total,vence_el,contacto:eos_crm_contactos(id,nombre)")
         .eq("usuario_id", usuarioId)
         .neq("estado", "anulada")
         .order("fecha", { ascending: false })
@@ -140,7 +140,31 @@ export async function leerHechos(
         .select("id,nombre,moneda,activo,controla_stock,stock_actual,stock_minimo,costo,iva")
         .eq("usuario_id", usuarioId)
         .limit(TECHO),
+      // Los cobros parciales (v107). Sin esto, el saldo de un documento sería
+      // su total y la cartera saldría inflada: una venta con la mitad abonada
+      // sigue en estado 'emitida'.
+      admin
+        .from("eos_erp_cuenta_movimientos_v107")
+        .select("venta_id,compra_id,monto")
+        .eq("usuario_id", usuarioId)
+        .limit(5000),
     ]);
+
+    const cobradoPorVenta = new Map<string, number>();
+    const cobradoPorCompra = new Map<string, number>();
+
+    if (cobranzasRes.error) {
+      console.error("KPI: no se pudieron leer las cobranzas:", cobranzasRes.error);
+    } else {
+      for (const c of (cobranzasRes.data ?? []) as Record<string, unknown>[]) {
+        const monto = Number(c.monto ?? 0);
+        if (typeof c.venta_id === "string") {
+          cobradoPorVenta.set(c.venta_id, (cobradoPorVenta.get(c.venta_id) ?? 0) + monto);
+        } else if (typeof c.compra_id === "string") {
+          cobradoPorCompra.set(c.compra_id, (cobradoPorCompra.get(c.compra_id) ?? 0) + monto);
+        }
+      }
+    }
 
     if (ventasRes.error) {
       console.error("KPI: no se pudieron leer las ventas:", ventasRes.error);
@@ -153,6 +177,8 @@ export async function leerHechos(
         contacto_id: (venta.contacto as { id?: string } | null)?.id ?? null,
         contacto_nombre: (venta.contacto as { nombre?: string } | null)?.nombre ?? null,
         total: Number(venta.total ?? 0),
+        vence_el: (venta.vence_el as string | null) ?? null,
+        cobrado: cobradoPorVenta.get(String(venta.id ?? "")) ?? 0,
         items: (Array.isArray(venta.items) ? venta.items : []).map((item: Record<string, unknown>) => ({
           total: Number(item.total ?? 0),
           iva: tasaValida(item.iva),
@@ -177,6 +203,8 @@ export async function leerHechos(
         proveedor_id: (compra.contacto as { id?: string } | null)?.id ?? null,
         proveedor_nombre: (compra.contacto as { nombre?: string } | null)?.nombre ?? null,
         total: Number(compra.total ?? 0),
+        vence_el: (compra.vence_el as string | null) ?? null,
+        cobrado: cobradoPorCompra.get(String(compra.id ?? "")) ?? 0,
       }));
     }
 

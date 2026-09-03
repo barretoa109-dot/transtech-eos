@@ -21,6 +21,8 @@ function venta(p: {
     contacto_id: p.contacto_id ?? null,
     contacto_nombre: p.contacto_nombre ?? null,
     total: p.items.reduce((s, i) => s + i.total, 0),
+    vence_el: null,
+    cobrado: 0,
     items: p.items.map((i) => ({
       total: i.total,
       iva: 10 as const,

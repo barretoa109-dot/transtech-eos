@@ -49,7 +49,7 @@ test("una tendencia buena puntúa alto y una mala puntúa bajo, según la direcc
 
 test("para un indicador de menos_es_mejor, bajar es la buena noticia", () => {
   const s = calcularScore(
-    [r({ id: "cobros_demorados", direccion: "menos_es_mejor", tendencia: "baja" })],
+    [r({ id: "cartera_vencida", direccion: "menos_es_mejor", tendencia: "baja" })],
     SIN_UMBRALES,
     "PYG",
   );

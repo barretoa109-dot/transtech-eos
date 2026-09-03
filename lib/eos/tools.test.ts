@@ -116,12 +116,12 @@ test("explicar_movimiento aclara SIEMPRE que es reparto y no causa", () => {
     ventas: [
       {
         id: "v1", fecha: "2026-08-20", moneda: "PYG", estado: "emitida" as const, contacto_id: null,
-        contacto_nombre: null, total: 1100,
+        contacto_nombre: null, total: 1100, vence_el: null, cobrado: 0,
         items: [{ total: 1100, iva: 10 as const, cantidad: 1, costo_unitario: null, producto_id: "p1" }],
       },
       {
         id: "v2", fecha: "2026-09-05", moneda: "PYG", estado: "emitida" as const, contacto_id: null,
-        contacto_nombre: null, total: 110,
+        contacto_nombre: null, total: 110, vence_el: null, cobrado: 0,
         items: [{ total: 110, iva: 10 as const, cantidad: 1, costo_unitario: null, producto_id: "p1" }],
       },
     ],
