@@ -64,3 +64,7 @@ jobs:
       # `npm run lint` a secas.
       - run: npx tsc --noEmit
       - run: npm run lint:tope
+      # Que las migraciones puedan correr desde cero. No reemplaza aplicarlas
+      # en un proyecto limpio: encuentra las formas de romper el orden que se
+      # ven sin ejecutar nada, que son las que no se notan hasta reconstruir.
+      - run: npm run migraciones

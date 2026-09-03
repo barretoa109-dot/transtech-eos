@@ -12,14 +12,16 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 | **externo** | Depende de un tercero (SET, Bancard, tiendas, abogado). |
 | **bloqueado** | No se puede cerrar hasta resolver otra cosa. |
 
-Medición de hoy, para no discutirla dos veces:
+Medición del 2 de septiembre, para no discutirla dos veces:
 
-- `npm test` → **494/494 en verde**. Empezó el día en 379.
+- `npm test` → **709/709 en verde**. Arrancó el proyecto en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
-- `npm run lint` → **24 errores, 5 avisos**. Empezó el día en 42 y 39.
-  Ya **bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **169 aplicadas, local y remoto coinciden
-  en todas. Cero pendientes.**
+- `npm run lint` → **23 errores, 5 avisos**. Empezó en 42 y 39.
+  **Bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
+- `supabase migration list --linked` → **178 aplicadas, local y remoto coinciden
+  una a una. Cero pendientes.**
+- `npm run migraciones` → **178 archivos, 178 versiones distintas**, sin usos de
+  tabla antes de crearla. Candado nuevo, también bloqueante en CI.
 - `npm run certificar` → **113 de 115 en verde**, 2 en amarillo porque la cuenta
   de certificación no tiene tarjeta catastrada. Ninguna en rojo.
 
@@ -79,7 +81,7 @@ puntos 3, 4, 5, 7 y 50 de una vez.
 | 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** el recorrido con sesión. |
 | 14 | Chat de punta a punta | **parcial** | Enviar, recibir y recuperar conversaciones andan. Falta certificar reintento, detención, adjuntos y reanudación tras desconexión. |
 | 15 | No inventar respuestas | **parcial** | `npm run evals` con corpus y auditoría por mutación (`evals:mutacion`). Falta el caso explícito de "no afirmar una acción no confirmada". |
-| 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate ya exigía aprobación para las acciones ERP del chat. El 31 de agosto se cubrió lo que faltaba en pantalla: cobrar, pagar y emitir un comprobante no confirmaban nada. Ahora los tres dicen qué va a pasar con el monto adentro (`negocio/Confirmar.tsx`), no un "¿estás seguro?". **Falta** el mismo criterio en las eliminaciones de producto y contacto. |
+| 16 | Confirmar antes de lo sensible | **parcial** | El Worker Gate ya exigía aprobación para las acciones ERP del chat. El 31 de agosto se cubrió lo que faltaba en pantalla: cobrar, pagar y emitir un comprobante no confirmaban nada. Ahora los tres dicen qué va a pasar con el monto adentro (`negocio/Confirmar.tsx`), no un "¿estás seguro?". El 2 de septiembre se cerró lo último: dar de baja un producto o un contacto. Al ir a agregar la confirmación apareció que **la eliminación no existía** — las rutas `DELETE` estaban escritas y ninguna pantalla las llamaba, así que un producto cargado por error se quedaba para siempre y el segundo intento creaba el duplicado. Ahora está, y la confirmación dice que deja de ofrecerse, que los documentos que ya lo nombran no cambian y que no se borra nada. Probado contra la base: dados de baja el producto y el cliente de una venta, la venta conserva importe, nombre de la línea y nombre del cliente, y su oportunidad sigue ganada. |
 | 17 | Memoria de EOS | **parcial** | Hecho el 31 de agosto: ver (la recomendación ahora se muestra; antes solo el patrón), corregir con sus palabras, descartar —deja de llegarle a EOS—, restaurar y eliminar (`eos_gestionar_aprendizaje_v96`). Los descartados quedan plegados, no desaparecen. **Falta** el recorrido con sesión. |
 | 18 | Decisiones y seguimiento | **parcial** | `api/decisions` y `api/decisions/[id]/results`. Falta certificar responsable, fecha y vínculo con la conversación de origen. |
 | 19 | Briefing diario | **parcial** | `api/cron/briefing-diario` y preferencias. Falta certificar horario paraguayo, no-duplicado y el enlace correcto. |
@@ -113,10 +115,10 @@ puntos 3, 4, 5, 7 y 50 de una vez.
 | 33 | Empresas, sucursales, roles | **abierto** | El tenant es `usuario_id`. Fuera del alcance de lanzamiento. |
 | 34 | Catálogo profesional | **parcial** | Código, precio, costo, moneda, IVA, stock, mínimo e historial de costo (v80). Faltan categorías, marcas, variantes, unidades y listas de precios. |
 | 35 | Inventario profesional | **abierto** | Un saldo por producto. Fuera del alcance. |
-| 36 | Ciclo de compras | **parcial** | Compra, pago y anulación. Falta orden, aprobación, recepción parcial y devolución. |
-| 37 | Ciclo de ventas | **parcial** | Venta, cobro y anulación. Falta cotización, pedido, entrega parcial y nota de crédito. |
+| 36 | Ciclo de compras | **parcial** | Compra, pago, anulación y —desde el 2 de septiembre— **corrección de importes** (v106): la compra es donde entra el costo, y un número mal tipeado se volvía el costo del producto, el margen de todo lo vendido después y un gasto del panel, sin más salida que anular y recargar. Los precios sí, las cantidades no: cambiar un precio mueve el total y el gasto —los dos en la misma transacción— mientras que cambiar una cantidad movería stock que ya tiene su fila de rastro. 16 comprobaciones contra la base real. Falta orden, aprobación, recepción parcial y devolución. |
+| 37 | Ciclo de ventas | **parcial** | Venta, cobro, anulación y —desde el 2 de septiembre— **corrección del costo congelado** (v105). Cada línea congela el costo del momento para que la subida de un proveedor no cambie el margen de una venta vieja; el efecto secundario era que un costo mal tipeado quedaba mal para siempre. 15 comprobaciones. Y el renglón de la lista pasa a decir **qué se vendió** en vez del cliente: lo pidió una clienta que veía cuatro filas seguidas diciendo "Consumidor final". Falta cotización, pedido, entrega parcial y nota de crédito. |
 | 38 | Caja y tesorería | **abierto** | Fuera del alcance. |
-| 39 | CRM | **parcial** | Contactos, oportunidades y actividades. Falta embudo, conversión y razones de pérdida. |
+| 39 | CRM | **parcial** | Contactos, oportunidades y actividades. El 2 de septiembre el **embudo pasó a llenarse solo con las ventas** (v103/v104): la venta a un cliente cierra su oportunidad, y si no había ninguna la crea ya ganada con el monto real. Tenía cero oportunidades con tres contactos y cuatro ventas cargadas — esperaba que alguien anotara a mano lo que el sistema ya sabía, y un CRM que exige cargar dos veces la misma venta deja de usarse en una semana. Anular deshace: si la creó la venta se borra, si existía vuelve a su etapa y a su monto estimado. 17 comprobaciones contra la base real. Falta conversión y razones de pérdida. |
 | 40 | Reportes empresariales | **parcial** | `api/eos-kpis` y `api/eos-tendencias`. Faltan rotación, margen, cartera y desempeño. |
 | 41 | Facturación electrónica | **cerrado en su rotulado** | La v87 renombró el módulo a "Comprobantes de venta (beta)" y el papel sale como borrador. SIFEN sigue **externo**. |
 | 42 | Auditoría de cambios | **parcial** | Hecho el 31 de agosto: las nueve operaciones sensibles del ERP —registrar, cobrar, pagar, anular venta y compra, ajustar stock, emitir comprobante— escriben en la bitácora encadenada con actor, fecha, antes/después, motivo, origen y resultado. Los intentos rechazados también. El antes/después va dentro de `detalle`, que está hasheado; una columna nueva quedaría fuera de la cadena. **Falta** empresa/sucursal, que no existen hasta la fase 1. |
@@ -140,7 +142,7 @@ puntos 3, 4, 5, 7 y 50 de una vez.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 48 | Experiencia y accesibilidad | **abierto** | Sin auditoría de teclado, contraste, lectores de pantalla, estados vacíos ni conexión lenta. |
-| 49 | Puerta automática de calidad | **parcial** | El CI corre `npm test`, `npm run evals`, `tsc --noEmit` y ahora `npm run lint:tope`, los cuatro bloqueando. El lint todavía no exige cero —quedan 24 errores heredados— pero **ya no puede subir**: el trinquete falla si crece, y también si baja sin actualizar el tope, para que ese número no mienta. Deuda: 42 → 24 errores, 39 → 7 avisos. Ya existe la primera prueba SQL (`supabase/tests/`). Faltan las de seguridad y los recorridos de navegador. |
+| 49 | Puerta automática de calidad | **parcial** | El CI corre `npm test`, `npm run evals`, `tsc --noEmit` y ahora `npm run lint:tope`, los cuatro bloqueando. El lint todavía no exige cero —quedan 24 errores heredados— pero **ya no puede subir**: el trinquete falla si crece, y también si baja sin actualizar el tope, para que ese número no mienta. Deuda: 42 → 24 errores, 39 → 7 avisos. Ya existe la primera prueba SQL (`supabase/tests/`). El 2 de septiembre se sumó el **quinto candado**: `npm run migraciones`, que encuentra sin base de datos las tres formas de romper una instalación desde cero —versiones repetidas, migraciones vacías, y usar una tabla antes de crearla—. Se probó **en rojo**, que es la única prueba que vale para un guardián: los cuatro casos se construyeron aparte y los cuatro fallan con el archivo y el motivo. Faltan las de seguridad y los recorridos de navegador. |
 | 50 | Piloto y simulacro | **abierto** | Deja de depender de crear un proyecto: ya existe uno sano. Falta decidir si se usa ese o se crea otro, y después el piloto en sí. |
 
 ---
@@ -180,6 +182,39 @@ Por rendimiento, no por número de punto.
    entender, y saber qué va a pasar antes de que pase.
 7. **Punto 48 — accesibilidad.** Antes del piloto, no después.
 8. **Firmas: 1, 9 y 10.**
+
+---
+
+## Alcance que se sumó después de escribir esta lista
+
+Los cincuenta puntos se escribieron pensando en un comercio. El 2 de
+septiembre el usuario señaló que **EOS también es para personas físicas sin
+negocio** —alguien que quiere anotar el combustible, el almuerzo y el sueldo—
+y que eso no estaba en ninguna parte de la lista.
+
+Tenía razón, y al ir a construirlo apareció algo peor que un hueco: casi todo
+ya existía. `/api/finanzas/rapido` interpreta «gasté 50 mil en nafta» desde
+hace tiempo —monto, dirección, fecha, moneda— y **no estaba conectado a
+ninguna pantalla**. El clasificador de destinos, el desglose y el panel
+también. Era un motor completo sin puerta de entrada.
+
+Ahora hay una sección **Gastos**, fuera de Negocio a propósito, con carga en
+una línea, corrección de categoría a mano y borrado de lo que se cargó a mano.
+Lo nacido de una venta se muestra bloqueado con el lugar donde sí se corrige.
+
+Dos cosas que encontraron las pruebas y no la lectura del código:
+
+- Los patrones de «comida» eran marcas y locales —PedidosYa, restaurante,
+  pizzería—, pensados para el extracto del banco. Nadie escribe «PEDIDOSYA»
+  cuando anota a mano: escribe «el almuerzo».
+- Contra la base real, **todas** las filas salían «Sin reconocer», porque los
+  movimientos del ERP traen categoría propia con descripciones genéricas.
+  Veinte filas iguales parecen una pantalla rota cuando el sistema sabe
+  perfectamente qué es cada una.
+
+**Qué implica para el lanzamiento:** el alcance congelado (punto 1) habla de
+un producto para comercios. Si se anuncia también para personas físicas, ese
+documento hay que actualizarlo antes, no después.
 
 ---
 

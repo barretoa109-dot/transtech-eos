@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Building2, Pencil, Phone } from "lucide-react";
+import Confirmar from "./Confirmar";
 import type { Contacto } from "./tipos";
 
 /**
@@ -22,6 +23,19 @@ type Props = { contacto: Contacto; onCambio: () => void };
 
 export default function FilaContacto({ contacto, onCambio }: Props) {
   const [editando, setEditando] = useState(false);
+
+  /** La baja es lógica: el historial que ya lo nombra no se toca. */
+  async function darDeBaja() {
+    const respuesta = await fetch(`/api/erp/contactos/${contacto.id}`, { method: "DELETE" });
+
+    if (!respuesta.ok) {
+      const datos = await respuesta.json().catch(() => null);
+      window.alert(datos?.error || "No pudimos darlo de baja.");
+      return;
+    }
+
+    onCambio();
+  }
 
   const rol =
     contacto.es_proveedor && contacto.es_cliente
@@ -51,6 +65,24 @@ export default function FilaContacto({ contacto, onCambio }: Props) {
         <a className="chip crm-contacto-accion" href={`tel:${contacto.telefono}`} aria-label={`Llamar a ${contacto.nombre}`}>
           <Phone size={11} /> Llamar
         </a>
+      )}
+
+      {/*
+        Igual que en el producto: la ruta de baja existía y nadie la
+        llamaba. Un contacto cargado con el nombre mal escrito se quedaba
+        para siempre, y el segundo intento creaba el duplicado.
+      */}
+      {!editando && (
+        <Confirmar
+          etiqueta="Dar de baja"
+          peligro
+          consecuencia={
+            `"${contacto.nombre}" deja de aparecer al cargar ventas y compras. ` +
+            "Los documentos que ya lo tienen siguen mostrándolo. No se borra nada."
+          }
+          confirmar="Sí, darlo de baja"
+          onConfirmar={() => void darDeBaja()}
+        />
       )}
 
       {editando ? (
