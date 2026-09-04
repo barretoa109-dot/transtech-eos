@@ -23,6 +23,8 @@ import { execFileSync } from "node:child_process";
 
 const MOVIMIENTOS = "lib/finanzas/extraerMovimientos.ts";
 const CORREO = "lib/finanzas/extraerDeCorreo.ts";
+const JOBS = "lib/gateway/jobs.ts";
+const RESPUESTA = "lib/gateway/respuesta.ts";
 
 /** [nombre, archivo, fragmento a romper, con qué reemplazarlo] */
 const MUTACIONES = [
@@ -58,10 +60,43 @@ const MUTACIONES = [
     "const noSaldo = importes.filter((i) => !pareceSaldo(plano, i.indice));",
     "const noSaldo = importes;",
   ],
+
+  /*
+   * Gateway. Estas cuatro protegen exact-once: si una mutación pasa sin que la
+   * suite lo note, el Worker Gate podría dejar de reconocer un reintento y
+   * ejecutar una venta dos veces.
+   *
+   * Las dos primeras ya se colaron una vez: el corpus de `acciones` comparaba
+   * solo las claves declaradas y con `datos: {}` no comparaba nada.
+   */
+  [
+    "orden de preferencia de los alias de una tarea",
+    JOBS,
+    "titulo: texto(d.titulo, d.nombre, d.name, d.asunto, d.tarea),",
+    "titulo: texto(d.nombre, d.titulo, d.name, d.asunto, d.tarea),",
+  ],
+  [
+    "las lecturas no arrastran datos",
+    JOBS,
+    'if (tipo === "VER_DASHBOARD" || tipo === "VER_BRIEFING" || tipo === "RESPONDER") return {};',
+    'if (tipo === "VER_BRIEFING" || tipo === "RESPONDER") return {};',
+  ],
+  [
+    "lista blanca de acciones",
+    RESPUESTA,
+    ".filter((a) => ACCIONES_PERMITIDAS.has(a.tipo))",
+    "",
+  ],
+  [
+    "con documento se descartan las acciones de archivo",
+    RESPUESTA,
+    "const finales = documento ? acciones.filter((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo)) : acciones;",
+    "const finales = acciones;",
+  ],
 ];
 
 const original = new Map(
-  [MOVIMIENTOS, CORREO].map((archivo) => [archivo, readFileSync(archivo, "utf8")]),
+  [MOVIMIENTOS, CORREO, JOBS, RESPUESTA].map((archivo) => [archivo, readFileSync(archivo, "utf8")]),
 );
 
 let problemas = 0;

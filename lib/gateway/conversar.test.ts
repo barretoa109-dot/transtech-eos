@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { conversar, gatewayEnTypeScript } from "./conversar.ts";
+import { accionesEnTypeScript, conversar, gatewayEnTypeScript } from "./conversar.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -219,4 +219,172 @@ test("nunca lanza: siempre devuelve algo que quien llama pueda leer", async () =
     const { resultado } = await conFetchFalso(romper);
     assert.ok(resultado === null || resultado.estado === "respondido" || resultado.estado === "delegar");
   }
+});
+
+// ---------------------------------------------------------------------------
+// Etapa 2: las acciones
+// ---------------------------------------------------------------------------
+
+/** Prende la etapa 2 completa mientras corre `correr`. */
+async function conEtapa2<T>(correr: () => Promise<T>): Promise<T> {
+  const previo = {
+    flag: process.env.EOS_GATEWAY_TS,
+    acciones: process.env.EOS_GATEWAY_TS_ACCIONES,
+    base: process.env.EOS_N8N_BASE_URL,
+    sec: process.env.EOS_WORKER_GATE_SECRET,
+  };
+
+  process.env.EOS_GATEWAY_TS = "1";
+  process.env.EOS_GATEWAY_TS_ACCIONES = "1";
+  process.env.EOS_N8N_BASE_URL = "https://n8n.ejemplo";
+  process.env.EOS_WORKER_GATE_SECRET = "sec";
+
+  try {
+    return await correr();
+  } finally {
+    for (const [clave, valor] of [
+      ["EOS_GATEWAY_TS", previo.flag],
+      ["EOS_GATEWAY_TS_ACCIONES", previo.acciones],
+      ["EOS_N8N_BASE_URL", previo.base],
+      ["EOS_WORKER_GATE_SECRET", previo.sec],
+    ] as const) {
+      if (valor === undefined) delete process.env[clave];
+      else process.env[clave] = valor;
+    }
+  }
+}
+
+/** Una respuesta del modelo que pide registrar una venta. */
+const PIDE_VENTA = JSON.stringify({
+  respuesta: "Lo dejo listo para que confirmes.",
+  acciones: [{ tipo: "REGISTRAR_VENTA", datos: { items: [{ producto: "pan", cantidad: 3 }] } }],
+});
+
+/**
+ * Como `conFetchFalso`, pero con dos destinos: OpenAI y el worker. Devuelve
+ * además cuántas veces se llamó a cada uno, que es lo que hay que mirar.
+ */
+async function conOpenAIyWorker(
+  respuestaModelo: string,
+  respuestaWorker: () => Response,
+): Promise<{
+  resultado: Awaited<ReturnType<typeof conversar>>;
+  aOpenAI: number;
+  alWorker: number;
+}> {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  let aOpenAI = 0;
+  let alWorker = 0;
+
+  globalThis.fetch = (async (url: unknown) => {
+    if (String(url).includes("openai.com")) {
+      aOpenAI += 1;
+      return new Response(JSON.stringify(respuestaDeOpenAI(respuestaModelo)), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    alWorker += 1;
+    return respuestaWorker();
+  }) as unknown as typeof fetch;
+
+  try {
+    const resultado = await conEtapa2(() => conversar(payload()));
+    return { resultado, aOpenAI, alWorker };
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+}
+
+test("la bandera de acciones es aparte de la de la etapa 1", async () => {
+  const clave = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  try {
+    await conEtapa2(async () => {
+    assert.equal(accionesEnTypeScript(), true);
+
+    // Con la etapa 1 prendida y la 2 apagada, las acciones siguen en n8n.
+    process.env.EOS_GATEWAY_TS_ACCIONES = "0";
+    assert.equal(gatewayEnTypeScript(), true);
+    assert.equal(accionesEnTypeScript(), false);
+    process.env.EOS_GATEWAY_TS_ACCIONES = "1";
+
+    // Sin las variables del worker tampoco se prende sola.
+    delete process.env.EOS_WORKER_GATE_SECRET;
+    assert.equal(accionesEnTypeScript(), false);
+    });
+  } finally {
+    if (clave === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = clave;
+  }
+});
+
+test("con la etapa 2 apagada, una acción se delega en n8n", async () => {
+  const { resultado } = await conFetchFalso(() =>
+    ok(respuestaDeOpenAI(PIDE_VENTA)),
+  );
+  assert.equal(resultado?.estado, "delegar");
+});
+
+test("con la etapa 2 prendida, la acción se ejecuta y no se delega", async () => {
+  const { resultado, alWorker } = await conOpenAIyWorker(PIDE_VENTA, () =>
+    new Response(JSON.stringify({ ok: true, executed: true, accion: "REGISTRAR_VENTA", respuesta: "Venta lista." }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+
+  assert.equal(resultado?.estado, "completado");
+  assert.equal(alWorker, 1);
+  assert.ok(resultado?.estado === "completado" && resultado.cuerpo.respuesta.includes("Venta lista."));
+  assert.ok(
+    resultado?.estado === "completado" &&
+      resultado.cuerpo.worker.acciones_ejecutadas.includes("REGISTRAR_VENTA"),
+  );
+});
+
+test("si el worker falla, NO se delega: se informa", async () => {
+  // Delegar haría que n8n vuelva a mandar el mismo job, y la venta podría
+  // cargarse dos veces. Se reporta y se termina.
+  const { resultado, aOpenAI } = await conOpenAIyWorker(PIDE_VENTA, () =>
+    new Response("", { status: 500 }),
+  );
+
+  assert.equal(resultado?.estado, "completado", "se delegó después de haber mandado un job");
+  assert.equal(aOpenAI, 1, "se volvió a llamar a OpenAI por un job ya mandado");
+  assert.ok(
+    resultado?.estado === "completado" && resultado.cuerpo.respuesta.includes("No pude completar"),
+  );
+  assert.ok(resultado?.estado === "completado" && resultado.cuerpo.worker.ok === false);
+});
+
+test("un reintento reconocido por el gate no se cuenta como ejecución", async () => {
+  const { resultado } = await conOpenAIyWorker(PIDE_VENTA, () =>
+    new Response(
+      JSON.stringify({ ok: true, executed: true, idempotent: true, accion: "REGISTRAR_VENTA" }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+
+  assert.ok(resultado?.estado === "completado");
+  if (resultado?.estado === "completado") {
+    assert.deepEqual(resultado.cuerpo.worker.acciones_ejecutadas, []);
+    assert.deepEqual(resultado.cuerpo.worker.acciones_idempotentes, ["REGISTRAR_VENTA"]);
+  }
+});
+
+test("la conversación pura no toca el worker aunque la etapa 2 esté prendida", async () => {
+  const { resultado, alWorker } = await conOpenAIyWorker(
+    JSON.stringify({ respuesta: "Vas bien.", acciones: [] }),
+    () => new Response("{}", { status: 200 }),
+  );
+
+  assert.equal(resultado?.estado, "respondido");
+  assert.equal(alWorker, 0, "se dio la vuelta al worker para no hacer nada");
 });

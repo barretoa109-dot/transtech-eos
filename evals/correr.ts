@@ -24,8 +24,9 @@ import { categorizacion } from "./casos/categorizacion.ts";
 import { importes } from "./casos/importes.ts";
 import { fechas } from "./casos/fechas.ts";
 import { correo } from "./casos/correo.ts";
+import { acciones } from "./casos/acciones.ts";
 
-const SUITES: Suite[] = [correo, categorizacion, importes, fechas];
+const SUITES: Suite[] = [correo, categorizacion, importes, fechas, acciones];
 
 /**
  * Casos que hoy NO pasan y aceptamos conscientemente, por nombre exacto.
