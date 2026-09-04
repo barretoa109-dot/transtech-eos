@@ -18,6 +18,7 @@ import {
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
@@ -740,22 +741,47 @@ export async function POST(req: Request) {
       headers["x-eos-internal-secret"] = process.env.N8N_EOS_INTERNAL_SECRET;
     }
 
-    let response: Response;
-    try {
-      response = await fetch(N8N_EOS_URL, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-        cache: "no-store",
-      });
-    } catch (n8nError) {
-      await releaseQuota(
-        n8nError instanceof Error && n8nError.name === "AbortError"
-          ? "n8n_timeout"
-          : "n8n_fetch_error",
-      );
-      throw n8nError;
+    /*
+     * Etapa 1 de `docs/salida-de-n8n.md`: la conversación pura en TypeScript.
+     *
+     * Toda la migración cabe acá adentro porque n8n entra por un solo `fetch`.
+     * `conversar` devuelve `null` ante cualquier problema y `delegar` cuando
+     * el modelo pidió acciones —el nodo que las arma sigue en n8n— así que en
+     * los dos casos sigue de largo y el código de abajo es exactamente el de
+     * siempre.
+     *
+     * La bandera es `EOS_GATEWAY_TS=1`. Sin ella, o sin `OPENAI_API_KEY`, este
+     * bloque no hace nada.
+     */
+    let response: Response | null = null;
+
+    if (gatewayEnTypeScript()) {
+      const propio = await conversar(payload);
+
+      if (propio?.estado === "respondido") {
+        response = Response.json(propio.cuerpo);
+      } else if (propio?.estado === "delegar") {
+        console.info("Gateway TS: delega en n8n por", propio.motivo);
+      }
+    }
+
+    if (response === null) {
+      try {
+        response = await fetch(N8N_EOS_URL, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+          cache: "no-store",
+        });
+      } catch (n8nError) {
+        await releaseQuota(
+          n8nError instanceof Error && n8nError.name === "AbortError"
+            ? "n8n_timeout"
+            : "n8n_fetch_error",
+        );
+        throw n8nError;
+      }
     }
 
     const rawText = await response.text();

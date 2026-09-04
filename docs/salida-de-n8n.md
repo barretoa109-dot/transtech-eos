@@ -41,7 +41,40 @@ tocar el cliente, sin cambiar contratos y con vuelta atrás inmediata.
 
 ## Plan por etapas
 
-### Etapa 1 — La conversación pura, con red
+### Etapa 1 — La conversación pura, con red · **construida, apagada**
+
+> **Estado (2026-09-03).** El código está escrito, con 74 tests, y **la bandera
+> está apagada**. Vive en `lib/gateway/`:
+>
+> | Archivo | Qué porta |
+> |---|---|
+> | `sistema.ts` | El prompt del sistema, extraído del backup con un script y **verificado byte a byte** contra n8n |
+> | `entrada.ts` | Nodo `01 GW Preparar Entrada` |
+> | `prompt.ts` | Nodo `03 GW Construir Prompt Rápido` |
+> | `respuesta.ts` | Nodo `05 GW Preparar Respuesta` |
+> | `conversar.ts` | La orquestación, la llamada a OpenAI y la caída a n8n |
+>
+> La costura son 12 líneas en `app/api/eos/route.ts`, justo antes del `fetch` a
+> n8n. `conversar` devuelve `null` ante cualquier problema y `delegar` cuando el
+> modelo pide acciones —el nodo 06 sigue en n8n— y en los dos casos la ruta
+> sigue de largo por el camino de siempre.
+>
+> **Para prenderlo hacen falta dos variables en Vercel**, y ninguna de las dos
+> la puede cargar quien escribió esto:
+>
+> - `OPENAI_API_KEY` — la clave de OpenAI. Hoy solo la tiene n8n.
+> - `EOS_GATEWAY_TS=1` — la bandera.
+>
+> Con la clave y sin la bandera, no cambia nada. Con las dos, la conversación
+> pura pasa a atenderse en Vercel y `metadata.gateway` dice `"ts"` en cada
+> respuesta que salió por ahí, que es como se comparan los dos caminos sobre
+> tráfico real antes de sacar la bandera.
+>
+> **El costo que esto tiene:** cuando el modelo pide una acción, la llamada a
+> OpenAI que hizo Vercel se tira y n8n vuelve a llamar. Ese mensaje sale el
+> doble. Se acepta a sabiendas —es la minoría del tráfico— y desaparece cuando
+> la etapa 2 mueva el nodo 06.
+
 
 **Qué se porta:** `01 → 03 → OpenAI → 05 → 06.5 → 06.6`. Unos 11 KB de
 JavaScript determinístico (strings y JSON), sin efectos durables.
