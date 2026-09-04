@@ -39,6 +39,12 @@ export type Entrada = {
   archivo_tamanio: number;
   /** Data URL lista para mandar a OpenAI. Vacía si no hay imagen. */
   imagen_data_url: string;
+  /**
+   * Cuándo llegó el pedido. Es para trazar y NO forma parte de la huella
+   * durable del Worker Gate: si lo fuera, cada reintento se vería como un
+   * comando nuevo.
+   */
+  received_at: string;
 };
 
 export type HistorialItem = {
@@ -152,5 +158,13 @@ export function prepararEntrada(body: Record<string, unknown>): Entrada {
     archivo_tipo: archivo?.tipo ?? "",
     archivo_tamanio: archivo?.tamanio ?? 0,
     imagen_data_url,
+    /*
+     * n8n fabrica este valor nuevo en cada pasada. Acá se prefiere la `fecha`
+     * que ya trae el payload de la ruta: al ser la misma en un reintento, el
+     * job sale idéntico y es más fácil comparar dos ejecuciones. No cambia
+     * nada de exact-once —este campo está fuera de la huella— pero sí ayuda a
+     * leer los dos caminos uno al lado del otro.
+     */
+    received_at: limpio(body.received_at ?? body.fecha) || new Date().toISOString(),
   };
 }

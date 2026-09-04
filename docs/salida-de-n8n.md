@@ -92,12 +92,51 @@ mensajes reales antes de sacar la bandera.
 rápido. El beneficio no es latencia sino dejar de depender de Railway para lo
 que más se usa.
 
-### Etapa 2 — La decisión de acciones
+### Etapa 2 — La decisión de acciones · **construida, apagada**
 
 `06 GW Preparar Jobs Worker`, 11 KB. Es la pieza que traduce lo que pide el
 modelo a jobs para el Worker Gate. Acá sí hay efectos durables, así que
 necesita la suite de evals apuntando al gateway: consultas reales con la ACCIÓN
 esperada (no la prosa), corridas contra los dos caminos hasta que coincidan.
+
+> **Estado (2026-09-03).** Escrita, con 64 tests más un corpus de 16 evals, y
+> **apagada tras su propia bandera**, aparte de la etapa 1.
+>
+> | Archivo | Qué porta |
+> |---|---|
+> | `lib/gateway/jobs.ts` | Nodo `06 GW Preparar Jobs Worker` |
+> | `lib/gateway/worker.ts` | Nodo `07 GW Ejecutar Worker Gobernado` |
+> | `lib/gateway/resultados.ts` | Nodo `08 GW Agregar Resultados Worker` |
+> | `evals/casos/acciones.ts` | El corpus que mide la acción, no la prosa |
+>
+> **Cuatro variables en Vercel**, y ninguna la puede cargar quien escribió esto:
+>
+> - `OPENAI_API_KEY` y `EOS_GATEWAY_TS=1` — las de la etapa 1.
+> - `EOS_GATEWAY_TS_ACCIONES=1` — la bandera propia de esta etapa.
+> - `EOS_N8N_BASE_URL` y `EOS_WORKER_GATE_SECRET` — el Worker sigue en n8n
+>   hasta la etapa 3, así que Vercel necesita poder llamarlo.
+>
+> Son dos banderas y no una a propósito: la etapa 1 no deja rastro y se prende
+> y apaga sin costo; esta ejecuta. Se puede tener la conversación pura en
+> Vercel durante semanas —lo que este mismo documento recomienda— sin haber
+> movido todavía nada que escriba.
+>
+> **La regla que cambia respecto de la etapa 1:** apenas sale el primer job,
+> **este camino ya no delega**. Puede haber una venta cargada; que n8n rehaga
+> el trabajo remandaría los mismos jobs. El Worker Gate sabe reconocerlos por
+> su huella —para eso existe la canonicalización de `jobs.ts`— pero eso es una
+> red, no un permiso. Lo que falle se informa como error en la respuesta, igual
+> que hace n8n hoy.
+>
+> **Al prenderla desaparece el doble cobro** que la etapa 1 tenía sobre los
+> mensajes con acciones: ya no hace falta que n8n vuelva a llamar a OpenAI.
+>
+> **Cómo comparar los dos caminos.** `npm run evals` corre el corpus de
+> `acciones`, que mide qué job sale de cada salida del modelo. Ese corpus es el
+> contrato: si n8n y TypeScript producen el mismo job para los mismos casos,
+> coinciden en lo único que importa. `npm run evals:mutacion` comprueba que el
+> corpus sirva de verdad — la primera versión no servía, ver el encabezado de
+> `evals/casos/acciones.ts`.
 
 ### Etapa 3 — El Background Worker
 

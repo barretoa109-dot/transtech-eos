@@ -758,7 +758,7 @@ export async function POST(req: Request) {
     if (gatewayEnTypeScript()) {
       const propio = await conversar(payload);
 
-      if (propio?.estado === "respondido") {
+      if (propio?.estado === "respondido" || propio?.estado === "completado") {
         response = Response.json(propio.cuerpo);
       } else if (propio?.estado === "delegar") {
         console.info("Gateway TS: delega en n8n por", propio.motivo);
