@@ -978,3 +978,4 @@ create or replace view public.dashboard_usuario as
     progreso_promedio,
     puntuacion_eos
    FROM dashboard_resumen;
+

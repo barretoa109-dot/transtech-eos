@@ -12,20 +12,21 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 | **externo** | Depende de un tercero (SET, Bancard, tiendas, abogado). |
 | **bloqueado** | No se puede cerrar hasta resolver otra cosa. |
 
-Medición del 2-3 de septiembre, para no discutirla dos veces:
+Medición del 3-4 de septiembre, para no discutirla dos veces:
 
-- `npm test` → **771/771 en verde**. Arrancó el proyecto en 379.
+- `npm test` → **878/878 en verde**. Arrancó el proyecto en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
 - `npm run lint` → **23 errores, 5 avisos**. Empezó en 42 y 39.
   **Bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **187 aplicadas, local y remoto coinciden
+- `supabase migration list --linked` → **194 aplicadas, local y remoto coinciden
   una a una. Cero pendientes.**
-- `npm run migraciones` → **187 archivos, 187 versiones distintas**, sin usos de
+- `npm run migraciones` → **194 archivos, 194 versiones distintas**, sin usos de
   tabla antes de crearla. Candado nuevo, también bloqueante en CI.
-- **Instalación desde cero, probada tres veces**: las 187 migraciones aplicadas
-  sobre una base vacía, comparada objeto por objeto contra producción —tablas,
-  vistas, funciones, triggers, políticas RLS—. Coincide exacto. Ver el punto 4
-  y el hallazgo de abajo.
+- **Instalación desde cero, probada en dos rondas** (la segunda encontró lo que
+  la primera no podía ver — ver el hallazgo -3): las 194 migraciones aplicadas
+  sobre una base vacía, comparadas objeto por objeto contra producción —tablas,
+  vistas, funciones, triggers, políticas RLS— y con un ALTA REAL de punta a
+  punta contra la API que usa la aplicación. Coincide exacto. Ver el punto 4.
 - `npm run certificar` → **113 de 115 en verde**, 2 en amarillo porque la cuenta
   de certificación no tiene tarjeta catastrada. Ninguna en rojo.
 
@@ -38,7 +39,7 @@ Medición del 2-3 de septiembre, para no discutirla dos veces:
 | 1 | Congelar el alcance | **parcial** | Redactado en `docs/lanzamiento/alcance-congelado.md`. Falta la firma de producto, legal y técnica, y la decisión sobre rotular ERP y CRM como beta. |
 | 2 | Cerrar los cambios pendientes | **cerrado** | Árbol limpio. Tres commits: invariantes de anulación, validación de entrada de productos, higiene del repo. Los 21 MB de video y presentación quedaron ignorados, no commiteados. |
 | 3 | Sincronizar migraciones | **cerrado** | Las 187 aplicadas coinciden local y remoto, uno por uno, verificado el 2-3 de septiembre. Y ahora hay un segundo proyecto (`biulwebdgrcrsnzuqhky`) con el mismo esquema exacto, construido desde cero — ver el punto 4. |
-| 4 | Instalación desde cero | **cerrado** | **Probado de verdad, no afirmado.** Las 187 migraciones se aplicaron sobre una base vacía del segundo proyecto Supabase, de punta a punta, y el resultado se comparó objeto por objeto contra producción: mismas 128 tablas, 8 vistas, 162 funciones, 108 triggers, 181 políticas RLS. Cero diferencias, salvo una función puente documentada que sólo hace falta en la reconstrucción. El primer intento falló en la segunda migración —ver el hallazgo abajo—, así que esto no salió a la primera. |
+| 4 | Instalación desde cero | **cerrado** | **Probado de verdad, no afirmado, y en dos rondas.** La primera comparó objeto por objeto contra producción —tablas, vistas, funciones, triggers, políticas RLS— y dio 0 diferencias, pero comparar que algo EXISTE no es lo mismo que probar que se puede USAR: nunca se había intentado un alta real. Al investigar el onboarding (punto 12) se hizo esa prueba y aparecieron tres agujeros que la primera ronda no podía haber visto: el trigger `on_auth_user_created` vive en `auth.users`, fuera del esquema `public` que se había comparado; y los privilegios por defecto del esquema (`ALTER DEFAULT PRIVILEGES`, la regla que hace que TODA tabla nueva reciba automáticamente sus permisos) tampoco estaban, así que `usuarios` y `eos_onboarding` existían perfectas pero la API real —con la que habla la aplicación— no podía ni leerlas: "permission denied". Corregidos los tres, un alta real vía la API pasa de punta a punta: el trigger crea `usuarios` con nombre y plan correctos, y deja la fila de onboarding lista. Reconstruido y comparado una tercera vez tras el arreglo: 0 diferencias otra vez. Producción recibió los tres arreglos —dos ejecutados de verdad (son idempotentes), uno marcado como aplicado sin ejecutar (dropear y recrear un trigger de auth.users en vivo es innecesariamente arriesgado)— sin perder ni un dato: mismas 144 conversaciones antes y después. |
 | 5 | Actualización realista | **cerrado** | El entorno del punto 4 es ese ensayo: un proyecto que arranca vacío, no con datos de usuarios reales, y a partir de ahora cualquier migración se puede probar ahí antes de tocar producción. |
 | 6 | Bancard productivo | **parcial** | Firmas, webhook, tokenización, 3DS, ocasional y recurrente andan en `staging` (`BANCARD_ENV`). Falta instalar credenciales productivas y repetir la verificación con `production`. |
 | 7 | Compra real controlada | **cerrado** (con reserva) | Los siete finales cubiertos y **verdes contra la base real**: aprobado, rechazado y abandonado en el caso 03; duplicado, demorado y reversado en el 11. La reversión deshace plan, módulos, solicitud e historial, y repetirla no descuenta dos veces. **Reservas:** el 3DS se completa en el navegador y la suite no puede recorrerlo sola, y el cobro con tarjeta queda en amarillo hasta catastrar una de prueba. |
@@ -72,7 +73,7 @@ Destrabó los puntos 3, 4 y 5 de una vez, como se esperaba.
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
 | 11 | Registro e inicio de sesión | **cerrado** (con reserva) | Correo, Google y Apple, recuperación, cierre de sesión y verificación contra contraseñas filtradas (`lib/pwnedPassword.ts`). Los tres recorridos que faltaban resultaron ser agujeros reales, no sólo falta de certificación: **cuenta duplicada** — `signUp()` no avisa con un error cuando el correo ya existe; responde sin error, sin sesión, con `identities: []` y hasta el `created_at` falsificado con la fecha de ahora. Verificado contra producción con una cuenta real (`demo@transtech.com.py`): sin el chequeo, quien reintenta registrarse veía "Cuenta creada, revisá tu correo" y esperaba para siempre una confirmación que nunca llegaba. Ahora se detecta y ofrece "Ingresá con tu contraseña". **Enlace vencido y sesión expirada** — `/auth/callback` ya redirigía a `/login?error=...` cuando un enlace de confirmación o recuperación vencía, y el middleware ya redirigía con `?next=...` cuando alguien sin sesión entraba a una ruta protegida, pero `/login` descartaba los dos parámetros: la persona volvía a la pantalla de login pelada, sin ninguna pista de qué pasó. Ahora muestra el aviso correspondiente — sin acusar una expiración que podría ser falsa cuando sólo hay `next` sin `error`. Probado en navegador contra los tres casos, incluida la vuelta de "Ingresá con tu contraseña" a la pantalla de login. **Reserva:** falta el mismo recorrido con Apple, que no se pudo ejercitar sin sus credenciales. |
-| 12 | Onboarding conversacional | **parcial** | `/eos/onboarding` y `api/onboarding`, caso 07 de certificación. Falta verificar que cubra país, moneda, zona horaria y tipo de usuario sin formulario. |
+| 12 | Onboarding conversacional | **cerrado** (con reserva) | El hallazgo era más grave que "falta verificar": `eos_onboarding` tenía **cero filas de 40 usuarios**. La conversación fundacional —744 líneas de componente, su API, su tabla— nunca se enlazó al alta; `RegisterForm.tsx` mandaba directo a `/eos/chat`, que es además el destino por defecto de todo el sistema de auth. Confirmado con el usuario que se conecte de verdad: el correo y contraseña ahora manda a `/eos/onboarding`; para Google, que usa el mismo botón para alta y reingreso, `handle_new_user()` deja una fila de onboarding en el mismo instante en que la cuenta nace —la única señal confiable, ya que `created_at` y `last_sign_in_at` nunca coinciden ni en el primer inicio de sesión, probado contra una cuenta real con 54 segundos de diferencia— y `/auth/callback` decide el destino mirando si esa fila existe e incompleta. Sobre país, moneda y zona horaria: zona horaria es una limitación de alcance ya congelada y documentada (briefing en horario de Paraguay), moneda es por documento y no por usuario por diseño, y país no existe como columna en ninguna migración — no es que se pregunte y no se guarde, es que no hay dónde. Probado de punta a punta contra el proyecto de validación reconstruido desde cero: alta real vía la API que usa la aplicación, con `usuarios` y `eos_onboarding` completándose correctamente. **Reserva:** falta el recorrido en el navegador real, con una cuenta de Google de verdad. |
 | 13 | Corregir el onboarding | **parcial** | Hecho el 31 de agosto: `DELETE /api/onboarding` (v96) vuelve al primer paso sin borrar las respuestas viejas, y el botón está en Perfil → Memoria y contexto. **Falta** el recorrido con sesión. |
 | 14 | Chat de punta a punta | **parcial** | Enviar, recibir y recuperar conversaciones andan. Falta certificar reintento, detención, adjuntos y reanudación tras desconexión. |
 | 15 | No inventar respuestas | **parcial** | `npm run evals` con corpus y auditoría por mutación (`evals:mutacion`). Falta el caso explícito de "no afirmar una acción no confirmada". |
@@ -267,6 +268,73 @@ nunca se va a aplicar salvo que alguien lo note y corrija esa migración
 específica antes de que se necesite de verdad. No se tocó acá porque es una
 decisión de esa fase, no de este cambio.
 
+### -3. Existir no es lo mismo que poderse usar — CERRADO
+
+El hallazgo -2 comparó objeto por objeto: mismas tablas, funciones,
+triggers y políticas RLS. Pasó, y aun así la reconstrucción tenía tres
+agujeros que ese tipo de comparación no puede ver, porque nunca prueba que
+alguien pueda realmente USAR lo que existe — sólo que esté ahí.
+
+Aparecieron investigando el onboarding (punto 12): al hacer un alta real
+contra la reconstrucción, usando la misma API con la que habla la
+aplicación, `usuarios` decía "permission denied for table usuarios" para
+`service_role` — la clave con la que la app se conecta.
+
+**Uno: `on_auth_user_created` vive fuera de `public`.** Es el trigger que
+engancha `handle_new_user()` a `auth.users` — sin él, un alta nueva
+inserta en `auth.users` y ahí se queda; `public.usuarios` nunca se crea, y
+con ella ni el plan ni el nombre ni nada de lo que el resto de la
+aplicación da por sentado. La comparación del hallazgo -2 sólo miraba
+triggers del esquema `public`; éste vive en `auth`, y quedó fuera en las
+dos puntas: ni se buscó en producción, ni se verificó que la
+reconstrucción lo tuviera.
+
+**Dos: los privilegios por defecto del esquema, que ninguna migración fija
+nunca.** Ninguna de las 190 y pico migraciones tiene un `grant` para
+`eos_onboarding`, y sin embargo en producción `service_role` puede leerla
+y escribirla sin problema. La razón está en `pg_default_acl`, no en
+ninguna migración: una regla `ALTER DEFAULT PRIVILEGES` fijada una sola
+vez dice "toda tabla, secuencia o función NUEVA que cree `postgres` le da
+automáticamente estos permisos a `anon`, `authenticated` y
+`service_role`". La regla faltaba en el proyecto de validación —no viene
+con cada proyecto nuevo de Supabase, se fija a mano igual que las tablas
+huérfanas— y sin ella cada tabla nace sin un solo permiso para esos tres
+roles.
+
+Se corrigió la causa, no el síntoma: en vez de enumerar un `grant` por
+cada una de las 48 tablas huérfanas —el primer intento fue exactamente
+eso, y funcionaba, pero dejaba a las otras ~140 tablas de las migraciones
+ordinarias expuestas al mismo problema en cualquier reconstrucción
+futura—, se repuso la regla misma
+(`20260731000000_eos_privilegios_default_v0.sql`, fechada antes que
+cualquier tabla). Cubre todo de una vez.
+
+**Tres, ya del lado del punto 12 y no de la reconstrucción:** conectar
+Google al onboarding necesitaba distinguir un alta de un reingreso, y el
+mismo botón sirve para las dos cosas. La tentación es comparar
+`created_at` con `last_sign_in_at` — se probó contra una cuenta real y ya
+eran distintas con 54 segundos de diferencia, porque crear la cuenta y
+abrir la sesión son dos operaciones separadas y nunca coinciden ni en el
+mejor de los casos. La señal que sí es confiable:
+`handle_new_user()` corre exactamente una vez por cuenta —es un
+`after insert on auth.users`, y esa tabla recibe una sola fila por cuenta
+en toda su vida— así que si esa misma ejecución deja una fila en
+`eos_onboarding`, esa fila certifica "esta cuenta acaba de nacer" sin
+adivinar nada. El callback decide mirando si existe y sigue incompleta.
+
+**Verificación final:** reconstruido y comparado una tercera vez tras los
+tres arreglos — 0 diferencias contra producción, igual que el hallazgo -2
+— y esta vez además un alta real de punta a punta, vía la API real:
+`usuarios` y `eos_onboarding` se completan solos, con los valores
+correctos.
+
+Los tres arreglos se aplicaron a producción sin perder datos: dos de
+verdad (son idempotentes — `ALTER DEFAULT PRIVILEGES` no toca nada
+existente, y `create or replace function` es atómico), el del trigger
+marcado como aplicado sin ejecutar, porque dropear y recrear un trigger de
+`auth.users` en un sistema con altas reales corriendo es un riesgo
+innecesario para algo que ya funciona ahí. Verificado: mismas 144
+conversaciones antes y después.
 
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.

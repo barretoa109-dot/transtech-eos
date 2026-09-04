@@ -75,7 +75,10 @@ export default function RegisterForm({ onLogin }: Props) {
         email: cleanEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/eos/chat`,
+          // A onboarding y no al chat: es una cuenta que recién nace, y la
+          // conversación fundacional existe hace tiempo sin que nada la
+          // enlazara — 0 de 40 usuarios la usaron nunca.
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/eos/onboarding`,
           data: {
             nombre: cleanName,
             whatsapp: cleanWhatsapp,
@@ -130,7 +133,7 @@ export default function RegisterForm({ onLogin }: Props) {
           throw profileError;
         }
 
-        window.location.assign("/eos/chat");
+        window.location.assign("/eos/onboarding");
         return;
       }
 
