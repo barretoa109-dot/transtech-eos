@@ -578,7 +578,8 @@ function Ventas({
               <div className="neg-lineas">
                 {totales.lineas.map((l, i) => (
                   <div className="neg-linea" key={`${l.descripcion}-${i}`}>
-                    <span className="neg-linea-nombre">{l.descripcion}</span>
+                    <span className="neg-linea-nombre"><small>Producto</small>{l.descripcion}</span>
+                    <label className="neg-linea-control"><small>Cantidad</small>
                     <input
                       className="neg-input neg-cantidad"
                       type="number"
@@ -592,7 +593,34 @@ function Ventas({
                           ),
                         )
                       }
-                    />
+                    /></label>
+                    {/*
+                      El precio de catálogo es el punto de partida, no el
+                      final: un descuento en el mostrador es normal y el
+                      servidor ya lo acepta (ver el comentario en
+                      app/api/erp/ventas/route.ts). Sin este campo, cambiarlo
+                      obligaba a editar el producto del catálogo antes de
+                      vender y volver a editarlo después.
+                    */}
+                    <label className="neg-linea-control"><small>Precio unitario</small>
+                    <input
+                      className="neg-input neg-cantidad"
+                      inputMode="numeric"
+                      placeholder="Precio"
+                      value={lineas[i].precio_unitario || ""}
+                      onChange={(e) =>
+                        setLineas((actual) =>
+                          actual.map((linea, j) =>
+                            j === i
+                              ? {
+                                  ...linea,
+                                  precio_unitario: Number(e.target.value.replace(/[^\d]/g, "")) || 0,
+                                }
+                              : linea,
+                          ),
+                        )
+                      }
+                    /></label>
                     <span className="neg-linea-total">
                       {formatearMonto(l.total, monedaDeLinea(lineas[i]?.producto_id))}
                     </span>
