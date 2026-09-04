@@ -12,6 +12,8 @@ type SystemRisk = {
   tier: number;
   points: number;
   maxLevel: number;
+  forceApproval?: boolean;
+  defaultLevelOverride?: number;
 };
 
 const SYSTEM_RISK: Record<string, SystemRisk> = {
@@ -26,23 +28,72 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
   CREAR_OBJETIVO: { tier: 2, points: 4, maxLevel: 2 },
 
   /*
-   * Las tres que tocan el negocio, y por qué ninguna se ejecuta sola.
+   * Las tres que tocan el negocio: registrar venta, ajustar stock, crear
+   * contacto.
    *
-   * Con tier 2 o más, la puerta exige aprobación explícita sin importar el
-   * nivel de autonomía configurado: ver la decisión más abajo. Una venta
+   * Hasta el 3 de septiembre de 2026 estas tres pedían aprobación explícita
+   * sin importar el nivel de autonomía configurado, a propósito: una venta
    * descuenta stock y suma plata al panel, y un ajuste reescribe un
-   * inventario. Si el modelo entiende mal "vendile tres panes" y carga
-   * treinta, el error queda escrito en las dos partes del sistema donde más
-   * caro sale. Anular existe, pero un sistema que hay que anular seguido deja
-   * de usarse.
+   * inventario. Si el modelo entendía mal "vendile tres panes" y cargaba
+   * treinta, el error quedaba escrito en las dos partes del sistema donde
+   * más caro sale.
    *
-   * CREAR_CONTACTO es más barato de deshacer y por eso pesa menos, pero
-   * también pide permiso: agendar gente en nombre de alguien no es algo que
-   * deba pasar sin que se entere.
+   * El usuario pidió lo contrario, en estos términos exactos: "Auto-aprobar
+   * todo lo que venga del chat, sin excepción." Se le preguntó puntualmente
+   * por estas tres acciones —las únicas que el gate frenaba— y eligió la
+   * opción sin niveles ni montos, no la recomendada.
+   *
+   * Tres cambios, los tres necesarios juntos:
+   *   - `maxLevel: 3` ya no recorta a 2 a quien tenga nivel 3 configurado.
+   *   - `forceApproval: false` saca el piso de tier que exigía aprobación
+   *     sin importar el nivel.
+   *   - `defaultLevelOverride: 3` es lo que hace "sin excepción" cierto:
+   *     ninguna fila en `eos_autonomy_rules_v12` puede existir hoy para
+   *     estas tres acciones (ver el porqué abajo), así que sin este override
+   *     `configuredLevel` caía siempre al 2 de
+   *     `DEFAULT_PROFILE.default_level` y las dos condiciones de arriba no
+   *     alcanzaban para nadie. No se tocó `DEFAULT_PROFILE.default_level`
+   *     en sí, porque ese default rige TODAS las acciones —incluidas
+   *     GENERAR_PDF, CREAR_TAREA, GUARDAR_MEMORIA— y de esas no se habló ni
+   *     se pidió nada.
+   *
+   *     `eos_autonomy_rules_v12.accion` tiene un check que sólo admite
+   *     RESPONDER, GENERAR_EXCEL/PDF/WORD, CREAR_TAREA, CREAR_OBJETIVO,
+   *     GUARDAR_MEMORIA, VER_DASHBOARD y VER_BRIEFING — nunca incluyó estas
+   *     tres, así que ninguna fila de excepción por usuario existió nunca
+   *     ni puede insertarse hoy para ellas. `rule` siempre da null acá, y
+   *     por eso el override rige igual para todos los usuarios de
+   *     producción y para cualquiera que se sume después: "sin excepción"
+   *     tal cual.
+   *
+   * Siguen dentro del presupuesto diario de riesgo y del límite de acciones
+   * automáticas de `DEFAULT_PROFILE` (más abajo): eso no es una aprobación
+   * por acción, es un techo por día, y el usuario no pidió sacarlo.
+   *
+   * CREAR_OBJETIVO se queda como estaba porque no era una de las tres
+   * nombradas en la pregunta ni en la respuesta.
    */
-  REGISTRAR_VENTA: { tier: 3, points: 6, maxLevel: 2 },
-  AJUSTAR_STOCK: { tier: 3, points: 6, maxLevel: 2 },
-  CREAR_CONTACTO: { tier: 2, points: 3, maxLevel: 2 },
+  REGISTRAR_VENTA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  AJUSTAR_STOCK: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  CREAR_CONTACTO: {
+    tier: 2,
+    points: 3,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*
@@ -576,7 +627,11 @@ export async function POST(request: Request) {
     const configuredLevel =
       rule?.enabled === false
         ? 0
-        : Number(rule?.autonomy_level ?? profile.default_level);
+        : Number(
+            rule?.autonomy_level ??
+              systemRisk.defaultLevelOverride ??
+              profile.default_level,
+          );
     const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
     const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
     const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
@@ -696,10 +751,13 @@ export async function POST(request: Request) {
     } else if (effectiveLevel === 1) {
       decision = "prepare";
       reason = "EOS puede preparar la acción, pero no ejecutar el efecto secundario.";
-    } else if (effectiveLevel === 2 || riskTier >= 2) {
+    } else if (
+      effectiveLevel === 2 ||
+      (riskTier >= 2 && systemRisk.forceApproval !== false)
+    ) {
       decision = "approval";
       reason =
-        riskTier >= 2
+        riskTier >= 2 && systemRisk.forceApproval !== false
           ? "El riesgo mínimo de sistema exige aprobación explícita."
           : "La configuración del usuario exige aprobación explícita.";
     } else if (autoCount >= actionLimit) {
