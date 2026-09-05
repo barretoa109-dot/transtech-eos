@@ -140,7 +140,7 @@ export default function LoginForm({
           type="email"
           autoComplete="email"
           required
-          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-[#2f72d6] focus:bg-white/[0.05]"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-400 focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="nombre@empresa.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -157,7 +157,7 @@ export default function LoginForm({
           id="login-password"
           autoComplete="current-password"
           required
-          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-[#2f72d6] focus:bg-white/[0.05]"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-400 focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Tu contraseña"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -198,7 +198,7 @@ export default function LoginForm({
         <>
           <div className="my-8 flex items-center gap-4">
             <div className="h-px flex-1 bg-slate-700" />
-            <span className="text-sm text-slate-500">o continuar con</span>
+            <span className="text-sm text-slate-400">o continuar con</span>
             <div className="h-px flex-1 bg-slate-700" />
           </div>
 

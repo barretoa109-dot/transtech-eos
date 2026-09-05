@@ -84,7 +84,7 @@ export default function ForgotPassword({ onBack }: Props) {
           type="email"
           autoComplete="email"
           required
-          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-500 focus:border-[#2f72d6] focus:bg-white/[0.05]"
+          className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition placeholder:text-slate-400 focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="nombre@empresa.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
