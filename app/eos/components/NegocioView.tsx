@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeDollarSign, Check, Package, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, Check, Package, Pencil, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -51,6 +51,7 @@ import type { Contacto, Producto } from "./negocio/tipos";
 
 type VentaItem = {
   id: string;
+  producto_id: string | null;
   descripcion: string;
   cantidad: number;
   precio_unitario: number;
@@ -417,6 +418,17 @@ function Ventas({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
+  /*
+   * Editar no es un formulario aparte: es este mismo, precargado.
+   *
+   * `editandoId` distingue las dos cosas que puede hacer "Registrar/Guardar":
+   * null es una venta nueva; con id, el servidor anula la vieja y registra
+   * esta como nueva por dentro (`eos_erp_editar_venta`, v116) — pero para
+   * quien está mirando la pantalla es "corregí esta venta", no "hice dos".
+   */
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [motivoEdicion, setMotivoEdicion] = useState("");
+
   const totales = useMemo(() => calcularVenta(lineas), [lineas]);
 
   /*
@@ -477,6 +489,36 @@ function Ventas({
     });
   }
 
+  function cerrarFormulario() {
+    setLineas([]);
+    setContactoId("");
+    setEditandoId(null);
+    setMotivoEdicion("");
+    setAbierto(false);
+    setError("");
+  }
+
+  /** Precarga el formulario con una venta existente, en vez de uno vacío. */
+  function editar(venta: Venta) {
+    setLineas(
+      [...venta.items]
+        .sort((a, b) => a.orden - b.orden)
+        .map((item) => ({
+          producto_id: item.producto_id,
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+          iva: tasaValida(item.iva),
+        })),
+    );
+    setContactoId(venta.contacto?.id ?? "");
+    setCondicion(venta.condicion === "credito" ? "credito" : "contado");
+    setEditandoId(venta.id);
+    setMotivoEdicion("");
+    setError("");
+    setAbierto(true);
+  }
+
   async function registrar() {
     if (lineas.length === 0 || guardando) return;
 
@@ -487,36 +529,54 @@ function Ventas({
       return;
     }
 
+    if (editandoId && motivoEdicion.trim().length < 3) {
+      setError("Escribí brevemente qué corregiste.");
+      return;
+    }
+
     setGuardando(true);
     setError("");
 
     try {
-      const respuesta = await fetch("/api/erp/ventas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contacto_id: contactoId || null,
-          condicion,
-          moneda,
-          items: lineas.map((l) => ({
-            producto_id: l.producto_id,
-            descripcion: l.descripcion,
-            cantidad: l.cantidad,
-            precio_unitario: l.precio_unitario,
-            iva: l.iva,
-          })),
-        }),
-      });
+      const items = lineas.map((l) => ({
+        producto_id: l.producto_id,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        precio_unitario: l.precio_unitario,
+        iva: l.iva,
+      }));
+
+      const respuesta = editandoId
+        ? await fetch(`/api/erp/ventas/${editandoId}/editar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contacto_id: contactoId || null,
+              condicion,
+              moneda,
+              items,
+              motivo: motivoEdicion.trim(),
+            }),
+          })
+        : await fetch("/api/erp/ventas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contacto_id: contactoId || null, condicion, moneda, items }),
+          });
 
       const resultado = await respuesta.json().catch(() => null);
-      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo registrar la venta.");
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado?.error || (editandoId ? "No se pudo editar la venta." : "No se pudo registrar la venta."),
+        );
+      }
 
-      setLineas([]);
-      setContactoId("");
-      setAbierto(false);
+      cerrarFormulario();
       onCambio();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar la venta.");
+      setError(
+        err instanceof Error ? err.message : editandoId ? "No se pudo editar la venta." : "No se pudo registrar la venta.",
+      );
     } finally {
       setGuardando(false);
     }
@@ -534,7 +594,7 @@ function Ventas({
   return (
     <>
       <div className="card">
-        <div className="card-title">Cargar una venta</div>
+        <div className="card-title">{editandoId ? "Corregir venta" : "Cargar una venta"}</div>
 
         {productos.length === 0 ? (
           <p className="empty-note">
@@ -670,6 +730,19 @@ function Ventas({
               </div>
             )}
 
+            {editandoId && (
+              <input
+                className="neg-input"
+                placeholder="¿Qué corregiste? (obligatorio)"
+                value={motivoEdicion}
+                maxLength={500}
+                onChange={(e) => {
+                  setMotivoEdicion(e.target.value);
+                  if (error) setError("");
+                }}
+              />
+            )}
+
             {error && <p className="neg-error">{error}</p>}
 
             <div className="chip-row" style={{ marginTop: 12 }}>
@@ -679,9 +752,9 @@ function Ventas({
                 disabled={lineas.length === 0 || guardando || mezclaMonedas}
                 onClick={registrar}
               >
-                {guardando ? "Registrando…" : "Registrar venta"}
+                {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Registrar venta"}
               </button>
-              <button type="button" className="chip" onClick={() => setAbierto(false)}>
+              <button type="button" className="chip" onClick={cerrarFormulario}>
                 Cancelar
               </button>
             </div>
@@ -760,6 +833,18 @@ function Ventas({
                         items={v.items ?? []}
                         onCorregido={onCambio}
                       />
+
+                      {/*
+                        Cantidad, precio, producto — lo que "Corregir costo"
+                        no toca. Si la venta tiene una factura activa, el
+                        servidor lo rechaza con el mismo mensaje que ya usa
+                        Anular: no hace falta duplicar ese chequeo acá.
+                      */}
+                      <button type="button" className="chip" onClick={() => editar(v)}>
+                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                        Corregir
+                      </button>
+
                       {v.movimiento_id ? (
                         <span className="neg-estado is-ok">
                           <Check size={12} /> cobrada

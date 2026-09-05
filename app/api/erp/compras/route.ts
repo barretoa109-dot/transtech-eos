@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       "id,fecha,moneda,subtotal,iva_total,total,condicion,estado,numero_comprobante," +
         "movimiento_id,notas,creado_en," +
         "contacto:eos_crm_contactos(id,nombre)," +
-        "items:eos_erp_compra_items(id,descripcion,cantidad,precio_unitario,iva,total,orden)",
+        "items:eos_erp_compra_items(id,producto_id,descripcion,cantidad,precio_unitario,iva,total,orden)",
     )
     .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
     .order("fecha", { ascending: false })

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
 import CorregirCosto from "./CorregirCosto";
-import { AlertCircle, Check, PackagePlus, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
+import { AlertCircle, Check, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -81,6 +81,14 @@ export default function Compras({
   const [costoConcepto, setCostoConcepto] = useState("");
   const [ivaConcepto, setIvaConcepto] = useState<0 | 5 | 10>(10);
   const [pagandoId, setPagandoId] = useState<string | null>(null);
+
+  /*
+   * Editar es este mismo formulario, precargado con una compra existente.
+   * El espejo de `Ventas` en NegocioView.tsx — mismo motivo, misma forma
+   * (`eos_erp_editar_compra`, v116: anula y vuelve a registrar por dentro).
+   */
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [motivoEdicion, setMotivoEdicion] = useState("");
 
   const cargar = useCallback(() => {
     return Promise.resolve()
@@ -219,6 +227,44 @@ export default function Compras({
     }
   }
 
+  function cerrarFormulario() {
+    setAbierto(false);
+    setLineas([]);
+    setComprobante("");
+    setFecha("");
+    setNotas("");
+    setContactoId("");
+    setCondicion("contado");
+    setEditandoId(null);
+    setMotivoEdicion("");
+    setError("");
+  }
+
+  /** Precarga el formulario con una compra existente, en vez de uno vacío. */
+  function editar(compra: Compra) {
+    setLineas(
+      [...compra.items]
+        .sort((a, b) => a.orden - b.orden)
+        .map((item) => ({
+          producto_id: item.producto_id,
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+          iva: tasaValida(item.iva),
+        })),
+    );
+    setContactoId(compra.contacto?.id ?? "");
+    setCondicion(compra.condicion === "credito" ? "credito" : "contado");
+    setComprobante(compra.numero_comprobante ?? "");
+    setFecha(compra.fecha ?? "");
+    setNotas("");
+    setEditandoId(compra.id);
+    setMotivoEdicion("");
+    setError("");
+    setExito("");
+    setAbierto(true);
+  }
+
   async function registrar() {
     if (lineas.length === 0 || guardando) return;
     if (lineas.some((l) => l.cantidad <= 0 || l.precio_unitario <= 0)) {
@@ -233,47 +279,74 @@ export default function Compras({
       return;
     }
 
+    if (editandoId && motivoEdicion.trim().length < 3) {
+      setError("Escribí brevemente qué corregiste.");
+      return;
+    }
+
     setGuardando(true);
     setError("");
     setExito("");
 
     try {
-      const respuesta = await fetch("/api/erp/compras", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contacto_id: contactoId || null,
-          fecha: fecha || null,
-          numero_comprobante: comprobante || null,
-          notas: notas || null,
-          condicion,
-          moneda,
-          items: lineas.map((l) => ({
-            producto_id: l.producto_id,
-            descripcion: l.descripcion,
-            cantidad: l.cantidad,
-            precio_unitario: l.precio_unitario,
-            iva: l.iva,
-          })),
-        }),
-      });
+      const items = lineas.map((l) => ({
+        producto_id: l.producto_id,
+        descripcion: l.descripcion,
+        cantidad: l.cantidad,
+        precio_unitario: l.precio_unitario,
+        iva: l.iva,
+      }));
+
+      const respuesta = editandoId
+        ? await fetch(`/api/erp/compras/${editandoId}/editar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contacto_id: contactoId || null,
+              fecha: fecha || null,
+              numero_comprobante: comprobante || null,
+              notas: notas || null,
+              condicion,
+              moneda,
+              items,
+              motivo: motivoEdicion.trim(),
+            }),
+          })
+        : await fetch("/api/erp/compras", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contacto_id: contactoId || null,
+              fecha: fecha || null,
+              numero_comprobante: comprobante || null,
+              notas: notas || null,
+              condicion,
+              moneda,
+              items,
+            }),
+          });
 
       const resultado = await respuesta.json().catch(() => null);
-      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo registrar la compra.");
+      if (!respuesta.ok) {
+        throw new Error(
+          resultado?.error || (editandoId ? "No se pudo editar la compra." : "No se pudo registrar la compra."),
+        );
+      }
 
-      setLineas([]);
-      setComprobante("");
-      setFecha("");
-      setNotas("");
-      setContactoId("");
-      setCondicion("contado");
-      setAbierto(false);
-      setExito("Compra registrada. El stock y los indicadores ya están actualizados.");
+      const fueEdicion = Boolean(editandoId);
+      cerrarFormulario();
+      setExito(
+        fueEdicion
+          ? "Compra editada. El stock y los indicadores ya están actualizados."
+          : "Compra registrada. El stock y los indicadores ya están actualizados.",
+      );
       await cargar();
       // El panel financiero cambió: la compra pagada ya descontó.
       onCambio();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo registrar la compra.");
+      setError(
+        err instanceof Error ? err.message : editandoId ? "No se pudo editar la compra." : "No se pudo registrar la compra.",
+      );
     } finally {
       setGuardando(false);
     }
@@ -303,8 +376,12 @@ export default function Compras({
       <div className="card">
         <div className="neg-section-heading">
           <div>
-            <div className="card-title">Compras y abastecimiento</div>
-            <div className="card-sub">Registrá facturas, actualizá costos y mantené el stock al día.</div>
+            <div className="card-title">{editandoId ? "Corregir compra" : "Compras y abastecimiento"}</div>
+            <div className="card-sub">
+              {editandoId
+                ? "Se anula la compra vieja y se registra de nuevo con tus cambios."
+                : "Registrá facturas, actualizá costos y mantené el stock al día."}
+            </div>
           </div>
           {!abierto && (
             <button type="button" className="reco-btn" onClick={() => { setAbierto(true); setExito(""); }}>
@@ -440,6 +517,22 @@ export default function Compras({
               </div>
             )}
 
+            {editandoId && (
+              <label className="neg-field neg-field-wide">
+                <span>¿Qué corregiste? *</span>
+                <input
+                  className="neg-input"
+                  placeholder="Obligatorio"
+                  value={motivoEdicion}
+                  maxLength={500}
+                  onChange={(e) => {
+                    setMotivoEdicion(e.target.value);
+                    if (error) setError("");
+                  }}
+                />
+              </label>
+            )}
+
             {error && <p className="neg-error" role="alert"><AlertCircle size={14} /> {error}</p>}
 
             <div className="chip-row" style={{ marginTop: 12 }}>
@@ -449,9 +542,9 @@ export default function Compras({
                 disabled={lineas.length === 0 || guardando || mezclaMonedas}
                 onClick={registrar}
               >
-                {guardando ? "Registrando…" : "Registrar compra"}
+                {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Registrar compra"}
               </button>
-              <button type="button" className="chip" disabled={guardando} onClick={() => { setAbierto(false); setLineas([]); setError(""); }}>
+              <button type="button" className="chip" disabled={guardando} onClick={cerrarFormulario}>
                 Cancelar
               </button>
             </div>
@@ -531,6 +624,12 @@ export default function Compras({
                         items={c.items ?? []}
                         onCorregido={cargar}
                       />
+
+                      {/* Cantidad, costo, producto — lo que Corregir costo no toca. */}
+                      <button type="button" className="chip" onClick={() => editar(c)}>
+                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                        Corregir
+                      </button>
 
                       {c.movimiento_id ? (
                         <span className="neg-estado is-ok">

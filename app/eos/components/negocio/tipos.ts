@@ -53,6 +53,7 @@ export type Actividad = {
 
 export type CompraItem = {
   id: string;
+  producto_id: string | null;
   descripcion: string;
   cantidad: number;
   precio_unitario: number;
