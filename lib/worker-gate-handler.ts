@@ -1,7 +1,8 @@
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
 import { adminSinTipos } from "./supabase/sin-tipos.ts";
+import { autorizadoComoWorker } from "./seguridad/worker-bearer.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -169,38 +170,6 @@ function dateInTimeZone(value: string, timeZone = AUTONOMY_TIME_ZONE) {
 function recentAutonomyWindowStart() {
   return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
 }
-
-/**
- * "¿Este llamado viene del worker?"
- *
- * Se exporta para que `worker-ping/v1` la use en vez de escribir una CUARTA
- * copia: hoy esta comprobación está repetida tres veces —acá, en
- * `action-effects/v1` y en `worker-authorize/v1`— y son tres lugares donde un
- * día uno puede decir que sí mientras los otros dicen que no. Consolidar las
- * tres es un cambio aparte; sumar una más no.
- */
-export function autorizadoComoWorker(request: Request) {
-  const expected = process.env.EOS_WORKER_GATE_SECRET;
-  if (!expected) return { ok: false, unavailable: true };
-
-  const header = request.headers.get("authorization") || "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
-
-  if (!supplied) return { ok: false, unavailable: false };
-
-  const expectedBuffer = Buffer.from(expected);
-  const suppliedBuffer = Buffer.from(supplied);
-
-  if (expectedBuffer.length !== suppliedBuffer.length) {
-    return { ok: false, unavailable: false };
-  }
-
-  return {
-    ok: timingSafeEqual(expectedBuffer, suppliedBuffer),
-    unavailable: false,
-  };
-}
-
 async function logEvent(
   admin: any,
   params: {

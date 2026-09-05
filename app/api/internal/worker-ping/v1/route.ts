@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { autorizadoComoWorker } from "@/lib/worker-gate-handler";
+import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

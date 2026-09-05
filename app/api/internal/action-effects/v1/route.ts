@@ -1,7 +1,7 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
 import { paraRegistro } from "@/lib/seguridad/registro";
 
 export const runtime = "nodejs";
@@ -23,27 +23,7 @@ function isUuid(value: unknown): value is string {
   );
 }
 
-function authorized(request: Request) {
-  const expected = process.env.EOS_WORKER_GATE_SECRET;
-  if (!expected) return { ok: false, unavailable: true };
 
-  const header = request.headers.get("authorization") || "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
-
-  if (!supplied) return { ok: false, unavailable: false };
-
-  const expectedBuffer = Buffer.from(expected);
-  const suppliedBuffer = Buffer.from(supplied);
-
-  if (expectedBuffer.length !== suppliedBuffer.length) {
-    return { ok: false, unavailable: false };
-  }
-
-  return {
-    ok: timingSafeEqual(expectedBuffer, suppliedBuffer),
-    unavailable: false,
-  };
-}
 
 function respond(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status, headers: noStoreHeaders() });
@@ -147,7 +127,7 @@ function mapRpcError(error: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const authorization = authorized(request);
+    const authorization = autorizadoComoWorker(request);
 
     if (authorization.unavailable) {
       return respond(
