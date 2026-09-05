@@ -104,12 +104,16 @@ export type MovimientoHecho = {
   moneda: string | null;
   monto: number;
   tipo: "ingreso" | "gasto";
+  /** Opcional: ningún indicador la necesitaba hasta la traza del resultado. */
+  descripcion?: string | null;
 };
 
 export type FijoHecho = {
   moneda: string | null;
   monto: number;
   tipo: "ingreso" | "gasto";
+  /** Opcional: ningún indicador la necesitaba hasta la traza del resultado. */
+  descripcion?: string | null;
 };
 
 export type ProductoHecho = {

@@ -243,7 +243,11 @@ export default function FinanzasPanel() {
             buscándolo. Abrir otra cifra reemplaza esta, no apila paneles.
           */}
           {abierta && (
+            // La key reinicia el panel al tocar otra cifra. Ver el porqué en Traza.tsx.
+            // (No se había notado: acá también hay más de una cifra tocable —
+            // disponible real, ingresos, gastos, compromisos, previsibles.)
             <Traza
+              key={abierta}
               trazas={trazas}
               inicial={abierta}
               moneda={data.moneda}

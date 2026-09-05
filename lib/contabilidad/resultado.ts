@@ -85,7 +85,8 @@ export type Resultado = {
 };
 
 /** Los estados de venta que representan plata facturada. */
-const VENTAS_VIVAS = new Set(["emitida", "cobrada"]);
+/** Exportado: `lib/contabilidad/trazabilidad.ts` filtra las mismas ventas. */
+export const VENTAS_VIVAS = new Set(["emitida", "cobrada"]);
 
 export const NO_ES_PARA_LA_SET =
   "Este es el resultado operativo del negocio, no un estado contable: no tiene asientos, ni plan de cuentas, ni impuestos. No sirve para presentar ante la SET.";

@@ -8,6 +8,7 @@ import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { valorInventario } from "@/lib/erp/kardex";
 import { estadoDeResultados, margenOperativo } from "@/lib/contabilidad/resultado";
+import { trazarResultado } from "@/lib/contabilidad/trazabilidad";
 import { leerCapitalDeTrabajo, posicion, type CuotaDeuda } from "@/lib/contabilidad/posicion";
 import { empresaDe, saldosDeCaja } from "@/lib/empresa/acceso";
 import type { DocumentoCartera } from "@/lib/erp/cartera";
@@ -136,7 +137,14 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       periodo,
-      resultados: resultados.map((r) => ({ ...r, margen_operativo: margenOperativo(r) })),
+      resultados: resultados.map((r) => ({
+        ...r,
+        margen_operativo: margenOperativo(r),
+        // Punto 23: la misma trazabilidad del panel financiero, llevada al
+        // resultado del ERP. Cada línea que se pueda abrir viaja con su
+        // desglose ya armado; `Cifra`/`Traza` deciden solas cuáles ofrecer.
+        trazas: trazarResultado(hechos, periodo, r),
+      })),
       posiciones: posiciones.map((p) => ({ ...p, lectura: leerCapitalDeTrabajo(p) })),
       // Los avisos de la caja viajan aparte: hablan de la CALIDAD del saldo
       // —cuántos días tiene, cuántas cajas quedaron sin cargar— y no de la

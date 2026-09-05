@@ -38,6 +38,27 @@ import type { ClaveCifra, Trazado } from "@/lib/finanzas/trazabilidad";
  * El camino queda guardado para poder volver un paso, no cerrar y empezar de
  * nuevo: bajar tres niveles y perder el camino de vuelta es la forma más rápida
  * de que alguien no vuelva a bajar.
+ *
+ * ============================================================
+ * QUIEN RENDERIZA ESTO TIENE QUE PONERLE `key={inicial}`
+ * ============================================================
+ *
+ * En una pantalla con más de una cifra tocable —Resultado del ERP, o el panel
+ * financiero con "disponible real", "ingresos", "gastos" todos abribles por
+ * separado— tocar una SEGUNDA cifra mientras el panel ya está abierto en la
+ * primera no vuelve a montar este componente: sigue siendo el mismo, en el
+ * mismo lugar del árbol, solo que con un `inicial` distinto. `useState(inicial)`
+ * únicamente lee esa prop la primera vez, así que sin la key el clic no
+ * hace nada visible — el panel se queda mostrando la traza vieja, y quien lo
+ * usa concluye que el botón está roto.
+ *
+ * La corrección no es un `useEffect` que sincronice `camino` con `inicial`:
+ * la regla `set-state-in-effect` lo marca (el motivo está en el hallazgo 2 de
+ * `docs/lanzamiento/lista-maestra.md`, y da igual acá — sincronizar estado de
+ * React con una prop de React, no con un sistema externo, es exactamente el
+ * caso que React mismo pide resolver con `key`, no con un efecto). Cambiar la
+ * `key` de punta a punta reinicia el estado interno solo, sin efecto y sin
+ * perder el camino mientras `inicial` no cambie.
  */
 
 /** El número, convertido en algo que se puede tocar cuando tiene traza. */

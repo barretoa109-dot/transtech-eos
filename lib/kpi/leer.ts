@@ -83,13 +83,13 @@ export async function leerHechos(
   const [movimientosRes, fijosRes] = await Promise.all([
     admin
       .from("eos_movimientos_financieros")
-      .select("tipo,monto,moneda,fecha")
+      .select("tipo,monto,moneda,fecha,descripcion")
       .eq("usuario_id", usuarioId)
       .gte("fecha", rango.desde)
       .lte("fecha", rango.hasta),
     admin
       .from("eos_finanzas_fijos")
-      .select("tipo,monto,moneda")
+      .select("tipo,monto,moneda,descripcion")
       .eq("usuario_id", usuarioId)
       .eq("activo", true),
   ]);
@@ -113,6 +113,7 @@ export async function leerHechos(
       moneda: (m.moneda as string | null) ?? null,
       monto: Number(m.monto ?? 0),
       tipo: m.tipo === "ingreso" ? "ingreso" : "gasto",
+      descripcion: (m.descripcion as string | null) ?? null,
     }));
   }
 
@@ -123,6 +124,7 @@ export async function leerHechos(
       moneda: (f.moneda as string | null) ?? null,
       monto: Number(f.monto ?? 0),
       tipo: f.tipo === "ingreso" ? "ingreso" : "gasto",
+      descripcion: (f.descripcion as string | null) ?? null,
     }));
   }
 
