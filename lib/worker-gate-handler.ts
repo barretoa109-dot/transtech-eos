@@ -170,7 +170,16 @@ function recentAutonomyWindowStart() {
   return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
 }
 
-function authorized(request: Request) {
+/**
+ * "¿Este llamado viene del worker?"
+ *
+ * Se exporta para que `worker-ping/v1` la use en vez de escribir una CUARTA
+ * copia: hoy esta comprobación está repetida tres veces —acá, en
+ * `action-effects/v1` y en `worker-authorize/v1`— y son tres lugares donde un
+ * día uno puede decir que sí mientras los otros dicen que no. Consolidar las
+ * tres es un cambio aparte; sumar una más no.
+ */
+export function autorizadoComoWorker(request: Request) {
   const expected = process.env.EOS_WORKER_GATE_SECRET;
   if (!expected) return { ok: false, unavailable: true };
 
@@ -241,7 +250,7 @@ function blockResponse(reason: string, status = 409) {
 
 export async function POST(request: Request) {
   try {
-    const authorization = authorized(request);
+    const authorization = autorizadoComoWorker(request);
 
     if (authorization.unavailable) {
       return NextResponse.json(
