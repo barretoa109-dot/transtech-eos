@@ -22,32 +22,37 @@
  * venta se puede ejecutar.
  *
  * ============================================================
- * TRES DE LAS CINCO RAMAS DEL WORKER ESTÁN ROTAS HOY
+ * TRES DE LAS CINCO RAMAS DEL WORKER ESTABAN ROTAS
  * ============================================================
  *
- * Al portarlas se descubrió que apuntan a endpoints que NO EXISTEN en este
+ * Al portarlas se descubrió que apuntaban a endpoints que NO EXISTÍAN en este
  * repositorio. Comprobado contra la lista de rutas del build, donde bajo
- * `/api/internal/` solo hay cuatro: `action-effects`, `consultar`, `salud` y
+ * `/api/internal/` solo había cuatro: `action-effects`, `consultar`, `salud` y
  * `worker-authorize`.
  *
- *   · DASH y BRIEF llaman a `/api/internal/worker-ping/v1`. No existe. El nodo
- *     sigue igual por `onError: continueRegularOutput`, pero `ping.ok` nunca
- *     es cierto, así que `authorized` queda en falso y la rama devuelve
- *     `{ok:false, error:'Worker no autorizado.'}`. Traducido: pedir el
- *     dashboard o el briefing por chat contesta hoy "No pude completar
+ *   · DASH y BRIEF llamaban a `/api/internal/worker-ping/v1`. No existía. El
+ *     nodo sigue igual por `onError: continueRegularOutput`, pero `ping.ok`
+ *     nunca era cierto, así que `authorized` quedaba en falso y la rama
+ *     devolvía `{ok:false, error:'Worker no autorizado.'}`. Traducido: pedir
+ *     el dashboard o el briefing por chat contestaba "No pude completar
  *     automáticamente".
- *   · FILE llama a `/api/internal/action-claims/v1` y
- *     `/api/internal/action-results/v1`. Ninguno de los dos existe.
+ *   · FILE llamaba a `/api/internal/action-claims/v1` y
+ *     `/api/internal/action-results/v1`. Tampoco existían, así que no salía
+ *     ninguna planilla.
  *   · RESP también pinga, pero no importa: el gateway saltea esa rama entera
  *     cuando no hay acciones, que es siempre.
  *
- * Acá adentro el ping sobra —ya estamos del lado autorizado, no hay red que
- * cruzar— así que DASH y BRIEF vuelven a funcionar solas. FILE no se porta:
- * ver abajo.
+ * Lo difícil, en los tres casos, YA ESTABA: `eos_claim_action_command_v65` y
+ * `eos_finalize_action_command_v70` viven en la base desde la v65 y la v70,
+ * con lease, intentos contados y fencing token, y pasaron por cinco
+ * migraciones de endurecimiento. Lo único que faltaba eran las puertas HTTP.
  *
- * Aparte, y para el camino que corre HOY, se agregó
- * `app/api/internal/worker-ping/v1`: es un arreglo de producción que no
- * depende de ninguna bandera.
+ * Se escribieron las tres —`worker-ping/v1`, `action-claims/v1` y
+ * `action-results/v1`— y **no dependen de ninguna bandera**: le devuelven el
+ * dashboard, el briefing y las planillas al camino que corre HOY.
+ *
+ * Acá adentro, además, el ping sobra: ya estamos del lado autorizado y no hay
+ * red que cruzar.
  */
 
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
@@ -55,7 +60,7 @@ import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 
 /**
- * Los dos handlers que este ejecutor orquesta.
+ * Los handlers que este ejecutor orquesta.
  *
  * Se inyectan en vez de importarse arriba, por dos motivos. El primero es que
  * las rutas usan el alias `@/`, que Next resuelve al construir pero
@@ -66,14 +71,25 @@ import type { ResultadoWorker } from "./resultados.ts";
 export type Puertas = {
   autorizar: (r: Request) => Promise<Response>;
   efecto: (r: Request) => Promise<Response>;
+  /** Toma la orden con lease y fencing token. Solo la usa la rama de archivos. */
+  tomar: (r: Request) => Promise<Response>;
+  /** La cierra presentando el lease. Solo la usa la rama de archivos. */
+  cerrar: (r: Request) => Promise<Response>;
 };
 
 async function puertasReales(): Promise<Puertas> {
-  const [gate, efectos] = await Promise.all([
+  const [gate, efectos, claims, results] = await Promise.all([
     import("@/app/api/internal/worker-authorize/v1/route"),
     import("@/app/api/internal/action-effects/v1/route"),
+    import("@/app/api/internal/action-claims/v1/route"),
+    import("@/app/api/internal/action-results/v1/route"),
   ]);
-  return { autorizar: gate.POST, efecto: efectos.POST };
+  return {
+    autorizar: gate.POST,
+    efecto: efectos.POST,
+    tomar: claims.POST,
+    cerrar: results.POST,
+  };
 }
 
 /** Las que la rama INT del worker acepta. Misma lista que n8n. */
@@ -226,6 +242,277 @@ async function ramaInterna(
   };
 }
 
+/** Las tres que van por la rama de archivos. */
+export const ACCIONES_DE_ARCHIVO = new Set(["GENERAR_EXCEL", "GENERAR_PDF", "GENERAR_WORD"]);
+
+/**
+ * El nombre de archivo, sin acentos ni espacios.
+ *
+ * Igual que en n8n: `/descargar` vuelve a limpiarlo por su cuenta, pero el
+ * nombre viaja también adentro del `resultado` durable, y ahí no lo limpia
+ * nadie.
+ */
+function normalizarNombre(texto: string): string {
+  return String(texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+/**
+ * La plantilla y el rubro, deducidos de lo que dijo la persona.
+ *
+ * OJO: hoy `/descargar` IGNORA el parámetro `plantilla` y siempre arma el
+ * mismo Excel con `crearExcelNegocioUniversal`. O sea que esta elección
+ * cambia el NOMBRE del archivo y nada más. Se conserva igual, y con los
+ * mismos parámetros en la URL, para que este camino y el de n8n produzcan
+ * exactamente la misma cadena mientras convivan y se puedan comparar.
+ */
+export function plantillaDe(texto: string, rubroDeclarado: string) {
+  const t = texto.toLowerCase();
+
+  if (/finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(t)) {
+    return { plantilla: "personal", rubro: "persona_fisica" };
+  }
+  if (/restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(t)) {
+    return { plantilla: "business", rubro: "gastronomia" };
+  }
+  return { plantilla: "business", rubro: rubroDeclarado || "negocio_general" };
+}
+
+/**
+ * La rama FILE: autorizar, tomar la orden, generar y cerrar.
+ *
+ * ============================================================
+ * POR QUÉ ACÁ HAY UN CLAIM Y EN LA RAMA INTERNA NO
+ * ============================================================
+ *
+ * Un efecto interno lo resuelve una sola función de Postgres y termina. Un
+ * archivo puede tardar y puede reintentarse, así que el comando se TOMA con un
+ * lease y se cierra presentando su `lease_token` y su `attempt_count`. Eso es
+ * lo que impide que un intento que se colgó vuelva más tarde y pise el
+ * resultado del intento bueno.
+ *
+ * ============================================================
+ * PDF Y WORD NO ESTÁN CONECTADOS, Y SE DICE
+ * ============================================================
+ *
+ * `/descargar` solo sabe hacer Excel: con cualquier otro `tipo` responde 400.
+ * n8n ya cerraba esos comandos como `no_disponible` con un código explícito, y
+ * acá se hace igual. La orden se cierra igual —no queda colgada ocupando su
+ * lease— y la persona recibe una frase que dice qué pasó, no un error genérico.
+ */
+async function ramaArchivo(
+  job: Job,
+  secreto: string,
+  puertas: Puertas,
+  base: string,
+): Promise<ResultadoWorker> {
+  const datos = job.accion.datos;
+  const tipo = job.accion.tipo;
+
+  const auth = await enProceso(
+    puertas.autorizar,
+    "https://eos.internal/api/internal/worker-authorize/v1",
+    {
+      usuario_id: job.usuario_id,
+      request_id: job.request_id,
+      accion: tipo,
+      // La misma forma que la rama interna: de acá sale la huella durable.
+      payload: { mensaje: job.mensaje, datos, metadata: job.metadata },
+      conversacion_id: job.conversacion_id,
+      origen: "vercel-gateway-ts",
+    },
+    secreto,
+  );
+
+  if (!(auth.ok === true && auth.execute === true && esUuid(auth.command_id))) {
+    const previo = (auth.resultado ?? {}) as Record<string, unknown>;
+    const yaEstaba = auth.decision === "completed";
+    const decision = String(auth.decision ?? "block");
+    const urlPrevia = typeof previo.archivo_url === "string" ? previo.archivo_url : "";
+
+    return {
+      ok: auth.ok !== false,
+      executed: false,
+      idempotent: yaEstaba || auth.command_idempotent === true,
+      decision,
+      reason: String(auth.reason ?? auth.error ?? ""),
+      request_id: job.request_id,
+      command_id: auth.command_id ?? null,
+      accion: tipo,
+      estado: yaEstaba ? "completada" : null,
+      archivo_url: urlPrevia,
+      archivo_tipo: String(previo.archivo_tipo ?? ""),
+      archivo_nombre: String(previo.archivo_nombre ?? ""),
+      resultado: previo,
+      respuesta:
+        yaEstaba && urlPrevia
+          ? `El archivo ya estaba listo.\n\nDescargar archivo: ${urlPrevia}`
+          : yaEstaba
+            ? "Esta generación ya había terminado y no se repitió."
+            : decision === "approval" || decision === "approval_ready"
+              ? "La generación requiere aprobación antes de ejecutarse."
+              : decision === "prepare" || decision === "recommend"
+                ? "La generación no se ejecutó automáticamente por la configuración de autonomía actual."
+                : String(auth.reason ?? auth.error ?? "La generación fue bloqueada por seguridad."),
+    };
+  }
+
+  const claim = await enProceso(
+    puertas.tomar,
+    "https://eos.internal/api/internal/action-claims/v1",
+    { command_id: auth.command_id, lease_seconds: 300 },
+    secreto,
+  );
+
+  const tomado =
+    claim.ok === true &&
+    claim.claimed === true &&
+    esUuid(claim.command_id) &&
+    esUuid(claim.lease_token) &&
+    Number.isInteger(Number(claim.attempt_count)) &&
+    Number(claim.attempt_count) > 0;
+
+  if (!tomado) {
+    // Dos casos distintos: ya estaba hecho, o lo tiene otro intento vivo.
+    // Confundirlos haría que un archivo listo parezca un trabajo en curso.
+    const previo = (claim.resultado ?? {}) as Record<string, unknown>;
+    const completado = claim.code === "EOS_COMMAND_ALREADY_COMPLETED" || claim.estado === "completada";
+    const urlPrevia = typeof previo.archivo_url === "string" ? previo.archivo_url : "";
+
+    return {
+      ok: claim.ok !== false,
+      executed: false,
+      idempotent: claim.idempotent === true,
+      decision: String(claim.code ?? "not_claimed"),
+      reason: String(claim.error ?? claim.code ?? ""),
+      request_id: job.request_id,
+      command_id: claim.command_id ?? auth.command_id,
+      accion: tipo,
+      estado: claim.estado ?? null,
+      archivo_url: urlPrevia,
+      archivo_tipo: String(previo.archivo_tipo ?? ""),
+      archivo_nombre: String(previo.archivo_nombre ?? ""),
+      resultado: previo,
+      respuesta:
+        completado && urlPrevia
+          ? `El archivo ya estaba listo.\n\nDescargar archivo: ${urlPrevia}`
+          : completado
+            ? "Esta generación ya estaba completada y no se repitió."
+            : "La generación ya está siendo procesada; no se inició una segunda copia.",
+    };
+  }
+
+  const comandoId = String(claim.command_id);
+  const esExcel = tipo === "GENERAR_EXCEL";
+
+  let archivoUrl = "";
+  let archivoNombre = "";
+  const archivoTipo = esExcel ? "excel" : tipo === "GENERAR_PDF" ? "pdf" : "word";
+  let estado = "no_disponible";
+  let resultado: Record<string, unknown> = {};
+  let codigoError: string | null = null;
+  let mensajeError: string | null = null;
+
+  if (esExcel) {
+    const texto = [job.mensaje, datos.tema, datos.tipo, datos.rubro, datos.negocio, datos.descripcion]
+      .filter(Boolean)
+      .join(" ");
+
+    const { plantilla, rubro } = plantillaDe(texto, String(datos.rubro ?? ""));
+    const nombreBase = String(datos.negocio ?? datos.nombre ?? job.nombre ?? "usuario");
+
+    archivoNombre =
+      plantilla === "personal"
+        ? `plan_financiero_eos_${normalizarNombre(nombreBase)}.xlsx`
+        : `control_negocio_eos_${normalizarNombre(nombreBase)}.xlsx`;
+
+    /*
+     * Los mismos parámetros que manda n8n, en el mismo orden y con la MISMA
+     * codificación.
+     *
+     * No se usa `URLSearchParams`: codifica el espacio como `+` y n8n como
+     * `%20`. Las dos formas funcionan —`/descargar` decodifica las dos— pero
+     * producen cadenas distintas, y esa cadena se guarda adentro del
+     * `resultado` durable. Mientras los dos caminos convivan conviene que la
+     * URL salga byte por byte igual, para que comparar una ejecución de n8n
+     * con una de acá no muestre una diferencia que no significa nada.
+     *
+     * `plantilla`, `tema` y `command_id` hoy `/descargar` los ignora: solo lee
+     * `tipo`, `nombre`, `rubro` y `negocio`. Se mandan igual por lo mismo.
+     */
+    const query = Object.entries({
+      tipo: "excel",
+      plantilla,
+      nombre: archivoNombre.replace(/\.xlsx$/i, ""),
+      rubro: String(rubro),
+      negocio: nombreBase,
+      tema: String(datos.tema ?? job.mensaje ?? "control general"),
+      command_id: comandoId,
+    })
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join("&");
+
+    archivoUrl = `${base}/descargar?${query}`;
+    estado = "completada";
+    resultado = {
+      archivo_url: archivoUrl,
+      archivo_tipo: archivoTipo,
+      archivo_nombre: archivoNombre,
+      artifact_key: `${comandoId}.xlsx`,
+      command_id: comandoId,
+    };
+  } else {
+    codigoError = tipo === "GENERAR_PDF" ? "PDF_GENERATOR_NOT_CONNECTED" : "WORD_GENERATOR_NOT_CONNECTED";
+    mensajeError =
+      tipo === "GENERAR_PDF"
+        ? "El generador PDF todavía no está conectado."
+        : "El generador Word todavía no está conectado.";
+    resultado = { archivo_tipo: archivoTipo, disponible: false, command_id: comandoId };
+  }
+
+  const cierre = await enProceso(
+    puertas.cerrar,
+    "https://eos.internal/api/internal/action-results/v1",
+    {
+      command_id: comandoId,
+      lease_token: claim.lease_token,
+      attempt_count: Number(claim.attempt_count),
+      estado,
+      resultado,
+      error_code: codigoError,
+      error_message: mensajeError,
+    },
+    secreto,
+  );
+
+  const cerrado = cierre.ok === true;
+
+  return {
+    ok: cerrado,
+    executed: cerrado && estado === "completada",
+    idempotent: cierre.idempotent === true,
+    request_id: job.request_id,
+    command_id: cierre.command_id ?? comandoId,
+    accion: tipo,
+    estado: cierre.estado ?? estado,
+    // Solo se ofrece la descarga si el cierre quedó registrado: un enlace a un
+    // archivo cuyo comando no cerró es una promesa que nadie anotó.
+    archivo_url: cerrado && esExcel ? archivoUrl : "",
+    archivo_tipo: archivoTipo,
+    archivo_nombre: archivoNombre,
+    resultado: cierre.resultado ?? resultado,
+    respuesta: cerrado
+      ? esExcel
+        ? `Tu Excel ya está listo.\n\nDescargar archivo: ${archivoUrl}`
+        : (mensajeError ?? "Ese formato todavía no está disponible.")
+      : String(cierre.error ?? "No fue posible cerrar el resultado del archivo de forma segura."),
+  };
+}
+
 /**
  * Las lecturas: dashboard y briefing.
  *
@@ -308,24 +595,17 @@ async function ramaLectura(job: Job): Promise<ResultadoWorker> {
  * Un job, ejecutado adentro del proceso.
  *
  * ============================================================
- * POR QUÉ NO SE PORTA LA RAMA DE ARCHIVOS
+ * DOS CAMINOS PARA UN ARCHIVO, Y NO SE PISAN
  * ============================================================
  *
- * `GENERAR_EXCEL`, `GENERAR_PDF` y `GENERAR_WORD` van por la rama FILE de
- * n8n, que llama a `/api/internal/action-claims/v1` y
- * `/api/internal/action-results/v1`. **Ninguno de los dos existe en este
- * repositorio**, así que esa rama no puede completarse hoy por ningún camino.
+ * Desde que el modelo manda `documento`, los archivos los arma
+ * `app/api/eos/route.ts` con `guardarDocumento`, y `respuesta.ts` DESCARTA las
+ * acciones `GENERAR_*` cuando viene documento, justamente para que no se hagan
+ * las dos cosas y la persona reciba dos archivos por un pedido.
  *
- * Portarla exigiría inventar los dos endpoints —con sus leases y su
- * idempotencia— para un camino que además quedó superado: desde que el modelo
- * manda `documento`, los archivos los arma `app/api/eos/route.ts` con
- * `guardarDocumento`, y `respuesta.ts` descarta las acciones GENERAR_* cuando
- * viene documento justamente para que no se hagan las dos cosas.
- *
- * Así que se devuelve un error claro en vez de un fracaso genérico. El
- * resultado visible para la persona es el mismo que hoy —el archivo no sale
- * por este camino— pero ahora dice por qué, y no se construyó un sistema
- * entero para sostener algo que ya tiene reemplazo.
+ * La rama de archivos de acá es el otro camino: el que queda cuando el modelo
+ * pide `GENERAR_EXCEL` sin mandar documento. Sigue vivo, ahora funciona, y no
+ * compite con el otro porque nunca llegan los dos juntos.
  */
 export async function ejecutarEnProceso(job: Job, puertas?: Puertas): Promise<ResultadoWorker> {
   const secreto = (process.env.EOS_WORKER_GATE_SECRET ?? "").trim();
@@ -348,19 +628,46 @@ export async function ejecutarEnProceso(job: Job, puertas?: Puertas): Promise<Re
     return ramaLectura(job);
   }
 
+  const necesitaPuerta = ACCIONES_INTERNAS.has(tipo) || ACCIONES_DE_ARCHIVO.has(tipo);
+
+  if (necesitaPuerta && !secreto) {
+    // Sin el secreto no se puede autorizar, y sin autorizar no se ejecuta
+    // nada. Se reporta y se termina: NO se intenta por otro lado.
+    return {
+      ok: false,
+      executed: false,
+      request_id: job.request_id,
+      accion: tipo,
+      error: "Falta EOS_WORKER_GATE_SECRET: no se puede autorizar la acción.",
+    };
+  }
+
   if (ACCIONES_INTERNAS.has(tipo)) {
-    if (!secreto) {
-      // Sin el secreto no se puede autorizar, y sin autorizar no se ejecuta
-      // nada. Se reporta y se termina: NO se intenta por otro lado.
+    return ramaInterna(job, secreto, puertas ?? (await puertasReales()));
+  }
+
+  if (ACCIONES_DE_ARCHIVO.has(tipo)) {
+    /*
+     * La URL de descarga tiene que ser absoluta: viaja adentro del resultado
+     * durable y se la va a abrir alguien desde su teléfono, no este proceso.
+     * `EOS_APP_BASE_URL` es la misma variable que usa n8n; `NEXT_PUBLIC_SITE_URL`
+     * queda de respaldo para desarrollo.
+     */
+    const base = (process.env.EOS_APP_BASE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "")
+      .trim()
+      .replace(/\/$/, "");
+
+    if (!base) {
       return {
         ok: false,
         executed: false,
         request_id: job.request_id,
         accion: tipo,
-        error: "Falta EOS_WORKER_GATE_SECRET: no se puede autorizar la acción.",
+        error: "Falta EOS_APP_BASE_URL: no se puede armar el enlace de descarga.",
       };
     }
-    return ramaInterna(job, secreto, puertas ?? (await puertasReales()));
+
+    return ramaArchivo(job, secreto, puertas ?? (await puertasReales()), base);
   }
 
   return {
@@ -368,7 +675,6 @@ export async function ejecutarEnProceso(job: Job, puertas?: Puertas): Promise<Re
     executed: false,
     request_id: job.request_id,
     accion: tipo,
-    error:
-      "Los archivos no se generan por este camino. Pedilo de nuevo y EOS lo arma como documento.",
+    error: `Acción no soportada por este worker: ${tipo}.`,
   };
 }
