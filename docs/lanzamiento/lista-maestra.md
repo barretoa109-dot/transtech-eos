@@ -163,15 +163,16 @@ Pasar una prueba técnica no es estar listo para el mercado.
 
 Por rendimiento, no por número de punto.
 
-1. **Segundo proyecto Supabase.** Destraba 3, 4, 5, 7, 43 y 50. Nada más de esta
-   lista rinde tanto.
+1. ~~**Segundo proyecto Supabase.**~~ Hecho. Destrabó 3, 4, 5 y 7 (los cuatro ya
+   cerrados en la sección A). 43 y 50 no se revisaron todavía en esta pasada.
 2. ~~**Punto 30 — validar el documento antes de entregarlo.**~~ Hecho el 31 de
    agosto en su parte de integridad. Queda el contraste de cifras.
 3. ~~**Punto 49 — que el lint bloquee.**~~ Hecho lo que se podía sostener: la
    deuda bajó de 42 a 24 errores y ahora **no puede subir** (`npm run lint:tope`
    bloquea en el CI). Queda llegar a cero.
-4. **Punto 7 — los siete finales de pago.** Rechazado, cancelado, duplicado,
-   abandonado, demorado y reversado, como casos de `npm run certificar`.
+4. ~~**Punto 7 — los siete finales de pago.**~~ Los siete cubiertos y verdes
+   contra la base real. Reservas sin cerrar: el 3DS necesita navegador y el
+   cobro con tarjeta necesita una tarjeta de prueba catastrada — ver el punto 7.
 5. ~~**Punto 23 — trazabilidad de cada número.**~~ Hecho en el panel financiero.
    Queda llevarlo a los informes y a los reportes del ERP.
 6. ~~**Puntos 13, 17 y 16.**~~ Los tres cerrados el 4 de septiembre: el usuario
