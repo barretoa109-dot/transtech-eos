@@ -258,7 +258,10 @@ export async function GET(request: Request) {
     ((yaEnviados ?? []) as { usuario_id: string }[]).map((e) => e.usuario_id),
   );
 
-  const urlApp = `${baseUrlApp()}/eos/chat`;
+  // La pestaña de Briefing, no el chat pelado: es a donde el correo dice que
+  // lleva, y sin el parámetro la persona caía siempre en el chat y tenía que
+  // ir a buscarla ella misma.
+  const urlApp = `${baseUrlApp()}/eos/chat?vista=briefing`;
   let enviados = 0;
   let omitidos = 0;
   let fallidos = 0;
