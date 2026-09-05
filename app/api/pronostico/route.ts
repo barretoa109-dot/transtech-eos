@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { exigirModulo, verificarModulo } from "@/lib/modulos/acceso";
 import { leerHechos } from "@/lib/kpi/leer";
+import { empresaDe, saldosDeCaja } from "@/lib/empresa/acceso";
+import { saldosParaPronostico } from "@/lib/empresa/caja";
 import { definicion } from "@/lib/kpi/registro";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { primerDiaEnRojo, proyectarCaja } from "@/lib/pronostico/caja";
@@ -71,11 +73,23 @@ export async function GET(request: Request) {
   const rango = { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
   const hechos = await leerHechos(admin, user.id, rango, { erp: true, crm: crm.permitido });
 
+  /*
+   * El saldo de caja (v120) es lo que convierte un pronóstico de FLUJO en un
+   * pronóstico de SALDO: sin él no se puede decir qué día se cae la caja.
+   *
+   * `saldosParaPronostico` solo devuelve las monedas donde algo se declaró,
+   * así que un cero nunca se confunde con un "no se sabe" — y el pronóstico
+   * sigue diciendo "no se conoce el disponible" para las que faltan.
+   */
+  const empresaId = await empresaDe(admin, user.id);
+  const caja = await saldosDeCaja(admin, empresaId, hoy);
+
   const entrada = {
     ventas: hechos.ventas ?? [],
     compras: hechos.compras ?? [],
     fijos: hechos.fijos ?? [],
     hoy,
+    saldos: saldosParaPronostico(caja),
   };
 
   const proyeccion = proyectarCaja(entrada);
@@ -90,6 +104,7 @@ export async function GET(request: Request) {
         rojo: primerDiaEnRojo(p),
       })),
       escenarios: escenariosSugeridos(entrada),
+      caja,
     },
     { headers: noStore() },
   );

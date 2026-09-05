@@ -6,12 +6,14 @@
  * ============================================================
  *
  * Un balance necesita tres cosas: activo, pasivo y patrimonio. De las tres,
- * EOS conoce PARTES de dos y nada de la tercera.
+ * EOS conoce casi toda una, partes de otra y nada de la tercera.
  *
  *   ACTIVO CORRIENTE
+ *     ✓ caja y bancos      — desde la v120: saldo declarado + lo que se cobró
+ *                            y pagó después. Opcional: si no lo cargaron,
+ *                            entra como `null` y NO como cero.
  *     ✓ cuentas por cobrar — sale de la cartera
  *     ✓ inventario         — sale del kardex valorizado
- *     ✗ caja y bancos      — el negocio no declara su saldo en ningún lado
  *
  *   PASIVO CORRIENTE
  *     ✓ cuentas por pagar  — sale de la cartera de compras
@@ -35,16 +37,16 @@
  * pregunta que un dueño se hace de verdad: si cobro todo y vendo todo lo que
  * tengo, ¿me alcanza para pagar lo que debo?
  *
- * La LIQUIDEZ CORRIENTE se calcula con la misma información, pero le falta la
- * caja, y la caja tira el número para arriba. Así que el ratio que sale es un
- * PISO: la liquidez real es esa o mejor, nunca peor. Eso se dice con esas
- * palabras, porque un ratio incompleto presentado como exacto es peor que no
- * mostrarlo.
+ * La LIQUIDEZ CORRIENTE depende de si cargaron la caja. Con ella es el ratio
+ * de verdad. Sin ella falta justo el activo que más lo sube, así que lo que
+ * sale es un PISO —la liquidez real es esa o mejor, nunca peor— y
+ * `liquidez_es_piso` lo dice para que la pantalla no lo presente como exacto.
  *
- * La PRUEBA ÁCIDA no se calcula. Sacar el inventario del activo dejaría solo
- * cuentas por cobrar, justo cuando el dato que falta —la caja— es el que más
- * pesa en ese ratio. Sería el número menos confiable de todos presentado como
- * el más exigente.
+ * La PRUEBA ÁCIDA solo existe con caja. Sin ella, sacar el inventario dejaría
+ * el ratio armado casi solo con cuentas por cobrar, justo cuando el dato que
+ * falta es el que más pesa: sería el número menos confiable de todos
+ * presentado como el más exigente. Por eso queda en null y no en un número
+ * más chico.
  *
  * Todo acá es puro.
  */
@@ -62,11 +64,17 @@ export type CuotaDeuda = {
 export type Posicion = {
   moneda: string;
 
+  /**
+   * Lo que hay en caja y bancos, del saldo declarado más los cobros y pagos
+   * posteriores. Null cuando el negocio todavía no cargó ninguna caja: cero
+   * diría que no tiene plata, que es otra cosa.
+   */
+  caja: number | null;
   /** Lo que te deben y todavía no cobraste. */
   por_cobrar: number;
   /** Lo que vale la mercadería en depósito, al costo. */
   inventario: number;
-  /** Los dos anteriores. NO incluye caja: ver el encabezado. */
+  /** Los tres anteriores, con la caja adentro cuando se conoce. */
   activo_conocido: number;
 
   /** Lo que debés a proveedores. */
@@ -79,11 +87,26 @@ export type Posicion = {
   capital_de_trabajo: number;
 
   /**
-   * Un PISO de la liquidez corriente: falta la caja, que solo puede subirlo.
-   * Null cuando no se debe nada, porque dividir por cero no da infinito, da
-   * "no aplica".
+   * La liquidez corriente. Null cuando no se debe nada: dividir por cero no da
+   * infinito, da "no aplica".
    */
-  liquidez_piso: number | null;
+  liquidez: number | null;
+  /**
+   * Si el número de arriba es exacto o es solo un PISO.
+   *
+   * Con la caja cargada es el ratio de verdad. Sin ella falta el activo que
+   * más lo sube, así que la liquidez real es esa o mejor, nunca peor — y eso
+   * hay que decirlo con esas palabras.
+   */
+  liquidez_es_piso: boolean;
+  /**
+   * Prueba ácida: lo líquido sobre lo que se debe, sin contar la mercadería.
+   *
+   * Null sin caja, y no un número más chico: sacar el inventario dejaría solo
+   * cuentas por cobrar, justo cuando el dato que falta es el que más pesa. Ese
+   * ratio sería el menos confiable de todos presentado como el más exigente.
+   */
+  prueba_acida: number | null;
 
   /** Qué no se pudo incluir. */
   faltantes: string[];
@@ -97,7 +120,7 @@ export const NO_HAY_PATRIMONIO =
   "No se puede calcular ROE ni ROA: el sistema no guarda patrimonio, aportes ni resultados acumulados.";
 
 export const FALTA_LA_CAJA =
-  "Falta el saldo de caja y bancos, que el negocio no declara en ningún lado. Todo lo de acá es un piso: con la caja, mejora.";
+  "Falta el saldo de caja y bancos: cargá una caja en Tu equipo y estos números dejan de ser un piso.";
 
 export function posicion(datos: {
   ventasPendientes: DocumentoCartera[];
@@ -105,14 +128,17 @@ export function posicion(datos: {
   /** Valor del inventario por moneda, del kardex. */
   inventario: { moneda: string; valor: number }[];
   deudas: CuotaDeuda[];
+  /** Saldo de caja por moneda (v120). Vacío mientras no carguen ninguna. */
+  caja?: { moneda: string; saldo: number }[];
 }): Posicion[] {
-  const { ventasPendientes, comprasPendientes, inventario, deudas } = datos;
+  const { ventasPendientes, comprasPendientes, inventario, deudas, caja = [] } = datos;
 
   const monedas = new Set<string>();
   for (const d of ventasPendientes) monedas.add(d.moneda);
   for (const d of comprasPendientes) monedas.add(d.moneda);
   for (const i of inventario) monedas.add(i.moneda);
   for (const d of deudas) monedas.add(d.moneda);
+  for (const c of caja) monedas.add(c.moneda);
 
   return [...monedas].sort().map((moneda) => {
     const porCobrar = ventasPendientes
@@ -137,10 +163,24 @@ export function posicion(datos: {
       .filter((d) => d.moneda === moneda)
       .reduce((s, d) => s + d.cuota * Math.min(d.restantes ?? MESES_CORRIENTE, MESES_CORRIENTE), 0);
 
-    const activo = porCobrar + valorStock;
+    /*
+     * La caja solo entra si la declararon. `null` y `0` no son lo mismo: uno
+     * es "no sé cuánto hay" y el otro es "no hay nada", y de esa diferencia
+     * depende que la liquidez sea un número o un piso.
+     */
+    const filaCaja = caja.find((c) => c.moneda === moneda);
+    const saldoCaja = filaCaja === undefined ? null : filaCaja.saldo;
+
+    const activo = (saldoCaja ?? 0) + porCobrar + valorStock;
     const pasivo = porPagar + deuda12;
 
-    const faltantes = [FALTA_LA_CAJA, NO_HAY_PATRIMONIO];
+    // Lo líquido: caja y lo que te deben. La mercadería queda afuera porque
+    // venderla lleva tiempo, y esa es toda la idea de la prueba ácida.
+    const liquido = (saldoCaja ?? 0) + porCobrar;
+
+    const faltantes = [NO_HAY_PATRIMONIO];
+    if (saldoCaja === null) faltantes.unshift(FALTA_LA_CAJA);
+
     const advertencias: string[] = [];
 
     if (valorStock === 0 && inventario.some((i) => i.moneda === moneda)) {
@@ -155,6 +195,7 @@ export function posicion(datos: {
 
     return {
       moneda,
+      caja: saldoCaja,
       por_cobrar: porCobrar,
       inventario: valorStock,
       activo_conocido: activo,
@@ -162,7 +203,11 @@ export function posicion(datos: {
       deuda_12_meses: deuda12,
       pasivo_conocido: pasivo,
       capital_de_trabajo: activo - pasivo,
-      liquidez_piso: pasivo === 0 ? null : activo / pasivo,
+      liquidez: pasivo === 0 ? null : activo / pasivo,
+      liquidez_es_piso: saldoCaja === null,
+      // Sin caja no se calcula: sería el ratio menos confiable de todos
+      // presentado como el más exigente.
+      prueba_acida: saldoCaja === null || pasivo === 0 ? null : liquido / pasivo,
       faltantes,
       advertencias,
     };
@@ -177,11 +222,21 @@ export function posicion(datos: {
  * cuál está parado. Describe la situación y deja el juicio a quien la vive.
  */
 export function leerCapitalDeTrabajo(p: Posicion): string {
+  const conCaja = p.caja !== null;
+
   if (p.pasivo_conocido === 0) {
-    return "No tenés deudas registradas: todo lo que te deben y lo que tenés en mercadería queda libre.";
+    return conCaja
+      ? "No tenés deudas registradas: la caja, lo que te deben y la mercadería quedan libres."
+      : "No tenés deudas registradas: todo lo que te deben y lo que tenés en mercadería queda libre.";
   }
   if (p.capital_de_trabajo < 0) {
-    return "Debés más de lo que tenés por cobrar y en mercadería juntos. Falta sumar la caja, que puede dar vuelta el número.";
+    // Sin caja el número puede estar incompleto y conviene decirlo antes de
+    // que alguien tome una decisión con él.
+    return conCaja
+      ? "Debés más de lo que tenés entre caja, cobranzas y mercadería."
+      : "Debés más de lo que tenés por cobrar y en mercadería juntos. Falta sumar la caja, que puede dar vuelta el número.";
   }
-  return "Entre lo que te deben y lo que tenés en mercadería alcanzás a cubrir lo que debés, sin contar la caja.";
+  return conCaja
+    ? "Entre la caja, lo que te deben y la mercadería alcanzás a cubrir lo que debés."
+    : "Entre lo que te deben y lo que tenés en mercadería alcanzás a cubrir lo que debés, sin contar la caja.";
 }

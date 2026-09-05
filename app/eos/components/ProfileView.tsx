@@ -10,6 +10,7 @@ import RehacerOnboarding from "./RehacerOnboarding";
 import MisModulos from "./MisModulos";
 import MisTarjetas from "./MisTarjetas";
 import MiEmpresa from "./MiEmpresa";
+import Cajas from "./negocio/Cajas";
 
 type ProfileViewProps = {
   nombre: string;
@@ -139,6 +140,10 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
         {/* El equipo va antes que los módulos: quién entra al negocio es una
             decisión sobre los datos, no sobre lo que se paga. */}
         <MiEmpresa />
+
+        {/* La caja va pegada al equipo: las dos responden a "cómo está armado
+            mi negocio", y es donde alguien la va a buscar. */}
+        <Cajas />
 
         <MisModulos />
 
