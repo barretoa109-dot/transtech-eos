@@ -210,6 +210,7 @@ export default function GastosView() {
         <div className="gastos-alta">
           <input
             className="neg-input"
+            aria-label="Anotar un gasto"
             placeholder="gasté 35 mil en el almuerzo"
             value={texto}
             maxLength={200}
@@ -229,7 +230,7 @@ export default function GastosView() {
           no pide confirmación.
         */}
         {entendido && <p className="gastos-entendido">{entendido}</p>}
-        {errorAlta && <p className="neg-error">{errorAlta}</p>}
+        {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
       </div>
 
       <div className="card">

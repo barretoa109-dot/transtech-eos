@@ -176,7 +176,7 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
               )}
 
               {vista.repetidos.length > 0 && (
-                <p className="anular-error">
+                <p className="anular-error" role="alert">
                   Hay nombres repetidos en tu planilla: {vista.repetidos.slice(0, 5).join(", ")}
                   {vista.repetidos.length > 5 ? "…" : ""}
                 </p>
@@ -220,7 +220,7 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
             </div>
           )}
 
-          {error && <p className="anular-error">{error}</p>}
+          {error && <p className="anular-error" role="alert">{error}</p>}
         </>
       )}
     </div>

@@ -100,7 +100,7 @@ export default function SaludPage() {
         </button>
       </header>
 
-      {error && <p className="aviso-error">{error}</p>}
+      {error && <p className="aviso-error" role="alert">{error}</p>}
 
       {cargando && !reporte && (
         <p className="cargando">

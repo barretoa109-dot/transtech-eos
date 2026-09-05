@@ -235,7 +235,7 @@ export default function CorregirCosto({
       </label>
       <p className="neg-costos-nota">{config.nota}</p>
 
-      {error && <p className="neg-error">{error}</p>}
+      {error && <p className="neg-error" role="alert">{error}</p>}
 
       <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>
         <Check size={14} /> {guardando ? "Guardando…" : "Guardar"}

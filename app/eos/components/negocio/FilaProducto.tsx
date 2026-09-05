@@ -328,7 +328,7 @@ function Editar({
         </p>
       )}
 
-      {error && <p className="anular-error">{error}</p>}
+      {error && <p className="anular-error" role="alert">{error}</p>}
 
       <div className="anular-acciones">
         <button type="button" className="chip active" disabled={guardando} onClick={guardar}>
@@ -464,7 +464,7 @@ function Ajustar({
         />
       </div>
 
-      {error && <p className="anular-error">{error}</p>}
+      {error && <p className="anular-error" role="alert">{error}</p>}
 
       <div className="anular-acciones">
         <button type="button" className="chip active" disabled={enviando} onClick={ajustar}>

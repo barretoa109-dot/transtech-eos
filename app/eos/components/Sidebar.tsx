@@ -95,6 +95,7 @@ export default function Sidebar({
       <div className="search-row">
         <input
           type="text"
+          aria-label="Buscar conversaciones"
           placeholder="Buscar conversaciones"
           value={busqueda}
           onChange={(e) => onBusquedaChange(e.target.value)}

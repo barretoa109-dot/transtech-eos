@@ -7,7 +7,7 @@
  * ============================================================
  *
  * La hoja de ruta pide una puerta de calidad donde cada cambio pase el lint
- * sin errores. Hoy eso no se puede exigir: quedan 24 errores heredados, y
+ * sin errores. Hoy eso no se puede exigir: quedan 20 errores heredados, y
  * bloquear por ellos frenaría trabajo que no tiene nada que ver.
  *
  * La respuesta que se venía usando era `continue-on-error: true` en el CI, con
@@ -36,20 +36,24 @@
  * QUÉ FALTA PARA LLEGAR A CERO
  * ============================================================
  *
- * De los 24 errores:
+ * De los 20 errores (bajaron de 24 el 4 de septiembre: los tres `any` de
+ * `lib/worker-gate-handler.ts` se tipan solos con `ClienteSinTipos`, que ya
+ * existía para exactamente esto, y los dos de un `.filter`/`.reduce` sobre un
+ * resultado de la base se resuelven con el tipo mínimo de esa fila en vez de
+ * `any` — ninguno de los dos necesitaba tocar Bancard ni la regla de React):
  *
- *  - 19 son `no-explicit-any` en el código de pagos, donde el tipo honesto es
+ *  - 16 son `no-explicit-any` en el código de pagos, donde el tipo honesto es
  *    "JSON que manda Bancard, sin contrato". Tiparlos obliga a estrechar en
  *    cada uso; es un pase aparte y con cuidado, no un reemplazo masivo.
- *  - 5 son `react-hooks/set-state-in-effect`, y no se arreglan quitando
+ *  - 4 son `react-hooks/set-state-in-effect`, y no se arreglan quitando
  *    líneas: la regla marca el patrón de carga de datos entero. Ver el
  *    hallazgo 2 de `docs/lanzamiento/lista-maestra.md`.
  */
 
 import { execSync } from "node:child_process";
 
-/** El estado de hoy, 31 de agosto de 2026. Solo puede bajar. */
-const TOPE = { errores: 23, avisos: 5 };
+/** El estado de hoy, 4 de septiembre de 2026. Solo puede bajar. */
+const TOPE = { errores: 20, avisos: 5 };
 
 function contar() {
   let salida;

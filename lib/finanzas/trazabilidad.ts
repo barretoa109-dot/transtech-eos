@@ -65,7 +65,24 @@ export type ClaveCifra =
   | "gastos_previsibles"
   | "cuotas"
   | "comprometido"
-  | "disponible_real";
+  | "disponible_real"
+  /*
+   * Las del resultado del ERP (`lib/contabilidad/trazabilidad.ts`).
+   *
+   * Viven en el mismo tipo —y no en uno propio— porque `Cifra` y `Traza`
+   * (`app/eos/components/Traza.tsx`) no saben ni necesitan saber de dónde
+   * sale un `Trazado`: arman lo mismo la lista de movimientos, o la
+   * operación, para cualquier cifra que se les pase. Duplicar el tipo por
+   * cuenta habría duplicado también el componente, o forzado a mezclar dos
+   * tipos donde antes bastaba uno.
+   */
+  | "ventas_netas"
+  | "costo_vendido"
+  | "gastos_anotados"
+  | "gastos_fijos"
+  | "gastos_operativos"
+  | "resultado_bruto"
+  | "resultado_operativo";
 
 type Comun = {
   cifra: ClaveCifra;
@@ -105,7 +122,14 @@ function sumarPartidas(partidas: Partida[]): number {
   return partidas.reduce((t, p) => t + p.monto, 0);
 }
 
-function suma(
+/**
+ * Exportada para `lib/contabilidad/trazabilidad.ts`: arma exactamente el
+ * mismo tipo de traza para el resultado del ERP, con el mismo chequeo de
+ * `cuadra`. Escribir una segunda versión sería tener dos respuestas a "cómo
+ * se arma una traza de suma", que es justo lo que este archivo existe para
+ * evitar.
+ */
+export function suma(
   cifra: ClaveCifra,
   etiqueta: string,
   total: number,
@@ -126,7 +150,8 @@ function suma(
   };
 }
 
-function cuenta(cifra: ClaveCifra, etiqueta: string, total: number, terminos: Termino[]): Trazado {
+/** Exportada por el mismo motivo que `suma`, ver arriba. */
+export function cuenta(cifra: ClaveCifra, etiqueta: string, total: number, terminos: Termino[]): Trazado {
   const recalculado = terminos.reduce(
     (t, x) => (x.signo === "+" ? t + x.monto : t - x.monto),
     0,

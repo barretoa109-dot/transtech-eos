@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { FileText, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import type { ClaveCifra, Trazado } from "@/lib/finanzas/trazabilidad";
+import Traza, { Cifra } from "../Traza";
 
 /**
  * El resultado del período y con qué cuenta el negocio.
@@ -41,6 +43,16 @@ type Resultado = {
   faltantes: string[];
   advertencias: string[];
   confianza: number;
+  trazas: Trazado[];
+};
+
+/** El nombre de la línea es texto para mostrar; esto lo ata a su traza. */
+const CIFRA_DE_LINEA: Record<string, ClaveCifra> = {
+  "Ventas netas": "ventas_netas",
+  "Costo de lo vendido": "costo_vendido",
+  "Resultado bruto": "resultado_bruto",
+  "Gastos operativos": "gastos_operativos",
+  "Resultado operativo": "resultado_operativo",
 };
 
 type Posicion = {
@@ -52,7 +64,10 @@ type Posicion = {
   deuda_12_meses: number;
   pasivo_conocido: number;
   capital_de_trabajo: number;
-  liquidez_piso: number | null;
+  /** Null cuando no se debe nada: dividir por cero no da infinito, da "no aplica". */
+  liquidez: number | null;
+  /** Si `liquidez` es exacta o solo un piso, porque falta la caja. */
+  liquidez_es_piso: boolean;
   faltantes: string[];
   advertencias: string[];
   lectura: string;
@@ -69,6 +84,8 @@ export default function ResultadoView() {
   const [datos, setDatos] = useState<Respuesta | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  /** Qué cifra está abierta, y de qué moneda: dos resultados pueden compartir clave. */
+  const [abierta, setAbierta] = useState<{ moneda: string; cifra: ClaveCifra } | null>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -84,8 +101,8 @@ export default function ResultadoView() {
     };
   }, []);
 
-  if (cargando) return <p className="neg-loading">Armando el resultado…</p>;
-  if (error) return <p className="neg-load-error">{error}</p>;
+  if (cargando) return <p className="neg-loading" role="status">Armando el resultado…</p>;
+  if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
   if (datos.resultados.length === 0 && datos.posiciones.length === 0) {
@@ -98,7 +115,7 @@ export default function ResultadoView() {
 
   return (
     <div className="neg-resultado">
-      {datos.aviso && <p className="neg-error">{datos.aviso}</p>}
+      {datos.aviso && <p className="neg-error" role="alert">{datos.aviso}</p>}
 
       {datos.resultados.map((r) => (
         <div key={`res-${r.moneda}`} className="card" style={{ marginBottom: 16 }}>
@@ -116,6 +133,8 @@ export default function ResultadoView() {
                 (l.concepto === "Resultado bruto" && r.resultado_bruto === null) ||
                 (l.concepto === "Resultado operativo" && r.resultado_operativo === null);
 
+              const cifra = CIFRA_DE_LINEA[l.concepto];
+
               return (
                 <div key={l.concepto} className={`res-linea${l.es_subtotal ? " is-subtotal" : ""}`}>
                   <span>{l.concepto}</span>
@@ -124,13 +143,42 @@ export default function ResultadoView() {
                     afirma que el costo fue nada, que es una afirmación
                     completamente distinta de "no se pudo costear".
                   */}
-                  <strong className={!desconocido && l.monto < 0 ? "is-danger" : undefined}>
-                    {desconocido ? "—" : formatearMonto(l.monto, r.moneda)}
-                  </strong>
+                  {desconocido ? (
+                    <strong>—</strong>
+                  ) : cifra ? (
+                    <Cifra
+                      valor={l.monto}
+                      moneda={r.moneda}
+                      cifra={cifra}
+                      trazas={r.trazas}
+                      onAbrir={(c) => setAbierta({ moneda: r.moneda, cifra: c })}
+                      className={l.monto < 0 ? "is-danger" : undefined}
+                    />
+                  ) : (
+                    <strong className={l.monto < 0 ? "is-danger" : undefined}>
+                      {formatearMonto(l.monto, r.moneda)}
+                    </strong>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          {/*
+            Pegada al resultado y no al final: quien toca un número quiere
+            ver de dónde sale, no bajar buscándolo. Abrir otra cifra de la
+            misma moneda reemplaza esta traza, no apila paneles.
+          */}
+          {abierta?.moneda === r.moneda && (
+            // La key reinicia el panel al tocar otra cifra. Ver el porqué en Traza.tsx.
+            <Traza
+              key={abierta.cifra}
+              trazas={r.trazas}
+              inicial={abierta.cifra}
+              moneda={r.moneda}
+              onCerrar={() => setAbierta(null)}
+            />
+          )}
 
           {r.margen_operativo !== null && (
             <p className="prose">
@@ -166,9 +214,10 @@ export default function ResultadoView() {
             <div className={`neg-metrica${p.capital_de_trabajo < 0 ? " is-danger" : ""}`}>
               <span>Capital de trabajo</span>
               <strong>{formatearMonto(p.capital_de_trabajo, p.moneda)}</strong>
-              {p.liquidez_piso !== null && (
+              {p.liquidez !== null && (
                 <small className="neg-metrica-nota">
-                  Liquidez: al menos {p.liquidez_piso.toLocaleString("es-PY", { maximumFractionDigits: 2 })}
+                  Liquidez{p.liquidez_es_piso ? ": al menos " : ": "}
+                  {p.liquidez.toLocaleString("es-PY", { maximumFractionDigits: 2 })}
                 </small>
               )}
             </div>

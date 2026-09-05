@@ -301,6 +301,7 @@ function Composer({
         <textarea
           ref={textareaRef}
           rows={1}
+          aria-label="Escribile a EOS"
           placeholder="Escribile a EOS..."
           value={mensaje}
           onChange={(e) => onMensajeChange(e.target.value)}

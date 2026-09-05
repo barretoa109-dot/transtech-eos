@@ -136,7 +136,7 @@ export default function FinanzasCandidatos({ onImportado }: { onImportado: () =>
         })}
       </div>
 
-      {error && <p className="fin-setup-error">{error}</p>}
+      {error && <p className="fin-setup-error" role="alert">{error}</p>}
 
       <button
         type="button"

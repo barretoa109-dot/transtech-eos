@@ -658,7 +658,7 @@ export default function PlanesPage() {
                     />
                   </label>
 
-                  {errorContacto && <p className="contact-error">{errorContacto}</p>}
+                  {errorContacto && <p className="contact-error" role="alert">{errorContacto}</p>}
 
                   <button type="submit" className="contact-submit" disabled={enviandoContacto}>
                     {enviandoContacto ? (

@@ -64,6 +64,7 @@ export default function EOSPage() {
 
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  const botonMenuMovilRef = useRef<HTMLButtonElement | null>(null);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,6 +161,27 @@ export default function EOSPage() {
     };
   }, [menuMovilAbierto]);
 
+  /*
+   * Escape cierra el cajón, y el foco vuelve al botón que lo abrió.
+   *
+   * Sin esto, alguien que navega solo con teclado y abre el menú en el
+   * celular no tiene forma de cerrarlo salvo tabular hasta encontrar un
+   * ítem de navegación — el overlay solo responde al clic del mouse.
+   */
+  useEffect(() => {
+    if (!menuMovilAbierto) return;
+
+    function alPresionarTecla(evento: KeyboardEvent) {
+      if (evento.key === "Escape") {
+        setMenuMovilAbierto(false);
+        botonMenuMovilRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", alPresionarTecla);
+    return () => document.removeEventListener("keydown", alPresionarTecla);
+  }, [menuMovilAbierto]);
+
   async function manejarNuevoChat() {
     if (!usuarioId) return;
 
@@ -225,9 +247,22 @@ export default function EOSPage() {
         <Sidebar {...sidebarProps} />
       </div>
 
-      <div className={`mobile-overlay ${menuMovilAbierto ? "open" : ""}`} onClick={() => setMenuMovilAbierto(false)} aria-hidden />
+      <div
+        className={`mobile-overlay ${menuMovilAbierto ? "open" : ""}`}
+        onClick={() => {
+          setMenuMovilAbierto(false);
+          botonMenuMovilRef.current?.focus();
+        }}
+        aria-hidden
+      />
 
-      <button type="button" className="mobile-menu-button" onClick={() => setMenuMovilAbierto(true)} aria-label="Abrir menú">
+      <button
+        type="button"
+        ref={botonMenuMovilRef}
+        className="mobile-menu-button"
+        onClick={() => setMenuMovilAbierto(true)}
+        aria-label="Abrir menú"
+      >
         <Menu size={20} />
       </button>
 
@@ -263,6 +298,13 @@ export default function EOSPage() {
             onGoToDecisions={() => setVista("decisions")}
           />
         )}
+
+        {["dashboard", "negocio", "gastos", "decisions", "learnings"].includes(vista) &&
+          !usuarioCargado && (
+            <div className="neg-loading" role="status">
+              <span /> Cargando…
+            </div>
+          )}
 
         {vista === "dashboard" && usuarioCargado && (
           <DashboardView

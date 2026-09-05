@@ -173,7 +173,7 @@ export default function FinanzasSetup({
         {actual.sufijo && <span className="fin-setup-sufijo">{actual.sufijo}</span>}
       </div>
 
-      {error && <p className="fin-setup-error">{error}</p>}
+      {error && <p className="fin-setup-error" role="alert">{error}</p>}
 
       <div className="fin-setup-acciones">
         {paso > 0 ? (

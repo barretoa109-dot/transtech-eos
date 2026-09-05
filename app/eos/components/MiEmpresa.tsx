@@ -281,7 +281,7 @@ export default function MiEmpresa() {
         </div>
       )}
 
-      {aviso && <p className="neg-error">{aviso}</p>}
+      {aviso && <p className="neg-error" role="alert">{aviso}</p>}
     </div>
   );
 }

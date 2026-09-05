@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
-import { adminSinTipos } from "./supabase/sin-tipos.ts";
+import { adminSinTipos, type ClienteSinTipos } from "./supabase/sin-tipos.ts";
 import { autorizadoComoWorker } from "./seguridad/worker-bearer.ts";
 
 export const runtime = "nodejs";
@@ -171,7 +171,7 @@ function recentAutonomyWindowStart() {
   return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
 }
 async function logEvent(
-  admin: any,
+  admin: ClienteSinTipos,
   params: {
     usuarioId: string;
     approvalId?: string | null;
@@ -614,11 +614,11 @@ export async function POST(request: Request) {
     const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
     const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
     const autonomyDay = dateInTimeZone(new Date().toISOString());
-    const autoEvents = (dailyEventsResult.data || []).filter(
-      (event: any) => dateInTimeZone(event.created_at) === autonomyDay,
-    );
+    const autoEvents = (
+      (dailyEventsResult.data || []) as { created_at: string; detail: unknown }[]
+    ).filter((event) => dateInTimeZone(event.created_at) === autonomyDay);
     const autoCount = autoEvents.length;
-    const usedRisk = autoEvents.reduce((total: number, event: any) => {
+    const usedRisk = autoEvents.reduce((total: number, event) => {
       const detail = safeObject(event.detail);
       const points = Number(detail.risk_points || 0);
       return total + (Number.isFinite(points) ? points : 0);

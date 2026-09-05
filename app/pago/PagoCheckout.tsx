@@ -419,7 +419,7 @@ export default function PagoCheckout() {
                   </label>
                 </div>
 
-                {error && <p className="payment-error">{error}</p>}
+                {error && <p role="alert" className="payment-error">{error}</p>}
 
                 <button
                   type="submit"
@@ -551,7 +551,7 @@ export default function PagoCheckout() {
                 </p>
               )}
 
-              {error && <p className="payment-error">{error}</p>}
+              {error && <p role="alert" className="payment-error">{error}</p>}
 
               <button
                 type="button"

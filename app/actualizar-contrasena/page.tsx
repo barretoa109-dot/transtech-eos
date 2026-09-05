@@ -78,6 +78,7 @@ export default function ActualizarContrasenaPage() {
 
           <CampoContrasena
             autoComplete="new-password"
+            aria-label="Nueva contraseña"
             placeholder="Nueva contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -86,6 +87,7 @@ export default function ActualizarContrasenaPage() {
 
           <CampoContrasena
             autoComplete="new-password"
+            aria-label="Confirmar contraseña"
             placeholder="Confirmar contraseña"
             value={confirmar}
             onChange={(e) => setConfirmar(e.target.value)}
@@ -93,13 +95,13 @@ export default function ActualizarContrasenaPage() {
           />
 
           {error && (
-            <div className="mt-4 rounded-xl bg-red-500/20 p-4 text-red-300">
+            <div role="alert" className="mt-4 rounded-xl bg-red-500/20 p-4 text-red-300">
               {error}
             </div>
           )}
 
           {mensaje && (
-            <div className="mt-4 rounded-xl bg-green-500/20 p-4 text-green-300">
+            <div role="status" className="mt-4 rounded-xl bg-green-500/20 p-4 text-green-300">
               {mensaje}
             </div>
           )}
