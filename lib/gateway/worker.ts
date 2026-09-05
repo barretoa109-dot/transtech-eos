@@ -39,6 +39,7 @@
  * persona los dijo.
  */
 
+import { ejecutarEnProceso } from "./ejecutar.ts";
 import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 
@@ -46,6 +47,22 @@ import type { ResultadoWorker } from "./resultados.ts";
 export const TIMEOUT_WORKER_MS = 120_000;
 
 export type Config = { base: string; secreto: string };
+
+/**
+ * La bandera de la etapa 3: ejecutar el Worker adentro de Vercel.
+ *
+ * Es la tercera y la más delicada, y por eso tiene su propio interruptor.
+ * `docs/salida-de-n8n.md` pide no prenderla hasta que las etapas 1 y 2 lleven
+ * SEMANAS estables: esta es la que ejecuta acciones ya aprobadas, y si algo se
+ * rompe acá se rompe DESPUÉS de que la persona autorizó, que es el peor
+ * momento posible para fallar.
+ *
+ * Con la etapa 3 apagada, `EOS_N8N_BASE_URL` sigue haciendo falta. Con la
+ * etapa 3 prendida deja de hacer falta: ya no se sale a la red.
+ */
+export function workerEnProceso(): boolean {
+  return process.env.EOS_GATEWAY_TS_WORKER === "1";
+}
 
 /**
  * Las dos variables que hacen falta en Vercel para la etapa 2.
@@ -62,7 +79,40 @@ export function configDelWorker(): Config | null {
 }
 
 /** Un job, un resultado. Los errores se devuelven, no se lanzan. */
-export async function ejecutarJob(job: Job, config: Config): Promise<ResultadoWorker> {
+export async function ejecutarJob(job: Job, config: Config | null): Promise<ResultadoWorker> {
+  /*
+   * Etapa 3. Adentro del proceso no hay red que cruzar, así que tampoco hay
+   * timeout ni reintento que administrar: `ejecutarEnProceso` devuelve un
+   * resultado pase lo que pase, con la misma forma que devolvería n8n.
+   */
+  if (workerEnProceso()) {
+    try {
+      return await ejecutarEnProceso(job);
+    } catch (error) {
+      // Una excepción acá NO se traduce en delegar: el efecto pudo haber
+      // ocurrido. Se reporta, igual que un fallo del worker remoto.
+      console.error("Gateway TS: el worker en proceso lanzó:", error);
+      return {
+        ok: false,
+        accion: job.accion.tipo,
+        request_id: job.request_id,
+        error: "No se pudo completar la acción.",
+      };
+    }
+  }
+
+  if (config === null) {
+    // No debería llegar acá: quien llama comprueba la configuración antes de
+    // armar nada. El guard existe porque el costo de equivocarse es mandar un
+    // job a una URL vacía.
+    return {
+      ok: false,
+      accion: job.accion.tipo,
+      request_id: job.request_id,
+      error: "El worker no está configurado.",
+    };
+  }
+
   const controlador = new AbortController();
   const reloj = setTimeout(() => controlador.abort(), TIMEOUT_WORKER_MS);
 
@@ -128,7 +178,7 @@ export async function ejecutarJob(job: Job, config: Config): Promise<ResultadoWo
  * falla, la segunda igual se intenta. Cortar dejaría la mitad hecha sin decir
  * cuál mitad.
  */
-export async function ejecutarJobs(jobs: Job[], config: Config): Promise<ResultadoWorker[]> {
+export async function ejecutarJobs(jobs: Job[], config: Config | null): Promise<ResultadoWorker[]> {
   const resultados: ResultadoWorker[] = [];
   for (const job of jobs) {
     resultados.push(await ejecutarJob(job, config));

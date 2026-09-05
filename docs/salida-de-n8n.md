@@ -138,11 +138,63 @@ esperada (no la prosa), corridas contra los dos caminos hasta que coincidan.
 > corpus sirva de verdad — la primera versión no servía, ver el encabezado de
 > `evals/casos/acciones.ts`.
 
-### Etapa 3 — El Background Worker
+### Etapa 3 — El Background Worker · **construida, apagada**
 
 El último y el más delicado: es el que ejecuta. Tiene fencing, leases e
 idempotencia ya probados en producción ([eos_rc1_status]). No tocar hasta que
 1 y 2 estén estables por semanas.
+
+> **Estado (2026-09-04).** Escrita en `lib/gateway/ejecutar.ts`, con 19 tests,
+> y **apagada tras `EOS_GATEWAY_TS_WORKER=1`**, su tercera bandera propia.
+>
+> **La recomendación de arriba sigue en pie y no la contradice haberla
+> escrito.** Escribir el código no toca producción; prender el interruptor sí.
+> Las etapas 1 y 2 llevan cero días encendidas, así que esta no se prende.
+>
+> **Lo que elimina no es un nodo, es un viaje.** El Worker de n8n no ejecuta
+> nada por su cuenta: llama de vuelta a Vercel. Registrar una venta hoy es
+>
+> ```
+> Vercel → n8n → Vercel (autorizar) → n8n → Vercel (efecto) → n8n → Vercel
+> ```
+>
+> Seis saltos de red para dos llamadas a funciones que ya viven en este repo.
+> Adentro del proceso son dos llamadas y ninguna red. Se invocan los **mismos**
+> handlers (`worker-authorize/v1` y `action-effects/v1`), no una copia de su
+> lógica.
+>
+> Con la etapa 3 prendida, `EOS_N8N_BASE_URL` deja de hacer falta. El secreto
+> sí: sin él no se autoriza, y sin autorizar no se ejecuta nada.
+
+#### Tres de las cinco ramas del Worker están rotas hoy
+
+Portarlas destapó que apuntan a endpoints **que no existen en este
+repositorio**. Verificado contra la lista de rutas del build, donde bajo
+`/api/internal/` sólo había cuatro: `action-effects`, `consultar`, `salud` y
+`worker-authorize`.
+
+| Rama | Llama a | Existe | Consecuencia hoy |
+|---|---|---|---|
+| INT | `worker-authorize` + `action-effects` | sí | **Funciona.** Es la que registra ventas, stock y contactos. |
+| DASH | `worker-ping/v1` | **no** | Pedir el dashboard por chat contesta "No pude completar automáticamente". |
+| BRIEF | `worker-ping/v1` | **no** | Igual que DASH. |
+| FILE | `action-claims/v1`, `action-results/v1` | **no** | No puede completarse por ningún camino. |
+| RESP | `worker-ping/v1` | **no** | Sin efecto: el gateway saltea esa rama siempre. |
+
+Los nodos están configurados con `onError: continueRegularOutput`, así que el
+flujo no se cae: sigue con `ping.ok` en falso, `authorized` en falso, y la rama
+devuelve `{ok:false, error:'Worker no autorizado.'}`.
+
+**Se agregó `app/api/internal/worker-ping/v1`**, que son cuatro líneas y
+devuelve el dashboard y el briefing al camino que corre HOY. **No depende de
+ninguna bandera.**
+
+**La rama FILE no se portó.** Exigiría inventar `action-claims` y
+`action-results` —con sus leases y su idempotencia— para un camino que además
+quedó superado: desde que el modelo manda `documento`, los archivos los arma
+`app/api/eos/route.ts` con `guardarDocumento`, y `respuesta.ts` descarta las
+acciones `GENERAR_*` cuando viene documento justamente para que no se hagan las
+dos cosas. En su lugar se devuelve un error que dice por dónde sí.
 
 ## Requisitos previos que NO son código
 

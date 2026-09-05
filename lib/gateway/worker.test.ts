@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { configDelWorker, ejecutarJob, ejecutarJobs } from "./worker.ts";
+import { configDelWorker, ejecutarJob, ejecutarJobs, workerEnProceso } from "./worker.ts";
 import { armarJobs, type Job } from "./jobs.ts";
 import { prepararEntrada } from "./entrada.ts";
 import { prepararRespuesta } from "./respuesta.ts";
@@ -223,4 +223,66 @@ test("devuelve un resultado por cada job, siempre", async () => {
     () => ejecutarJobs(lista, CONFIG),
   );
   assert.equal(salida.length, 3);
+});
+
+// ---------------------------------------------------------------------------
+// Etapa 3: adentro del proceso
+// ---------------------------------------------------------------------------
+
+/** Prende la etapa 3 mientras corre `correr`. */
+async function conEtapa3<T>(correr: () => Promise<T>): Promise<T> {
+  const previo = process.env.EOS_GATEWAY_TS_WORKER;
+  process.env.EOS_GATEWAY_TS_WORKER = "1";
+  try {
+    return await correr();
+  } finally {
+    if (previo === undefined) delete process.env.EOS_GATEWAY_TS_WORKER;
+    else process.env.EOS_GATEWAY_TS_WORKER = previo;
+  }
+}
+
+test("la etapa 3 tiene su propia bandera", () => {
+  const previo = process.env.EOS_GATEWAY_TS_WORKER;
+  try {
+    delete process.env.EOS_GATEWAY_TS_WORKER;
+    assert.equal(workerEnProceso(), false);
+
+    process.env.EOS_GATEWAY_TS_WORKER = "0";
+    assert.equal(workerEnProceso(), false);
+
+    process.env.EOS_GATEWAY_TS_WORKER = "1";
+    assert.equal(workerEnProceso(), true);
+  } finally {
+    if (previo === undefined) delete process.env.EOS_GATEWAY_TS_WORKER;
+    else process.env.EOS_GATEWAY_TS_WORKER = previo;
+  }
+});
+
+test("con la etapa 3 prendida NO se sale a la red", async () => {
+  const [job] = jobs([]); // RESPONDER: no toca ninguna puerta
+  const { salida, llamadas } = await conWorkerFalso(
+    () => ok({ ok: true }),
+    () => conEtapa3(() => ejecutarJob(job, CONFIG)),
+  );
+
+  assert.equal(llamadas.length, 0, "llamó a n8n teniendo el worker adentro");
+  assert.equal(salida.ok, true);
+  assert.equal(salida.accion, "RESPONDER");
+});
+
+test("con la etapa 3 prendida ya no hace falta la config de n8n", async () => {
+  const [job] = jobs([]);
+  const salida = await conEtapa3(() => ejecutarJob(job, null));
+  assert.equal(salida.ok, true);
+});
+
+test("sin etapa 3 y sin config, no manda el job a ninguna parte", async () => {
+  const [job] = jobs([{ tipo: "REGISTRAR_VENTA", datos: {} }]);
+  const { salida, llamadas } = await conWorkerFalso(
+    () => ok({ ok: true }),
+    () => ejecutarJob(job, null),
+  );
+
+  assert.equal(llamadas.length, 0, "intentó mandar un job a una URL vacía");
+  assert.equal(salida.ok, false);
 });

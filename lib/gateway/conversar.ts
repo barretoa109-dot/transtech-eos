@@ -42,7 +42,7 @@ import { armarPrompt } from "./prompt.ts";
 import { prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
-import { configDelWorker, ejecutarJobs } from "./worker.ts";
+import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -67,11 +67,16 @@ export function gatewayEnTypeScript(): boolean {
  * Worker sigue viviendo en n8n hasta la etapa 3.
  */
 export function accionesEnTypeScript(): boolean {
-  return (
-    gatewayEnTypeScript() &&
-    process.env.EOS_GATEWAY_TS_ACCIONES === "1" &&
-    configDelWorker() !== null
-  );
+  if (!gatewayEnTypeScript() || process.env.EOS_GATEWAY_TS_ACCIONES !== "1") return false;
+
+  /*
+   * Con la etapa 3 prendida no se sale a la red, así que `EOS_N8N_BASE_URL`
+   * deja de hacer falta. Lo que NO deja de hacer falta es el secreto: sin él
+   * no se puede autorizar, y sin autorizar no se ejecuta nada.
+   */
+  if (workerEnProceso()) return Boolean((process.env.EOS_WORKER_GATE_SECRET ?? "").trim());
+
+  return configDelWorker() !== null;
 }
 
 export type Resultado =
@@ -162,10 +167,12 @@ export async function conversar(payload: Record<string, unknown>): Promise<Resul
   // Etapa 2: las acciones
   // ------------------------------------------------------------------
 
-  const config = configDelWorker();
-  if (!accionesEnTypeScript() || config === null) {
+  if (!accionesEnTypeScript()) {
     return { estado: "delegar", motivo: cuerpo.accion };
   }
+
+  // Null cuando la etapa 3 está prendida: no hace falta salir a la red.
+  const config = workerEnProceso() ? null : configDelWorker();
 
   let jobs;
   try {
