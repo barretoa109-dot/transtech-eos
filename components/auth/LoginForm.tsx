@@ -174,7 +174,10 @@ export default function LoginForm({
         </div>
 
         {errorMessage && (
-          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+          <div
+            role="alert"
+            className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300"
+          >
             {errorMessage}
           </div>
         )}
@@ -198,7 +201,7 @@ export default function LoginForm({
         <>
           <div className="my-8 flex items-center gap-4">
             <div className="h-px flex-1 bg-slate-700" />
-            <span className="text-sm text-slate-500">o continuar con</span>
+            <span className="text-sm text-slate-400">o continuar con</span>
             <div className="h-px flex-1 bg-slate-700" />
           </div>
 

@@ -95,8 +95,8 @@ export default function Pronostico() {
     };
   }, []);
 
-  if (cargando) return <p className="neg-loading">Calculando lo que viene…</p>;
-  if (error) return <p className="neg-load-error">{error}</p>;
+  if (cargando) return <p className="neg-loading" role="status">Calculando lo que viene…</p>;
+  if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
   if (datos.monedas.length === 0) {
@@ -162,7 +162,7 @@ export default function Pronostico() {
             ) : null}
 
             {m.rojo && (
-              <p className="neg-error">
+              <p className="neg-error" role="alert">
                 <AlertTriangle size={13} /> La caja se te va a cero el {formatearDia(m.rojo.fecha)}
               </p>
             )}

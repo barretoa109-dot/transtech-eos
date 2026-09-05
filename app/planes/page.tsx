@@ -463,7 +463,7 @@ export default function PlanesPage() {
                   {periodicidad === "anual" ? "por año" : "por mes"}
                 </div>
 
-                {error && <p className="cuenta-error">{error}</p>}
+                {error && <p className="cuenta-error" role="alert">{error}</p>}
 
                 <button
                   type="button"
@@ -637,7 +637,7 @@ export default function PlanesPage() {
                     />
                   </label>
 
-                  {errorContacto && <p className="contact-error">{errorContacto}</p>}
+                  {errorContacto && <p className="contact-error" role="alert">{errorContacto}</p>}
 
                   <button type="submit" className="contact-submit" disabled={enviandoContacto}>
                     {enviandoContacto ? (

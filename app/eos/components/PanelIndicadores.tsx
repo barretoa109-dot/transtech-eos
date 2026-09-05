@@ -133,7 +133,7 @@ export default function PanelIndicadores() {
     return (
       <section className="card">
         <div className="card-title">Tus indicadores</div>
-        <p className="neg-load-error">{error}</p>
+        <p className="neg-load-error" role="alert">{error}</p>
       </section>
     );
   }

@@ -176,7 +176,7 @@ export default function AdminPagosPage() {
           </button>
         </header>
 
-        {error && <div className="error-box">{error}</div>}
+        {error && <div className="error-box" role="alert">{error}</div>}
 
         {cargando ? (
           <section className="state-card">

@@ -166,6 +166,7 @@ export default function RegisterForm({ onLogin }: Props) {
           type="text"
           autoComplete="name"
           required
+          aria-label="Nombre completo"
           className="mt-8 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Nombre completo"
           value={nombre}
@@ -176,6 +177,7 @@ export default function RegisterForm({ onLogin }: Props) {
           type="email"
           autoComplete="email"
           required
+          aria-label="Correo electrónico"
           className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Correo electrónico"
           value={email}
@@ -185,6 +187,7 @@ export default function RegisterForm({ onLogin }: Props) {
         <input
           type="tel"
           autoComplete="tel"
+          aria-label="WhatsApp (opcional)"
           className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="WhatsApp (opcional)"
           value={whatsapp}
@@ -195,6 +198,7 @@ export default function RegisterForm({ onLogin }: Props) {
           autoComplete="new-password"
           required
           minLength={6}
+          aria-label="Contraseña"
           className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Contraseña"
           value={password}
@@ -202,19 +206,19 @@ export default function RegisterForm({ onLogin }: Props) {
         />
 
         {errorMessage && (
-          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+          <div role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-300">
+          <div role="status" className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-300">
             {successMessage}
           </div>
         )}
 
         {cuentaExistente && (
-          <div className="mt-4 rounded-xl border border-[#6fa3e8]/30 bg-[#2f72d6]/10 p-4 text-sm leading-6 text-[#a9c6ee]">
+          <div role="status" className="mt-4 rounded-xl border border-[#6fa3e8]/30 bg-[#2f72d6]/10 p-4 text-sm leading-6 text-[#a9c6ee]">
             Ese correo ya tiene una cuenta en EOS.{" "}
             <button
               type="button"

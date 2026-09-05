@@ -289,7 +289,7 @@ export default function Emisor() {
           />
         </div>
 
-        {error && <p className="neg-error">{error}</p>}
+        {error && <p className="neg-error" role="alert">{error}</p>}
         {guardado && (
           <p className="prose" style={{ color: "var(--green)", fontSize: 13 }}>
             Guardado. Ya podés emitir comprobantes desde la pestaña Ventas.

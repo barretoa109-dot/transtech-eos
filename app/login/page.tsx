@@ -103,7 +103,7 @@ function LoginPageContenido() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-white/10 pt-6 text-xs text-slate-500">
+          <div className="flex items-center justify-between border-t border-white/10 pt-6 text-xs text-slate-400">
             <span>TRANSTECH E.A.S.</span>
             <span>Personas · Profesionales · Empresas</span>
           </div>
@@ -150,7 +150,7 @@ function LoginPageContenido() {
               </div>
             </div>
 
-            <p className="mt-7 text-center text-xs leading-5 text-slate-600">
+            <p className="mt-7 text-center text-xs leading-5 text-slate-400">
               Al continuar, aceptás los{" "}
               <a href="/terminos" className="underline" target="_blank" rel="noopener noreferrer">
                 términos de servicio
@@ -251,7 +251,7 @@ function Feature({ numero, titulo, texto }: { numero: string; titulo: string; te
         <div className="h-px flex-1 bg-gradient-to-r from-[#2f72d6]/50 to-transparent" />
       </div>
       <h2 className="mt-4 font-bold text-white">{titulo}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{texto}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{texto}</p>
     </div>
   );
 }

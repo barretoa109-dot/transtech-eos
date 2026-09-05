@@ -84,8 +84,8 @@ export default function ResultadoView() {
     };
   }, []);
 
-  if (cargando) return <p className="neg-loading">Armando el resultado…</p>;
-  if (error) return <p className="neg-load-error">{error}</p>;
+  if (cargando) return <p className="neg-loading" role="status">Armando el resultado…</p>;
+  if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
   if (datos.resultados.length === 0 && datos.posiciones.length === 0) {
@@ -98,7 +98,7 @@ export default function ResultadoView() {
 
   return (
     <div className="neg-resultado">
-      {datos.aviso && <p className="neg-error">{datos.aviso}</p>}
+      {datos.aviso && <p className="neg-error" role="alert">{datos.aviso}</p>}
 
       {datos.resultados.map((r) => (
         <div key={`res-${r.moneda}`} className="card" style={{ marginBottom: 16 }}>

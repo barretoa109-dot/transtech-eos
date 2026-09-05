@@ -71,7 +71,7 @@ export default function HistoriaKPI({ id, moneda }: { id: string; moneda: string
   }, [id, moneda]);
 
   if (cargando) return <p className="neg-loading">Buscando la historia…</p>;
-  if (error) return <p className="neg-load-error">{error}</p>;
+  if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
   const conValor = datos.serie.puntos.filter((p) => p.valor !== null);

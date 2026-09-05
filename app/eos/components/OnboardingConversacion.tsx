@@ -617,7 +617,7 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
         </>
       )}
 
-      {error && <p className="fin-setup-error">{error}</p>}
+      {error && <p className="fin-setup-error" role="alert">{error}</p>}
 
       <div className="fin-setup-acciones">
         {indice > 0 ? (

@@ -180,8 +180,8 @@ function Lista({ tipo, onCambio }: { tipo: "cobrar" | "pagar"; onCambio?: () => 
     }
   }
 
-  if (cargando && !datos) return <p className="neg-loading">Cargando tu estado de cuenta…</p>;
-  if (error) return <p className="neg-load-error">{error}</p>;
+  if (cargando && !datos) return <p className="neg-loading" role="status">Cargando tu estado de cuenta…</p>;
+  if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
   const sinNada = datos.monedas.length === 0;
@@ -297,7 +297,7 @@ function Lista({ tipo, onCambio }: { tipo: "cobrar" | "pagar"; onCambio?: () => 
                     >
                       Cancelar
                     </button>
-                    {avisoCobro && <small className="neg-error">{avisoCobro}</small>}
+                    {avisoCobro && <small className="neg-error" role="alert">{avisoCobro}</small>}
                   </div>
                 ) : (
                   <button

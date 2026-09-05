@@ -743,7 +743,7 @@ function Ventas({
               />
             )}
 
-            {error && <p className="neg-error">{error}</p>}
+            {error && <p className="neg-error" role="alert">{error}</p>}
 
             <div className="chip-row" style={{ marginTop: 12 }}>
               <button
@@ -1092,7 +1092,7 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
           </p>
         )}
 
-        {error && <p className="neg-error">{error}</p>}
+        {error && <p className="neg-error" role="alert">{error}</p>}
 
         <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>
           {guardando ? "Guardando…" : "Agregar"}
@@ -1210,7 +1210,7 @@ function Clientes({ contactos, onCambio }: { contactos: Contacto[]; onCambio: ()
           />
         </div>
 
-        {error && <p className="neg-error">{error}</p>}
+        {error && <p className="neg-error" role="alert">{error}</p>}
 
         <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>
           {guardando ? "Guardando…" : "Agregar"}

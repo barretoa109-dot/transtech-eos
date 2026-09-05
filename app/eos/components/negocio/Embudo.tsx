@@ -417,7 +417,7 @@ function NuevaOportunidad({
         </label>
       </div>
 
-      {error && <p className="neg-error">{error}</p>}
+      {error && <p className="neg-error" role="alert">{error}</p>}
 
       <div className="chip-row">
         <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>

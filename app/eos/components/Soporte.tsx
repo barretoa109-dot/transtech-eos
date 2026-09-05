@@ -116,7 +116,7 @@ export default function Soporte({ pantalla }: { pantalla?: string }) {
             }}
           />
 
-          {error && <p className="soporte-error">{error}</p>}
+          {error && <p className="soporte-error" role="alert">{error}</p>}
 
           <div className="soporte-acciones">
             <button type="button" className="chip active" disabled={enviando} onClick={enviar}>

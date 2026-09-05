@@ -170,7 +170,7 @@ export default function MisTarjetas() {
         </div>
       )}
 
-      {error && <p className="anular-error">{error}</p>}
+      {error && <p className="anular-error" role="alert">{error}</p>}
 
       {borrando && (
         <p className="empty-note">

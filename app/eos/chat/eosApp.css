@@ -14,11 +14,24 @@
   --line-soft: #f0f1f3;
   --panel: #ffffff;
   --bg-sidebar: #f9f9fb;
-  --green: #10a37f;
+  /*
+   * Los tres, un poco más oscuros que el mockup original.
+   *
+   * `--amber`/`--green`/`--red` sobre sus propios `-light` (las tarjetas de
+   * aviso, `.neg-estado`, `.neg-feedback`) daban entre 3.0 y 3.1 de contraste
+   * — la mitad de lo que pide WCAG AA para texto normal (4.5). Con el aviso
+   * marcado `role="alert"`/`role="status"` para que un lector de pantalla lo
+   * anuncie, dejar el texto casi ilegible para quien sí lo ve a color habría
+   * sido corregir una mitad del problema y no la otra. Se bajó la luminosidad
+   * manteniendo el mismo tono hasta pasar 4.5:1 contra el fondo `-light`
+   * correspondiente Y contra blanco (varios usos, como `.neg-error`, no
+   * tienen fondo propio).
+   */
+  --green: #0c7d62;
   --green-light: #ecfdf5;
-  --amber: #d97706;
+  --amber: #a45a05;
   --amber-light: #fffbeb;
-  --red: #dc2626;
+  --red: #c11f1f;
   --red-light: #fef2f2;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
