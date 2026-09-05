@@ -211,14 +211,41 @@ convivan.
 
 ## Requisitos previos que NO son código
 
-1. **`OPENAI_API_KEY` en Vercel.** Hoy la credencial vive en n8n. Sin esto la
-   etapa 1 no arranca. **Verificar antes de empezar.**
+**Estado verificado el 4 de septiembre de 2026** con `vercel env ls production`
+sobre el proyecto `trans-tech/transtech-eos`. Ya no hay que suponer:
+
+| Variable | En producción | Para qué |
+|---|---|---|
+| `EOS_WORKER_GATE_SECRET` | **sí**, hace 20 días | Autorizar acciones. Etapas 2 y 3. |
+| `EOS_APP_BASE_URL` | **sí**, hace 18 días | El enlace de descarga de las planillas. |
+| `OPENAI_API_KEY` | **NO** | Etapa 1. Sin esto no arranca nada. |
+| `EOS_GATEWAY_TS` | **NO** | La bandera de la etapa 1. |
+| `EOS_GATEWAY_TS_ACCIONES` | **NO** | La bandera de la etapa 2. |
+| `EOS_GATEWAY_TS_WORKER` | **NO** | La bandera de la etapa 3. |
+| `EOS_N8N_BASE_URL` | **NO** | Llamar a los webhooks del worker. Etapa 2. |
+| `N8N_EOS_WEBHOOK_URL` | **NO** | Poder volver atrás sin desplegar. |
+
+1. **`OPENAI_API_KEY` en Vercel.** Confirmado: **no está**. La credencial vive
+   solo en n8n, como se sospechaba desde el primer diagnóstico. Sin ella la
+   etapa 1 no arranca, y `gatewayEnTypeScript()` lo comprueba: con la bandera
+   prendida y sin la clave devuelve `false` y no pasa nada.
 2. **Una ventana con alguien mirando producción.** Es el camino crítico: la
    etapa 1 se saca en un momento en que se pueda revertir en minutos.
-3. **`N8N_EOS_WEBHOOK_URL` en Vercel.** Hoy no está y la URL de producción está
-   hardcodeada como fallback en `app/api/eos/route.ts:19-21`. Mientras siga
-   así, volver atrás exige un deploy en vez de cambiar una variable — que es
-   justo lo que no querés en una migración.
+3. **`N8N_EOS_WEBHOOK_URL` en Vercel.** Confirmado que no está, y la URL de
+   producción sigue hardcodeada como fallback en `app/api/eos/route.ts`.
+   Mientras siga así, volver atrás exige un deploy en vez de cambiar una
+   variable — que es justo lo que no querés en una migración. El valor a
+   cargar es exactamente el del fallback, para que agregarla no cambie nada:
+
+   ```
+   https://n8n-production-6cdb.up.railway.app/webhook/eos-chat
+   ```
+
+4. **Las tres banderas se cargan cuando se van a prender, no antes.** Dejarlas
+   puestas en cero no es más seguro que no tenerlas: crea un disparador
+   escondido. El día que alguien cargue `OPENAI_API_KEY` por cualquier otro
+   motivo, una bandera que ya estaba en `1` prendería el camino nuevo sin que
+   nadie lo haya decidido esa mañana.
 
 ## Lo que este documento no recomienda
 
