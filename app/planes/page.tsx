@@ -1357,6 +1357,17 @@ export default function PlanesPage() {
           line-height: 1.45;
           color: var(--muted);
         }
+        /*
+          Al seleccionar una opción el fondo pasa de blanco al azul claro, y el
+          gris apagado sobre ese tinte cae a 4,2:1 — por debajo del 4,5 que
+          exige un texto de este tamaño. Medido en el navegador, no estimado.
+
+          Efecto: elegir un módulo hacía su descripción MENOS legible, que es
+          exactamente al revés de lo que uno espera al seleccionarlo.
+        */
+        .opcion.activa .opcion-desc {
+          color: #5a6373;
+        }
         .pill {
           padding: 2px 8px;
           border-radius: 999px;
