@@ -455,15 +455,36 @@ export default function PlanesPage() {
                   </p>
                 )}
 
-                <div className="cuenta-total">
+                {/*
+                  El total cambia al tocar cualquier módulo, y ese cambio es la
+                  única respuesta a lo que la persona acaba de hacer. Quien ve
+                  la pantalla lo nota solo; quien usa un lector no se enteraba
+                  de nada: no había una sola región viva en toda la página.
+
+                  Va `polite` y no `assertive` para que espere a que el lector
+                  termine de anunciar el módulo que se acaba de elegir, en vez
+                  de interrumpirlo con el número.
+                */}
+                <div className="cuenta-total" aria-live="polite" aria-atomic="true">
                   <span>Total</span>
                   <strong>{formatearGs(armado.total)}</strong>
+                  {/* Solo para el lector: sin esto anuncia "Total 120.000" y
+                      no queda dicho si es por mes o por año. */}
+                  <span className="solo-lectores">
+                    {periodicidad === "anual" ? " por año" : " por mes"}
+                  </span>
                 </div>
-                <div className="cuenta-periodo">
+                <div className="cuenta-periodo" aria-hidden="true">
                   {periodicidad === "anual" ? "por año" : "por mes"}
                 </div>
 
-                {error && <p className="cuenta-error" role="alert">{error}</p>}
+                {/* Un error que aparece sin anunciarse deja a la persona
+                    esperando una respuesta que ya llegó. */}
+                {error && (
+                  <p className="cuenta-error" role="alert">
+                    {error}
+                  </p>
+                )}
 
                 <button
                   type="button"
@@ -1352,6 +1373,29 @@ export default function PlanesPage() {
           font-size: 14px;
           font-weight: 700;
         }
+        /*
+          Se lee, no se ve.
+
+          Esconderlo con display none o visibility hidden lo sacaría también
+          del lector de pantalla, que es lo contrario de lo que se busca. La
+          receta es sacarlo del flujo con un rectángulo de un píxel: sigue
+          estando en el árbol de accesibilidad.
+
+          (Ojo: nada de acentos graves en estos comentarios. Están adentro de
+          un template literal y lo cortan; ya rompió esta página dos veces.)
+        */
+        .solo-lectores {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+          white-space: nowrap;
+          border: 0;
+        }
+
         .opcion-desc {
           font-size: 12.5px;
           line-height: 1.45;
