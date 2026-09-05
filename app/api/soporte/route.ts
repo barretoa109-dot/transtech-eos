@@ -3,6 +3,7 @@ import { Resend } from "resend";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,6 +72,30 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Contanos un poco más de lo que pasa, así te podemos ayudar." },
         { status: 400 },
+      );
+    }
+
+    /*
+     * El mismo techo que ya usa `/api/ventas/contacto`, con el mismo motivo:
+     * cada llamada quema cuota de Resend, la misma cuenta por la que salen el
+     * briefing diario y los avisos de riesgo. Que esto pida sesión no lo hace
+     * gratis de golpear: una cuenta real scripteada puede mandar igual.
+     *
+     * Va después de validar el mensaje, para que un pedido vacío no gaste
+     * cupo; antes de leer el perfil y mandar el correo, que es lo que cuesta.
+     */
+    const cupo = await consumirCupo(adminSinTipos(), {
+      ruta: "/api/soporte",
+      cabeceras: request.headers,
+      ventanaSegundos: 900,
+      maximo: 5,
+      secreto: secretoDelEntorno(),
+    });
+
+    if (!cupo.permitido) {
+      return respuestaSinCupo(
+        cupo,
+        `Recibimos varios mensajes tuyos hace un momento. Esperá unos minutos, o escribinos directo a ${DESTINO}.`,
       );
     }
 
