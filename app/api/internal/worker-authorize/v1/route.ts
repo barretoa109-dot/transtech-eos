@@ -1,9 +1,9 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 import { POST as runWorkerGate } from "@/lib/worker-gate-handler";
 import { validateWorkerGatePayloadBinding } from "@/lib/worker-gate-payload-binding";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,25 +46,7 @@ function samePayload(left: unknown, right: unknown) {
   return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
 }
 
-function authorized(request: Request) {
-  const expected = process.env.EOS_WORKER_GATE_SECRET;
-  if (!expected) return { ok: false, unavailable: true };
 
-  const header = request.headers.get("authorization") || "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (!supplied) return { ok: false, unavailable: false };
-
-  const expectedBuffer = Buffer.from(expected);
-  const suppliedBuffer = Buffer.from(supplied);
-  if (expectedBuffer.length !== suppliedBuffer.length) {
-    return { ok: false, unavailable: false };
-  }
-
-  return {
-    ok: timingSafeEqual(expectedBuffer, suppliedBuffer),
-    unavailable: false,
-  };
-}
 
 function respond(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, {
@@ -104,7 +86,7 @@ async function evaluateGate(
 export async function POST(request: Request) {
   try {
     const authorizationHeader = request.headers.get("authorization") || "";
-    const authorization = authorized(request);
+    const authorization = autorizadoComoWorker(request);
 
     if (authorization.unavailable) {
       return respond(

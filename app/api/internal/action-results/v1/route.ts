@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { autorizadoComoWorker } from "@/lib/worker-gate-handler";
+import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
