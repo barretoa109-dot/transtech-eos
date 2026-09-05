@@ -61,18 +61,45 @@ export async function miEmpresa(supabase: ClienteSinTipos): Promise<string | nul
 }
 
 /**
+ * Ninguna fila tiene este id. Es la forma de decir "no devuelvas nada" en un
+ * filtro que tiene que ser una expresión válida igual.
+ */
+const NADA = "00000000-0000-0000-0000-000000000000";
+
+/**
  * El filtro que va en una consulta de tabla de negocio.
  *
- * Devuelve las DOS condiciones mientras dure la transición, por la misma razón
- * que las policies de la v111 usan un OR: `empresa_id` está rellenado hoy, pero
- * filtrar solo por él haría desaparecer de la pantalla —sin ningún error— una
- * fila que lo tuviera en null.
+ * ============================================================
+ * SOLO POR EMPRESA, DESDE LA ETAPA 4 (v119)
+ * ============================================================
  *
- * Postgrest no permite un OR entre columnas con `.eq()` encadenados, así que se
- * arma la expresión textual que entiende `.or()`.
+ * Hasta la v119 devolvía las dos condiciones, igual que las policies: era la
+ * red mientras `empresa_id` se rellenaba. Ahora las policies quedaron solo con
+ * `empresa_id`, y esto tiene que decir lo mismo.
+ *
+ * No es una preferencia de estilo. Estas rutas usan `adminSinTipos()`, que
+ * **no pasa por RLS**: este filtro es la única frontera que tienen. Si dijera
+ * algo más permisivo que las policies, las mismas filas se verían o no según
+ * qué ruta las pidiera, y esa clase de diferencia no se descubre mirando la
+ * pantalla.
+ *
+ * En la práctica no cambia qué se devuelve: se comprobó contra producción que
+ * `eos_empresa_discrepancias_v111()` da cero en las ocho tablas, así que las
+ * filas cuyo `usuario_id` coincide son exactamente las de su empresa.
+ *
+ * ============================================================
+ * SIN EMPRESA NO SE DEVUELVE NADA
+ * ============================================================
+ *
+ * Antes, sin empresa se caía a `usuario_id` y la persona igual veía lo suyo.
+ * Eso ahora sería MÁS permisivo que la RLS, que no le mostraría nada. Falla
+ * cerrado: si la empresa no se puede resolver hay un problema que hay que
+ * arreglar —`eos_empresa_sin_activa_v118()` lo encuentra— y taparlo con un
+ * acceso más ancho es la peor forma de no enterarse.
+ *
+ * Postgrest no permite un OR entre columnas con `.eq()` encadenados, así que
+ * se arma la expresión textual que entiende `.or()`.
  */
-export function filtroDeEmpresa(usuarioId: string, empresaId: string | null): string {
-  return empresaId === null
-    ? `usuario_id.eq.${usuarioId}`
-    : `usuario_id.eq.${usuarioId},empresa_id.eq.${empresaId}`;
+export function filtroDeEmpresa(_usuarioId: string, empresaId: string | null): string {
+  return `empresa_id.eq.${empresaId ?? NADA}`;
 }

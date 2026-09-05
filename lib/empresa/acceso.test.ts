@@ -5,25 +5,36 @@ import { empresaDe, filtroDeEmpresa } from "./acceso.ts";
 const USUARIO = "11111111-1111-4111-8111-111111111111";
 const EMPRESA = "22222222-2222-4222-8222-222222222222";
 
-test("el filtro incluye las dos fronteras mientras dure la transición", () => {
-  // Solo empresa haría desaparecer —sin ningún error— una fila con la columna
-  // en null. Solo usuario dejaría afuera a un segundo miembro. Van las dos.
+test("desde la etapa 4 el filtro es SOLO por empresa", () => {
+  // Estas rutas usan `adminSinTipos()`, que no pasa por RLS: este filtro es su
+  // única frontera. Si dijera algo más permisivo que las policies, las mismas
+  // filas se verían o no según qué ruta las pidiera.
   const f = filtroDeEmpresa(USUARIO, EMPRESA);
-  assert.match(f, /usuario_id\.eq\./);
-  assert.match(f, /empresa_id\.eq\./);
+  assert.equal(f, `empresa_id.eq.${EMPRESA}`);
+  assert.doesNotMatch(f, /usuario_id/, "quedó una frontera que las policies ya no aceptan");
 });
 
-test("sin empresa resuelta, el filtro cae al usuario y NO se queda vacío", () => {
-  // Un filtro vacío devolvería la tabla entera. Falla cerrado.
+test("sin empresa no devuelve nada, y NO cae al usuario", () => {
+  // Caer al usuario sería más permisivo que la RLS, que no le mostraría nada.
+  // Si la empresa no se resuelve hay un problema que arreglar; taparlo con un
+  // acceso más ancho es la peor forma de no enterarse.
   const f = filtroDeEmpresa(USUARIO, null);
-  assert.equal(f, `usuario_id.eq.${USUARIO}`);
-  assert.doesNotMatch(f, /empresa_id/);
-  assert.ok(f.length > 0);
+  assert.doesNotMatch(f, /usuario_id/);
+  assert.match(f, /^empresa_id\.eq\.0{8}-0{4}-0{4}-0{4}-0{12}$/);
 });
 
-test("el filtro siempre nombra al usuario: nunca puede devolver datos ajenos por sí solo", () => {
+test("el filtro nunca queda vacío: uno vacío devolvería la tabla entera", () => {
   for (const empresa of [EMPRESA, null]) {
-    assert.ok(filtroDeEmpresa(USUARIO, empresa).includes(USUARIO));
+    const f = filtroDeEmpresa(USUARIO, empresa);
+    assert.ok(f.length > 0);
+    assert.match(f, /^empresa_id\.eq\./);
+  }
+});
+
+test("el usuario ya no viaja en el filtro, ni siquiera de casualidad", () => {
+  // Es lo que hace que un invitado vea el negocio y no lo de quien lo cargó.
+  for (const empresa of [EMPRESA, null]) {
+    assert.ok(!filtroDeEmpresa(USUARIO, empresa).includes(USUARIO));
   }
 });
 
