@@ -419,6 +419,23 @@ function Ventas({
 
   const totales = useMemo(() => calcularVenta(lineas), [lineas]);
 
+  /*
+   * Lo que ya se vendió de más.
+   *
+   * El stock negativo no está bloqueado en ningún lado —ver el comentario en
+   * la migración v69 y en app/api/erp/ventas/route.ts— pero hasta acá vivía
+   * escondido: solo se veía como un número raro en el catálogo o el
+   * inventario, sin decir "esto es un sobrepedido" en ningún lado. Quien
+   * trabaja así necesita verlo junto a donde carga la venta, no adivinarlo.
+   */
+  const sobrepedidos = useMemo(
+    () =>
+      productos
+        .filter((p) => p.controla_stock && p.stock_actual < 0)
+        .sort((a, b) => a.stock_actual - b.stock_actual),
+    [productos],
+  );
+
   // La moneda sale de los productos que están EN esta venta, no del primero
   // del catálogo. Ver `lib/erp/moneda-documento` y el trigger de la v93.
   const monedaDocumento = useMemo(
@@ -671,6 +688,29 @@ function Ventas({
           </>
         )}
       </div>
+
+      {/*
+        Solo aparece si hay algo que mostrar: para quien nunca vende de más,
+        una tarjeta vacía todo el tiempo es ruido, no información.
+      */}
+      {sobrepedidos.length > 0 && (
+        <div className="card">
+          <div className="card-title">Sobrepedidos</div>
+          <div className="neg-lista">
+            {sobrepedidos.map((p) => (
+              <div className="neg-fila" key={p.id}>
+                <div className="neg-fila-texto">
+                  <strong>{p.nombre}</strong>
+                  <small>El sistema dice {p.stock_actual}</small>
+                </div>
+                <span className="neg-estado is-mal">
+                  <AlertTriangle size={12} /> {Math.abs(p.stock_actual)} de sobrepedido
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title">Últimas ventas</div>
