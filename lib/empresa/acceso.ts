@@ -1,4 +1,6 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { monedaConocida } from "../finanzas/monedas.ts";
+import { saldoDeHoy, type Caja, type MovimientoCaja, type SaldoMoneda } from "./caja.ts";
 
 /**
  * De qué empresa son los datos que una ruta puede tocar.
@@ -102,4 +104,65 @@ const NADA = "00000000-0000-0000-0000-000000000000";
  */
 export function filtroDeEmpresa(_usuarioId: string, empresaId: string | null): string {
   return `empresa_id.eq.${empresaId ?? NADA}`;
+}
+
+/**
+ * El saldo de caja del negocio, por moneda (v120).
+ *
+ * Vive acá y no en cada ruta porque lo usan dos —contabilidad y pronóstico— y
+ * si cada una lo leyera a su manera, un día la posición y el pronóstico
+ * mostrarían saldos distintos del mismo día.
+ *
+ * Devuelve una lista vacía cuando el negocio todavía no cargó ninguna caja.
+ * Vacío NO es cero: quien llama tiene que distinguir "no hay plata" de "no se
+ * sabe cuánta hay", y de esa diferencia depende que la liquidez sea un número
+ * o un piso.
+ */
+export async function saldosDeCaja(
+  admin: ClienteSinTipos,
+  empresaId: string | null,
+  hoy: string,
+): Promise<SaldoMoneda[]> {
+  if (empresaId === null) return [];
+
+  const [cajasRes, movRes] = await Promise.all([
+    admin
+      .from("eos_empresa_cajas_v120")
+      .select("id,nombre,tipo,moneda,saldo_declarado,saldo_declarado_el,activa")
+      .eq("empresa_id", empresaId),
+    /*
+     * Los cobros y pagos que EOS vio. La dirección sale de qué documento
+     * cuelga: una venta cobrada entra, una compra pagada sale.
+     */
+    admin
+      .from("eos_erp_cuenta_movimientos_v107")
+      .select("fecha,monto,moneda,venta_id")
+      .eq("empresa_id", empresaId)
+      .limit(5000),
+  ]);
+
+  if (cajasRes.error || movRes.error) {
+    // Sin caja los números salen como salían antes: un piso, declarado como
+    // tal. Devolver un saldo a medias sería peor que no devolver ninguno.
+    console.error("Caja: no se pudo leer el saldo:", cajasRes.error ?? movRes.error);
+    return [];
+  }
+
+  const cajas: Caja[] = (cajasRes.data ?? []).map((c: Record<string, unknown>) => ({
+    id: String(c.id),
+    nombre: String(c.nombre),
+    tipo: String(c.tipo),
+    moneda: monedaConocida(c.moneda as string | null),
+    saldo_declarado: c.saldo_declarado === null ? null : Number(c.saldo_declarado),
+    saldo_declarado_el: (c.saldo_declarado_el as string | null) ?? null,
+    activa: c.activa === true,
+  }));
+
+  const movimientos: MovimientoCaja[] = (movRes.data ?? []).map((m: Record<string, unknown>) => ({
+    fecha: String(m.fecha),
+    moneda: monedaConocida(m.moneda as string | null),
+    monto: (m.venta_id ? 1 : -1) * Number(m.monto ?? 0),
+  }));
+
+  return saldoDeHoy(cajas, movimientos, hoy);
 }

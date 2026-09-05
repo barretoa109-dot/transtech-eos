@@ -105,25 +105,91 @@ test("el capital de trabajo puede dar negativo y se informa como tal", () => {
 // La liquidez es un piso, y se dice
 // ---------------------------------------------------------------------------
 
-test("la liquidez sale del activo conocido sobre el pasivo conocido", () => {
+test("sin caja, la liquidez sale del resto y se marca como PISO", () => {
   const p = una({
     ...VACIO,
     ventasPendientes: [doc({ total: 2_000_000 })],
     comprasPendientes: [doc({ id: "c1", total: 1_000_000 })],
   });
-  assert.equal(p.liquidez_piso, 2);
+  assert.equal(p.liquidez, 2);
+  assert.equal(p.liquidez_es_piso, true, "sin caja el ratio no puede presentarse como exacto");
+  assert.equal(p.caja, null);
+});
+
+test("con caja, la liquidez deja de ser un piso y la incluye", () => {
+  const p = una({
+    ...VACIO,
+    caja: [{ moneda: "PYG", saldo: 1_000_000 }],
+    ventasPendientes: [doc({ total: 2_000_000 })],
+    comprasPendientes: [doc({ id: "c1", total: 1_000_000 })],
+  });
+  assert.equal(p.caja, 1_000_000);
+  assert.equal(p.liquidez, 3, "la caja no entró en el activo");
+  assert.equal(p.liquidez_es_piso, false);
+});
+
+test("la prueba ácida solo existe con caja, y saca la mercadería", () => {
+  const sinCaja = una({
+    ...VACIO,
+    ventasPendientes: [doc({ total: 2_000_000 })],
+    comprasPendientes: [doc({ id: "c1", total: 1_000_000 })],
+  });
+  assert.equal(sinCaja.prueba_acida, null, "se calculó el ratio menos confiable de todos");
+
+  const conCaja = una({
+    ...VACIO,
+    caja: [{ moneda: "PYG", saldo: 500_000 }],
+    ventasPendientes: [doc({ total: 1_500_000 })],
+    inventario: [{ moneda: "PYG", valor: 9_000_000 }],
+    comprasPendientes: [doc({ id: "c1", total: 1_000_000 })],
+  });
+  // (500.000 + 1.500.000) / 1.000.000 = 2. La mercadería NO entra.
+  assert.equal(conCaja.prueba_acida, 2);
+  assert.ok(conCaja.liquidez !== null && conCaja.liquidez > conCaja.prueba_acida);
+});
+
+test("una caja en cero es un dato: la liquidez deja de ser un piso igual", () => {
+  const p = una({
+    ...VACIO,
+    caja: [{ moneda: "PYG", saldo: 0 }],
+    comprasPendientes: [doc({ total: 1_000_000 })],
+  });
+  assert.equal(p.caja, 0);
+  assert.equal(p.liquidez_es_piso, false, "cero es saber cuánto hay, no no saberlo");
+  assert.equal(p.prueba_acida, 0);
+});
+
+test("con caja ya no se pide cargarla, y sin caja sí", () => {
+  const con = una({ ...VACIO, caja: [{ moneda: "PYG", saldo: 1 }] });
+  assert.ok(!con.faltantes.includes(FALTA_LA_CAJA));
+  assert.ok(con.faltantes.includes(NO_HAY_PATRIMONIO), "ROE y ROA siguen sin poder calcularse");
+
+  const sin = una({ ...VACIO, ventasPendientes: [doc()] });
+  assert.ok(sin.faltantes.includes(FALTA_LA_CAJA));
+});
+
+test("la caja de una moneda no toca la de otra", () => {
+  const r = posicion({
+    ...VACIO,
+    caja: [{ moneda: "USD", saldo: 400 }],
+    ventasPendientes: [doc({ moneda: "PYG", total: 1_000_000 })],
+  });
+  assert.equal(r.find((x) => x.moneda === "PYG")?.caja, null, "una caja en USD contó como guaraníes");
+  assert.equal(r.find((x) => x.moneda === "USD")?.caja, 400);
 });
 
 test("sin deudas no hay ratio: no es infinito, es que no aplica", () => {
   const p = una({ ...VACIO, ventasPendientes: [doc({ total: 2_000_000 })] });
-  assert.equal(p.liquidez_piso, null);
+  assert.equal(p.liquidez, null);
+  assert.equal(p.prueba_acida, null);
   assert.ok(p.advertencias.some((a) => a.includes("no hay ratio")));
 });
 
-test("siempre dice que falta la caja y que el número es un piso", () => {
+test("sin caja lo dice y explica que el número es un piso", () => {
   const p = una({ ...VACIO, ventasPendientes: [doc()] });
   assert.ok(p.faltantes.includes(FALTA_LA_CAJA));
   assert.ok(FALTA_LA_CAJA.includes("piso"));
+  assert.equal(p.liquidez_es_piso, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -138,7 +204,9 @@ test("siempre declara que no hay ROE ni ROA", () => {
 test("la posición no expone ningún campo de patrimonio, ROE, ROA ni prueba ácida", () => {
   const p = una({ ...VACIO, ventasPendientes: [doc()] });
   const campos = Object.keys(p).join(" ").toLowerCase();
-  for (const prohibido of ["patrimonio", "roe", "roa", "acida", "activo_total"]) {
+  // "acida" sale de la lista: desde la v120 se puede calcular, pero SOLO con
+  // caja. Lo que sigue sin poder existir es todo lo que necesita patrimonio.
+  for (const prohibido of ["patrimonio", "roe", "roa", "activo_total"]) {
     assert.ok(!campos.includes(prohibido), `apareció "${prohibido}", que no se puede calcular`);
   }
 });

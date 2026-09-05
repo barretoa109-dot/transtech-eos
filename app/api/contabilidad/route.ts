@@ -9,6 +9,7 @@ import { monedaConocida } from "@/lib/finanzas/monedas";
 import { valorInventario } from "@/lib/erp/kardex";
 import { estadoDeResultados, margenOperativo } from "@/lib/contabilidad/resultado";
 import { leerCapitalDeTrabajo, posicion, type CuotaDeuda } from "@/lib/contabilidad/posicion";
+import { empresaDe, saldosDeCaja } from "@/lib/empresa/acceso";
 import type { DocumentoCartera } from "@/lib/erp/cartera";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,14 @@ export async function GET(request: Request) {
     contacto_nombre: null,
   });
 
+  /*
+   * La caja del negocio (v120). Sin ella la posición sale como salía antes:
+   * un piso, declarado como tal. Con ella, la liquidez pasa a ser el número y
+   * la prueba ácida existe por primera vez.
+   */
+  const empresaId = await empresaDe(admin, user.id);
+  const caja = await saldosDeCaja(admin, empresaId, hoy);
+
   const resultados = estadoDeResultados(hechos, periodo);
 
   const posiciones = posicion({
@@ -121,6 +130,7 @@ export async function GET(request: Request) {
       })),
     ).map((v) => ({ moneda: v.moneda, valor: v.valor })),
     deudas,
+    caja: caja.filter((s) => s.cajas > 0).map((s) => ({ moneda: s.moneda, saldo: s.saldo })),
   });
 
   return NextResponse.json(
@@ -128,6 +138,10 @@ export async function GET(request: Request) {
       periodo,
       resultados: resultados.map((r) => ({ ...r, margen_operativo: margenOperativo(r) })),
       posiciones: posiciones.map((p) => ({ ...p, lectura: leerCapitalDeTrabajo(p) })),
+      // Los avisos de la caja viajan aparte: hablan de la CALIDAD del saldo
+      // —cuántos días tiene, cuántas cajas quedaron sin cargar— y no de la
+      // posición en sí.
+      caja,
       // Si la lectura de deudas falló, el pasivo está corto y hay que decirlo
       // acá: la posición no puede saber que la consulta se cayó.
       ...(error ? { aviso: "No se pudieron leer las deudas: el pasivo puede estar incompleto." } : {}),
