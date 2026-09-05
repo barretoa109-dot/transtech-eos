@@ -56,6 +56,15 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
   const [error, setError] = useState("");
   const [listo, setListo] = useState("");
 
+  /*
+   * Una clave por planilla elegida, no una por clic. Si "Confirmar" falla a
+   * mitad de camino (la conexión se corta, o lo que sea) y la persona vuelve a
+   * apretar el mismo botón sobre la misma vista previa, tiene que viajar la
+   * MISMA clave: es lo que le permite al servidor reconocer un reintento en
+   * vez de una segunda importación.
+   */
+  const claveRef = useRef<string>(crypto.randomUUID());
+
   async function enviar(confirmar: boolean) {
     if (!archivo) return;
 
@@ -65,7 +74,10 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
     try {
       const cuerpo = new FormData();
       cuerpo.append("archivo", archivo);
-      if (confirmar) cuerpo.append("confirmar", "1");
+      if (confirmar) {
+        cuerpo.append("confirmar", "1");
+        cuerpo.append("clave", claveRef.current);
+      }
 
       const respuesta = await fetch("/api/erp/importar", { method: "POST", body: cuerpo });
       const datos = await respuesta.json().catch(() => null);
@@ -118,6 +130,7 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
               setArchivo(e.target.files?.[0] ?? null);
               setVista(null);
               setError("");
+              claveRef.current = crypto.randomUUID();
             }}
           />
 
