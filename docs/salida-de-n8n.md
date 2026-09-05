@@ -173,28 +173,41 @@ repositorio**. Verificado contra la lista de rutas del build, donde bajo
 `/api/internal/` sólo había cuatro: `action-effects`, `consultar`, `salud` y
 `worker-authorize`.
 
-| Rama | Llama a | Existe | Consecuencia hoy |
-|---|---|---|---|
-| INT | `worker-authorize` + `action-effects` | sí | **Funciona.** Es la que registra ventas, stock y contactos. |
-| DASH | `worker-ping/v1` | **no** | Pedir el dashboard por chat contesta "No pude completar automáticamente". |
-| BRIEF | `worker-ping/v1` | **no** | Igual que DASH. |
-| FILE | `action-claims/v1`, `action-results/v1` | **no** | No puede completarse por ningún camino. |
-| RESP | `worker-ping/v1` | **no** | Sin efecto: el gateway saltea esa rama siempre. |
+| Rama | Llamaba a | Existía | Consecuencia | Ahora |
+|---|---|---|---|---|
+| INT | `worker-authorize` + `action-effects` | sí | Funciona. Registra ventas, stock y contactos. | portada |
+| DASH | `worker-ping/v1` | **no** | Pedir el dashboard contestaba "No pude completar automáticamente". | **arreglada** |
+| BRIEF | `worker-ping/v1` | **no** | Igual que DASH. | **arreglada** |
+| FILE | `action-claims/v1`, `action-results/v1` | **no** | No salía ninguna planilla, por ningún camino. | **arreglada** |
+| RESP | `worker-ping/v1` | **no** | Sin efecto: el gateway saltea esa rama siempre. | portada |
 
 Los nodos están configurados con `onError: continueRegularOutput`, así que el
-flujo no se cae: sigue con `ping.ok` en falso, `authorized` en falso, y la rama
-devuelve `{ok:false, error:'Worker no autorizado.'}`.
+flujo no se caía: seguía con `ping.ok` en falso, `authorized` en falso, y la
+rama devolvía `{ok:false, error:'Worker no autorizado.'}`.
 
-**Se agregó `app/api/internal/worker-ping/v1`**, que son cuatro líneas y
-devuelve el dashboard y el briefing al camino que corre HOY. **No depende de
-ninguna bandera.**
+**Lo difícil ya estaba.** `eos_claim_action_command_v65` y
+`eos_finalize_action_command_v70` viven en la base desde la v65 y la v70, con
+lease, intentos contados y fencing token, y pasaron por cinco migraciones de
+endurecimiento (v67 a v71). Lo único que faltaba eran las puertas HTTP.
 
-**La rama FILE no se portó.** Exigiría inventar `action-claims` y
-`action-results` —con sus leases y su idempotencia— para un camino que además
-quedó superado: desde que el modelo manda `documento`, los archivos los arma
-`app/api/eos/route.ts` con `guardarDocumento`, y `respuesta.ts` descarta las
-acciones `GENERAR_*` cuando viene documento justamente para que no se hagan las
-dos cosas. En su lugar se devuelve un error que dice por dónde sí.
+**Se escribieron las tres** —`worker-ping/v1`, `action-claims/v1` y
+`action-results/v1`— y **no dependen de ninguna bandera**: le devuelven el
+dashboard, el briefing y las planillas al camino que corre HOY.
+
+#### Dos detalles de la rama de archivos
+
+**PDF y Word nunca estuvieron conectados.** `/descargar` solo sabe hacer Excel:
+con cualquier otro `tipo` responde 400. n8n ya cerraba esos comandos como
+`no_disponible` con un código explícito, y el puerto hace lo mismo. Cerrarlos
+igual importa: deja libre el lease en vez de dejar la orden ocupada hasta que
+venza.
+
+**La `plantilla` no cambia el archivo, solo su nombre.** `/descargar` ignora
+ese parámetro y siempre arma el mismo Excel con `crearExcelNegocioUniversal`;
+lo único que lee es `tipo`, `nombre`, `rubro` y `negocio`. Se conserva igual
+—con la misma codificación `%20` que usa n8n, no la `+` de `URLSearchParams`—
+para que las dos URLs salgan byte por byte iguales mientras los dos caminos
+convivan.
 
 ## Requisitos previos que NO son código
 
