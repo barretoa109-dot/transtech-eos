@@ -1,6 +1,11 @@
 # Lista maestra de lanzamiento — estado verificado
 
-Fecha del relevamiento: **31 de agosto de 2026**. Ya mergeado a `main` y desplegado.
+Fecha del relevamiento: **31 de agosto de 2026**, con una revisión el **4 de
+septiembre** que actualizó los puntos 21, 33, 35, 38 y 40 — cinco que la lista
+daba por abiertos o a medias y que el trabajo del Business OS cerró o movió.
+Una lista que dice "abierto" para algo terminado es peor que no tenerla: hace
+demorar un lanzamiento por trabajo que ya está hecho. Ya mergeado a `main` y
+desplegado.
 
 Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 
@@ -12,15 +17,18 @@ Cada punto lleva el estado que la evidencia sostiene, no el que quisiéramos.
 | **externo** | Depende de un tercero (SET, Bancard, tiendas, abogado). |
 | **bloqueado** | No se puede cerrar hasta resolver otra cosa. |
 
-Medición del 3-4 de septiembre, para no discutirla dos veces:
+Medición del 4 de septiembre, para no discutirla dos veces:
 
-- `npm test` → **878/878 en verde**. Arrancó el proyecto en 379.
+- `npm test` → **1080/1080 en verde**. Arrancó el proyecto en 379.
 - `npm run build` y `npx tsc --noEmit` → **en verde**.
+- `npm run evals` y `npm run evals:mutacion` → **76/76** y **11 de 11
+  protecciones cubiertas**. La segunda importa más que la primera: comprueba
+  que el corpus DETECTE una protección rota, y ya pasó una vez que no lo hacía.
 - `npm run lint` → **23 errores, 5 avisos**. Empezó en 42 y 39.
   **Bloquea** el CI vía `npm run lint:tope`: la deuda puede bajar, no subir.
-- `supabase migration list --linked` → **194 aplicadas, local y remoto coinciden
+- `supabase migration list --linked` → **201 aplicadas, local y remoto coinciden
   una a una. Cero pendientes.**
-- `npm run migraciones` → **194 archivos, 194 versiones distintas**, sin usos de
+- `npm run migraciones` → **201 archivos, 201 versiones distintas**, sin usos de
   tabla antes de crearla. Candado nuevo, también bloqueante en CI.
 - **Instalación desde cero, probada en dos rondas** (la segunda encontró lo que
   la primera no podía ver — ver el hallazgo -3): las 194 migraciones aplicadas
@@ -29,6 +37,9 @@ Medición del 3-4 de septiembre, para no discutirla dos veces:
   punta contra la API que usa la aplicación. Coincide exacto. Ver el punto 4.
 - `npm run certificar` → **113 de 115 en verde**, 2 en amarillo porque la cuenta
   de certificación no tiene tarjeta catastrada. Ninguna en rojo.
+- `node certificacion/correr.mjs 12` → **13 de 13**, vuelto a correr el 4 de
+  septiembre después de que la empresa pasara a ser la única frontera (etapa 4).
+  El recorrido comercial completo no se repitió en esa tanda.
 
 ---
 
@@ -89,7 +100,7 @@ Destrabó los puntos 3, 4 y 5 de una vez, como se esperaba.
 
 | # | Punto | Estado | Evidencia / qué falta |
 | --- | --- | --- | --- |
-| 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. Falta patrimonio y evolución. |
+| 21 | Panel financiero completo | **parcial** | Saldo, ingresos, egresos, deudas, fijos y proyección. **La evolución se cerró** entre el 2 y el 4 de septiembre: hay serie histórica diaria por indicador (`eos_kpi_historia_v105`, la escribe el cron de briefing que ya existía), gráfico compartido con rachas y detección de anomalías, y proyección a 30/60/90 (`lib/pronostico`). **El patrimonio no se puede calcular y no es falta de código:** no existe cuenta de capital, ni aportes, ni resultados acumulados; está documentado con lo que haría falta en `docs/contabilidad-hasta-donde-llega.md`. Inventarlo sería el error más caro del proyecto — un ROE falso se ve idéntico a uno verdadero. |
 | 22 | Multimoneda | **parcial** | Cerrado el 31 de agosto en ERP, CRM y contexto del chat: la moneda del documento sale de sus líneas, un trigger (v93) rechaza mezclarlas —verificado contra la base real—, el embudo se calcula por moneda y `eos_contexto_negocio` (v94) devuelve una cifra por moneda. **Falta** mostrar tipo de cambio con origen y fecha. |
 | 23 | Trazabilidad de cada número | **parcial** | Hecho el 31 de agosto. Cada cifra del panel se abre: las que son suma muestran sus movimientos con la ventana de fechas; las que son cuenta (`disponible real`) muestran la operación, con cada término abrible a su vez. El detalle sale de los mismos arrays que se sumaron, y cada traza se comprueba a sí misma (`lib/finanzas/trazabilidad.ts`). **Falta** el recorrido con una cuenta con datos —necesita sesión— y llevar lo mismo a los informes y a los reportes del ERP. |
 | 24 | Conciliación e importación | **parcial** | `api/finanzas/conciliar` y `api/finanzas/buzon`. Falta cubrir transferencias propias y diferencias de saldo. |
@@ -108,14 +119,14 @@ Destrabó los puntos 3, 4 y 5 de una vez, como se esperaba.
 | --- | --- | --- | --- |
 | 31 | Invariantes del ERP | **cerrado** (con reserva) | Migración `20260829005319`, aplicada en producción y con test de invariantes. Una sola transacción, actor y motivo obligatorios, locks, auditoría única por documento, repetición idempotente. **Reserva:** falta el recorrido de una persona distinta contra la base. |
 | 32 | Sin ejecuciones duplicadas | **parcial** | Cubierto en anulación (`ya_estaba`) y en el catastro Bancard (v77). Falta en importación, webhooks y comandos del chat. |
-| 33 | Empresas, sucursales, roles | **abierto** | El tenant es `usuario_id`. Fuera del alcance de lanzamiento. |
+| 33 | Empresas, sucursales, roles | **cerrado** (sin sucursales) | Ya no es `usuario_id`. Entre el 3 y el 4 de septiembre se construyó la empresa como frontera real (v109 a v119): tabla de empresas y miembros, `empresa_id` en las ocho tablas de negocio con trigger de herencia `before insert`, invitaciones con siete roles, empresa activa, y las catorce funciones del ERP reescritas para aceptar a cualquier miembro. **La etapa 4 quitó `usuario_id` de las policies el 4 de septiembre**, después de medir cero discrepancias contra producción: ahora la empresa es la única frontera, en las policies y en el filtro de las rutas que usan `service_role`. Probado con rollback: A ve sus 12 ventas, B ve 0 de A y 9 suyas, un invitado con la empresa activa ve las 12 de A y las pierde al volver a la suya. **Sucursales no existen** y siguen fuera del alcance. |
 | 34 | Catálogo profesional | **parcial** | Código, precio, costo, moneda, IVA, stock, mínimo e historial de costo (v80). Faltan categorías, marcas, variantes, unidades y listas de precios. |
-| 35 | Inventario profesional | **abierto** | Un saldo por producto. Fuera del alcance. |
+| 35 | Inventario profesional | **parcial** | Ya no es un saldo por producto: la v108 sumó **kardex valorizado** con costo unitario y valor resultante por movimiento, y costo promedio ponderado por producto mantenido con trigger. Con eso se calculan valor de inventario, costo de lo vendido, rotación, días de inventario y stock quieto (`lib/erp/kardex.ts`, 18 tests), y hay pantalla propia. **Faltan** depósitos múltiples, lotes, vencimientos y series — eso sigue fuera del alcance. |
 | 36 | Ciclo de compras | **parcial** | Compra, pago, anulación y —desde el 2 de septiembre— **corrección de importes** (v106): la compra es donde entra el costo, y un número mal tipeado se volvía el costo del producto, el margen de todo lo vendido después y un gasto del panel, sin más salida que anular y recargar. Los precios sí, las cantidades no: cambiar un precio mueve el total y el gasto —los dos en la misma transacción— mientras que cambiar una cantidad movería stock que ya tiene su fila de rastro. 16 comprobaciones contra la base real. Falta orden, aprobación, recepción parcial y devolución. |
 | 37 | Ciclo de ventas | **parcial** | Venta, cobro, anulación y —desde el 2 de septiembre— **corrección del costo congelado** (v105). Cada línea congela el costo del momento para que la subida de un proveedor no cambie el margen de una venta vieja; el efecto secundario era que un costo mal tipeado quedaba mal para siempre. 15 comprobaciones. Y el renglón de la lista pasa a decir **qué se vendió** en vez del cliente: lo pidió una clienta que veía cuatro filas seguidas diciendo "Consumidor final". Falta cotización, pedido, entrega parcial y nota de crédito. |
-| 38 | Caja y tesorería | **abierto** | Fuera del alcance. |
+| 38 | Caja y tesorería | **parcial** | La **caja del negocio** existe desde el 4 de septiembre (v120): tabla propia con `empresa_id` —no se reusó `eos_finanzas_cuentas`, que es de la persona— con saldo declarado y su fecha, al que se le arrastran los cobros y pagos que EOS ya registra. Con eso la liquidez corriente dejó de ser un piso y la prueba ácida se puede calcular. **Faltan** turnos, arqueos y conciliación bancaria, que siguen fuera del alcance. |
 | 39 | CRM | **parcial** | Contactos, oportunidades y actividades. El 2 de septiembre el **embudo pasó a llenarse solo con las ventas** (v103/v104): la venta a un cliente cierra su oportunidad, y si no había ninguna la crea ya ganada con el monto real. Tenía cero oportunidades con tres contactos y cuatro ventas cargadas — esperaba que alguien anotara a mano lo que el sistema ya sabía, y un CRM que exige cargar dos veces la misma venta deja de usarse en una semana. Anular deshace: si la creó la venta se borra, si existía vuelve a su etapa y a su monto estimado. 17 comprobaciones contra la base real. Falta conversión y razones de pérdida. |
-| 40 | Reportes empresariales | **parcial** | `api/eos-kpis` y `api/eos-tendencias`. Faltan rotación, margen, cartera y desempeño. |
+| 40 | Reportes empresariales | **cerrado** (con reserva) | Las cuatro que faltaban están: **rotación** y días de inventario (v108), **margen** —y de paso se arregló que `lib/erp/rentabilidad.ts` lo calculaba con IVA mientras `indicadores.ts` lo calculaba neto, los dos en la misma respuesta—, **cartera** con antigüedad por tramos y días promedio de cobro (v107), y **desempeño** con un Business Score explicable, versionado (`eos-score-v1`) y con su cobertura al lado. Encima hay un motor de KPIs con 24 indicadores donde agregar uno es agregar una definición, no una ruta (`lib/kpi`). `eos-kpis` y `eos-tendencias` quedaron jubilados. **Reserva:** falta el recorrido de una persona distinta. |
 | 41 | Facturación electrónica | **cerrado en su rotulado** | La v87 renombró el módulo a "Comprobantes de venta (beta)" y el papel sale como borrador. SIFEN sigue **externo**. |
 | 42 | Auditoría de cambios | **parcial** | Hecho el 31 de agosto: las nueve operaciones sensibles del ERP —registrar, cobrar, pagar, anular venta y compra, ajustar stock, emitir comprobante— escriben en la bitácora encadenada con actor, fecha, antes/después, motivo, origen y resultado. Los intentos rechazados también. El antes/después va dentro de `detalle`, que está hasheado; una columna nueva quedaría fuera de la cadena. **Falta** empresa/sucursal, que no existen hasta la fase 1. |
 
