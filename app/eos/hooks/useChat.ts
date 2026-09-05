@@ -103,9 +103,29 @@ function construirReferenciaArchivo(
   return `[${etiqueta}: ${archivo.nombre}]`;
 }
 
+/*
+ * "Load failed", tal cual, en el medio del chat.
+ *
+ * Una clienta lo reportó: escribe algo, sale de la app (se va a otra
+ * pestaña, la pantalla se apaga) y cuando vuelve encuentra ese texto en
+ * inglés donde esperaba la respuesta. No es un error de EOS — es el `fetch`
+ * del navegador muriendo porque el sistema operativo cortó la conexión de
+ * una pestaña en segundo plano, algo normal en un celular. El problema es
+ * que ese `error.message` se mostraba tal cual, como si fuera lo que EOS
+ * tenía para decir.
+ *
+ * El navegador SIEMPRE tira un `TypeError` para un fallo de red del propio
+ * `fetch` ("Load failed" en Safari, "Failed to fetch" en Chrome,
+ * "NetworkError..." en Firefox) — es la señal para distinguirlo de un
+ * `Error` que esta misma app arma a propósito con un texto pensado para
+ * leerse (como "EOS respondió vacío", más abajo en eosApi.ts). Ninguno de
+ * esos es nunca un TypeError, así que la distinción no depende de adivinar
+ * palabras del navegador que cambian entre versiones.
+ */
 function obtenerMensajeError(error: unknown): string {
   if (
     error instanceof Error &&
+    !(error instanceof TypeError) &&
     error.message.trim()
   ) {
     return error.message;
