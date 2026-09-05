@@ -53,6 +53,12 @@ export type EntradaAuditoria = {
   detalle?: Record<string, unknown>;
   /** Con qué se corresponde: id de correo, de movimiento, de aprobación. */
   referencia?: string | null;
+  /**
+   * De qué empresa era la acción (v123). Metadata de consulta, fuera de la
+   * cadena de hash a propósito — ver la migración. `null` en lo que no es
+   * del ERP, o cuando el usuario todavía no tiene empresa resuelta.
+   */
+  empresaId?: string | null;
 };
 
 /**
@@ -184,6 +190,7 @@ export async function registrarAuditoria(
       resumen: entrada.resumen.slice(0, 300),
       detalle: limpiarDetalle(entrada.detalle),
       referencia: entrada.referencia ?? null,
+      empresa_id: entrada.empresaId ?? null,
     });
 
     if (error) {
@@ -258,6 +265,13 @@ export function resumirMovimiento(args: {
  */
 export type OperacionErp = {
   usuarioId: string;
+  /**
+   * De qué empresa era la acción (v123). Obligatorio y no opcional a
+   * propósito, con el mismo criterio que el resto del tipo: una operación
+   * del ERP sin empresa resuelta es un caso a decidir en cada ruta —`null`
+   * explícito si de verdad no hay una—, no un olvido que compile igual.
+   */
+  empresaId: string | null;
   evento: Extract<
     EventoAuditoria,
     | "venta_registrada"
@@ -294,6 +308,7 @@ export async function registrarOperacionErp(
 ): Promise<boolean> {
   return registrarAuditoria(admin, {
     usuarioId: operacion.usuarioId,
+    empresaId: operacion.empresaId,
     evento: operacion.evento,
     origen: operacion.origen,
     resumen: operacion.resumen,

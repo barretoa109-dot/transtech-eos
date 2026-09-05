@@ -4,6 +4,7 @@ import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { empresaDe } from "@/lib/empresa/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
   // registrado" a secas no permite reconstruir nada después.
   await registrarOperacionErp(admin, {
     usuarioId: puerta.usuarioId,
+    empresaId: await empresaDe(admin, puerta.usuarioId),
     evento: esVenta ? "venta_cobrada" : "compra_pagada",
     origen: "panel",
     resumen: `${esVenta ? "Cobro" : "Pago"} de ${formatearMonto(monto, "PYG")}${
@@ -139,6 +141,7 @@ export async function DELETE(request: Request) {
 
   await registrarOperacionErp(admin, {
     usuarioId: puerta.usuarioId,
+    empresaId: await empresaDe(admin, puerta.usuarioId),
     evento: "venta_anulada",
     origen: "panel",
     resumen: "Cobro revertido",

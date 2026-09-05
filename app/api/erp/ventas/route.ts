@@ -78,6 +78,8 @@ export async function POST(request: Request) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
+
   let cuerpo: Record<string, unknown>;
   try {
     cuerpo = (await request.json()) as Record<string, unknown>;
@@ -175,6 +177,7 @@ export async function POST(request: Request) {
 
   await registrarOperacionErp(adminSinTipos(), {
     usuarioId: puerta.usuarioId,
+    empresaId,
     evento: "venta_registrada",
     origen: "panel",
     resumen: `Venta registrada por ${formatearMonto(

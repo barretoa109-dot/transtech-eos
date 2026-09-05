@@ -4,6 +4,7 @@ import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { empresaDe } from "@/lib/empresa/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ export const dynamic = "force-dynamic";
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
+
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
 
   const { id } = await contexto.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return respuesta("Compra no encontrada.", 404);
@@ -71,6 +74,7 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
     await registrarOperacionErp(admin, {
       usuarioId: puerta.usuarioId,
+      empresaId,
       evento: "costo_corregido",
       origen: "panel",
       resumen: `Intento de corregir la compra ${id.slice(0, 8)}, rechazado`,
@@ -99,6 +103,7 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
     await registrarOperacionErp(admin, {
       usuarioId: puerta.usuarioId,
+      empresaId,
       evento: "costo_corregido",
       origen: "panel",
       resumen:
