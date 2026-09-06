@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
 import { TOPE_MENSUAL_PYG, type ModuloCatalogo } from "@/lib/modulos/armado";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,26 @@ export const dynamic = "force-dynamic";
 const COLUMNAS =
   "codigo,nombre,descripcion,precio_mensual_pyg,precio_anual_pyg,grupo,limite_mensajes,requiere,orden";
 
-export async function GET() {
+export async function GET(request: Request) {
+  /*
+   * Sin sesión no hay a quién culpar por golpear la ruta, así que el mismo
+   * criterio de las demás rutas públicas aplica acá: un techo por IP, alto
+   * porque recargar la vitrina un par de veces es normal y esto ya se cachea
+   * cinco minutos en el borde — el techo es para quien lo evita a propósito,
+   * no para quien mira precios.
+   */
+  const cupo = await consumirCupo(adminSinTipos(), {
+    ruta: "/api/modulos/catalogo",
+    cabeceras: request.headers,
+    ventanaSegundos: 60,
+    maximo: 30,
+    secreto: secretoDelEntorno(),
+  });
+
+  if (!cupo.permitido) {
+    return respuestaSinCupo(cupo, "Demasiadas solicitudes en poco tiempo.");
+  }
+
   let filas: Record<string, unknown>[] = [];
 
   try {
