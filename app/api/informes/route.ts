@@ -219,6 +219,10 @@ export async function GET(request: Request) {
     );
   }
 
+  if (searchParams.get("_debug") === "1") {
+    return NextResponse.json({ informe, movimientosExcluidos, monedaInforme }, { headers: noStore() });
+  }
+
   const { extension, tipo } = FORMATOS[formato as Formato];
 
   let cuerpo: Buffer;
