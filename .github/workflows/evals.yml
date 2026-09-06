@@ -68,3 +68,8 @@ jobs:
       # en un proyecto limpio: encuentra las formas de romper el orden que se
       # ven sin ejecutar nada, que son las que no se notan hasta reconstruir.
       - run: npm run migraciones
+      # Que el modo oscuro no se rompa de a un color por vez. Un `#fff` escrito
+      # a mano en una regla nueva se ve idéntico en claro y deja una mancha
+      # blanca en la pantalla negra de alguien: es exactamente el tipo de bug
+      # que nadie encuentra revisando el diff.
+      - run: npm run tema

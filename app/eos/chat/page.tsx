@@ -17,6 +17,7 @@ import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
 
+import { useTema } from "../components/useTema";
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
@@ -104,6 +105,8 @@ export default function EOSPage() {
   const botonMenuMovilRef = useRef<HTMLButtonElement | null>(null);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
+
+  const tema = useTema();
 
   const {
     briefingVisible,
@@ -301,7 +304,7 @@ export default function EOSPage() {
   };
 
   return (
-    <div className="eos-app" data-eos-theme="light">
+    <div className="eos-app" data-eos-theme={tema.aplicado === "oscuro" ? "dark" : "light"}>
       <AmbientBackground techConfig={appTechCanvas} spanCount={3} />
 
       <div className={`eos-sidebar ${sidebarColapsado ? "collapsed" : ""} ${menuMovilAbierto ? "mobile-open" : ""}`}>
@@ -328,7 +331,7 @@ export default function EOSPage() {
       </button>
 
       <div className="main">
-        <TopBar />
+        <TopBar tema={tema} />
 
         {vista === "chat" && (
           <ChatView

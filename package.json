@@ -12,7 +12,8 @@
     "evals:mutacion": "node evals/mutacion.mjs",
     "certificar": "node certificacion/correr.mjs",
     "lint:tope": "node scripts/lint-tope.mjs",
-    "migraciones": "node scripts/migraciones-sanas.mjs"
+    "migraciones": "node scripts/migraciones-sanas.mjs",
+    "tema": "node scripts/tema-oscuro-sano.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

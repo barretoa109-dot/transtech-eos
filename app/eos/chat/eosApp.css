@@ -9,7 +9,19 @@
   --blue-dark: #113f8c;
   --blue-light: #e9f0fb;
   --ink: #07132a;
-  --muted: #6b7280;
+  /*
+   * Un punto más oscuro que el `#6b7280` original.
+   *
+   * Medido con el banco de contraste al armar el modo oscuro: el gris viejo
+   * pasaba sobre blanco (4,83) pero NO sobre las tarjetas con tinte —las
+   * métricas del negocio, los estados vacíos—, donde daba 4,15 y 4,42 contra
+   * los 4,5 que pide WCAG AA. Y ahí es donde vive casi todo el texto gris del
+   * producto: las etiquetas de las cifras y las notas al pie de cada número.
+   *
+   * `#616978` da 4,74 en el peor de esos fondos y 5,53 sobre blanco, sin
+   * perder la diferencia con `--ink`, que es para lo que el gris está.
+   */
+  --muted: #616978;
   --line: #e5e7eb;
   --line-soft: #f0f1f3;
   --panel: #ffffff;
@@ -33,6 +45,61 @@
   --amber-light: #fffbeb;
   --red: #c11f1f;
   --red-light: #fef2f2;
+
+  /*
+   * ============================================================
+   * LOS TOKENS QUE NACIERON CON EL MODO OSCURO
+   * ============================================================
+   *
+   * No son colores nuevos: son los que ya estaban escritos a mano por toda la
+   * hoja. Mientras hubo un solo tema daba igual dónde vivieran; con dos, un
+   * `#fff` suelto es una mancha blanca en una pantalla negra, y encontrarlos
+   * de a uno cuando alguien reporta "se ve mal" no es una forma de trabajar.
+   *
+   * `--blue-solido` existe por una razón que no es de orden.
+   *
+   *   `--blue` se usa para DOS cosas: pintar el fondo de un botón (con texto
+   *   blanco encima) y escribir texto azul sobre un fondo claro. En modo claro
+   *   un mismo azul sirve para las dos. En oscuro no puede: el texto necesita
+   *   un azul CLARO para leerse sobre el fondo negro, y un botón de ese azul
+   *   claro con letras blancas encima no se lee (2,4:1).
+   *
+   *   Entonces se separan. `--blue` es el del texto y los bordes; los ocho
+   *   botones sólidos pasan a `--blue-solido`, que en oscuro se queda en un
+   *   azul fuerte con blanco encima a 5,2:1.
+   */
+
+  /** Fondo de los botones azules, siempre con texto blanco encima. */
+  --blue-solido: #1656bd;
+  --blue-solido-fuerte: #113f8c;
+
+  /** Una superficie apenas separada del panel: tarjetas dentro de tarjetas. */
+  --panel-suave: #f8fbff;
+  --linea-azul: #dbe7f7;
+
+  /**
+   * El rojo y el verde cuando son TEXTO sobre el panel.
+   *
+   * `--red` y `--green` se usan también como fondo; estos dos nunca, así que
+   * en oscuro pueden aclararse todo lo necesario para leerse sin arrastrar
+   * consigo el color de un fondo.
+   */
+  --red-texto: #b3423f;
+  --green-texto: #18794e;
+
+  /**
+   * El rojo cuando es FONDO con blanco encima: hoy, el micrófono grabando.
+   *
+   * Es la misma separación que `--blue` / `--blue-solido` y por el mismo
+   * motivo. En oscuro `--red` se aclara para poder leerse como texto, y un
+   * botón de ese rojo claro con un ícono blanco encima queda en 2,2:1 —
+   * medido—. Este se queda oscuro en los dos temas.
+   */
+  --red-solido: #c11f1f;
+
+  /** La sombra de las tarjetas. En oscuro casi no existe: ahí manda el borde. */
+  --sombra: rgba(15, 23, 42, 0.08);
+
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   width: 100vw;
@@ -42,6 +109,128 @@
   font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
   background: var(--panel);
   color: var(--ink);
+}
+
+/* ============================================================
+   MODO OSCURO
+   ============================================================
+
+   Se prende con `data-eos-theme="dark"` en el mismo elemento `.eos-app`. Ese
+   atributo ya existía —lo usan `eos-design/tokens.css` y el fondo ambiental
+   desde el rediseño de agosto, y la pantalla de login entra en oscuro por él—
+   así que reutilizarlo hace que el fondo con la aurora y la retícula cambien
+   solos, sin una regla más.
+
+   Quién lo decide: `useTema` (app/eos/components/useTema.ts). Respeta lo que
+   la persona eligió y, si nunca eligió, sigue la preferencia del sistema.
+
+   NO se hace con `@media (prefers-color-scheme: dark)` a secas. Esa consulta
+   no se puede desactivar desde la aplicación: quien tiene el teléfono en
+   oscuro pero quiere EOS en claro —porque está al sol, porque le cuesta leer
+   texto claro sobre fondo negro— se quedaría sin forma de pedirlo. La
+   preferencia del sistema es el valor por defecto, no la orden.
+
+   ------------------------------------------------------------
+   CÓMO SE ELIGIERON LOS COLORES
+   ------------------------------------------------------------
+
+   No es el tema claro con los valores invertidos. Invertir da grises sucios y
+   azules fosforescentes, porque el ojo no responde igual a un color claro
+   sobre fondo oscuro que al revés.
+
+   Tres reglas:
+
+   1. El fondo no es negro puro. `#0f1420` en vez de `#000`: sobre negro
+      absoluto, el texto blanco "vibra" y las sombras dejan de existir, así
+      que no queda forma de separar una tarjeta de su fondo.
+
+   2. El texto no es blanco puro. `#e8ecf5` da 14:1 sobre el panel — de sobra
+      para AA (4,5) y AAA (7)— sin el deslumbre del blanco sobre negro, que es
+      la queja número uno de los modos oscuros mal hechos.
+
+   3. Cada par texto/fondo se midió, no se estimó. Los tres colores de estado
+      —verde, ámbar, rojo— sobre sus fondos oscuros pasan 4,5:1, igual que en
+      claro. La corrección del modo claro (ver el comentario de arriba, donde
+      pasaron de 3,0 a 4,5) se habría perdido si acá se elegía a ojo.
+   ============================================================ */
+
+.eos-app[data-eos-theme="dark"] {
+  --blue: #7fb3ff;
+  --blue-dark: #a9ccff;
+  --blue-light: #16233d;
+
+  /* El del botón: azul fuerte, para que el blanco encima siga a 5,2:1. */
+  --blue-solido: #2563eb;
+  --blue-solido-fuerte: #1d4ed8;
+
+  --ink: #e8ecf5;
+  --muted: #9aa4b8;
+  --line: #2a3244;
+  --line-soft: #1c2433;
+
+  --panel: #131a26;
+  --panel-suave: #182131;
+  --linea-azul: #26374f;
+  --bg-sidebar: #0f1420;
+
+  --green: #4ade9f;
+  --green-light: #10261f;
+  --green-texto: #5ee3a8;
+  --amber: #f0b45e;
+  --amber-light: #2a2114;
+  --red: #ff8f8f;
+  --red-light: #2c1717;
+  --red-texto: #ff9a9a;
+
+  /*
+   * En oscuro la sombra no separa: lo que separa es el borde. Se deja apenas
+   * marcada para que las tarjetas flotantes —el menú del celular, el
+   * desplegable— no queden pegadas al fondo.
+   */
+  --sombra: rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * Lo que no se resuelve con tokens.
+ *
+ * Son los pocos lugares donde el valor venía escrito adentro de un gradiente
+ * o de un `rgba` y sacarlo a un token habría significado inventar cinco
+ * tokens que se usan una sola vez cada uno.
+ */
+
+/*
+ * El degradado que difumina el final de la lista de mensajes contra el
+ * compositor. Escrito en blanco, en oscuro deja una banda clara flotando
+ * justo encima del campo de texto.
+ */
+.eos-app[data-eos-theme="dark"] .composer-wrap.docked {
+  background: linear-gradient(180deg, rgba(19, 26, 38, 0), var(--panel) 30%);
+}
+
+/*
+ * Las superficies translúcidas: la barra de arriba cuando se scrollea, las
+ * tarjetas de sugerencia, la tarjeta de un adjunto y el botón del menú en el
+ * celular. Todas están escritas como blanco con transparencia.
+ */
+.eos-app[data-eos-theme="dark"] .topbar.scrolled,
+.eos-app[data-eos-theme="dark"] .prompt-card,
+.eos-app[data-eos-theme="dark"] .file-preview,
+.eos-app[data-eos-theme="dark"] .mobile-menu-button {
+  background: rgba(24, 33, 49, 0.88);
+}
+
+/*
+ * La retícula del fondo.
+ *
+ * `tokens.css` ya la aclara en oscuro, pero esa regla usa el tamaño y la
+ * máscara de las páginas de marketing; el shell logueado tiene los suyos, más
+ * chicos y centrados en otro punto. Acá se toma prestado solo el color.
+ */
+.eos-app[data-eos-theme="dark"] .eos-grid-veil {
+  background-image: linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 40%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 40%, #000 30%, transparent 78%);
 }
 
 .eos-app * {
@@ -268,7 +457,7 @@
 .eos-app .search-row input {
   width: 100%;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 13px;
@@ -351,7 +540,7 @@
   color: var(--blue-dark);
 }
 .eos-app .nav-item.active-view .ic {
-  background: #fff;
+  background: var(--panel);
   color: var(--blue);
 }
 
@@ -482,6 +671,29 @@
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(10px);
 }
+/*
+  El interruptor del tema. Del tamaño de un objetivo táctil (34 px) aunque el
+  ícono sea de 15: en el celular queda en el borde de arriba, que es donde
+  peor se apunta.
+*/
+.eos-app .tema-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.eos-app .tema-btn:hover {
+  color: var(--ink);
+  border-color: var(--blue);
+  background: var(--line-soft);
+}
+
 .eos-app .status {
   display: flex;
   align-items: center;
@@ -702,7 +914,7 @@
   padding: 10px 10px 10px 18px;
   box-shadow: 0 6px 20px rgba(17, 24, 39, 0.06);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .composer.focused {
   border-color: var(--blue);
@@ -754,7 +966,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #d1d5db;
+  background: var(--line);
   color: #fff;
   display: flex;
   align-items: center;
@@ -765,10 +977,10 @@
   border: none;
 }
 .eos-app .send-btn.ready {
-  background: var(--blue);
+  background: var(--blue-solido);
 }
 .eos-app .send-btn.ready:hover {
-  background: var(--blue-dark);
+  background: var(--blue-solido-fuerte);
   transform: scale(1.06);
 }
 .eos-app .send-btn:active {
@@ -785,7 +997,7 @@
 */
 .eos-app .icon-btn.escuchando {
   color: #fff;
-  background: var(--red);
+  background: var(--red-solido);
   animation: eos-dictado-latido 1.4s ease-in-out infinite;
 }
 .eos-app .icon-btn.escuchando:hover {
@@ -903,7 +1115,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--blue);
+  background: var(--blue-solido);
   animation: eosBreathe 1.1s ease-in-out infinite;
 }
 @keyframes eosBreathe {
@@ -938,7 +1150,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: var(--muted);
   animation: eosBounce 1.2s infinite ease-in-out;
 }
 .eos-app .typing span:nth-child(2) {
@@ -1164,10 +1376,10 @@
   color: var(--muted);
   cursor: default;
   transition: all 0.15s ease;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .chip.active {
-  background: var(--blue);
+  background: var(--blue-solido);
   border-color: var(--blue);
   color: #fff;
 }
@@ -1175,7 +1387,7 @@
 /* Anular devuelve stock y borra plata: se ve distinto de cobrar o facturar. */
 .eos-app .chip.is-danger {
   cursor: pointer;
-  color: #b3423f;
+  color: var(--red-texto);
   border-color: rgba(179, 66, 63, 0.35);
   background: rgba(179, 66, 63, 0.05);
 }
@@ -1208,7 +1420,7 @@
 .eos-app .anular-error {
   margin: 0;
   font-size: 12px;
-  color: #b3423f;
+  color: var(--red-texto);
 }
 .eos-app .anular-acciones {
   display: flex;
@@ -1252,7 +1464,7 @@
   padding: 10px 20px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
   color: var(--blue);
   font-size: 13.5px;
   font-weight: 600;
@@ -1272,7 +1484,7 @@
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--panel);
   text-align: left;
 }
 .eos-app .soporte-titulo {
@@ -1295,7 +1507,7 @@
 .eos-app .soporte-error {
   margin: 0;
   font-size: 12.5px;
-  color: #b3423f;
+  color: var(--red-texto);
 }
 .eos-app .soporte-listo {
   margin: 0;
@@ -1321,7 +1533,7 @@
   padding: 10px 20px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
   color: var(--muted);
   font-size: 13.5px;
   font-weight: 600;
@@ -1347,7 +1559,7 @@
 .eos-app .card {
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--panel);
   padding: 20px 22px;
 }
 .eos-app .card + .card {
@@ -1375,7 +1587,7 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 16px 18px;
-  background: #fff;
+  background: var(--panel);
   opacity: 0;
   transform: translateY(8px);
   animation: eosRise 0.4s var(--ease) forwards;
@@ -1564,7 +1776,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .hallazgo strong {
   display: block;
@@ -1814,7 +2026,7 @@
   width: 10px;
   height: 3px;
   border-radius: 2px;
-  background: var(--blue);
+  background: var(--blue-solido);
   display: inline-block;
 }
 .eos-app .chart-svg {
@@ -1895,7 +2107,7 @@
   border-color: var(--blue);
 }
 .eos-app .p-check.done {
-  background: var(--blue);
+  background: var(--blue-solido);
   border-color: var(--blue);
 }
 .eos-app .p-text {
@@ -1968,7 +2180,7 @@
   transition: background 0.15s;
 }
 .eos-app .reco-btn:hover {
-  background: #dbe6ff;
+  background: var(--blue-light);
 }
 
 /* ---- progress bars (briefing objectives) ---- */
@@ -2047,7 +2259,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--panel);
   border: 2px solid var(--blue);
 }
 .eos-app .tl-dot.done {
@@ -2055,7 +2267,7 @@
   border-color: var(--green);
 }
 .eos-app .tl-dot.pending {
-  background: #fff;
+  background: var(--panel);
   border-color: var(--line);
 }
 .eos-app .tl-dot.progress {
@@ -2065,7 +2277,7 @@
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 15px 18px;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .eos-app .tl-card:hover {
@@ -2135,7 +2347,7 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 18px 20px;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .eos-app .pattern-card:hover {
@@ -2182,7 +2394,7 @@
 .eos-app .conf-fill {
   height: 100%;
   border-radius: 99px;
-  background: var(--blue);
+  background: var(--blue-solido);
 }
 .eos-app .pattern-meta {
   font-size: 11.5px;
@@ -2230,7 +2442,7 @@
   font-size: 12.5px;
   font-weight: 700;
   color: var(--blue);
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--blue);
   padding: 8px 16px;
   border-radius: 9px;
@@ -2439,7 +2651,7 @@
   border: 1px solid var(--line);
   border-left: 3px solid var(--green);
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .fin-moneda-atencion {
   border-left-color: var(--amber);
@@ -2510,7 +2722,7 @@
   padding: 7px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--panel);
   color: var(--blue);
   font-family: inherit;
   font-size: 12px;
@@ -2543,7 +2755,7 @@
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #fff;
+  background: var(--panel);
   color: var(--muted);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -2596,7 +2808,7 @@
   padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .eos-app .fin-setup-input-wrap:focus-within {
@@ -2674,7 +2886,7 @@
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.15s, background 0.15s;
 }
 .eos-app .fin-cand.is-on {
@@ -2699,7 +2911,7 @@
 .eos-app .fin-cand-tipo {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
   color: var(--ink);
   font-family: inherit;
   font-size: 11px;
@@ -2752,14 +2964,14 @@
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .onb-campo {
   min-width: 0;
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
   font-family: inherit;
   font-size: 14px;
   color: var(--ink);
@@ -2894,10 +3106,10 @@
   border-radius: 3px;
 }
 .eos-app .fin-comp-compromisos {
-  background: var(--blue-dark);
+  background: var(--blue-solido-fuerte);
 }
 .eos-app .fin-comp-previsibles {
-  background: var(--blue);
+  background: var(--blue-solido);
 }
 /* Las cuotas van en su propio tono, entre lo que el usuario ya asumió y lo
    que EOS dedujo: son lo único de la barra que fue pactado con un tercero. */
@@ -3084,11 +3296,11 @@
   background: var(--green);
 }
 .eos-app .dest-sw.is-out {
-  background: var(--blue);
+  background: var(--blue-solido);
   margin-left: 8px;
 }
 .eos-app .dest-sw.is-neto {
-  background: var(--blue-dark);
+  background: var(--blue-solido-fuerte);
   margin-left: 8px;
   border-radius: 999px;
 }
@@ -3288,13 +3500,13 @@
   padding: 11px 13px;
   border-radius: 10px;
   background: var(--red-light);
-  color: #991b1b;
+  color: var(--red-texto);
   font-size: 13.5px;
   line-height: 1.5;
 }
 .eos-app .tray-aviso.is-ok {
   background: var(--green-light);
-  color: #065f46;
+  color: var(--green-texto);
 }
 
 /* ---- Deudas (FinanzasDeudas.tsx) ---- */
@@ -3419,7 +3631,7 @@
   padding: 9px 15px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
   color: var(--ink);
   font-family: inherit;
   font-size: 13px;
@@ -3454,7 +3666,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
   text-decoration: none;
   color: inherit;
 }
@@ -3500,7 +3712,7 @@
   font-weight: 600;
   color: var(--blue-dark);
   text-decoration: none;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.15s, background 0.15s;
 }
 .eos-app .message-file-formato:hover {
@@ -3530,7 +3742,7 @@
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--panel);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -3562,7 +3774,7 @@
 }
 .eos-app .neg-resumen-card small.is-alert { color: var(--amber); font-weight: 700; }
 .eos-app .neg-resumen-card.is-primary {
-  background: linear-gradient(145deg, var(--blue-light), #fff);
+  background: linear-gradient(145deg, var(--blue-light), var(--panel));
   border-color: rgba(26, 86, 219, 0.25);
 }
 .eos-app .neg-resumen-card.is-primary strong { font-size: 15px; color: var(--blue-dark); }
@@ -3597,7 +3809,7 @@
   white-space: nowrap;
 }
 .eos-app .neg-nav-item.active {
-  background: #fff;
+  background: var(--panel);
   color: var(--blue-dark);
   box-shadow: 0 2px 8px rgba(7, 19, 42, 0.07);
 }
@@ -3883,8 +4095,8 @@
 }
 
 .eos-app .neg-feedback.is-ok {
-  color: #18794e;
-  background: #e9f8ef;
+  color: var(--green-texto);
+  background: var(--green-light);
 }
 
 .eos-app .neg-inline-success {
@@ -3893,7 +4105,7 @@
   gap: 4px;
   width: fit-content;
   margin-top: 4px;
-  color: #18794e;
+  color: var(--green-texto);
   font-size: 11px;
   font-weight: 600;
 }
@@ -3970,8 +4182,8 @@
 }
 
 .eos-app .neg-empty-state.is-error {
-  color: #b42318;
-  background: #fff4f2;
+  color: var(--red-texto);
+  background: var(--red-light);
 }
 
 .eos-app .neg-loading {
@@ -4005,10 +4217,10 @@
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #fff;
+  background: var(--panel);
   font-family: inherit;
   font-size: 13px;
-  color: var(--text, #07132a);
+  color: var(--ink);
 }
 .eos-app .neg-input:focus {
   outline: none;
@@ -4040,7 +4252,7 @@
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--panel);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -4181,9 +4393,9 @@
   flex-wrap: wrap;
   margin: 0 0 18px;
   padding: 14px;
-  border: 1px solid #dbe7f7;
+  border: 1px solid var(--linea-azul);
   border-radius: 14px;
-  background: #f8fbff;
+  background: var(--panel-suave);
 }
 .eos-app .neg-inline-create .neg-field,
 .eos-app .neg-manual-item .neg-field { min-width: 180px; }
@@ -4192,7 +4404,7 @@
   padding: 12px 14px;
   border: 1px solid var(--line-soft);
   border-radius: 13px;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .neg-catalog-details summary {
   display: flex;
@@ -4246,7 +4458,7 @@
   min-width: 21px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--panel);
   text-align: center;
 }
 .eos-app .crm-columna-lista { display: grid; gap: 8px; }
@@ -4262,7 +4474,7 @@
   padding: 11px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--panel);
   box-shadow: 0 1px 2px rgb(7 19 42 / 4%);
 }
 .eos-app .crm-fecha { display: flex; align-items: center; gap: 5px; color: var(--muted); }
@@ -4344,7 +4556,7 @@
   padding: 14px;
   border: 1px solid var(--line-soft);
   border-radius: 12px;
-  background: #fff;
+  background: var(--panel);
 }
 .eos-app .neg-growth-grid article.needs-attention { border-color: rgba(194, 123, 26, .35); background: var(--amber-light); }
 .eos-app .neg-growth-grid article.is-ready { border-color: rgba(21, 128, 61, .2); }
@@ -4377,7 +4589,7 @@
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #fff;
+  background: var(--panel);
   text-align: center;
 }
 .eos-app .neg-etapa-nombre {
@@ -4745,7 +4957,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #b3423f;
+  color: var(--red-texto);
   font-weight: 600;
 }
 
