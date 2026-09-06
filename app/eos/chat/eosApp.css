@@ -1004,6 +1004,47 @@
   border-radius: 8px;
 }
 
+/*
+  La pila de adjuntos.
+
+  Con diez archivos, diez tarjetas de 38 px de alto más sus separaciones son
+  más de 500 px: taparían el chat entero justo cuando la persona quiere ver
+  qué está por mandar. Arriba de tres se compactan —misma información, una
+  línea cada una— y la pila entera scrollea con un tope de alto.
+*/
+.eos-app .file-preview-lista {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto 14px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.eos-app .file-preview-lista .file-preview {
+  margin-bottom: 8px;
+}
+.eos-app .file-preview-lista .file-preview:last-child {
+  margin-bottom: 0;
+}
+.eos-app .file-preview-lista.apretada .file-preview {
+  padding: 6px 10px;
+  border-radius: 12px;
+  margin-bottom: 5px;
+}
+.eos-app .file-preview-lista.apretada .file-preview-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  font-size: 7.5px;
+}
+/*
+  En la versión compacta el renglón de arriba —"IMAGEN ADJUNTO · 240 KB"— se
+  esconde y queda el nombre, que es lo único que distingue una foto de otra
+  cuando hay diez. El tipo ya lo dice el ícono de la izquierda.
+*/
+.eos-app .file-preview-lista.apretada .file-preview-text small {
+  display: none;
+}
+
 .eos-app .file-preview {
   max-width: 720px;
   width: 100%;

@@ -72,12 +72,12 @@ type ChatViewProps = {
   nombre: string;
   mensaje: string;
   cargando: boolean;
-  archivoAdjunto: ArchivoAdjunto | null;
+  archivosAdjuntos: ArchivoAdjunto[];
   chatRef: React.RefObject<HTMLDivElement | null>;
   onMensajeChange: (value: string) => void;
   onEnviar: (texto?: string) => void;
-  onArchivoSeleccionado: (file: File) => void;
-  onQuitarArchivo: () => void;
+  onArchivosSeleccionados: (files: File[]) => void;
+  onQuitarArchivo: (indice: number) => void;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
   onRegenerar?: () => void;
@@ -88,11 +88,11 @@ export default function ChatView({
   nombre,
   mensaje,
   cargando,
-  archivoAdjunto,
+  archivosAdjuntos,
   chatRef,
   onMensajeChange,
   onEnviar,
-  onArchivoSeleccionado,
+  onArchivosSeleccionados,
   onQuitarArchivo,
   obtenerEtiquetaArchivo,
   formatearTamanio,
@@ -150,8 +150,11 @@ export default function ChatView({
   }
 
   function manejarArchivoInput(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) onArchivoSeleccionado(file);
+    const archivos = Array.from(event.target.files ?? []);
+    if (archivos.length > 0) onArchivosSeleccionados(archivos);
+
+    // Se limpia siempre: sin esto, volver a elegir EL MISMO archivo no dispara
+    // `change` —el valor no cambió— y el segundo intento parece no hacer nada.
     event.target.value = "";
   }
 
@@ -188,7 +191,7 @@ export default function ChatView({
             <Composer
               mensaje={mensaje}
               cargando={cargando}
-              archivoAdjunto={archivoAdjunto}
+              archivosAdjuntos={archivosAdjuntos}
               focused={focused}
               setFocused={setFocused}
               onMensajeChange={onMensajeChange}
@@ -255,7 +258,7 @@ export default function ChatView({
             <Composer
               mensaje={mensaje}
               cargando={cargando}
-              archivoAdjunto={archivoAdjunto}
+              archivosAdjuntos={archivosAdjuntos}
               focused={focused}
               setFocused={setFocused}
               onMensajeChange={onMensajeChange}
@@ -272,7 +275,8 @@ export default function ChatView({
         </div>
       )}
 
-      <input ref={fileInputRef} type="file" hidden onChange={manejarArchivoInput} />
+      {/* `multiple`: es lo que hace que el selector deje marcar más de una foto. */}
+      <input ref={fileInputRef} type="file" multiple hidden onChange={manejarArchivoInput} />
     </div>
   );
 }
@@ -280,14 +284,14 @@ export default function ChatView({
 type ComposerProps = {
   mensaje: string;
   cargando: boolean;
-  archivoAdjunto: ArchivoAdjunto | null;
+  archivosAdjuntos: ArchivoAdjunto[];
   focused: boolean;
   setFocused: (v: boolean) => void;
   onMensajeChange: (v: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onEnviar: () => void;
   onArchivoClick: () => void;
-  onQuitarArchivo: () => void;
+  onQuitarArchivo: (indice: number) => void;
   esMovil: boolean;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
@@ -297,7 +301,7 @@ type ComposerProps = {
 function Composer({
   mensaje,
   cargando,
-  archivoAdjunto,
+  archivosAdjuntos,
   focused,
   setFocused,
   onMensajeChange,
@@ -310,7 +314,7 @@ function Composer({
   formatearTamanio,
   dictado,
 }: ComposerProps) {
-  const listo = mensaje.trim().length > 0 || Boolean(archivoAdjunto);
+  const listo = mensaje.trim().length > 0 || archivosAdjuntos.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -322,21 +326,40 @@ function Composer({
 
   return (
     <>
-      {archivoAdjunto && (
-        <div className="file-preview">
-          <div className="file-preview-info">
-            <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivoAdjunto)}</span>
-            <span className="file-preview-text">
-              <small>
-                {obtenerEtiquetaArchivo(archivoAdjunto)} ADJUNTO
-                {archivoAdjunto.tamanio ? ` · ${formatearTamanio(archivoAdjunto.tamanio)}` : ""}
-              </small>
-              <strong>{archivoAdjunto.nombre}</strong>
-            </span>
-          </div>
-          <button type="button" onClick={onQuitarArchivo}>
-            Quitar
-          </button>
+      {/*
+        Una tarjeta por adjunto, apiladas.
+
+        Con diez archivos una lista de diez tarjetas grandes taparía el chat
+        entero, así que arriba de tres se compactan (`file-preview-lista
+        apretada`, en el CSS): la misma información en una línea cada una.
+
+        Cada una tiene su propio "Quitar", con el nombre del archivo en el
+        `aria-label`. Diez botones que dicen todos "Quitar" no le sirven a
+        nadie que navegue con lector de pantalla.
+      */}
+      {archivosAdjuntos.length > 0 && (
+        <div className={`file-preview-lista ${archivosAdjuntos.length > 3 ? "apretada" : ""}`}>
+          {archivosAdjuntos.map((archivo, indice) => (
+            <div className="file-preview" key={`${archivo.nombre}-${indice}`}>
+              <div className="file-preview-info">
+                <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
+                <span className="file-preview-text">
+                  <small>
+                    {obtenerEtiquetaArchivo(archivo)} ADJUNTO
+                    {archivo.tamanio ? ` · ${formatearTamanio(archivo.tamanio)}` : ""}
+                  </small>
+                  <strong>{archivo.nombre}</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onQuitarArchivo(indice)}
+                aria-label={`Quitar ${archivo.nombre}`}
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 
+import { textoPorDefecto } from "@/lib/eos/adjuntos";
+
 import type {
   ArchivoAdjunto,
   Mensaje,
@@ -39,7 +41,7 @@ type EjecutarEOSParams = {
   textoUsuario: string;
   conversacionActiva: string;
   historialParaContexto: Mensaje[];
-  archivo: ArchivoAdjunto | null;
+  archivos: ArchivoAdjunto[];
   guardarUsuario: boolean;
   reemplazarUltimaRespuesta: boolean;
 };
@@ -69,7 +71,11 @@ function obtenerUltimoMensajeUsuario(
 function limpiarReferenciaDeArchivo(texto: string) {
   return texto
     .replace(
-      /\n\n\[(?:Imagen|Archivo) adjunt[oa]:[^\]]+\]\s*$/i,
+      // `Imágenes adjuntas` y `Archivos adjuntos` entran por el mismo patrón:
+      // el plural y la tilde están contemplados. Sin eso, regenerar un mensaje
+      // con varias fotos dejaba la referencia pegada al texto y EOS la leía
+      // como parte de la pregunta.
+      /\n\n\[(?:Im[áa]gen(?:es)?|Archivos?) adjunt[oa]s?:[^\]]+\]\s*$/i,
       "",
     )
     .trim();
@@ -83,24 +89,35 @@ function esImagenAdjunta(
   );
 }
 
-function construirTextoPredeterminado(
-  archivo: ArchivoAdjunto,
+/*
+ * La línea que queda escrita en la conversación diciendo qué se adjuntó.
+ *
+ * De todo el mensaje, `mensajes.texto` es lo único que se guarda en la base.
+ * Sin esta referencia, quien vuelve mañana a la conversación ve su pregunta
+ * sobre "esta factura" y ninguna factura.
+ *
+ * Con varios adjuntos se nombran TODOS —al revés que el texto por defecto del
+ * campo, que los cuenta—. Son dos cosas distintas: aquello es lo que la
+ * persona iba a escribir, esto es el registro de lo que mandó.
+ */
+function construirReferenciaArchivo(
+  archivos: ArchivoAdjunto[],
 ): string {
-  if (esImagenAdjunta(archivo)) {
-    return `Analizá esta imagen: ${archivo.nombre}`;
+  if (archivos.length === 0) return "";
+
+  if (archivos.length === 1) {
+    const etiqueta = esImagenAdjunta(archivos[0])
+      ? "Imagen adjunta"
+      : "Archivo adjunto";
+
+    return `[${etiqueta}: ${archivos[0].nombre}]`;
   }
 
-  return `Analizá este archivo: ${archivo.nombre}`;
-}
+  const etiqueta = archivos.every(esImagenAdjunta)
+    ? "Imágenes adjuntas"
+    : "Archivos adjuntos";
 
-function construirReferenciaArchivo(
-  archivo: ArchivoAdjunto,
-): string {
-  const etiqueta = esImagenAdjunta(archivo)
-    ? "Imagen adjunta"
-    : "Archivo adjunto";
-
-  return `[${etiqueta}: ${archivo.nombre}]`;
+  return `[${etiqueta}: ${archivos.map((a) => a.nombre).join(", ")}]`;
 }
 
 /*
@@ -149,15 +166,15 @@ export function useChat({
   const [cargando, setCargando] = useState(false);
   const [pensando, setPensando] = useState(false);
 
-  const [archivoAdjunto, setArchivoAdjunto] =
-    useState<ArchivoAdjunto | null>(null);
+  const [archivosAdjuntos, setArchivosAdjuntos] =
+    useState<ArchivoAdjunto[]>([]);
 
   const ejecutarEOS = useCallback(
     async ({
       textoUsuario,
       conversacionActiva,
       historialParaContexto,
-      archivo,
+      archivos,
       guardarUsuario,
       reemplazarUltimaRespuesta,
     }: EjecutarEOSParams) => {
@@ -187,7 +204,7 @@ export function useChat({
           mensaje: textoUsuario,
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
-          archivo,
+          archivos,
         });
 
         const textoBase =
@@ -312,7 +329,7 @@ export function useChat({
     const tieneTexto =
       textoFinal.trim().length > 0;
     const tieneArchivo =
-      Boolean(archivoAdjunto);
+      archivosAdjuntos.length > 0;
 
     if (
       (!tieneTexto && !tieneArchivo) ||
@@ -342,20 +359,15 @@ export function useChat({
       conversacionActiva = nueva;
     }
 
-    const archivoActual = archivoAdjunto;
+    const archivosActuales = archivosAdjuntos;
 
     const textoUsuario =
-      textoFinal.trim() ||
-      (archivoActual
-        ? construirTextoPredeterminado(
-            archivoActual,
-          )
-        : "");
+      textoFinal.trim() || textoPorDefecto(archivosActuales);
 
     const textoVisibleUsuario =
-      archivoActual
+      archivosActuales.length > 0
         ? `${textoUsuario}\n\n${construirReferenciaArchivo(
-            archivoActual,
+            archivosActuales,
           )}`
         : textoUsuario;
 
@@ -364,11 +376,14 @@ export function useChat({
       rol: "usuario",
       texto: textoVisibleUsuario,
       estado: "completado",
+      // El primero y no todos: estos dos campos existen para elegir el ícono
+      // de la burbuja, que es uno solo. Los nombres completos ya están en el
+      // texto del mensaje, que es lo que se guarda.
       archivo_nombre:
-        archivoActual?.nombre || "",
+        archivosActuales[0]?.nombre || "",
       archivo_tipo:
-        archivoActual?.tipo || "",
-      tipo: archivoActual
+        archivosActuales[0]?.tipo || "",
+      tipo: archivosActuales.length > 0
         ? "archivo_adjunto"
         : "texto",
       creado_en: new Date().toISOString(),
@@ -378,7 +393,7 @@ export function useChat({
       historial.slice(-10);
 
     setMensaje("");
-    setArchivoAdjunto(null);
+    setArchivosAdjuntos([]);
 
     setHistorial((actual) => [
       ...actual,
@@ -390,7 +405,7 @@ export function useChat({
       conversacionActiva,
       historialParaContexto:
         historialAntesDelEnvio,
-      archivo: archivoActual,
+      archivos: archivosActuales,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
     });
@@ -454,7 +469,7 @@ export function useChat({
       conversacionActiva: conversacionId,
       historialParaContexto:
         historialSinUltimaRespuesta.slice(-10),
-      archivo: null,
+      archivos: [],
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
     });
@@ -467,8 +482,8 @@ export function useChat({
     cargando,
     pensando,
 
-    archivoAdjunto,
-    setArchivoAdjunto,
+    archivosAdjuntos,
+    setArchivosAdjuntos,
 
     enviarMensaje,
     regenerarRespuesta,
