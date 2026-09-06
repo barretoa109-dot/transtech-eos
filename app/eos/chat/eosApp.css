@@ -777,6 +777,54 @@
 .eos-app .send-btn:disabled {
   cursor: not-allowed;
 }
+/* ---- dictado ---- */
+/*
+  El micrófono prendido tiene que verse prendido desde el otro lado de la
+  mesa. Rojo y con latido: es la señal que ya significa "te están grabando"
+  en cualquier aplicación, y acá significa exactamente eso.
+*/
+.eos-app .icon-btn.escuchando {
+  color: #fff;
+  background: var(--red);
+  animation: eos-dictado-latido 1.4s ease-in-out infinite;
+}
+.eos-app .icon-btn.escuchando:hover {
+  background: #9b1818;
+}
+@keyframes eos-dictado-latido {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 31, 31, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(193, 31, 31, 0); }
+}
+/*
+  Sin latido para quien pidió menos movimiento. El color y el texto de abajo
+  ya dicen lo mismo, así que no se pierde información: se pierde la animación.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .eos-app .icon-btn.escuchando {
+    animation: none;
+  }
+}
+
+/*
+  Alto reservado aunque esté vacío: si el bloque apareciera al empezar a
+  dictar, el compositor entero saltaría hacia arriba justo cuando la persona
+  está mirando el campo.
+*/
+.eos-app .composer-dictado {
+  min-height: 16px;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 16px;
+}
+.eos-app .dictado-estado {
+  color: var(--muted);
+  font-style: italic;
+}
+.eos-app .dictado-error {
+  color: var(--red);
+}
+
 .eos-app .composer-help {
   margin-top: 7px;
   color: var(--muted);

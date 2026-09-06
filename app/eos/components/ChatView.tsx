@@ -5,6 +5,8 @@ import { Mic, Paperclip, Send } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import { debeEnviarConEnter } from "@/lib/eos/composer";
+import { fusionarDictado } from "@/lib/eos/dictado";
+import { useDictado, type Dictado } from "./useDictado";
 
 type PromptCard = {
   key: string;
@@ -99,6 +101,23 @@ export default function ChatView({
   const [esMovil, setEsMovil] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /*
+   * El texto actual en un ref para que el dictado no lo pise.
+   *
+   * `useDictado` guarda el callback una sola vez; si acá se le pasara una
+   * clausura sobre `mensaje`, cada tramo dictado se sumaría al texto que había
+   * cuando arrancó el micrófono y borraría lo dictado antes.
+   */
+  const mensajeRef = useRef(mensaje);
+
+  useEffect(() => {
+    mensajeRef.current = mensaje;
+  }, [mensaje]);
+
+  const dictado = useDictado((texto) => {
+    onMensajeChange(fusionarDictado(mensajeRef.current, texto));
+  });
+
   useEffect(() => {
     const media = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 700px)");
     const actualizar = () => setEsMovil(media.matches);
@@ -178,6 +197,7 @@ export default function ChatView({
               esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
+              dictado={dictado}
             />
           </div>
         </div>
@@ -223,6 +243,7 @@ export default function ChatView({
               esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
+              dictado={dictado}
             />
           </div>
         </div>
@@ -247,6 +268,7 @@ type ComposerProps = {
   esMovil: boolean;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
+  dictado: Dictado;
 };
 
 function Composer({
@@ -263,6 +285,7 @@ function Composer({
   esMovil,
   obtenerEtiquetaArchivo,
   formatearTamanio,
+  dictado,
 }: ComposerProps) {
   const listo = mensaje.trim().length > 0 || Boolean(archivoAdjunto);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -309,9 +332,24 @@ function Composer({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
-        <button type="button" className="icon-btn" disabled aria-label="Entrada por voz (próximamente)">
-          <Mic size={18} />
-        </button>
+        {/*
+          El micrófono solo aparece donde el navegador puede dictar. Un botón
+          gris con "próximamente" ocupa el mismo lugar y no hace nada; peor,
+          invita a apretarlo. Firefox no tiene reconocimiento de voz y no lo
+          va a tener pronto, así que ahí simplemente no hay micrófono.
+        */}
+        {dictado.soportado && (
+          <button
+            type="button"
+            className={`icon-btn ${dictado.escuchando ? "escuchando" : ""}`}
+            onClick={dictado.alternar}
+            aria-label={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
+            aria-pressed={dictado.escuchando}
+            title={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
+          >
+            <Mic size={18} />
+          </button>
+        )}
         <button
           type="button"
           className={`send-btn ${listo ? "ready" : ""}`}
@@ -322,6 +360,24 @@ function Composer({
           <Send size={16} />
         </button>
       </div>
+      {/*
+        Lo que se está escuchando ahora mismo, en gris y fuera del campo.
+        Escribirlo dentro del textarea sería mentir sobre lo que se va a
+        mandar: el navegador todavía puede corregirlo entero.
+
+        `aria-live` para que un lector de pantalla lo diga sin robar el foco:
+        quien no ve la pantalla necesita saber que lo están escuchando, y
+        necesita saberlo mientras habla.
+      */}
+      <div className="composer-dictado" aria-live="polite">
+        {dictado.escuchando && (
+          <span className="dictado-estado">
+            {dictado.provisorio ? dictado.provisorio : "Escuchando…"}
+          </span>
+        )}
+        {dictado.error && <span className="dictado-error" role="alert">{dictado.error}</span>}
+      </div>
+
       <div className="composer-help">
         {esMovil ? "Enter crea un salto · Tocá enviar para mandar" : "Enter para enviar · Shift + Enter para un salto"}
       </div>
