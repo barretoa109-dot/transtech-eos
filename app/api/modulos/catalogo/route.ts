@@ -51,6 +51,17 @@ export async function GET(request: Request) {
     return respuestaSinCupo(cupo, "Demasiadas solicitudes en poco tiempo.");
   }
 
+  if (new URL(request.url).searchParams.get("_debug_cupo") === "1") {
+    return NextResponse.json(
+      {
+        cupo,
+        xRealIp: request.headers.get("x-real-ip"),
+        xForwardedFor: request.headers.get("x-forwarded-for"),
+      },
+      { headers: cache(0) },
+    );
+  }
+
   let filas: Record<string, unknown>[] = [];
 
   try {
