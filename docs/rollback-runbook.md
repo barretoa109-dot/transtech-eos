@@ -120,9 +120,14 @@ dejar el formulario de contacto muerto.
    (`dirugpkamzgvyshcnsxs`, us-east-2).
 2. Si es un problema de recursos y no una caída regional, el plan del proyecto
    se escala desde el panel sin downtime adicional.
-3. **Recuperación puntual (PITR):** hay que confirmar que esté habilitada. En el
-   plan gratuito de Supabase **no lo está**, y sin ella lo único disponible es
-   la copia diaria automática. Ver "Lo que falta" al final.
+3. **Recuperación puntual (PITR): confirmado el 5 de septiembre, y NO está
+   habilitada.** `supabase backups list --project-ref dirugpkamzgvyshcnsxs`
+   devuelve `pitr_enabled: false` — no una suposición del plan gratuito, la
+   respuesta real de la API contra el proyecto de producción. Peor todavía:
+   `backups: []` viene vacío pese a `walg_enabled: true`, así que ni siquiera
+   hay una copia física lista para restaurar hoy. La ventana de pérdida ante
+   un desastre no es "hasta un día": es "lo que la copia diaria automática de
+   Supabase tenga guardado", sin confirmar. Ver "Lo que falta" al final.
 
 ## n8n — el gateway del chat
 
@@ -196,8 +201,11 @@ pide:
 1. **Restauración verificada.** Nadie restauró nunca una copia de esta base para
    comprobar que la copia sirve. Una copia que no se probó es una copia que no
    se sabe si existe.
-2. **Recuperación puntual (PITR).** Hay que confirmar si está habilitada en el
-   plan actual. Sin ella, la ventana de pérdida es de hasta un día.
+2. **Recuperación puntual (PITR). Confirmado el 5 de septiembre: NO está
+   habilitada**, y tampoco hay ninguna copia física lista (`backups: []`
+   contra la API real de Supabase, con `walg_enabled: true` pero nada
+   guardado). Habilitarla es una decisión de plan pago, no una tarea de
+   código — queda para que el usuario la tome.
 3. **El respaldo de n8n está desactualizado.** `docs/n8n-backups/` es del 18 y
    20 de agosto; `n8n/workflows/eos-conversational-gateway-rc1.json` se tocó el
    28. Restaurar desde ahí hoy volvería el gateway diez días atrás.
