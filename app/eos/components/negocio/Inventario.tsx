@@ -12,7 +12,19 @@ import { formatearMonto } from "@/lib/finanzas/formato";
  * Gs. 4.000.000 parados" no se puede accionar; "tenés Gs. 4.000.000 parados
  * en estos seis productos" sí.
  *
- * Se calla solo cuando no hay nada que decir, igual que el resto del módulo.
+ * ============================================================
+ * ANTES SE CALLABA; AHORA ES UNA PESTAÑA Y NO PUEDE
+ * ============================================================
+ *
+ * Nació como una tarjeta adentro de otra vista, y ahí callarse cuando no había
+ * nada que decir era lo correcto: una tarjeta de más es ruido.
+ *
+ * Desde que es una pestaña propia, lo mismo se volvió un error. Quien toca
+ * "Inventario" y recibe una pantalla en blanco no puede distinguir tres cosas
+ * muy distintas —está cargando, se cayó, o de verdad no hay stock— y la
+ * primera conclusión de cualquiera es que se rompió.
+ *
+ * Por eso ahora las tres se dicen por separado.
  */
 
 type Quieto = { id: string; nombre: string; stock: number; valor: number | null };
@@ -36,6 +48,9 @@ type Respuesta = {
 export default function Inventario() {
   const [datos, setDatos] = useState<Respuesta | null>(null);
   const [cargando, setCargando] = useState(true);
+  // Separado de `datos === null` a propósito: "no se pudo leer" y "no hay
+  // stock" se ven igual en pantalla si comparten la misma variable.
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -43,6 +58,7 @@ export default function Inventario() {
       const res = await traer();
       if (!vivo) return;
       if (res) setDatos(res);
+      else setError(true);
       setCargando(false);
     })();
     return () => {
@@ -50,7 +66,21 @@ export default function Inventario() {
     };
   }, []);
 
-  if (cargando || !datos || datos.monedas.length === 0) return null;
+  if (cargando) return <p className="neg-loading">Calculando tu inventario…</p>;
+
+  if (error) {
+    return <p className="neg-load-error">No pudimos leer tu inventario.</p>;
+  }
+
+  if (!datos || datos.monedas.length === 0) {
+    return (
+      <p className="neg-empty-state">
+        Todavía no hay stock que valorizar. En cuanto cargues productos con
+        costo y registres movimientos, acá vas a ver cuánto vale tu depósito,
+        cada cuánto rota y qué se quedó quieto.
+      </p>
+    );
+  }
 
   return (
     <>
