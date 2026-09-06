@@ -61,6 +61,37 @@ test("dos memorias que solo difieren en puntuación siguen siendo una", () => {
   assert.equal(texto.split(/vende ropa importada/i).length - 1, 1);
 });
 
+test("dos memorias que solo difieren en el final son una sola", () => {
+  /*
+   * El caso real que se vio en producción: la misma frase larga guardada dos
+   * veces, distinta recién cerca del final. Con la clave completa entraban las
+   * dos, y en el prompt se leían idénticas porque las dos se recortan mucho
+   * antes de llegar a donde difieren.
+   */
+  const arranque =
+    "EOS me metí al negocio de la porcicultura de compra, engorde y venta de chanchos, te mandaré todos mis números y necesito que le hagas seguimiento";
+
+  const texto = textoMemoria({
+    memorias: [
+      memoria({ contenido: `${arranque} y me ayudes a decidir.` }),
+      memoria({ contenido: `${arranque} y me ayudes a proyectar el año.` }),
+    ],
+  });
+
+  assert.equal(texto.split("  - ").length - 1, 1);
+});
+
+test("dos memorias distintas de verdad NO se colapsan", () => {
+  const texto = textoMemoria({
+    memorias: [
+      memoria({ contenido: "Vende ropa importada y cobra casi todo en efectivo." }),
+      memoria({ contenido: "Le compra a un proveedor de Ciudad del Este cada quince días." }),
+    ],
+  });
+
+  assert.equal(texto.split("  - ").length - 1, 2);
+});
+
 test("las memorias más importantes van primero", () => {
   const texto = textoMemoria({
     memorias: [

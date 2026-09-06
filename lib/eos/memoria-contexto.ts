@@ -46,6 +46,21 @@ function recortar(texto: string, tope: number): string {
 }
 
 /**
+ * Cuántos caracteres alcanzan para decir que dos filas son la misma.
+ *
+ * Comparar el texto ENTERO no alcanzaba. En producción hay dos memorias que
+ * arrancan igual —"EOS me metí al negocio de la porcicultura de compra,
+ * engorde y venta de chanchos…"— y se separan recién cerca del final: con la
+ * clave completa entraban las dos, y en el prompt se veían idénticas, porque
+ * las dos se recortan mucho antes de llegar a donde difieren.
+ *
+ * Ciento veinte caracteres iguales, ya sin acentos ni puntuación, es un
+ * duplicado. Dos memorias distintas que empiecen con la misma frase de ciento
+ * veinte caracteres son un caso que no se da.
+ */
+const LARGO_DE_CLAVE = 120;
+
+/**
  * La clave con la que dos filas se consideran la misma.
  *
  * Sin acentos y sin puntuación porque los duplicados de producción vienen del
@@ -58,7 +73,8 @@ function clave(texto: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9 ]/g, "")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .slice(0, LARGO_DE_CLAVE);
 }
 
 function sinRepetidos<T>(filas: T[], deQue: (f: T) => string): T[] {
