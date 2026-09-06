@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 
+import { decimalesDe } from "../finanzas/monedas.ts";
 import type { Informe } from "./armar.ts";
 
 /**
@@ -15,19 +16,40 @@ import type { Informe } from "./armar.ts";
  * ============================================================
  *
  * Las fuentes base de PDF (Helvetica y compañía) usan WinAnsi, que **no tiene
- * el signo del guaraní** (U+20B2). Escribirlo saldría como un cuadrito o como
- * otra letra. Las salidas son dos: embeber una tipografía completa —un binario
- * de cientos de kilobytes en el repo, para un glifo— o usar "Gs.", que es
- * exactamente como se escribe en las facturas paraguayas.
+ * el signo del guaraní** (U+20B2) ni el del euro real de `monedas.ts` en toda
+ * variante tipográfica. Escribirlo saldría como un cuadrito o como otra letra.
+ * Las salidas son dos: embeber una tipografía completa —un binario de cientos
+ * de kilobytes en el repo, para un glifo— o usar una abreviatura de texto, que
+ * es exactamente como se escribe en las facturas paraguayas ("Gs.").
  *
- * Se eligió "Gs.". No es una degradación: es la notación impresa de siempre.
+ * Se eligió texto para las dos monedas en riesgo. Reales y pesos argentinos
+ * usan su símbolo real ("R$", "AR$") porque son ASCII puro y no corren ningún
+ * riesgo de font.
+ *
+ * Los decimales SÍ salen de `monedas.ts`: antes esta función redondeaba todo
+ * a entero, así que un informe en dólares perdía los centavos — el mismo bug
+ * que tenía `lib/informes/armar.ts` hasta que se corrigió el 5 de septiembre.
  */
 
-function plata(valor: number, moneda: string): string {
-  const simbolo = moneda === "USD" ? "US$" : "Gs.";
-  const numero = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
-    Math.round(valor),
-  );
+const SIMBOLO_PDF: Record<string, string> = {
+  PYG: "Gs.",
+  USD: "US$",
+  BRL: "R$",
+  ARS: "AR$",
+  EUR: "EUR",
+};
+
+/** Exportada solo para test: el resto del archivo la usa como privada. */
+export function plata(valor: number, moneda: string): string {
+  const codigo = (moneda || "PYG").toUpperCase();
+  const simbolo = SIMBOLO_PDF[codigo] ?? codigo;
+  const decimales = decimalesDe(codigo);
+
+  const numero = new Intl.NumberFormat("es-PY", {
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  }).format(decimales === 0 ? Math.round(valor) : valor);
+
   return `${simbolo} ${numero}`;
 }
 

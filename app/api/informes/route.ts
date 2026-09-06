@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { conciliar } from "@/lib/finanzas/conciliacion";
+import { monedaConocida } from "@/lib/finanzas/monedas";
 import { armarInforme, type DeudaInforme, type MovimientoInforme } from "@/lib/informes/armar";
 import { crearExcelInforme } from "@/lib/informes/excel";
 import { crearPdfInforme } from "@/lib/informes/pdf";
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
       .maybeSingle(),
     supabase
       .from("eos_movimientos_financieros")
-      .select("tipo,monto,fecha,descripcion,categoria")
+      .select("tipo,monto,fecha,descripcion,categoria,moneda")
       .eq("usuario_id", user.id)
       .gte("fecha", periodo.desde)
       .lte("fecha", periodo.hasta)
@@ -124,7 +125,26 @@ export async function GET(request: Request) {
     saldo_inicial_fecha: string;
   };
 
-  const movimientos = ((movimientosRes.data ?? []) as Record<string, unknown>[]).map<MovimientoInforme>(
+  /*
+   * En qué moneda sale ESTE informe.
+   *
+   * `armarInforme` suma sus movimientos con un `+` liso — no sabe de monedas,
+   * ni tiene por qué: es el llamador quien tiene que garantizar que todo lo
+   * que le pasa está en la misma. Antes de esto no lo garantizaba nadie: la
+   * consulta traía TODOS los movimientos del período sin filtrar por moneda,
+   * así que una cuenta con guaraníes y dólares mezclados terminaba con un
+   * "saldo 500.500" que no existe en ninguna de las dos — el mismo bug que
+   * `lib/finanzas/monedas.ts` describe para el panel, acá sin corregir.
+   */
+  const monedaInforme = monedaConocida(searchParams.get("moneda"), politica.moneda ?? "PYG");
+
+  const todasLasFilas = (movimientosRes.data ?? []) as Record<string, unknown>[];
+  const filasDeLaMoneda = todasLasFilas.filter(
+    (m) => String(m.moneda ?? "PYG").toUpperCase() === monedaInforme,
+  );
+  const movimientosExcluidos = todasLasFilas.length - filasDeLaMoneda.length;
+
+  const movimientos = filasDeLaMoneda.map<MovimientoInforme>(
     (m) => ({
       tipo: m.tipo as MovimientoInforme["tipo"],
       monto: num(m.monto),
@@ -133,6 +153,25 @@ export async function GET(request: Request) {
       categoria: (m.categoria as string | null) ?? null,
     }),
   );
+
+  const monedaPrincipal = politica.moneda ?? "PYG";
+
+  // La conciliación es SOLO de la moneda principal (ver el punto 24 de la
+  // lista de lanzamiento): sus movimientos tienen que filtrarse por esa
+  // moneda sin importar en cuál se pidió el informe, o un "gasto invisible"
+  // calculado en guaraníes terminaría atribuido a un informe en dólares.
+  const movimientosPrincipal =
+    monedaInforme === monedaPrincipal
+      ? movimientos
+      : todasLasFilas
+          .filter((m) => String(m.moneda ?? "PYG").toUpperCase() === monedaPrincipal)
+          .map<MovimientoInforme>((m) => ({
+            tipo: m.tipo as MovimientoInforme["tipo"],
+            monto: num(m.monto),
+            fecha: String(m.fecha).slice(0, 10),
+            descripcion: (m.descripcion as string | null) ?? null,
+            categoria: (m.categoria as string | null) ?? null,
+          }));
 
   // Cuánto se le escapa al usuario sin que EOS lo vea. Solo se puede saber si
   // ya conció al menos dos veces; si no, `ritmo_diario` es null y el informe
@@ -144,17 +183,22 @@ export async function GET(request: Request) {
       fecha: c.fecha as string,
       saldo_declarado: num(c.saldo_declarado),
     })),
-    movimientos,
+    movimientos: movimientosPrincipal,
     hoy,
   });
 
   const dias = diasEntre(periodo.desde, periodo.hasta) + 1;
   const invisibleDelPeriodo =
-    estado.ritmo_diario !== null ? Math.max(0, estado.ritmo_diario * dias) : 0;
+    // Igual que arriba: el gasto invisible es una cifra en la moneda
+    // principal. Mostrarla dentro de un informe en otra moneda sería
+    // mezclar dos cosas que no se pueden sumar.
+    monedaInforme === monedaPrincipal && estado.ritmo_diario !== null
+      ? Math.max(0, estado.ritmo_diario * dias)
+      : 0;
 
   const informe = armarInforme({
     periodo,
-    moneda: politica.moneda ?? "PYG",
+    moneda: monedaInforme,
     hoy,
     movimientos,
     deudas: ((deudasRes.data ?? []) as unknown as DeudaInforme[]).map((d) => ({
@@ -164,6 +208,16 @@ export async function GET(request: Request) {
     })),
     gastoInvisible: invisibleDelPeriodo,
   });
+
+  // Honestidad, no silencio: si había movimientos en otra moneda dentro del
+  // mismo período, el informe lo dice en vez de dejar que alguien piense que
+  // esa plata no existió.
+  if (movimientosExcluidos > 0) {
+    informe.advertencias.push(
+      `Tenés ${movimientosExcluidos} ${movimientosExcluidos === 1 ? "movimiento" : "movimientos"} ` +
+        `en otra moneda dentro de este período que no están en este balance, generado en ${monedaInforme}.`,
+    );
+  }
 
   const { extension, tipo } = FORMATOS[formato as Formato];
 

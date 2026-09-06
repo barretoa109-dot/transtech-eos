@@ -1,4 +1,5 @@
 import { desglosarGastos, type LineaDestino } from "../finanzas/destinos.ts";
+import { formatearMonto } from "../finanzas/formato.ts";
 import type { Periodo } from "./periodo.ts";
 
 /**
@@ -167,11 +168,15 @@ export function armarInforme(datos: {
   };
 }
 
-/** Igual que el formateador de pantalla, para que el papel no diga otra cosa. */
+/**
+ * Igual que el formateador de pantalla, para que el papel no diga otra cosa.
+ *
+ * Antes reimplementaba su propio redondeo a 0 decimales y solo reconocía
+ * PYG y USD: un informe en reales, pesos argentinos o euros salía sin
+ * símbolo, y uno en dólares perdía los centavos — exactamente lo que
+ * `lib/finanzas/monedas.ts` existe para evitar. Ahora delega en el mismo
+ * formateador que usa la pantalla.
+ */
 export function formatear(valor: number, moneda: string): string {
-  const simbolo = moneda === "PYG" ? "₲" : moneda === "USD" ? "US$" : "";
-  const numero = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(
-    Math.round(valor),
-  );
-  return `${simbolo} ${numero}`.trim();
+  return formatearMonto(valor, moneda);
 }
