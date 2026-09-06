@@ -8,7 +8,7 @@ type EnviarEOSParams = {
   mensaje: string;
   historial: Mensaje[];
   nuevoChat: boolean;
-  archivo?: ArchivoAdjunto | null;
+  archivos?: ArchivoAdjunto[];
 };
 
 export type RespuestaEOS = {
@@ -79,7 +79,18 @@ export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<Respue
       mensaje:params.mensaje,
       historial:params.historial.filter(m=>!m.texto.includes("Este es un nuevo chat")).slice(-10),
       nuevo_chat:params.nuevoChat,
-      archivo:params.archivo??null,
+      /*
+       * Los dos campos, y no uno.
+       *
+       * `archivos` es el nuevo y es el que el servidor lee. `archivo` con el
+       * primero se sigue mandando porque el workflow de n8n arma su payload
+       * campo por campo y descarta lo que no nombra: mientras esa parte no se
+       * despliegue, sacar `archivo` dejaría a EOS sin ver ninguna imagen.
+       *
+       * Se saca cuando el nodo 01 del gateway lea `archivos`.
+       */
+      archivo:(params.archivos??[])[0]??null,
+      archivos:params.archivos??[],
       origen:"eos-web"
     })
   });

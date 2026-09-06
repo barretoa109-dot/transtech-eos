@@ -107,7 +107,29 @@ export default function Cajas() {
     }
   }
 
-  if (cargando || !datos) return null;
+  /*
+   * Mientras carga no se muestra nada: es una tarjeta entre varias del perfil,
+   * y un esqueleto parpadeando ahí es más ruido que información.
+   *
+   * Pero si FALLÓ hay que decirlo. Con `cargando || !datos` en una sola línea,
+   * un error hacía desaparecer la tarjeta entera: alguien entraba al perfil a
+   * ver su caja y simplemente no estaba, sin forma de saber que hubo un
+   * problema en vez de no haber cargado ninguna.
+   */
+  if (cargando) return null;
+
+  if (!datos) {
+    return (
+      <div className="card">
+        <div className="card-title">
+          <Wallet size={15} /> Tu caja
+        </div>
+        <p className="neg-load-error" role="alert">
+          No pudimos leer tus cajas. Volvé a entrar en un rato.
+        </p>
+      </div>
+    );
+  }
 
   const vivas = datos.cajas.filter((c) => c.activa);
 

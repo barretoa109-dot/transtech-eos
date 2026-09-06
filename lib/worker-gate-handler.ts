@@ -101,15 +101,27 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
  * El perfil de quien todavía no tiene fila propia.
  *
  * Tiene que decir lo mismo que el default de la columna en la base
- * (v101). Cuando dijeron cosas distintas, cinco de los seis usuarios de
- * producción corrieron catorce días en nivel 1 —que ni ejecuta ni
- * pregunta— mientras el chat les decía que sí. Si cambia uno, cambia el
+ * (v101, y ahora v127). Cuando dijeron cosas distintas, cinco de los seis
+ * usuarios de producción corrieron catorce días en nivel 1 —que ni ejecuta
+ * ni pregunta— mientras el chat les decía que sí. Si cambia uno, cambia el
  * otro.
+ *
+ * Los dos techos diarios subieron el 6 de septiembre de 2026. Estaban en 5
+ * acciones y 10 puntos desde la v12, cuando lo más caro que se podía pedir
+ * era crear un objetivo. Una venta vale 6 puntos: con presupuesto 10, la
+ * PRIMERA venta del día pasaba y la segunda daba `block` —ni siquiera
+ * `approval`, así que no quedaba nada que aprobar—. Desde el chat eso se ve
+ * como que EOS no registra nada en el ERP, y así se reportó.
+ *
+ * Los números salen de un día cargado de uso conversacional —unas quince
+ * ventas, tres contactos, dos ajustes de stock: 111 puntos en 20 acciones— y
+ * se duplican. El techo sigue existiendo para frenar a un modelo trabado en
+ * un bucle, que es para lo que sirve; dejó de frenar a alguien trabajando.
  */
 const DEFAULT_PROFILE = {
   default_level: 2,
-  max_auto_actions_per_day: 5,
-  max_daily_risk_points: 10,
+  max_auto_actions_per_day: 40,
+  max_daily_risk_points: 240,
   approval_ttl_minutes: 60,
   enabled: true,
 };

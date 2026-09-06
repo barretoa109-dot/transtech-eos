@@ -17,6 +17,7 @@ import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
 import LearningsView from "../components/LearningsView";
 
+import { useTema } from "../components/useTema";
 import { useBriefing } from "../hooks/useBriefing";
 import { useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
@@ -24,6 +25,7 @@ import { useChat } from "../hooks/useChat";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { appTechCanvas } from "@/components/effects/techCanvasPresets";
 
+import { revisarAdjuntos, textoPorDefecto } from "@/lib/eos/adjuntos";
 import { convertirArchivoABase64 } from "../services/uploads";
 import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
 
@@ -37,6 +39,17 @@ function formatearTamanio(bytes?: number): string {
   const decimales = indice === 0 || valor >= 10 ? 0 : 1;
 
   return `${valor.toFixed(decimales)} ${unidades[indice]}`;
+}
+
+/**
+ * ¿Este texto lo escribió el producto o la persona?
+ *
+ * Solo el que escribió el producto se puede pisar cuando cambian los adjuntos.
+ * Si alguien tipeó "cuánto suma esto" y después agrega otra foto, ese texto no
+ * se toca: reemplazarlo por "Analizá estas 3 imágenes" le borraría la pregunta.
+ */
+function esTextoPorDefecto(texto: string): boolean {
+  return /^Analizá (esta imagen|este archivo|estas \d+ imágenes|estos \d+ archivos)\b/.test(texto.trim());
 }
 
 function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
@@ -93,6 +106,8 @@ export default function EOSPage() {
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
+  const tema = useTema();
+
   const {
     briefingVisible,
     history: briefingHistory,
@@ -115,7 +130,7 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
   } = useConversations();
 
-  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje, regenerarRespuesta } = useChat({
+  const { mensaje, setMensaje, cargando, archivosAdjuntos, setArchivosAdjuntos, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -215,18 +230,41 @@ export default function EOSPage() {
     setMenuMovilAbierto(false);
   }
 
-  async function manejarArchivo(file: File) {
-    try {
-      const archivo = await convertirArchivoABase64(file);
-      setArchivoAdjunto(archivo);
+  /*
+   * Se ACUMULAN, no se reemplazan.
+   *
+   * Alguien que quiere mandar seis fotos las elige de a tandas: tres del
+   * carrete, después la que sacó recién. Si cada selección pisara la anterior,
+   * el segundo toque le borraría las tres primeras sin decir nada.
+   */
+  async function manejarArchivos(files: File[]) {
+    const nuevos: ArchivoAdjunto[] = [];
 
-      if (!mensaje.trim()) {
-        const instruccion = archivo.tipo.startsWith("image/") ? "Analizá esta imagen" : "Analizá este archivo";
-        setMensaje(`${instruccion}: ${archivo.nombre}`);
+    for (const file of files) {
+      try {
+        nuevos.push(await convertirArchivoABase64(file));
+      } catch (error) {
+        console.error("No se pudo cargar el archivo:", error);
+        window.alert(error instanceof Error ? error.message : "No se pudo cargar el archivo.");
       }
-    } catch (error) {
-      console.error("No se pudo cargar el archivo:", error);
-      window.alert(error instanceof Error ? error.message : "No se pudo cargar el archivo.");
+    }
+
+    if (nuevos.length === 0) return;
+
+    const juntos = [...archivosAdjuntos, ...nuevos];
+    const rechazo = revisarAdjuntos(juntos);
+
+    if (rechazo) {
+      window.alert(rechazo.motivo);
+      return;
+    }
+
+    setArchivosAdjuntos(juntos);
+
+    // El texto por defecto se reescribe con el total, no con lo último: si
+    // decía "Analizá esta imagen: a.jpg" y ahora hay tres, tiene que decir tres.
+    if (!mensaje.trim() || esTextoPorDefecto(mensaje)) {
+      setMensaje(textoPorDefecto(juntos));
     }
   }
 
@@ -241,11 +279,12 @@ export default function EOSPage() {
     setMenuMovilAbierto(false);
   }
 
-  function quitarArchivoAdjunto() {
-    setArchivoAdjunto(null);
+  function quitarArchivoAdjunto(indice: number) {
+    const quedan = archivosAdjuntos.filter((_, i) => i !== indice);
+    setArchivosAdjuntos(quedan);
 
-    if (mensaje.startsWith("Analizá esta imagen:") || mensaje.startsWith("Analizá este archivo:")) {
-      setMensaje("");
+    if (esTextoPorDefecto(mensaje)) {
+      setMensaje(textoPorDefecto(quedan));
     }
   }
 
@@ -265,7 +304,7 @@ export default function EOSPage() {
   };
 
   return (
-    <div className="eos-app" data-eos-theme="light">
+    <div className="eos-app" data-eos-theme={tema.aplicado === "oscuro" ? "dark" : "light"}>
       <AmbientBackground techConfig={appTechCanvas} spanCount={3} />
 
       <div className={`eos-sidebar ${sidebarColapsado ? "collapsed" : ""} ${menuMovilAbierto ? "mobile-open" : ""}`}>
@@ -292,7 +331,7 @@ export default function EOSPage() {
       </button>
 
       <div className="main">
-        <TopBar />
+        <TopBar tema={tema} />
 
         {vista === "chat" && (
           <ChatView
@@ -300,11 +339,11 @@ export default function EOSPage() {
             nombre={nombre}
             mensaje={mensaje}
             cargando={cargando}
-            archivoAdjunto={archivoAdjunto}
+            archivosAdjuntos={archivosAdjuntos}
             chatRef={chatRef}
             onMensajeChange={setMensaje}
             onEnviar={(texto) => enviarMensaje(texto)}
-            onArchivoSeleccionado={manejarArchivo}
+            onArchivosSeleccionados={manejarArchivos}
             onQuitarArchivo={quitarArchivoAdjunto}
             obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
             formatearTamanio={formatearTamanio}

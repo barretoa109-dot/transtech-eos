@@ -10,6 +10,8 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
+import { textoMemoria } from "@/lib/eos/memoria-contexto";
+import { MAX_ADJUNTOS, MAX_BASE64_TOTAL } from "@/lib/eos/adjuntos";
 import {
   agregarAccesoAprobacion,
   corregirAfirmacionSinAccion,
@@ -280,6 +282,45 @@ function normalizarArchivo(valor: unknown): ArchivoEOS | null {
   };
 }
 
+/**
+ * Los adjuntos del mensaje, ya validados.
+ *
+ * Acepta el campo nuevo (`archivos`, una lista) y el viejo (`archivo`, uno
+ * solo). Los dos porque durante el despliegue conviven clientes de las dos
+ * versiones: alguien con la pestaña abierta desde antes sigue mandando el
+ * campo viejo, y su foto tiene que llegar igual.
+ *
+ * Cuando llegan los dos —que es lo que manda el cliente nuevo, a propósito,
+ * para que n8n siga viendo el suyo— gana la lista y el suelto se ignora: es el
+ * primero de la lista, así que sumarlo lo duplicaría.
+ */
+function normalizarArchivos(cuerpo: Record<string, unknown>): ArchivoEOS[] {
+  const crudos = Array.isArray(cuerpo.archivos)
+    ? cuerpo.archivos
+    : cuerpo.archivo
+      ? [cuerpo.archivo]
+      : [];
+
+  if (crudos.length > MAX_ADJUNTOS) {
+    throw new Error(`Podés mandar hasta ${MAX_ADJUNTOS} archivos por mensaje.`);
+  }
+
+  const archivos: ArchivoEOS[] = [];
+
+  for (const crudo of crudos) {
+    const archivo = normalizarArchivo(crudo);
+    if (archivo) archivos.push(archivo);
+  }
+
+  const total = archivos.reduce((suma, a) => suma + a.base64.length, 0);
+
+  if (total > MAX_BASE64_TOTAL) {
+    throw new Error("Los archivos adjuntos superan el tamaño máximo del mensaje.");
+  }
+
+  return archivos;
+}
+
 function combinarObjetoRespuesta(valor: unknown): Record<string, unknown> {
   if (!valor || typeof valor !== "object") {
     return {};
@@ -513,9 +554,9 @@ export async function POST(req: Request) {
       );
     }
 
-    let archivo: ArchivoEOS | null;
+    let archivos: ArchivoEOS[];
     try {
-      archivo = normalizarArchivo(body.archivo);
+      archivos = normalizarArchivos(body as unknown as Record<string, unknown>);
     } catch (error) {
       return Response.json(
         {
@@ -526,9 +567,13 @@ export async function POST(req: Request) {
       );
     }
 
+    // El primero, para todo lo que sigue esperando uno solo: el payload que
+    // viaja a n8n y los campos `archivo_*` de la respuesta.
+    const archivo = archivos[0] ?? null;
+
     const mensaje = typeof body.mensaje === "string" ? body.mensaje.trim() : "";
 
-    if (!mensaje && !archivo) {
+    if (!mensaje && archivos.length === 0) {
       return Response.json(
         { respuesta: "Necesito recibir un mensaje o un archivo para poder ayudarte." },
         { status: 400, headers: noStoreHeaders() },
@@ -584,6 +629,61 @@ export async function POST(req: Request) {
         return null;
       });
 
+    /*
+     * Lo que EOS ya sabía de esta persona, y nunca leía.
+     *
+     * `GUARDAR_MEMORIA` es la acción más ejecutada del sistema y la cabecera
+     * del chat dice "Memoria contextual", pero el prompt jamás incluyó una
+     * sola de esas filas: se guardaban y ahí terminaba todo. Cada conversación
+     * arrancaba de cero sobre una base llena de contexto, que es exactamente
+     * lo que se siente como que el asistente se olvida de todo.
+     *
+     * Las tres lecturas van juntas y en paralelo con el resto. Si alguna
+     * falla, se sigue sin ese pedazo: no poder leer un objetivo no es motivo
+     * para no contestar. `lib/eos/memoria-contexto.ts` filtra, deduplica y
+     * corta —lo guardado tiene repetidos— y devuelve cadena vacía cuando no
+     * hay nada que valga la pena.
+     */
+    const memoriaPromise: Promise<string> = (async () => {
+      try {
+        const admin = adminSinTipos();
+
+        const [memorias, objetivos, aprendizajes] = await Promise.all([
+          admin
+            .from("eos_memory")
+            .select("titulo, contenido, importancia, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("importancia", { ascending: false })
+            .order("updated_at", { ascending: false })
+            .limit(30),
+          admin
+            .from("eos_goals")
+            .select("titulo, progreso, fecha_limite, proximo_paso, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("prioridad", { ascending: false })
+            .limit(20),
+          admin
+            .from("eos_learnings")
+            .select("recomendacion, confianza, evidence_count, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("confianza", { ascending: false })
+            .limit(10),
+        ]);
+
+        return textoMemoria({
+          memorias: memorias.data ?? [],
+          objetivos: objetivos.data ?? [],
+          aprendizajes: aprendizajes.data ?? [],
+        });
+      } catch (error) {
+        console.error("EOS: no se pudo leer la memoria del usuario:", error);
+        return "";
+      }
+    })();
+
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
         return Response.json(
@@ -618,11 +718,27 @@ export async function POST(req: Request) {
       }
     }
 
+    /*
+     * Los documentos se leen TODOS, y en paralelo.
+     *
+     * Antes se leía el único que había. Con varios, hacerlo en serie sumaría
+     * la espera de cada uno a la del mensaje: cinco planillas de dos segundos
+     * son diez segundos antes de que el modelo empiece siquiera a leer.
+     *
+     * Las imágenes no pasan por acá: las mira el modelo directamente.
+     */
     let mensajeConAnalisis = mensaje;
-    if (archivo && SYNC_EXTRACTABLE_TYPES.has(archivo.tipo)) {
-      const analisis = await analizarArchivoSincrono(archivo, conversacionId);
-      if (analisis) {
-        mensajeConAnalisis = mensaje ? `${mensaje}\n\n${analisis}` : analisis;
+
+    const extraibles = archivos.filter((a) => SYNC_EXTRACTABLE_TYPES.has(a.tipo));
+
+    if (extraibles.length > 0) {
+      const analisis = (
+        await Promise.all(extraibles.map((a) => analizarArchivoSincrono(a, conversacionId)))
+      ).filter((texto): texto is string => Boolean(texto));
+
+      if (analisis.length > 0) {
+        const bloque = analisis.join("\n\n");
+        mensajeConAnalisis = mensaje ? `${mensaje}\n\n${bloque}` : bloque;
       }
     }
 
@@ -640,7 +756,18 @@ export async function POST(req: Request) {
       "Usuario";
     const planServidor = planEfectivo(usuario ?? null);
 
-    const contextoNegocio = textoContexto(await contextoPromise);
+    /*
+     * Las cifras primero y la memoria después, en un solo campo.
+     *
+     * El nodo 01 del workflow descarta todo campo del payload que no nombre
+     * explícitamente, así que agregar `memoria` como campo propio exigiría
+     * tocar n8n para que viaje. Va acá adentro, separado por su encabezado.
+     * El día que el gateway corra entero en TypeScript esto se puede partir en
+     * dos; hasta entonces, un campo que llega es mejor que dos que se pierden.
+     */
+    const contextoNegocio = [textoContexto(await contextoPromise), await memoriaPromise]
+      .filter((parte) => parte.trim() !== "")
+      .join("\n\n");
 
     const origen = textoSeguro(body.origen, 50) || "eos-web";
     const nuevoChat = body.nuevo_chat === true;
@@ -658,7 +785,17 @@ export async function POST(req: Request) {
       mensaje: mensajeConAnalisis,
       historial: normalizarHistorial(body.historial),
       nuevo_chat: nuevoChat,
+      /*
+       * Los dos campos, y no uno.
+       *
+       * `archivos` es la lista completa y es lo que hay que leer. `archivo`
+       * con el primero se sigue mandando porque el nodo 01 del workflow arma
+       * su salida campo por campo y descarta lo que no nombra: hasta que ese
+       * nodo lea `archivos`, sacar `archivo` dejaría a EOS sin ver ninguna
+       * imagen. Ver `n8n/parches/2026-09-06-varias-imagenes.mjs`.
+       */
       archivo,
+      archivos,
       origen,
       fecha: new Date().toISOString(),
     };

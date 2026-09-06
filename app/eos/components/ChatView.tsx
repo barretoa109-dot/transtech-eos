@@ -5,6 +5,8 @@ import { Mic, Paperclip, Send } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import { debeEnviarConEnter } from "@/lib/eos/composer";
+import { fusionarDictado } from "@/lib/eos/dictado";
+import { useDictado, type Dictado } from "./useDictado";
 
 type PromptCard = {
   key: string;
@@ -70,12 +72,12 @@ type ChatViewProps = {
   nombre: string;
   mensaje: string;
   cargando: boolean;
-  archivoAdjunto: ArchivoAdjunto | null;
+  archivosAdjuntos: ArchivoAdjunto[];
   chatRef: React.RefObject<HTMLDivElement | null>;
   onMensajeChange: (value: string) => void;
   onEnviar: (texto?: string) => void;
-  onArchivoSeleccionado: (file: File) => void;
-  onQuitarArchivo: () => void;
+  onArchivosSeleccionados: (files: File[]) => void;
+  onQuitarArchivo: (indice: number) => void;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
   onRegenerar?: () => void;
@@ -86,11 +88,11 @@ export default function ChatView({
   nombre,
   mensaje,
   cargando,
-  archivoAdjunto,
+  archivosAdjuntos,
   chatRef,
   onMensajeChange,
   onEnviar,
-  onArchivoSeleccionado,
+  onArchivosSeleccionados,
   onQuitarArchivo,
   obtenerEtiquetaArchivo,
   formatearTamanio,
@@ -100,6 +102,23 @@ export default function ChatView({
   const [focused, setFocused] = useState(false);
   const [esMovil, setEsMovil] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  /*
+   * El texto actual en un ref para que el dictado no lo pise.
+   *
+   * `useDictado` guarda el callback una sola vez; si acá se le pasara una
+   * clausura sobre `mensaje`, cada tramo dictado se sumaría al texto que había
+   * cuando arrancó el micrófono y borraría lo dictado antes.
+   */
+  const mensajeRef = useRef(mensaje);
+
+  useEffect(() => {
+    mensajeRef.current = mensaje;
+  }, [mensaje]);
+
+  const dictado = useDictado((texto) => {
+    onMensajeChange(fusionarDictado(mensajeRef.current, texto));
+  });
 
   useEffect(() => {
     const media = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 700px)");
@@ -131,8 +150,11 @@ export default function ChatView({
   }
 
   function manejarArchivoInput(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) onArchivoSeleccionado(file);
+    const archivos = Array.from(event.target.files ?? []);
+    if (archivos.length > 0) onArchivosSeleccionados(archivos);
+
+    // Se limpia siempre: sin esto, volver a elegir EL MISMO archivo no dispara
+    // `change` —el valor no cambió— y el segundo intento parece no hacer nada.
     event.target.value = "";
   }
 
@@ -169,7 +191,7 @@ export default function ChatView({
             <Composer
               mensaje={mensaje}
               cargando={cargando}
-              archivoAdjunto={archivoAdjunto}
+              archivosAdjuntos={archivosAdjuntos}
               focused={focused}
               setFocused={setFocused}
               onMensajeChange={onMensajeChange}
@@ -180,6 +202,7 @@ export default function ChatView({
               esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
+              dictado={dictado}
             />
           </div>
         </div>
@@ -235,7 +258,7 @@ export default function ChatView({
             <Composer
               mensaje={mensaje}
               cargando={cargando}
-              archivoAdjunto={archivoAdjunto}
+              archivosAdjuntos={archivosAdjuntos}
               focused={focused}
               setFocused={setFocused}
               onMensajeChange={onMensajeChange}
@@ -246,12 +269,14 @@ export default function ChatView({
               esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
+              dictado={dictado}
             />
           </div>
         </div>
       )}
 
-      <input ref={fileInputRef} type="file" hidden onChange={manejarArchivoInput} />
+      {/* `multiple`: es lo que hace que el selector deje marcar más de una foto. */}
+      <input ref={fileInputRef} type="file" multiple hidden onChange={manejarArchivoInput} />
     </div>
   );
 }
@@ -259,23 +284,24 @@ export default function ChatView({
 type ComposerProps = {
   mensaje: string;
   cargando: boolean;
-  archivoAdjunto: ArchivoAdjunto | null;
+  archivosAdjuntos: ArchivoAdjunto[];
   focused: boolean;
   setFocused: (v: boolean) => void;
   onMensajeChange: (v: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onEnviar: () => void;
   onArchivoClick: () => void;
-  onQuitarArchivo: () => void;
+  onQuitarArchivo: (indice: number) => void;
   esMovil: boolean;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
+  dictado: Dictado;
 };
 
 function Composer({
   mensaje,
   cargando,
-  archivoAdjunto,
+  archivosAdjuntos,
   focused,
   setFocused,
   onMensajeChange,
@@ -286,8 +312,9 @@ function Composer({
   esMovil,
   obtenerEtiquetaArchivo,
   formatearTamanio,
+  dictado,
 }: ComposerProps) {
-  const listo = mensaje.trim().length > 0 || Boolean(archivoAdjunto);
+  const listo = mensaje.trim().length > 0 || archivosAdjuntos.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -299,21 +326,40 @@ function Composer({
 
   return (
     <>
-      {archivoAdjunto && (
-        <div className="file-preview">
-          <div className="file-preview-info">
-            <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivoAdjunto)}</span>
-            <span className="file-preview-text">
-              <small>
-                {obtenerEtiquetaArchivo(archivoAdjunto)} ADJUNTO
-                {archivoAdjunto.tamanio ? ` · ${formatearTamanio(archivoAdjunto.tamanio)}` : ""}
-              </small>
-              <strong>{archivoAdjunto.nombre}</strong>
-            </span>
-          </div>
-          <button type="button" onClick={onQuitarArchivo}>
-            Quitar
-          </button>
+      {/*
+        Una tarjeta por adjunto, apiladas.
+
+        Con diez archivos una lista de diez tarjetas grandes taparía el chat
+        entero, así que arriba de tres se compactan (`file-preview-lista
+        apretada`, en el CSS): la misma información en una línea cada una.
+
+        Cada una tiene su propio "Quitar", con el nombre del archivo en el
+        `aria-label`. Diez botones que dicen todos "Quitar" no le sirven a
+        nadie que navegue con lector de pantalla.
+      */}
+      {archivosAdjuntos.length > 0 && (
+        <div className={`file-preview-lista ${archivosAdjuntos.length > 3 ? "apretada" : ""}`}>
+          {archivosAdjuntos.map((archivo, indice) => (
+            <div className="file-preview" key={`${archivo.nombre}-${indice}`}>
+              <div className="file-preview-info">
+                <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
+                <span className="file-preview-text">
+                  <small>
+                    {obtenerEtiquetaArchivo(archivo)} ADJUNTO
+                    {archivo.tamanio ? ` · ${formatearTamanio(archivo.tamanio)}` : ""}
+                  </small>
+                  <strong>{archivo.nombre}</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onQuitarArchivo(indice)}
+                aria-label={`Quitar ${archivo.nombre}`}
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -332,9 +378,24 @@ function Composer({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
-        <button type="button" className="icon-btn" disabled aria-label="Entrada por voz (próximamente)">
-          <Mic size={18} />
-        </button>
+        {/*
+          El micrófono solo aparece donde el navegador puede dictar. Un botón
+          gris con "próximamente" ocupa el mismo lugar y no hace nada; peor,
+          invita a apretarlo. Firefox no tiene reconocimiento de voz y no lo
+          va a tener pronto, así que ahí simplemente no hay micrófono.
+        */}
+        {dictado.soportado && (
+          <button
+            type="button"
+            className={`icon-btn ${dictado.escuchando ? "escuchando" : ""}`}
+            onClick={dictado.alternar}
+            aria-label={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
+            aria-pressed={dictado.escuchando}
+            title={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
+          >
+            <Mic size={18} />
+          </button>
+        )}
         <button
           type="button"
           className={`send-btn ${listo ? "ready" : ""}`}
@@ -345,6 +406,24 @@ function Composer({
           <Send size={16} />
         </button>
       </div>
+      {/*
+        Lo que se está escuchando ahora mismo, en gris y fuera del campo.
+        Escribirlo dentro del textarea sería mentir sobre lo que se va a
+        mandar: el navegador todavía puede corregirlo entero.
+
+        `aria-live` para que un lector de pantalla lo diga sin robar el foco:
+        quien no ve la pantalla necesita saber que lo están escuchando, y
+        necesita saberlo mientras habla.
+      */}
+      <div className="composer-dictado" aria-live="polite">
+        {dictado.escuchando && (
+          <span className="dictado-estado">
+            {dictado.provisorio ? dictado.provisorio : "Escuchando…"}
+          </span>
+        )}
+        {dictado.error && <span className="dictado-error" role="alert">{dictado.error}</span>}
+      </div>
+
       <div className="composer-help">
         {esMovil ? "Enter crea un salto · Tocá enviar para mandar" : "Enter para enviar · Shift + Enter para un salto"}
       </div>
