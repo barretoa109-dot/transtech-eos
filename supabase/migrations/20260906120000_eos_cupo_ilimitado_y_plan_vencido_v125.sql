@@ -309,7 +309,7 @@ end;
 $$;
 
 comment on function public.eos_reserve_message_quota_server_v75(uuid, uuid) is
-  'RC1 v75 + v123: reserva de mensaje del lado del servidor. limite_mensajes < 0 es SIN TOPE, y una suscripción caída cae al plan free en vez de bloquear.';
+  'RC1 v75 + v125: reserva de mensaje del lado del servidor. limite_mensajes < 0 es SIN TOPE, y una suscripción caída cae al plan free en vez de bloquear.';
 
 
 -- ============================================================
@@ -338,4 +338,4 @@ alter table public.planes
   check (limite_mensajes is null or limite_mensajes >= 0);
 
 comment on column public.planes.limite_mensajes is
-  'Mensajes de la ventana del plan (diaria en free, mensual en el resto). NULL = sin tope. Nunca negativo: ver v123.';
+  'Mensajes de la ventana del plan (diaria en free, mensual en el resto). NULL = sin tope. Nunca negativo: ver v125.';
