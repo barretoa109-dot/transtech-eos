@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { armarInforme, type MovimientoInforme } from "./armar.ts";
+import { armarInforme, formatear, type MovimientoInforme } from "./armar.ts";
 import { resolverPeriodo } from "./periodo.ts";
 
 const HOY = "2026-08-25";
@@ -163,4 +163,26 @@ test("un período sin movimientos da un informe vacío, no un error", () => {
   assert.equal(informe.resumen.neto, 0);
   assert.equal(informe.resumen.movimientos, 0);
   assert.deepEqual(informe.destinos, []);
+});
+
+// ============================================================
+// `formatear`: el mismo bug del punto 28 aparecía tres veces distintas
+// (acá, en pdf.ts y en excel.ts). Antes de la corrección del 5 de
+// septiembre, solo reconocía PYG y USD, y redondeaba TODO a entero.
+// ============================================================
+
+test("un informe en guaraníes no lleva decimales", () => {
+  assert.equal(formatear(1_500_000, "PYG"), "₲ 1.500.000");
+});
+
+test("un informe en dólares SÍ lleva los centavos", () => {
+  // Antes de la corrección esto daba "US$ 1.500", perdiendo los 50 centavos:
+  // exactamente lo que no puede pasarle a un balance que se compara contra un
+  // extracto real.
+  assert.equal(formatear(1500.5, "USD"), "US$ 1.500,50");
+});
+
+test("reales y pesos argentinos tienen su propio símbolo, no uno vacío", () => {
+  assert.equal(formatear(200, "BRL"), "R$ 200,00");
+  assert.equal(formatear(200, "ARS"), "AR$ 200,00");
 });

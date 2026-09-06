@@ -7,6 +7,7 @@ import { normalizarItemsErp } from "@/lib/erp/entrada";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { empresaDe } from "@/lib/empresa/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ const MAX_ITEMS = 200;
 export async function POST(request: Request, contexto: { params: Promise<{ id: string }> }) {
   const puerta = await exigirModulo("erp");
   if (puerta.respuesta) return puerta.respuesta;
+
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
 
   const { id } = await contexto.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return respuesta("Venta no encontrada.", 404);
@@ -87,6 +90,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
     await registrarOperacionErp(admin, {
       usuarioId: puerta.usuarioId,
+      empresaId,
       evento: "venta_editada",
       origen: "panel",
       resumen: `Intento de editar la venta ${id.slice(0, 8)}, rechazado`,
@@ -122,6 +126,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
   await registrarOperacionErp(admin, {
     usuarioId: puerta.usuarioId,
+    empresaId,
     evento: "venta_editada",
     origen: "panel",
     resumen: `Venta editada: ${formatearMonto(Number(antes?.total ?? 0), String(antes?.moneda ?? "PYG"))} → ${formatearMonto(Number(data?.total ?? 0), monedaConocida(cuerpo?.moneda))}`,

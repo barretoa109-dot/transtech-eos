@@ -9,6 +9,7 @@ import { guardarDocumento } from "@/lib/documentos/guardar";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { empresaDe } from "@/lib/empresa/acceso";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const puerta = await exigirModulo("facturacion");
   if (puerta.respuesta) return puerta.respuesta;
+
+  const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);
 
   let cuerpo: Record<string, unknown>;
   try {
@@ -233,6 +236,7 @@ export async function POST(request: Request) {
    */
   await registrarOperacionErp(adminSinTipos(), {
     usuarioId: puerta.usuarioId,
+    empresaId,
     evento: "comprobante_emitido",
     origen: "panel",
     resumen: `Comprobante ${numeroFormateado(establecimiento, punto, Number(numero))} emitido como borrador`,

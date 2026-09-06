@@ -7,6 +7,7 @@ import {
   tokenConsultaConfirmacion,
 } from "@/lib/bancard";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +49,32 @@ export async function POST(request: Request) {
     }
 
     const admin = adminSinTipos();
+
+    /*
+     * El techo acá no es para frenar a Bancard: es para que una notificación
+     * fabricada con el `shop_process_id` de una compra real en curso no pueda
+     * disparar la verificación contra Bancard (más abajo, en `after`) sin
+     * límite. Cada verificación cuesta hasta tres llamadas a la API de
+     * Bancard con reintentos y espera entre medio.
+     *
+     * El número es alto a propósito: esto es un webhook, no un formulario de
+     * gente. Un techo pensado para una persona (5 cada 15 minutos, como
+     * `/api/ventas/contacto`) frenaría también los reintentos legítimos de
+     * Bancard el día que haya varias compras a la vez, y ahí el costo de
+     * frenar de más —una confirmación de pago real que no llega— es mucho
+     * más caro que el de no frenar una notificación falsa a tiempo.
+     */
+    const cupo = await consumirCupo(admin, {
+      ruta: "/api/pagos/bancard/confirmacion",
+      cabeceras: request.headers,
+      ventanaSegundos: 60,
+      maximo: 60,
+      secreto: secretoDelEntorno(),
+    });
+
+    if (!cupo.permitido) {
+      return respuestaSinCupo(cupo, "Demasiadas notificaciones en poco tiempo.");
+    }
 
     // La transacción tiene que corresponder a un cobro que iniciamos.
     const { data: solicitud } = await admin

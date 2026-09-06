@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileSpreadsheet, FileText, FileType } from "lucide-react";
 
 /**
@@ -20,6 +20,12 @@ import { FileSpreadsheet, FileText, FileType } from "lucide-react";
  *    401 o un "todavía no configuraste tus finanzas" abre una pestaña con un
  *    JSON crudo en la cara del usuario. Así el error se puede leer y decir en
  *    castellano, acá mismo.
+ *
+ * El selector de moneda solo aparece con más de una: `/api/informes` antes
+ * mezclaba TODOS los movimientos del período sin filtrar, así que una cuenta
+ * con guaraníes y dólares terminaba con un balance que sumaba las dos monedas
+ * como si fueran una sola. Ahora el servidor filtra por una, y acá se elige
+ * cuál — sin preguntarle nada a quien solo tiene una.
  */
 
 type Periodo = { clave: string; etiqueta: string };
@@ -40,15 +46,36 @@ const FORMATOS = [
 
 export default function FinanzasInforme() {
   const [periodo, setPeriodo] = useState("mes");
+  const [monedas, setMonedas] = useState<string[]>([]);
+  const [moneda, setMoneda] = useState<string | null>(null);
   const [bajando, setBajando] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  /*
+   * Solo se pregunta si hace falta. `/api/finanzas/estado` ya sabe en qué
+   * monedas se mueve esta cuenta —la principal siempre primero—; con una
+   * sola, no tiene sentido pedirle a la persona que elija algo que no existe.
+   */
+  useEffect(() => {
+    fetch("/api/finanzas/estado", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { monedas?: { moneda: string }[] } | null) => {
+        const lista = (data?.monedas ?? []).map((b) => b.moneda);
+        if (lista.length > 1) {
+          setMonedas(lista);
+          setMoneda(lista[0]);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function descargar(formato: string) {
     setBajando(formato);
     setError("");
 
     try {
-      const res = await fetch(`/api/informes?periodo=${periodo}&formato=${formato}`, {
+      const parametroMoneda = moneda ? `&moneda=${moneda}` : "";
+      const res = await fetch(`/api/informes?periodo=${periodo}&formato=${formato}${parametroMoneda}`, {
         cache: "no-store",
       });
 
@@ -103,6 +130,21 @@ export default function FinanzasInforme() {
           </button>
         ))}
       </div>
+
+      {monedas.length > 1 && (
+        <div className="chip-row" style={{ marginTop: 8 }}>
+          {monedas.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`chip ${moneda === m ? "active" : ""}`}
+              onClick={() => setMoneda(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="informe-formatos">
         {FORMATOS.map(({ clave, etiqueta, Icono }) => (

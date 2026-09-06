@@ -53,6 +53,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
      */
     await registrarOperacionErp(admin, {
       usuarioId: puerta.usuarioId,
+      empresaId,
       evento: "venta_anulada",
       origen: "panel",
       resumen: `Intento de anular la venta ${id.slice(0, 8)}, rechazado`,
@@ -72,6 +73,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
   await registrarOperacionErp(admin, {
     usuarioId: puerta.usuarioId,
+    empresaId,
     evento: "venta_anulada",
     origen: "panel",
     resumen: `Venta anulada por ${formatearMonto(Number(antes?.total ?? 0), String(antes?.moneda ?? "PYG"))}`,

@@ -143,6 +143,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
    */
   await registrarOperacionErp(admin, {
     usuarioId: puerta.usuarioId,
+    empresaId,
     evento: "stock_ajustado",
     origen: "panel",
     resumen:

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
+import { empresaDe } from "@/lib/empresa/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ export async function POST(_request: Request, contexto: { params: Promise<{ id: 
    */
   await registrarOperacionErp(adminSinTipos(), {
     usuarioId: puerta.usuarioId,
+    empresaId: await empresaDe(adminSinTipos(), puerta.usuarioId),
     evento: "venta_cobrada",
     origen: "panel",
     resumen: "Venta cobrada: el ingreso entró al panel",

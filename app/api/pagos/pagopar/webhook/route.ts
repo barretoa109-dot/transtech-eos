@@ -4,6 +4,7 @@ import {
   tokenWebhook,
 } from "@/lib/pagopar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,24 @@ export async function POST(request: Request) {
         },
         { status: 400 },
       );
+    }
+
+    /*
+     * Mismo criterio que en la confirmación de Bancard: un techo pensado
+     * para el webhook, no para una persona. Alto a propósito, para no
+     * frenar reintentos legítimos de Pagopar el día que haya varias
+     * compras a la vez.
+     */
+    const cupo = await consumirCupo(adminSinTipos(), {
+      ruta: "/api/pagos/pagopar/webhook",
+      cabeceras: request.headers,
+      ventanaSegundos: 60,
+      maximo: 60,
+      secreto: secretoDelEntorno(),
+    });
+
+    if (!cupo.permitido) {
+      return respuestaSinCupo(cupo, "Demasiadas notificaciones en poco tiempo.");
     }
 
     const { privateKey } = getPagoparKeys();

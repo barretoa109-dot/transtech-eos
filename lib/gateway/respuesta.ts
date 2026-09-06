@@ -17,9 +17,13 @@
  * dejaría a la persona sin respuesta por algo que no hizo. Se responde el
  * texto y se ignora lo que no existe.
  *
- * Ninguna de las tres acciones del negocio —REGISTRAR_VENTA, AJUSTAR_STOCK,
- * CREAR_CONTACTO— se ejecuta sola: la puerta de autonomía les exige
- * aprobación explícita. Ver `SYSTEM_RISK` en `lib/worker-gate-handler.ts`.
+ * Las tres acciones del negocio —REGISTRAR_VENTA, AJUSTAR_STOCK,
+ * CREAR_CONTACTO— sí se ejecutan solas desde el 4 de septiembre: el usuario
+ * pidió auto-aprobar todo lo que venga del chat, sin excepción. Siguen dentro
+ * del mismo presupuesto diario de riesgo y límite de acciones automáticas de
+ * siempre — eso no es una aprobación por acción, es un techo por día. Ver
+ * `SYSTEM_RISK` y `defaultLevelOverride`/`forceApproval` en
+ * `lib/worker-gate-handler.ts`.
  */
 
 import type { Entrada } from "./entrada.ts";

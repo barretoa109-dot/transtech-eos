@@ -53,13 +53,38 @@ function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
   return extension ? extension.toUpperCase() : "ARCHIVO";
 }
 
+const VISTAS_VALIDAS: VistaEOS[] = [
+  "chat",
+  "briefing",
+  "decisions",
+  "learnings",
+  "dashboard",
+  "negocio",
+  "gastos",
+  "perfil",
+];
+
+/**
+ * Con qué pestaña abrir, si el link que trajo hasta acá lo pedía.
+ *
+ * El correo del briefing diario apunta a `/eos/chat?vista=briefing`: sin
+ * esto, la persona caía siempre en el chat y tenía que ir a buscar la
+ * pestaña ella misma, aunque el correo la haya traído justo para verla.
+ */
+function vistaInicialDesdeUrl(): VistaEOS {
+  if (typeof window === "undefined") return "chat";
+
+  const pedida = new URLSearchParams(window.location.search).get("vista");
+  return VISTAS_VALIDAS.includes(pedida as VistaEOS) ? (pedida as VistaEOS) : "chat";
+}
+
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
   const [plan, setPlan] = useState("free");
   const [email, setEmail] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
   const [usuarioCargado, setUsuarioCargado] = useState(false);
-  const [vista, setVista] = useState<VistaEOS>("chat");
+  const [vista, setVista] = useState<VistaEOS>(vistaInicialDesdeUrl);
   const [busqueda, setBusqueda] = useState("");
 
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
@@ -90,7 +115,7 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
   } = useConversations();
 
-  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje } = useChat({
+  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -283,6 +308,7 @@ export default function EOSPage() {
             onQuitarArchivo={quitarArchivoAdjunto}
             obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
             formatearTamanio={formatearTamanio}
+            onRegenerar={regenerarRespuesta}
           />
         )}
 

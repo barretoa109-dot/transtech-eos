@@ -13,6 +13,7 @@ import {
   type EntradaAuditoria,
 } from "@/lib/auditoria/registrar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,24 @@ export async function POST(request: Request) {
       api_key: Boolean(apiKey),
     });
     return Response.json({ error: "No configurado." }, { status: 503 });
+  }
+
+  /*
+   * Mismo criterio que los webhooks de Bancard y Pagopar: un techo pensado
+   * para el proveedor, no para una persona. Alto a propósito — un negocio con
+   * varias cuentas puede recibir varios avisos bancarios seguidos, y frenar
+   * eso de más deja plata real sin registrar sin que nadie lo note.
+   */
+  const cupo = await consumirCupo(adminSinTipos(), {
+    ruta: "/api/finanzas/correo",
+    cabeceras: request.headers,
+    ventanaSegundos: 60,
+    maximo: 60,
+    secreto: secretoDelEntorno(),
+  });
+
+  if (!cupo.permitido) {
+    return respuestaSinCupo(cupo, "Demasiadas notificaciones en poco tiempo.");
   }
 
   const resend = new Resend(apiKey);

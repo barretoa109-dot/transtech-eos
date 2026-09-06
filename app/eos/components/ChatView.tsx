@@ -80,6 +80,7 @@ type ChatViewProps = {
   onQuitarArchivo: () => void;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
+  onRegenerar?: () => void;
 };
 
 export default function ChatView({
@@ -95,6 +96,7 @@ export default function ChatView({
   onQuitarArchivo,
   obtenerEtiquetaArchivo,
   formatearTamanio,
+  onRegenerar,
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
@@ -206,11 +208,32 @@ export default function ChatView({
       {started && (
         <div className="chat-wrap">
           <div className="messages" ref={chatRef}>
-            {historial.map((m, i) => (
-              <div className="msg-col" key={m.id ?? i}>
-                <MessageBubble rol={m.rol} texto={m.texto} nombre={nombre} />
-              </div>
-            ))}
+            {historial.map((m, i) => {
+              /*
+               * Solo la ÚLTIMA burbuja de EOS puede regenerarse: `regenerarRespuesta`
+               * (en useChat.ts) resuelve "el último mensaje del usuario" y "la
+               * última respuesta de EOS" sin más contexto, así que ofrecerlo en un
+               * intercambio viejo regeneraría el más reciente, no el que se tocó.
+               *
+               * Esto es también el "reintentar" del punto 14 de la lista de
+               * lanzamiento: un mensaje que terminó en error es una burbuja de EOS
+               * como cualquier otra (`estado: "error"`), así que el mismo botón
+               * sirve para las dos cosas sin duplicar nada.
+               */
+              const esUltimaDeEOS = m.rol === "eos" && i === historial.length - 1;
+
+              return (
+                <div className="msg-col" key={m.id ?? i}>
+                  <MessageBubble
+                    rol={m.rol}
+                    texto={m.texto}
+                    nombre={nombre}
+                    onRegenerar={esUltimaDeEOS ? onRegenerar : undefined}
+                    regenerando={esUltimaDeEOS && cargando}
+                  />
+                </div>
+              );
+            })}
             {cargando && (
               <div className="msg-row assistant">
                 <div className="assistant-content">

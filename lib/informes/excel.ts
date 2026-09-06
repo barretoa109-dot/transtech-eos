@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 
+import { decimalesDe, simboloDe } from "../finanzas/monedas.ts";
 import type { Informe } from "./armar.ts";
 
 /**
@@ -23,11 +24,24 @@ const LINEA = "FFE5E7EB";
 const VERDE = "FF10A37F";
 const ROJO = "FFDC2626";
 
-function formatoMoneda(moneda: string): string {
-  // El símbolo va dentro del formato de celda, así el valor sigue siendo un
-  // número y Excel lo puede sumar.
-  const simbolo = moneda === "USD" ? '"US$" ' : '"₲" ';
-  return `${simbolo}#,##0;[Red]-${simbolo}#,##0`;
+/**
+ * El símbolo va dentro del formato de celda, así el valor sigue siendo un
+ * número y Excel lo puede sumar.
+ *
+ * Antes solo reconocía PYG y USD; cualquier otra moneda salía marcada con el
+ * símbolo del guaraní, y siempre a cero decimales — un balance en reales o en
+ * dólares quedaba etiquetado como guaraníes, y el segundo además perdía los
+ * centavos. Excel no tiene el límite de fuente del PDF, así que acá sí se usa
+ * el símbolo real de cada una, tal como los conoce `lib/finanzas/monedas.ts`.
+ */
+/** Exportada solo para test: el resto del archivo la usa como privada. */
+export function formatoMoneda(moneda: string): string {
+  const codigo = (moneda || "PYG").toUpperCase();
+  const simbolo = `"${simboloDe(codigo)}" `;
+  const decimales = decimalesDe(codigo);
+  const ceros = decimales > 0 ? `.${"0".repeat(decimales)}` : "";
+
+  return `${simbolo}#,##0${ceros};[Red]-${simbolo}#,##0${ceros}`;
 }
 
 function titulo(hoja: ExcelJS.Worksheet, informe: Informe) {

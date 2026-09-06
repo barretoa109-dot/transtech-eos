@@ -146,6 +146,7 @@ test("registrarAuditoria manda solo los campos que le corresponde decidir", asyn
 
   assert.deepEqual(Object.keys(fila ?? {}).sort(), [
     "detalle",
+    "empresa_id",
     "evento",
     "origen",
     "referencia",
