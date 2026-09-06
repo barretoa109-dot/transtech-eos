@@ -115,7 +115,7 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
   } = useConversations();
 
-  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje } = useChat({
+  const { mensaje, setMensaje, cargando, archivoAdjunto, setArchivoAdjunto, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -308,6 +308,7 @@ export default function EOSPage() {
             onQuitarArchivo={quitarArchivoAdjunto}
             obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
             formatearTamanio={formatearTamanio}
+            onRegenerar={regenerarRespuesta}
           />
         )}
 
