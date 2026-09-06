@@ -10,6 +10,7 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
+import { textoMemoria } from "@/lib/eos/memoria-contexto";
 import {
   agregarAccesoAprobacion,
   corregirAfirmacionSinAccion,
@@ -584,6 +585,61 @@ export async function POST(req: Request) {
         return null;
       });
 
+    /*
+     * Lo que EOS ya sabía de esta persona, y nunca leía.
+     *
+     * `GUARDAR_MEMORIA` es la acción más ejecutada del sistema y la cabecera
+     * del chat dice "Memoria contextual", pero el prompt jamás incluyó una
+     * sola de esas filas: se guardaban y ahí terminaba todo. Cada conversación
+     * arrancaba de cero sobre una base llena de contexto, que es exactamente
+     * lo que se siente como que el asistente se olvida de todo.
+     *
+     * Las tres lecturas van juntas y en paralelo con el resto. Si alguna
+     * falla, se sigue sin ese pedazo: no poder leer un objetivo no es motivo
+     * para no contestar. `lib/eos/memoria-contexto.ts` filtra, deduplica y
+     * corta —lo guardado tiene repetidos— y devuelve cadena vacía cuando no
+     * hay nada que valga la pena.
+     */
+    const memoriaPromise: Promise<string> = (async () => {
+      try {
+        const admin = adminSinTipos();
+
+        const [memorias, objetivos, aprendizajes] = await Promise.all([
+          admin
+            .from("eos_memory")
+            .select("titulo, contenido, importancia, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("importancia", { ascending: false })
+            .order("updated_at", { ascending: false })
+            .limit(30),
+          admin
+            .from("eos_goals")
+            .select("titulo, progreso, fecha_limite, proximo_paso, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("prioridad", { ascending: false })
+            .limit(20),
+          admin
+            .from("eos_learnings")
+            .select("recomendacion, confianza, evidence_count, estado")
+            .eq("usuario_id", user.id)
+            .eq("estado", "activo")
+            .order("confianza", { ascending: false })
+            .limit(10),
+        ]);
+
+        return textoMemoria({
+          memorias: memorias.data ?? [],
+          objetivos: objetivos.data ?? [],
+          aprendizajes: aprendizajes.data ?? [],
+        });
+      } catch (error) {
+        console.error("EOS: no se pudo leer la memoria del usuario:", error);
+        return "";
+      }
+    })();
+
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
         return Response.json(
@@ -640,7 +696,18 @@ export async function POST(req: Request) {
       "Usuario";
     const planServidor = planEfectivo(usuario ?? null);
 
-    const contextoNegocio = textoContexto(await contextoPromise);
+    /*
+     * Las cifras primero y la memoria después, en un solo campo.
+     *
+     * El nodo 01 del workflow descarta todo campo del payload que no nombre
+     * explícitamente, así que agregar `memoria` como campo propio exigiría
+     * tocar n8n para que viaje. Va acá adentro, separado por su encabezado.
+     * El día que el gateway corra entero en TypeScript esto se puede partir en
+     * dos; hasta entonces, un campo que llega es mejor que dos que se pierden.
+     */
+    const contextoNegocio = [textoContexto(await contextoPromise), await memoriaPromise]
+      .filter((parte) => parte.trim() !== "")
+      .join("\n\n");
 
     const origen = textoSeguro(body.origen, 50) || "eos-web";
     const nuevoChat = body.nuevo_chat === true;

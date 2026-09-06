@@ -47,12 +47,18 @@ export function historialComoTexto(historial: HistorialItem[]): string {
 }
 
 /**
- * El bloque con los números del negocio.
+ * El bloque con los números del negocio y con lo que ya se sabe de la persona.
  *
  * Vacío cuando la persona todavía no cargó nada o no tiene ERP ni CRM. Es
  * importante que quede FUERA y no en cero: un bloque lleno de ceros hace que
  * el modelo hable de un negocio parado, cuando lo que pasa es que recién
  * empieza.
+ *
+ * Desde el 6 de septiembre de 2026 lo que llega acá son dos cosas pegadas: las
+ * cifras del mes y, debajo, la memoria guardada de conversaciones anteriores
+ * (`lib/eos/memoria-contexto.ts`). El encabezado dice las dos porque decir
+ * solamente "cómo va su negocio" haría que el modelo leyera "le dicen Guto"
+ * como si fuera un dato contable.
  */
 export function bloqueDeNegocio(contexto: string): string {
   const limpio = contexto.trim();
@@ -60,13 +66,17 @@ export function bloqueDeNegocio(contexto: string): string {
 
   return `
 
-Cómo va su negocio (datos reales, de hoy):
+Lo que sabés de esta persona y de su negocio (datos reales, de hoy):
 ${limpio}
 
 Usá estas cifras cuando vengan al caso. Son las de verdad: no las
 redondees, no las inventes y no las mezcles entre monedas. Si te
 preguntan algo que no está acá, decí que no lo tenés a mano en vez
-de estimarlo.`;
+de estimarlo.
+
+Lo guardado de conversaciones anteriores ya lo sabés: usalo cuando
+venga al caso, sin anunciar que lo recordás y sin repetírselo a la
+persona que te lo contó.`;
 }
 
 export function armarPrompt(e: Entrada): Prompt {

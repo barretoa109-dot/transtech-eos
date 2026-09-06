@@ -69,6 +69,20 @@
  * dos ejecuciones. Se deja como está a propósito: es la puerta de admisión que
  * impide que cualquiera le pegue al webhook y gaste una llamada al modelo, y
  * moverla después de OpenAI sería sacar justamente lo que protege.
+ *
+ * ============================================================
+ * 3) EL ENCABEZADO DEL CONTEXTO YA NO ES SOLO DEL NEGOCIO
+ * ============================================================
+ *
+ * Desde el 6 de septiembre la aplicación manda, dentro de `contexto_negocio`,
+ * las cifras del mes Y la memoria guardada de esta persona: lo que contó, lo
+ * que se propuso y lo que en conversaciones anteriores funcionó. Estaba todo
+ * en la base —20 memorias, 54 objetivos, 152 aprendizajes— y el prompt no
+ * leía ni una fila, que es el mecanismo detrás de "se confunde demasiado
+ * fácil".
+ *
+ * El nodo 03 rotula ese campo como "Cómo va su negocio", así que sin este
+ * cambio el modelo leería "le dicen Guto" como si fuera un dato contable.
  */
 
 import fs from "node:fs";
@@ -130,6 +144,26 @@ const CON_RAZONAMIENTO = `    model: "gpt-5.5",
     */
     reasoning: { effort: "low" },`;
 
+const ENCABEZADO_VIEJO = `Cómo va su negocio (datos reales, de hoy):
+\${contextoNegocio}
+
+Usá estas cifras cuando vengan al caso. Son las de verdad: no las
+redondees, no las inventes y no las mezcles entre monedas. Si te
+preguntan algo que no está acá, decí que no lo tenés a mano en vez
+de estimarlo.\``;
+
+const ENCABEZADO_NUEVO = `Lo que sabés de esta persona y de su negocio (datos reales, de hoy):
+\${contextoNegocio}
+
+Usá estas cifras cuando vengan al caso. Son las de verdad: no las
+redondees, no las inventes y no las mezcles entre monedas. Si te
+preguntan algo que no está acá, decí que no lo tenés a mano en vez
+de estimarlo.
+
+Lo guardado de conversaciones anteriores ya lo sabés: usalo cuando
+venga al caso, sin anunciar que lo recordás y sin repetírselo a la
+persona que te lo contó.\``;
+
 const flujo = await traer();
 
 const sello = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
@@ -154,6 +188,15 @@ if (cuerpo.includes("reasoning:")) {
 
 cuerpo = cuerpo.replace(REGLA_VIEJA, REGLA_NUEVA).replace(ANCLA_MODELO, CON_RAZONAMIENTO);
 nodo.parameters.jsonBody = cuerpo;
+
+const nodo03 = flujo.nodes.find((n) => n.name.startsWith("03 GW"));
+if (!nodo03) throw new Error('No existe el nodo "03 GW Construir Prompt Rápido".');
+
+if (!nodo03.parameters.jsCode.includes(ENCABEZADO_VIEJO)) {
+  throw new Error("El encabezado del contexto ya no está tal cual. No se escribió nada.");
+}
+
+nodo03.parameters.jsCode = nodo03.parameters.jsCode.replace(ENCABEZADO_VIEJO, ENCABEZADO_NUEVO);
 
 const r = await fetch(`${BASE}/api/v1/workflows/${ID}`, {
   method: "PUT",
