@@ -73,3 +73,9 @@ jobs:
       # blanca en la pantalla negra de alguien: es exactamente el tipo de bug
       # que nadie encuentra revisando el diff.
       - run: npm run tema
+      # Que ninguna ruta lea con service_role sin decir de quién son los datos.
+      # `adminSinTipos()` no pasa por RLS: el filtro que escribe cada ruta ES la
+      # seguridad, y un `.eq("usuario_id", …)` olvidado devuelve las filas de
+      # todos con un 200 y sin un error en ningún log. Probado en rojo: se le
+      # sacó el filtro a una ruta real y falló señalando archivo, línea y tabla.
+      - run: npm run rutas

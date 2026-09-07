@@ -13,7 +13,8 @@
     "certificar": "node certificacion/correr.mjs",
     "lint:tope": "node scripts/lint-tope.mjs",
     "migraciones": "node scripts/migraciones-sanas.mjs",
-    "tema": "node scripts/tema-oscuro-sano.mjs"
+    "tema": "node scripts/tema-oscuro-sano.mjs",
+    "rutas": "node scripts/rutas-con-alcance.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
