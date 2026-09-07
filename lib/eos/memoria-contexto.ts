@@ -111,7 +111,28 @@ export type AprendizajeUtil = {
   confianza?: number | null;
   evidence_count?: number | null;
   estado?: string | null;
+  categoria?: string | null;
 };
+
+/**
+ * La categoría de aprendizajes que NO entra al prompt.
+ *
+ * `ejecucion` son las observaciones que el motor de aprendizaje saca de la
+ * bitácora de acciones: "mantener CREAR_TAREA como ruta preferente", "revisar
+ * si CREAR_CONTACTO requiere más tiempo antes de asumir fallo definitivo",
+ * "validar que la conversación exista antes de guardar memoria".
+ *
+ * Son útiles —para quien mantiene EOS—. No para la conversación: le hablan al
+ * modelo de la plomería del sistema en vez de del negocio de la persona, y le
+ * gastan atención en cada mensaje.
+ *
+ * Y no son pocas: **125 de los 152 aprendizajes de producción son de esta
+ * categoría**, porque al principio la única evidencia que hay es la de las
+ * ejecuciones. Sin este filtro, las tres líneas de "lo que funcionó antes" que
+ * ve el modelo eran tres formas distintas de decir que un worker tardó quince
+ * minutos.
+ */
+const CATEGORIA_INTERNA = "ejecucion";
 
 export const TOPES = {
   memorias: 8,
@@ -192,6 +213,7 @@ export function textoMemoria(datos: {
     (datos.aprendizajes ?? [])
       .filter((a) => (a.estado ?? "activo") === "activo")
       .filter((a) => (a.recomendacion ?? "").trim())
+      .filter((a) => (a.categoria ?? "").trim().toLowerCase() !== CATEGORIA_INTERNA)
       .filter((a) => (a.confianza ?? 0) >= TOPES.confianzaMinima)
       .filter((a) => (a.evidence_count ?? 0) >= TOPES.evidenciaMinima)
       .sort((a, b) => (b.confianza ?? 0) - (a.confianza ?? 0)),

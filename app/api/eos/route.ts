@@ -666,7 +666,7 @@ export async function POST(req: Request) {
             .limit(20),
           admin
             .from("eos_learnings")
-            .select("recomendacion, confianza, evidence_count, estado")
+            .select("recomendacion, confianza, evidence_count, estado, categoria")
             .eq("usuario_id", user.id)
             .eq("estado", "activo")
             .order("confianza", { ascending: false })

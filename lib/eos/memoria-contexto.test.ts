@@ -203,3 +203,41 @@ test("el bloque entero se mantiene chico", () => {
 
   assert.ok(texto.length < 3000, `el bloque quedó en ${texto.length} caracteres`);
 });
+
+test("los aprendizajes sobre la plomería de EOS no entran al prompt", () => {
+  /*
+   * 125 de los 152 aprendizajes de producción son de categoría `ejecucion`:
+   * observaciones que el motor saca de la bitácora de acciones. Sin este
+   * filtro, las tres líneas de "lo que funcionó antes" que ve el modelo eran
+   * tres formas distintas de decir que un worker tardó quince minutos.
+   */
+  const texto = textoMemoria({
+    aprendizajes: [
+      aprendizaje({
+        categoria: "ejecucion",
+        recomendacion: "Revisar si CREAR_CONTACTO requiere más tiempo antes de asumir fallo definitivo.",
+      }),
+    ],
+  });
+
+  assert.equal(texto, "");
+});
+
+test("los aprendizajes sobre la persona sí entran", () => {
+  const texto = textoMemoria({
+    aprendizajes: [
+      aprendizaje({
+        categoria: "contexto",
+        recomendacion: "Arrancar con una pregunta de diagnóstico antes de suponer datos del negocio.",
+      }),
+    ],
+  });
+
+  assert.match(texto, /diagnóstico/);
+});
+
+test("un aprendizaje sin categoría no se descarta", () => {
+  // Las filas viejas pueden no tenerla. Descartarlas sería perder lo poco
+  // que hay al principio, que es cuando más falta hace.
+  assert.notEqual(textoMemoria({ aprendizajes: [aprendizaje({ categoria: null })] }), "");
+});
