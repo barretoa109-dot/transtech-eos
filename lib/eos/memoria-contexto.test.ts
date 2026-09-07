@@ -241,3 +241,44 @@ test("un aprendizaje sin categoría no se descarta", () => {
   // que hay al principio, que es cuando más falta hace.
   assert.notEqual(textoMemoria({ aprendizajes: [aprendizaje({ categoria: null })] }), "");
 });
+
+test("las tareas pendientes entran, y las completadas no", () => {
+  // "¿Qué tengo pendiente hoy?" es una de las cuatro tarjetas de la pantalla
+  // de inicio: el producto la ofrece antes de que la persona escriba nada.
+  const texto = textoMemoria({
+    tareas: [
+      { titulo: "Llamar al proveedor de balanceado", estado: "pendiente", prioridad: 5 },
+      { titulo: "Pagar el alquiler", estado: "completada", prioridad: 5 },
+    ],
+  });
+
+  assert.match(texto, /Lo que tiene pendiente:/);
+  assert.match(texto, /Llamar al proveedor/);
+  assert.doesNotMatch(texto, /Pagar el alquiler/);
+});
+
+test("la tarea con fecha límite la lleva; la que no, no inventa ninguna", () => {
+  const texto = textoMemoria({
+    tareas: [
+      { titulo: "Con fecha", estado: "pendiente", fecha_limite: "2026-09-30" },
+      { titulo: "Sin fecha", estado: "pendiente", fecha_limite: null },
+    ],
+  });
+
+  assert.match(texto, /Con fecha \(para el 2026-09-30\)/);
+  assert.match(texto, /- Sin fecha$/m);
+});
+
+test("las tareas más prioritarias van primero y no entran más que el tope", () => {
+  const muchas = Array.from({ length: 20 }, (_, i) => ({
+    titulo: `tarea numero ${i}`,
+    estado: "pendiente",
+    prioridad: i,
+  }));
+
+  const texto = textoMemoria({ tareas: muchas });
+  const renglones = texto.split("\n").filter((l) => l.startsWith("  - "));
+
+  assert.equal(renglones.length, TOPES.tareas);
+  assert.match(renglones[0], /tarea numero 19/);
+});

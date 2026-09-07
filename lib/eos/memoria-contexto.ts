@@ -106,6 +106,13 @@ export type ObjetivoAbierto = {
   estado?: string | null;
 };
 
+export type TareaPendiente = {
+  titulo?: string | null;
+  estado?: string | null;
+  prioridad?: number | null;
+  fecha_limite?: string | null;
+};
+
 export type AprendizajeUtil = {
   recomendacion?: string | null;
   confianza?: number | null;
@@ -137,6 +144,7 @@ const CATEGORIA_INTERNA = "ejecucion";
 export const TOPES = {
   memorias: 8,
   objetivos: 5,
+  tareas: 6,
   aprendizajes: 3,
   /** Caracteres por línea. Alcanza para una frase completa, no para un párrafo. */
   linea: 170,
@@ -160,6 +168,7 @@ export const TOPES = {
 export function textoMemoria(datos: {
   memorias?: MemoriaGuardada[] | null;
   objetivos?: ObjetivoAbierto[] | null;
+  tareas?: TareaPendiente[] | null;
   aprendizajes?: AprendizajeUtil[] | null;
 }): string {
   const partes: string[] = [];
@@ -207,6 +216,32 @@ export function textoMemoria(datos: {
     });
 
     partes.push(`Lo que se propuso:\n${lineas.join("\n")}`);
+  }
+
+  /*
+   * Las tareas pendientes.
+   *
+   * "¿Qué tengo pendiente hoy?" es una de las CUATRO tarjetas de sugerencia de
+   * la pantalla de inicio: el producto la ofrece antes de que la persona
+   * escriba nada. Y el modelo nunca recibía una sola tarea, así que la única
+   * respuesta posible era pedirle a alguien que le cuente lo que el sistema ya
+   * sabía. Una promesa impresa en la pantalla que el prompt no podía cumplir.
+   */
+  const tareas = sinRepetidos(
+    (datos.tareas ?? [])
+      .filter((t) => (t.estado ?? "pendiente") !== "completada")
+      .filter((t) => (t.titulo ?? "").trim())
+      .sort((a, b) => (b.prioridad ?? 0) - (a.prioridad ?? 0)),
+    (t) => t.titulo ?? "",
+  ).slice(0, TOPES.tareas);
+
+  if (tareas.length > 0) {
+    const lineas = tareas.map((t) => {
+      const cola = t.fecha_limite ? ` (para el ${t.fecha_limite})` : "";
+      return `  - ${recortar(t.titulo as string, TOPES.linea)}${cola}`;
+    });
+
+    partes.push(`Lo que tiene pendiente:\n${lineas.join("\n")}`);
   }
 
   const aprendizajes = sinRepetidos(

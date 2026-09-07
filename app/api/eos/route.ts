@@ -648,7 +648,7 @@ export async function POST(req: Request) {
       try {
         const admin = adminSinTipos();
 
-        const [memorias, objetivos, aprendizajes] = await Promise.all([
+        const [memorias, objetivos, tareas, aprendizajes] = await Promise.all([
           admin
             .from("eos_memory")
             .select("titulo, contenido, importancia, estado")
@@ -664,6 +664,16 @@ export async function POST(req: Request) {
             .eq("estado", "activo")
             .order("prioridad", { ascending: false })
             .limit(20),
+          // Lo que tiene pendiente. "¿Qué tengo pendiente hoy?" es una de las
+          // cuatro tarjetas de la pantalla de inicio, y el modelo nunca recibía
+          // una sola tarea.
+          admin
+            .from("eos_tasks")
+            .select("titulo, estado, prioridad, fecha_limite")
+            .eq("usuario_id", user.id)
+            .neq("estado", "completada")
+            .order("prioridad", { ascending: false })
+            .limit(20),
           admin
             .from("eos_learnings")
             .select("recomendacion, confianza, evidence_count, estado, categoria")
@@ -676,6 +686,7 @@ export async function POST(req: Request) {
         return textoMemoria({
           memorias: memorias.data ?? [],
           objetivos: objetivos.data ?? [],
+          tareas: tareas.data ?? [],
           aprendizajes: aprendizajes.data ?? [],
         });
       } catch (error) {
