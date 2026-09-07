@@ -112,6 +112,25 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Cargar productos al catálogo.
+   *
+   * Más barato que una venta y por buenas razones: no mueve plata ni descuenta
+   * stock, y un producto de más se da de baja en un clic. Lo que sí hace es
+   * fijar el precio del que salen todos los márgenes de ahí en adelante, y por
+   * eso no es gratis: 2 puntos, como crear una tarea.
+   *
+   * La protección real no es el nivel sino la regla de la v131: si el nombre
+   * ya existe, no se toca. Nunca cambia un precio en silencio.
+   */
+  CREAR_PRODUCTO: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*

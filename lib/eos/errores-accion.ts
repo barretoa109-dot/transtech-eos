@@ -73,6 +73,26 @@ const REGLAS: Regla[] = [
       'No entendí qué se vendió ni cuánto. Decímelo así: "vendí 3 bolsas de balanceado".',
   },
   {
+    codigo: "EOS_ACCION_PRODUCTO_SIN_PRECIO",
+    mensaje: (d) =>
+      `Me falta a cuánto vendés "${d}". Decime el precio y lo cargo. ` +
+      "Sin precio, la primera venta se registraría en cero y te ensuciaría el margen del mes.",
+  },
+  {
+    codigo: "EOS_ACCION_PRODUCTO_SIN_NOMBRE",
+    mensaje: () => "Para cargar un producto necesito al menos su nombre.",
+  },
+  {
+    codigo: "EOS_ACCION_PRODUCTO_DEMASIADOS",
+    mensaje: () =>
+      "Son demasiados productos para cargar de una. Pasámelos de a diez, " +
+      "o subí la planilla desde Negocio > Productos, que te muestra la vista previa antes de guardar.",
+  },
+  {
+    codigo: "EOS_ACCION_PRODUCTO_SIN_DATOS",
+    mensaje: () => "No entendí qué producto cargar. Decime el nombre y el precio de venta.",
+  },
+  {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
       "Tu cuenta no tiene activo el módulo ERP, que es el que registra ventas y stock. " +

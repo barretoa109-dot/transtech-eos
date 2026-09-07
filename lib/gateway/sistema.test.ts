@@ -89,16 +89,33 @@ test("la lista de acciones del prompt es EXACTAMENTE la que acepta la base", () 
    * acá, pero una lista que ya coincide con la base es la mitad del problema
    * y es la mitad que se puede automatizar.
    */
-  const migracion = fs.readFileSync(
-    path.join(RAIZ, "supabase/migrations/20260828020000_eos_acciones_erp_v83.sql"),
-    "utf8",
-  );
+  /*
+   * La ÚLTIMA migración que define el check, no una fijada a mano.
+   *
+   * Estaba clavada en la v83 y se rompió en cuanto la v131 agregó
+   * CREAR_PRODUCTO: la prueba comparaba el prompt de hoy contra la lista de
+   * hace diez días. Una prueba que mira una versión vieja de la verdad falla
+   * cuando todo está bien, que es la forma más rápida de que alguien la borre.
+   */
+  const carpeta = path.join(RAIZ, "supabase", "migrations");
+
+  const conElCheck = fs
+    .readdirSync(carpeta)
+    .filter((a) => a.endsWith(".sql"))
+    .sort()
+    .filter((a) =>
+      fs.readFileSync(path.join(carpeta, a), "utf8").includes("add constraint eos_action_commands_accion_check"),
+    );
+
+  assert.ok(conElCheck.length > 0, "ninguna migración define eos_action_commands_accion_check");
+
+  const migracion = fs.readFileSync(path.join(carpeta, conElCheck[conElCheck.length - 1]), "utf8");
 
   const bloque = migracion.match(
     /add constraint eos_action_commands_accion_check\s*\n\s*check \(accion = any \(array\[([\s\S]*?)\]\)\)/,
   );
 
-  assert.ok(bloque, "no se encontró el check de eos_action_commands en la v83");
+  assert.ok(bloque, `no se encontró el check en ${conElCheck[conElCheck.length - 1]}`);
 
   const deLaBase = [...bloque[1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]).sort();
 
