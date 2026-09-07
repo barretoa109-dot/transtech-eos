@@ -62,6 +62,17 @@ export type Final = {
 
 const CAMPOS_DE_TEXTO = ["respuesta", "message", "text", "output_text", "content"] as const;
 
+/**
+ * Lo que el worker escribe cuando él tampoco sabe por qué falló.
+ *
+ * Tiene que decir exactamente lo mismo que el nodo "05 INT Respuesta" del
+ * workflow. Si dicen cosas distintas, este archivo va a tratar la frase
+ * genérica como si fuera un motivo real y el usuario va a leer "no fue posible
+ * completar la acción interna" en vez de saber QUÉ acción falló, que es lo
+ * poco que se sabe en ese caso.
+ */
+const MOTIVO_GENERICO = "No fue posible completar la acción interna.";
+
 function esObjeto(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
 }
@@ -163,15 +174,41 @@ export function juntarResultados(base: Base, resultados: ResultadoWorker[]): Fin
   }
 
   /*
-   * Un error se dice, no se esconde.
+   * Un error se dice, no se esconde. Y se dice POR QUÉ, si se sabe.
    *
    * El modelo ya escribió "lo dejo listo". Si el worker no pudo, callarlo deja
    * a la persona creyendo que su venta quedó cargada.
+   *
+   * Hasta el 7 de septiembre de 2026 esto solo nombraba la acción: "No pude
+   * completar automáticamente: REGISTRAR_VENTA." El motivo venía en el mismo
+   * resultado y se descartaba, porque los resultados con error nunca aportaban
+   * texto — solo los válidos.
+   *
+   * Probado de punta a punta: alguien pidió "vendí 3 bolsas de balanceado a
+   * Rossana" y leyó esa frase seca. El resultado traía adentro "No encontré a
+   * Rossana entre tus contactos, pedime que la agende primero", que es la
+   * diferencia entre un callejón sin salida y algo que se arregla en cinco
+   * segundos.
    */
   if (errores.length > 0) {
-    const conError = [...new Set(errores.map(accionDe).filter(Boolean))];
-    if (conError.length > 0) {
-      respuesta = `${respuesta}\n\nNo pude completar automáticamente: ${conError.join(", ")}.`.trim();
+    const motivos: string[] = [];
+    const sinMotivo: string[] = [];
+
+    for (const error of errores) {
+      const texto = extraerTexto(error);
+
+      if (texto && texto !== MOTIVO_GENERICO) motivos.push(texto);
+      else sinMotivo.push(accionDe(error));
+    }
+
+    const unicos = [...new Set(motivos)].filter((t) => !respuesta.includes(t));
+    if (unicos.length > 0) respuesta = `${respuesta}\n\n${unicos.join("\n\n")}`.trim();
+
+    // Sin motivo se nombra la acción, que es lo único que se sabe. Es la
+    // frase de siempre, ahora reservada para cuando de verdad no hay más.
+    const acciones = [...new Set(sinMotivo.filter(Boolean))];
+    if (acciones.length > 0) {
+      respuesta = `${respuesta}\n\nNo pude completar automáticamente: ${acciones.join(", ")}.`.trim();
     }
   }
 

@@ -101,6 +101,52 @@ test("un error del worker se avisa: el modelo ya prometió que estaba listo", ()
   assert.deepEqual(f.worker.errores, [{ accion: "REGISTRAR_VENTA", error: "sin stock" }]);
 });
 
+test("cuando el error trae el motivo, se muestra el motivo y no el nombre de la acción", () => {
+  /*
+   * El caso real del 7 de septiembre de 2026: alguien pidió "vendí 3 bolsas de
+   * balanceado a Rossana" y leyó "No pude completar automáticamente:
+   * REGISTRAR_VENTA". El motivo venía en el mismo resultado y se descartaba,
+   * porque los resultados con error nunca aportaban texto.
+   */
+  const f = juntarResultados(base(), [
+    {
+      ok: false,
+      accion: "REGISTRAR_VENTA",
+      respuesta: 'No encontré a "Rossana" entre tus contactos. Pedime que la agende primero.',
+    },
+  ]);
+
+  assert.match(f.respuesta, /No encontré a "Rossana"/);
+  assert.doesNotMatch(f.respuesta, /No pude completar automáticamente/);
+});
+
+test("sin motivo se sigue nombrando la acción, que es lo único que se sabe", () => {
+  const f = juntarResultados(base(), [
+    { ok: false, accion: "REGISTRAR_VENTA", respuesta: "No fue posible completar la acción interna." },
+  ]);
+
+  assert.match(f.respuesta, /No pude completar automáticamente: REGISTRAR_VENTA/);
+});
+
+test("dos errores con el mismo motivo no lo repiten", () => {
+  const motivo = "Tu cuenta no tiene activo el módulo ERP.";
+  const f = juntarResultados(base(), [
+    { ok: false, accion: "REGISTRAR_VENTA", respuesta: motivo },
+    { ok: false, accion: "AJUSTAR_STOCK", respuesta: motivo },
+  ]);
+
+  assert.equal(f.respuesta.split(motivo).length - 1, 1);
+});
+
+test("un motivo que el modelo ya escribió no se repite abajo", () => {
+  const motivo = "No encontré ese producto.";
+  const f = juntarResultados({ ...base(), respuesta: `Perfecto. ${motivo}` }, [
+    { ok: false, accion: "REGISTRAR_VENTA", respuesta: motivo },
+  ]);
+
+  assert.equal(f.respuesta.split(motivo).length - 1, 1);
+});
+
 test("un resultado con campo error cuenta como error aunque ok no venga", () => {
   assert.equal(tieneError({ error: "algo" }), true);
   assert.equal(tieneError({ ok: false }), true);
