@@ -8,6 +8,7 @@ import { detectarRiesgo, redactarAviso } from "@/lib/finanzas/riesgo";
 import {
   detectarRiesgosNegocio,
   redactarRiesgoNegocio,
+  type GastoHistorico,
   type ProductoStock,
   type VentaACobrar,
 } from "@/lib/erp/riesgos-negocio";
@@ -159,7 +160,7 @@ export async function GET() {
    * Se leen con la sesión del usuario, así que la RLS los filtra sola: acá no
    * hace falta el cliente de servicio.
    */
-  const [productos, ventasACobrar] = await Promise.all([
+  const [productos, ventasACobrar, gastos] = await Promise.all([
     supabase
       .from("eos_erp_productos")
       .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
@@ -172,6 +173,20 @@ export async function GET() {
       .eq("usuario_id", user.id)
       .is("movimiento_id", null)
       .not("estado", "in", '("anulada","cobrada")'),
+    /*
+     * El historial de egresos, para saber qué es normal en cada categoría.
+     *
+     * Trece meses y no tres: la condición que apaga el aviso del seguro anual
+     * es haber visto el pago del año pasado, y con una ventana corta ese
+     * precedente no existe nunca. Ver `lib/erp/gasto-anormal.ts`.
+     */
+    supabase
+      .from("eos_movimientos_financieros")
+      .select("id,fecha,monto,moneda,categoria,descripcion,recurrente")
+      .eq("usuario_id", user.id)
+      .eq("tipo", "gasto")
+      .gte("fecha", sumarDias(hoy, -400))
+      .order("fecha", { ascending: true }),
   ]);
 
   const riesgosNegocio = detectarRiesgosNegocio({
@@ -184,6 +199,24 @@ export async function GET() {
     ventasACobrar: ((ventasACobrar.data ?? []) as VentaACobrar[]).map((v) => ({
       ...v,
       total: Number(v.total ?? 0),
+    })),
+    gastos: ((gastos.data ?? []) as GastoHistorico[]).map((g) => ({
+      ...g,
+      monto: Number(g.monto ?? 0),
+    })),
+    /*
+     * Lo que el usuario ya declaró que se repite no puede sorprenderlo.
+     *
+     * Sin filtrar por moneda, al revés que el resto del cálculo: un gasto fijo
+     * declarado en dólares igual demuestra que la persona lo tenía anotado, y
+     * eso es lo único que se le está preguntando a esta lista.
+     *
+     * `eos_finanzas_fijos` no tiene categoría, solo descripción; el detector
+     * acepta cualquiera de las dos.
+     */
+    fijos: ((fijosRes.data ?? []) as FilaFijo[]).map((f) => ({
+      categoria: null,
+      descripcion: f.descripcion ?? null,
     })),
   });
 

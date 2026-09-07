@@ -208,3 +208,48 @@ test("el aviso de cobros dice cuánto y desde hace cuánto", () => {
   assert.match(texto, /1\.200\.000/);
   assert.match(texto, /61 días/);
 });
+
+test("sin historial de gastos, el riesgo de gasto anormal ni existe", () => {
+  // Los dos campos son opcionales a propósito: quien no los pase no obtiene
+  // un aviso vacío, obtiene ninguno.
+  const riesgos = detectarRiesgosNegocio({ hoy: HOY, productos: [], ventasACobrar: [] });
+
+  assert.equal(riesgos.some((r) => r.tipo === "gasto_anormal"), false);
+});
+
+test("dos gastos raros del mismo mes son UN aviso, no dos", () => {
+  /*
+   * Dos avisos separados el mismo día se leen como dos problemas, y son el
+   * mismo mes raro. Es la misma decisión que ya tomaba el inventario bajo:
+   * una lista adentro de un aviso.
+   */
+  const previos = [
+    "2026-06-05", "2026-06-20", "2026-07-08",
+    "2026-07-22", "2026-08-11", "2026-08-27",
+  ].map((fecha, i) => ({
+    id: `p${i}`,
+    fecha,
+    monto: 200_000,
+    moneda: "PYG",
+    categoria: "insumos",
+    descripcion: "compra",
+  }));
+
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [],
+    gastos: [
+      ...previos,
+      { id: "raro-1", fecha: "2026-09-02", monto: 4_000_000, moneda: "PYG", categoria: "insumos", descripcion: "vitrinas" },
+      { id: "raro-2", fecha: "2026-09-09", monto: 9_000_000, moneda: "PYG", categoria: "obras", descripcion: "reforma" },
+    ],
+  });
+
+  const anormal = riesgos.filter((r) => r.tipo === "gasto_anormal");
+  assert.equal(anormal.length, 1);
+
+  // "obras" no tiene historial propio, así que solo entra el de insumos.
+  assert.equal(anormal[0].tipo === "gasto_anormal" && anormal[0].gastos.length, 1);
+  assert.equal(anormal[0].clave, "raro-1");
+});

@@ -1,9 +1,10 @@
 import { entregarAviso, type EnviarCorreo } from "../finanzas/avisarRiesgos.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
-import { hoyEnParaguay } from "../fecha.ts";
+import { hoyEnParaguay, sumarDias } from "../fecha.ts";
 import {
   detectarRiesgosNegocio,
   redactarRiesgoNegocio,
+  type GastoHistorico,
   type ProductoStock,
   type RiesgoNegocio,
   type VentaACobrar,
@@ -85,7 +86,7 @@ export async function avisarRiesgosNegocio(
     resumen.evaluados += 1;
 
     try {
-      const [productos, ventas, previos] = await Promise.all([
+      const [productos, ventas, gastos, fijos, previos] = await Promise.all([
         admin
           .from("eos_erp_productos")
           .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
@@ -99,6 +100,23 @@ export async function avisarRiesgosNegocio(
           .eq("usuario_id", uid)
           .is("movimiento_id", null)
           .not("estado", "in", '("anulada","cobrada")'),
+        // El historial de egresos: sin saber qué gasta normalmente esta
+        // persona en cada categoría no se puede decir que algo salió de lo
+        // habitual. Trece meses, para que el pago del año pasado alcance a
+        // ser el precedente que apaga el aviso del seguro anual.
+        admin
+          .from("eos_movimientos_financieros")
+          .select("id,fecha,monto,moneda,categoria,descripcion,recurrente")
+          .eq("usuario_id", uid)
+          .eq("tipo", "gasto")
+          .gte("fecha", sumarDias(hoy, -400))
+          .order("fecha", { ascending: true }),
+        // Lo que ya declaró como fijo no puede sorprenderlo.
+        admin
+          .from("eos_finanzas_fijos")
+          .select("descripcion")
+          .eq("usuario_id", uid)
+          .eq("activo", true),
         admin.from("eos_negocio_avisos").select("tipo,clave").eq("usuario_id", uid),
       ]);
 
@@ -123,6 +141,14 @@ export async function avisarRiesgosNegocio(
         ventasACobrar: ((ventas.data ?? []) as VentaACobrar[]).map((v) => ({
           ...v,
           total: Number(v.total ?? 0),
+        })),
+        gastos: ((gastos.data ?? []) as GastoHistorico[]).map((g) => ({
+          ...g,
+          monto: Number(g.monto ?? 0),
+        })),
+        fijos: ((fijos.data ?? []) as { descripcion: string | null }[]).map((f) => ({
+          categoria: null,
+          descripcion: f.descripcion ?? null,
         })),
       });
 

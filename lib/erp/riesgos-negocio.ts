@@ -1,4 +1,13 @@
 import { monedaConocida } from "../finanzas/monedas.ts";
+import {
+  detectarGastosAnormales,
+  redactarGastoAnormal,
+  type FijoDeclarado,
+  type GastoAnormal,
+  type GastoHistorico,
+} from "./gasto-anormal.ts";
+
+export type { FijoDeclarado, GastoHistorico };
 
 /**
  * Los riesgos que no son de la caja, sino del negocio.
@@ -30,15 +39,18 @@ import { monedaConocida } from "../finanzas/monedas.ts";
  * faltantes, la clave cambia y eso sí es una noticia.
  *
  * ============================================================
- * LO QUE NO ESTÁ, Y POR QUÉ
+ * LOS GASTOS ANORMALES, APAGADOS HASTA EL 6 DE SEPTIEMBRE DE 2026
  * ============================================================
  *
- * El punto 20 también pide "gastos anormales". No está, a propósito. Detectarlo
- * bien exige saber qué es normal para ESTE usuario, y con pocos meses de
- * historial cualquier regla razonable —el doble de la mediana, tres desvíos—
- * marca como anormal la compra anual del seguro. El mismo punto pide "sin
- * enviar alarmas falsas", así que un detector que todavía no puede distinguir
- * las dos cosas no se enciende.
+ * Acá decía que el tercer aviso del punto 20 —"gastos anormales"— no se
+ * encendía, porque cualquier regla razonable marca como anormal la compra
+ * anual del seguro y el mismo punto pide no mandar alarmas falsas.
+ *
+ * El razonamiento seguía en pie; lo que faltaba era ver que "raro" y "problema"
+ * no son lo mismo, y que lo que los separa no está en el monto sino en si ya
+ * pasó antes y en si el usuario ya lo sabía. Eso vive en `gasto-anormal.ts`,
+ * con las cinco condiciones escritas y sus casos —incluido el del seguro, que
+ * se avisa el primer año y se calla solo a partir del segundo—.
  */
 
 export type ProductoStock = {
@@ -72,6 +84,12 @@ export type RiesgoNegocio =
       cantidad: number;
       /** Días de la más vieja. Es lo que vuelve urgente al aviso. */
       dias_de_la_mas_vieja: number;
+    }
+  | {
+      tipo: "gasto_anormal";
+      clave: string;
+      /** El detalle de cada uno, con contra qué se lo comparó. */
+      gastos: GastoAnormal[];
     };
 
 /**
@@ -97,6 +115,9 @@ export function detectarRiesgosNegocio(datos: {
   productos: ProductoStock[];
   ventasACobrar: VentaACobrar[];
   diasDemora?: number;
+  /** Opcionales: sin ellos, el aviso de gasto anormal simplemente no existe. */
+  gastos?: GastoHistorico[];
+  fijos?: FijoDeclarado[];
 }): RiesgoNegocio[] {
   const riesgos: RiesgoNegocio[] = [];
 
@@ -154,6 +175,30 @@ export function detectarRiesgosNegocio(datos: {
     });
   }
 
+  // ---------- Gasto anormal ----------
+  //
+  // Uno solo con la lista adentro, igual que el inventario bajo: dos avisos
+  // separados el mismo día por dos gastos del mismo mes se leen como dos
+  // problemas, y son el mismo mes raro.
+  const anormales = detectarGastosAnormales({
+    hoy: datos.hoy,
+    gastos: datos.gastos ?? [],
+    fijos: datos.fijos ?? [],
+  });
+
+  if (anormales.length > 0) {
+    riesgos.push({
+      tipo: "gasto_anormal",
+      // Los ids de los movimientos, ordenados: si aparece otro gasto raro la
+      // clave cambia y eso sí es una noticia nueva.
+      clave: anormales
+        .map((g) => g.clave)
+        .sort()
+        .join(","),
+      gastos: anormales,
+    });
+  }
+
   return riesgos;
 }
 
@@ -170,6 +215,12 @@ export function redactarRiesgoNegocio(
     return riesgo.productos.length === 1
       ? `Te estás quedando sin ${lista}.`
       : `Te estás quedando sin: ${lista}.`;
+  }
+
+  if (riesgo.tipo === "gasto_anormal") {
+    // Cada uno con su comparación: sin eso el aviso obliga a ir a buscar el
+    // historial a mano, que es justo lo que se quiere evitar.
+    return riesgo.gastos.map((g) => redactarGastoAnormal(g, formatear)).join(" ");
   }
 
   const cuantas =
