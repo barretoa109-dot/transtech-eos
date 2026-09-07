@@ -15,8 +15,16 @@ test("el nombre que no se pudo resolver llega al mensaje", () => {
 });
 
 test("el mensaje dice el siguiente paso, no solo qué pasó", () => {
+  /*
+   * El siguiente paso del producto que no está cambió el 7 de septiembre.
+   *
+   * Antes era "cargalo en Negocio > Productos": mandar a la persona a otra
+   * pantalla era lo único posible, porque EOS no sabía crear productos. Desde
+   * la v131 sí sabe, así que el paso más corto es que lo diga acá mismo y
+   * siga la conversación.
+   */
   const producto = errorDeAccion("EOS_ACCION_PRODUCTO_NO_RESUELTO: balanceado")!;
-  assert.match(producto.mensaje, /Negocio > Productos/);
+  assert.match(producto.mensaje, /pasame el precio de venta/i);
 
   const contacto = errorDeAccion("EOS_ACCION_CONTACTO_NO_RESUELTO: Rossana")!;
   assert.match(contacto.mensaje, /agendá a Rossana/i);

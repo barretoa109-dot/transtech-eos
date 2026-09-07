@@ -137,13 +137,66 @@ test("la lista de acciones del prompt es EXACTAMENTE la que acepta la base", () 
   );
 });
 
-test("las tres acciones del negocio traen su forma de datos", () => {
-  // Sin la forma, el modelo inventa las claves y el ejecutor no encuentra
-  // ninguna: la acción llega, se acepta y no hace nada.
-  for (const accion of ["REGISTRAR_VENTA", "AJUSTAR_STOCK", "CREAR_CONTACTO"]) {
-    const i = PROMPT_SISTEMA.indexOf(`${accion}\n  datos:`);
-    assert.ok(i > 0, `${accion} no declara su forma de datos en el prompt`);
+test("cada acción del negocio trae su forma de datos", () => {
+  /*
+   * Sin la forma, el modelo inventa las claves y el ejecutor no encuentra
+   * ninguna: la acción llega, se acepta y no hace nada.
+   *
+   * La lista se saca de la sección del prompt, no de un arreglo escrito acá.
+   * Estaba escrita a mano con las tres del 3 de septiembre, y cuando llegaron
+   * CREAR_PRODUCTO y ACTUALIZAR_PRODUCTO la prueba siguió en verde sin
+   * mirarlas: una prueba con la lista clavada deja de cubrir justo lo que se
+   * agrega, que es lo único que todavía no se probó a mano.
+   */
+  const seccion = PROMPT_SISTEMA.slice(PROMPT_SISTEMA.indexOf("Acciones del negocio (ERP y CRM):"));
+  const delNegocio = [...seccion.matchAll(/^([A-Z_]{6,})$/gm)].map((m) => m[1]);
+
+  assert.ok(delNegocio.length >= 3, "no se reconoció ninguna acción del negocio en el prompt");
+
+  for (const accion of delNegocio) {
+    assert.ok(
+      PROMPT_SISTEMA.includes(`${accion}\n  datos:`),
+      `${accion} no declara su forma de datos en el prompt`,
+    );
   }
+});
+
+test("el prompt de n8n y el del repo son el mismo texto", () => {
+  /*
+   * La regla que la cabecera de `sistema.ts` pide y que hasta hoy no
+   * verificaba nadie: mientras convivan los dos caminos, el prompt está
+   * duplicado y hay que cambiarlo en los dos.
+   *
+   * Si divergen, dos personas con el mismo mensaje reciben respuestas
+   * distintas según qué bandera esté prendida, y desde un reporte de soporte
+   * eso es indistinguible de que el modelo tuvo un mal día.
+   *
+   * El workflow exportado se versiona en `n8n/workflows/` cada vez que se
+   * toca —lo hacen los parches de `n8n/parches/`— así que la copia de acá es
+   * la del workflow que está corriendo.
+   */
+  const flujo = JSON.parse(
+    fs.readFileSync(path.join(RAIZ, "n8n", "workflows", "eos-conversational-gateway-rc1.json"), "utf8"),
+  );
+
+  const http = flujo.nodes.find((n: { name: string }) => n.name === "HTTP Request");
+  assert.ok(http, "el gateway exportado no tiene el nodo HTTP Request");
+
+  // El prompt es el primer literal de plantilla del cuerpo: `text: ` seguido
+  // de una comilla invertida, hasta la que cierra.
+  const cuerpo = http.parameters.jsonBody;
+  const inicio = cuerpo.indexOf("text: `");
+  assert.ok(inicio > 0, "no se encontró el prompt dentro del nodo HTTP Request");
+
+  const desde = inicio + "text: `".length;
+  const fin = cuerpo.indexOf("`", desde);
+  const enN8n = cuerpo.slice(desde, fin);
+
+  assert.equal(
+    enN8n,
+    PROMPT_SISTEMA,
+    "el prompt de n8n y el de lib/gateway/sistema.ts dejaron de ser el mismo texto",
+  );
 });
 
 test("el prompt no promete formatos de archivo que el sistema no arma", () => {

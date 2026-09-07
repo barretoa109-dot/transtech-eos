@@ -55,7 +55,7 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ACCION_PRODUCTO_NO_RESUELTO",
     mensaje: (d) =>
       `No encontré "${d}" entre tus productos, o hay más de uno que se llama parecido. ` +
-      "Decime cuál es exactamente, o cargalo en Negocio > Productos y lo registramos.",
+      "Decime cuál es exactamente, o pasame el precio de venta y te lo cargo al catálogo.",
   },
   {
     codigo: "EOS_ACCION_CONTACTO_NO_RESUELTO",

@@ -131,6 +131,27 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Poner el costo y corregir el precio de un producto que ya existe.
+   *
+   * Cuesta más que crear —3 puntos, como agendar un contacto— y no por
+   * simetría: crear de más deja un producto que nadie usa, y actualizar de
+   * más pisa un número del que ya salieron márgenes. Un precio equivocado no
+   * se nota hasta que alguien mira la rentabilidad del mes.
+   *
+   * Lo que lo hace seguro no es el nivel sino el alcance de la v133: no toca
+   * stock —eso es AJUSTAR_STOCK, que además deja el movimiento asentado— ni
+   * moneda, y devuelve el antes y el después de cada campo para que la
+   * confirmación diga "de 165.000 a 200.000" en vez de "listo".
+   */
+  ACTUALIZAR_PRODUCTO: {
+    tier: 2,
+    points: 3,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*
