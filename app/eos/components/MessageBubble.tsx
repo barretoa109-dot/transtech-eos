@@ -353,7 +353,7 @@ export default function MessageBubble({
         .message-user {
           border: 1px solid rgba(37, 99, 235, 0.14);
           border-top-right-radius: 6px;
-          background: #1656bd;
+          background: var(--blue-solido);
           color: white;
           box-shadow: none;
         }
@@ -362,7 +362,7 @@ export default function MessageBubble({
           border: 0;
           border-radius: 0;
           background: transparent;
-          color: #172033;
+          color: var(--ink);
           box-shadow: none;
           padding-left: 0;
           padding-right: 0;
@@ -379,9 +379,9 @@ export default function MessageBubble({
 
         .message-content :global(code) {
           padding: 2px 6px;
-          border: 1px solid rgba(148, 163, 184, 0.22);
+          border: 1px solid var(--line);
           border-radius: 7px;
-          background: rgba(15, 23, 42, 0.06);
+          background: var(--line-soft);
           font-family:
             ui-monospace,
             SFMono-Regular,
@@ -398,7 +398,7 @@ export default function MessageBubble({
         }
 
         .message-content :global(.message-inline-link) {
-          color: #1656bd;
+          color: var(--blue);
           font-weight: 750;
           text-decoration: underline;
           text-underline-offset: 3px;
@@ -469,7 +469,7 @@ export default function MessageBubble({
           margin-top: 1px;
           border-radius: 8px;
           background: rgba(37, 99, 235, 0.1);
-          color: #1656bd;
+          color: var(--blue);
           font-size: 10px;
           font-weight: 900;
         }
@@ -491,8 +491,8 @@ export default function MessageBubble({
           padding: 12px;
           border: 1px solid rgba(37, 99, 235, 0.16);
           border-radius: 15px;
-          background: #eef3fb;
-          color: #071226;
+          background: var(--blue-light);
+          color: var(--ink);
           text-decoration: none;
           transition:
             transform 180ms ease,
@@ -507,7 +507,7 @@ export default function MessageBubble({
           padding: 13px;
           border: 1px solid rgba(37, 99, 235, 0.2);
           border-radius: 15px;
-          background: linear-gradient(135deg, #eff6ff, #f8fbff);
+          background: linear-gradient(135deg, var(--blue-light), var(--panel-suave));
         }
 
         .message-approval-icon {
@@ -517,7 +517,7 @@ export default function MessageBubble({
           display: grid;
           place-items: center;
           border-radius: 12px;
-          background: #1656bd;
+          background: var(--blue-solido);
           color: white;
         }
 
@@ -530,7 +530,7 @@ export default function MessageBubble({
           flex-shrink: 0;
           padding: 0 13px;
           border-radius: 11px;
-          background: #1656bd;
+          background: var(--blue-solido);
           color: white;
           font-size: 11px;
           font-weight: 850;
@@ -549,7 +549,7 @@ export default function MessageBubble({
           display: grid;
           place-items: center;
           border-radius: 12px;
-          background: #1656bd;
+          background: var(--blue-solido);
           color: white;
         }
 
@@ -566,7 +566,7 @@ export default function MessageBubble({
         }
 
         .message-file-text small {
-          color: #64748b;
+          color: var(--muted);
           font-size: 9px;
         }
 
@@ -588,7 +588,7 @@ export default function MessageBubble({
           border: 1px solid transparent;
           border-radius: 9px;
           background: transparent;
-          color: #64748b;
+          color: var(--muted);
           font-family: inherit;
           font-size: 10px;
           font-weight: 750;
@@ -600,9 +600,9 @@ export default function MessageBubble({
         }
 
         .message-action:hover {
-          border-color: #e9f0fb;
-          background: #eef3fb;
-          color: #1656bd;
+          border-color: var(--linea-azul);
+          background: var(--blue-light);
+          color: var(--blue);
         }
 
         .message-action:disabled {
@@ -611,7 +611,7 @@ export default function MessageBubble({
         }
 
         .message-action-success {
-          color: #15803d;
+          color: var(--green-texto);
         }
 
         .message-regenerating {

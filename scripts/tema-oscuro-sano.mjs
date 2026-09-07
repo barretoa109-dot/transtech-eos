@@ -25,6 +25,33 @@ const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOJA = path.join(RAIZ, "app/eos/chat/eosApp.css");
 
 /**
+ * Los componentes del shell que traen su CSS adentro, en `<style jsx>`.
+ *
+ * ============================================================
+ * ESTE CANDADO YA FALLÓ UNA VEZ, POR MIRAR UN SOLO ARCHIVO
+ * ============================================================
+ *
+ * La primera versión revisaba `eosApp.css` y decía "modo oscuro sano". El
+ * mismo día, una usuaria reportó que en oscuro **no se veían las respuestas de
+ * EOS**: `MessageBubble.tsx` estila las burbujas con styled-jsx y tenía
+ * `color: #172033` escrito a mano — casi negro, sobre el panel oscuro.
+ *
+ * El candado no lo vio porque ese color no está en la hoja que miraba. Dar por
+ * sano lo que no se revisó es peor que no revisar: el "sano" se cree.
+ *
+ * Se listan los archivos y no se busca `<style jsx>` por todo el árbol a
+ * propósito: `app/eos/autonomy/page.tsx` y `app/eos/page.tsx` son páginas con
+ * su propio fondo oscuro fijo, no viven adentro de `.eos-app` y sus colores
+ * literales son correctos ahí. Una lista corta con el motivo escrito es más
+ * honesta que una regla que después hay que llenar de excepciones.
+ */
+const CON_STYLED_JSX = [
+  "app/eos/components/MessageBubble.tsx",
+  "app/eos/components/DecisionsView.tsx",
+  "app/eos/components/LearningsView.tsx",
+];
+
+/**
  * Lo que puede quedar escrito a mano, y por qué.
  *
  * La clave es la declaración COMPLETA, no el número de línea: una línea se
@@ -69,57 +96,72 @@ function luminancia(hex) {
   return 0.2126 * canales[0] + 0.7152 * canales[1] + 0.0722 * canales[2];
 }
 
-const lineas = fs.readFileSync(HOJA, "utf8").split(/\r?\n/);
-
-let enTokens = false;
-let enOscuro = false;
-
 const problemas = [];
 const permitidasVistas = new Set();
 
-lineas.forEach((linea, i) => {
-  if (/^\.eos-app \{/.test(linea)) enTokens = true;
-  if (enTokens && /--ease:/.test(linea)) enTokens = false;
-  if (/\[data-eos-theme="dark"\]/.test(linea)) enOscuro = true;
-  if (enOscuro && /^\}/.test(linea)) enOscuro = false;
-  if (enTokens || enOscuro) return;
+/**
+ * Revisa un archivo: la hoja del shell, o un componente con su CSS adentro.
+ *
+ * `conBloques` solo aplica a la hoja: es la que tiene el bloque de tokens y el
+ * bloque oscuro, que son los dos lugares donde un literal SÍ corresponde. Un
+ * componente no tiene ninguno de los dos, así que ahí todo literal es
+ * sospechoso.
+ */
+function revisar(rutaRelativa, { conBloques }) {
+  const lineas = fs.readFileSync(path.join(RAIZ, rutaRelativa), "utf8").split(/\r?\n/);
 
-  const m = linea.match(/^\s*(background|background-color|color|border-color|fill|stroke)\s*:\s*(.+);\s*$/);
-  if (!m) return;
+  let enTokens = false;
+  let enOscuro = false;
 
-  const [, propiedad, valor] = m;
-  const hex = valor.match(/#[0-9a-fA-F]{3,6}\b/);
-  if (!hex) return;
+  lineas.forEach((linea, i) => {
+    if (conBloques) {
+      if (/^\.eos-app \{/.test(linea)) enTokens = true;
+      if (enTokens && /--ease:/.test(linea)) enTokens = false;
+      if (/\[data-eos-theme="dark"\]/.test(linea)) enOscuro = true;
+      if (enOscuro && /^\}/.test(linea)) enOscuro = false;
+      if (enTokens || enOscuro) return;
+    }
 
-  const declaracion = `${propiedad}: ${valor.trim()}`;
-  if (PERMITIDAS.has(declaracion)) {
-    permitidasVistas.add(declaracion);
-    return;
-  }
+    const m = linea.match(/^\s*(background|background-color|color|border-color|fill|stroke)\s*:\s*(.+);\s*$/);
+    if (!m) return;
 
-  const L = luminancia(hex[0]);
-  const esTexto = propiedad === "color" || propiedad === "fill" || propiedad === "stroke";
+    const [, propiedad, valor] = m;
+    const hex = valor.match(/#[0-9a-fA-F]{3,6}\b/);
+    if (!hex) return;
 
-  // Un color claro como FONDO es una mancha en la pantalla oscura.
-  if (L > 0.5 && !esTexto) {
-    problemas.push({ n: i + 1, declaracion, motivo: "fondo claro escrito a mano" });
-  }
+    const declaracion = `${propiedad}: ${valor.trim()}`;
+    if (PERMITIDAS.has(declaracion)) {
+      permitidasVistas.add(declaracion);
+      return;
+    }
 
-  // Un color oscuro como TEXTO se pierde sobre el panel oscuro.
-  if (L < 0.25 && esTexto) {
-    problemas.push({ n: i + 1, declaracion, motivo: "texto oscuro escrito a mano" });
-  }
-});
+    const L = luminancia(hex[0]);
+    const esTexto = propiedad === "color" || propiedad === "fill" || propiedad === "stroke";
+
+    // Un color claro como FONDO es una mancha en la pantalla oscura.
+    if (L > 0.5 && !esTexto) {
+      problemas.push({ archivo: rutaRelativa, n: i + 1, declaracion, motivo: "fondo claro escrito a mano" });
+    }
+
+    // Un color oscuro como TEXTO se pierde sobre el panel oscuro.
+    if (L < 0.25 && esTexto) {
+      problemas.push({ archivo: rutaRelativa, n: i + 1, declaracion, motivo: "texto oscuro escrito a mano" });
+    }
+  });
+}
+
+revisar(path.relative(RAIZ, HOJA).split(path.sep).join("/"), { conBloques: true });
+for (const componente of CON_STYLED_JSX) revisar(componente, { conBloques: false });
 
 const huerfanas = [...PERMITIDAS.keys()].filter((k) => !permitidasVistas.has(k));
 
 if (problemas.length === 0 && huerfanas.length === 0) {
-  console.log(`Modo oscuro sano: ningún color literal suelto en ${path.relative(RAIZ, HOJA)}.`);
+  console.log(`Modo oscuro sano: ni en la hoja del shell ni en los ${CON_STYLED_JSX.length} componentes con styled-jsx.`);
   process.exit(0);
 }
 
 for (const p of problemas) {
-  console.error(`  ${String(p.n).padStart(5)}  ${p.motivo}: ${p.declaracion}`);
+  console.error(`  ${p.archivo}:${p.n}  ${p.motivo}: ${p.declaracion}`);
 }
 
 if (problemas.length > 0) {
