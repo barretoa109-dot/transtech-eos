@@ -26,7 +26,24 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
   GENERAR_PDF: { tier: 1, points: 1, maxLevel: 3 },
   GENERAR_WORD: { tier: 1, points: 1, maxLevel: 3 },
   CREAR_TAREA: { tier: 1, points: 2, maxLevel: 3 },
-  CREAR_OBJETIVO: { tier: 2, points: 4, maxLevel: 2 },
+
+  /*
+   * Crear un objetivo estaba en tier 2 con `maxLevel: 2`, o sea: aprobación
+   * explícita SIEMPRE, sin importar el nivel configurado. Era la acción más
+   * restringida de todo el sistema.
+   *
+   * No hay ninguna razón por la que un objetivo sea más peligroso que una
+   * tarea. Los dos son una fila que el usuario puede borrar; ninguno mueve
+   * plata ni stock. Y desde el 3 de septiembre, registrar una venta —que
+   * descuenta inventario y suma un ingreso al panel— se ejecuta sola porque
+   * el usuario lo pidió así. Que crear un objetivo fuera lo único que hay que
+   * ir a aprobar a otra pantalla no era una política: era el valor con el que
+   * quedó en la v12, cuando estas acciones eran un experimento.
+   *
+   * Se alinea con CREAR_TAREA. Sigue acotado por el presupuesto diario, que
+   * es el freno que de verdad protege.
+   */
+  CREAR_OBJETIVO: { tier: 1, points: 2, maxLevel: 3 },
 
   /*
    * Las tres que tocan el negocio: registrar venta, ajustar stock, crear
@@ -117,9 +134,35 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
  * ventas, tres contactos, dos ajustes de stock: 111 puntos en 20 acciones— y
  * se duplican. El techo sigue existiendo para frenar a un modelo trabado en
  * un bucle, que es para lo que sirve; dejó de frenar a alguien trabajando.
+ *
+ * ------------------------------------------------------------
+ * EL NIVEL POR DEFECTO PASA DE 2 A 3, Y ESA ES LA DECISIÓN GRANDE
+ * ------------------------------------------------------------
+ *
+ * En la escalera de abajo, el nivel 2 significa `approval`: la acción no se
+ * ejecuta y queda esperando que la persona vaya a `/eos/autonomy` a aprobarla.
+ * Como era el default, TODA acción que no fuera una de las tres del negocio
+ * —guardar una memoria, crear una tarea, armar un Excel— terminaba ahí.
+ *
+ * En la práctica eso significa que no pasa nada. Nadie interrumpe una
+ * conversación para ir a otra pantalla a autorizar que se guarde una nota, y
+ * el resultado es un chat que promete y no cumple. Se reportó dos veces desde
+ * el uso real, con estas palabras: "EOS no recuerda las cosas" y "cuando se le
+ * pide por el chat que anote algo en el ERP y CRM no lo hace".
+ *
+ * El nivel 3 ejecuta, y lo que protege deja de ser una pregunta por acción
+ * para ser el techo diario de acá arriba: 40 acciones y 240 puntos. Eso frena
+ * a un modelo trabado en un bucle, que es el riesgo real, sin frenar a alguien
+ * trabajando.
+ *
+ * Queda escrito qué se pierde: si el modelo entiende mal algo, ahora lo hace
+ * en vez de preguntar. Es exactamente lo que el usuario pidió para las tres
+ * acciones del negocio el 3 de septiembre —las más caras de equivocar— y no
+ * tiene sentido ser más estricto con guardar una nota que con registrar una
+ * venta.
  */
 const DEFAULT_PROFILE = {
-  default_level: 2,
+  default_level: 3,
   max_auto_actions_per_day: 40,
   max_daily_risk_points: 240,
   approval_ttl_minutes: 60,
@@ -614,17 +657,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const configuredLevel =
-      rule?.enabled === false
-        ? 0
-        : Number(
-            rule?.autonomy_level ??
-              systemRisk.defaultLevelOverride ??
-              profile.default_level,
-          );
+    /*
+     * Una regla apagada no existe; no es una regla que diga "nunca".
+     *
+     * Antes, `enabled: false` bajaba el nivel a 0, que en la escalera de abajo
+     * significa `recommend`: la acción no se ejecuta y el usuario recibe "la
+     * política permite únicamente recomendar esta acción", una frase con la
+     * que no puede hacer nada.
+     *
+     * Eso costó caro y se encontró usando el producto. La cuenta del plan
+     * Business tenía tres reglas apagadas —GUARDAR_MEMORIA entre ellas— y por
+     * eso EOS no guardó una sola memoria desde el 18 de agosto. Cuando el
+     * usuario preguntó "¿en serio no recordás nada de mi negocio?", la
+     * respuesta era correcta: no había nada guardado, porque cada intento
+     * terminaba en `recommend`.
+     *
+     * Y nadie lo eligió: **ninguna ruta ni pantalla del producto escribe en
+     * `eos_autonomy_rules_v12`.** Esas filas son restos de pruebas, y no hay
+     * forma de apagarlas desde la aplicación. Un interruptor que solo se puede
+     * prender desde afuera no puede ser el que decide si EOS recuerda.
+     *
+     * Ahora una regla apagada se ignora ENTERA —nivel, tope diario y riesgo—
+     * y manda el perfil. Si algún día hace falta "nunca hagas esta acción",
+     * eso es un `block` con su propio motivo, no un booleano que produce el
+     * fallo más silencioso posible.
+     */
+    const reglaVigente = rule?.enabled === false ? null : rule;
+
+    const configuredLevel = Number(
+      reglaVigente?.autonomy_level ??
+        systemRisk.defaultLevelOverride ??
+        profile.default_level,
+    );
     const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
-    const riskTier = Math.max(systemRisk.tier, Number(rule?.risk_tier ?? 0));
-    const riskPoints = Math.max(systemRisk.points, Number(rule?.risk_points ?? 0));
+    const riskTier = Math.max(systemRisk.tier, Number(reglaVigente?.risk_tier ?? 0));
+    const riskPoints = Math.max(systemRisk.points, Number(reglaVigente?.risk_points ?? 0));
     const autonomyDay = dateInTimeZone(new Date().toISOString());
     const autoEvents = (
       (dailyEventsResult.data || []) as { created_at: string; detail: unknown }[]
@@ -636,11 +703,11 @@ export async function POST(request: Request) {
       return total + (Number.isFinite(points) ? points : 0);
     }, 0);
     const actionLimit =
-      rule?.max_auto_per_day === null || rule?.max_auto_per_day === undefined
+      reglaVigente?.max_auto_per_day === null || reglaVigente?.max_auto_per_day === undefined
         ? Number(profile.max_auto_actions_per_day)
         : Math.min(
             Number(profile.max_auto_actions_per_day),
-            Number(rule.max_auto_per_day),
+            Number(reglaVigente.max_auto_per_day),
           );
 
     const existingApproval = approvalResult.data;
