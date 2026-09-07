@@ -137,7 +137,45 @@ export default function FinanzasPanel() {
     );
   }
 
-  if (error || data === null) return null;
+  /*
+   * Esta tarjeta es la primera del panel y responde la pregunta de todos los
+   * días: "¿estoy bien?". No puede desaparecer sin decir nada.
+   *
+   * Antes, `error || data === null` en una línea la borraba tanto mientras
+   * cargaba como cuando se caía, y el Dashboard quedaba en un encabezado
+   * flotando arriba de un selector de período.
+   */
+  if (error) {
+    return (
+      <div className="card fin-card">
+        <div className="fin-head">
+          <span className="fin-badge fin-badge-neutral">FINANZAS</span>
+        </div>
+        <p className="neg-load-error" role="alert">
+          No pudimos leer tus finanzas en este momento. Tus datos están; lo que falló
+          fue la lectura. Volvé a entrar en un rato.
+        </p>
+      </div>
+    );
+  }
+
+  /*
+   * Mientras carga sí muestra algo, y no un esqueleto vacío: en una conexión
+   * lenta esta tarjeta puede tardar segundos, y es la que la persona vino a
+   * mirar. Un "calculando" le dice que espere; la nada le dice que no hay.
+   */
+  if (data === null) {
+    return (
+      <div className="card fin-card">
+        <div className="fin-head">
+          <span className="fin-badge fin-badge-neutral">FINANZAS</span>
+        </div>
+        <p className="neg-loading" role="status">
+          Calculando tu disponible real…
+        </p>
+      </div>
+    );
+  }
 
   // Todavía sin Constitución Financiera: EOS no inventa un estado.
   if (!data.configurado) {

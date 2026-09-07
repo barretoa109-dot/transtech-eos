@@ -5,6 +5,7 @@ import { AlertCircle, CalendarDays, Check, ChevronRight, Plus, RefreshCw, Target
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { etiquetaDeEtapa, siguienteEtapa } from "@/lib/crm/embudo";
 import type { Actividad, Contacto, Oportunidad } from "./tipos";
+import { useEscape } from "../useEscape";
 
 /**
  * El embudo y la agenda del CRM.
@@ -301,6 +302,8 @@ function NuevaOportunidad({
   onCreada: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
+
+  useEscape(abierto, () => setAbierto(false));
   const [titulo, setTitulo] = useState("");
   const [monto, setMonto] = useState("");
   const [detalle, setDetalle] = useState("");

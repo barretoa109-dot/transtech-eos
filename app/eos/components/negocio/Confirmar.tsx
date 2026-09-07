@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { useEscape } from "../useEscape";
+
 /**
  * Un segundo clic, con la consecuencia escrita.
  *
@@ -51,6 +53,10 @@ export default function Confirmar({
   ocupadoTexto?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
+
+  // Escape cancela. Es el gesto que todo el mundo prueba primero frente a
+  // algo que se abrió y que no se quiere confirmar.
+  useEscape(abierto, () => setAbierto(false));
 
   if (!abierto) {
     return (

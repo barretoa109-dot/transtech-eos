@@ -9,6 +9,7 @@ import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import type { Compra, Contacto, CompraItem, Producto } from "./tipos";
+import { useEscape } from "../useEscape";
 
 /**
  * Qué se compró, para el renglón de la lista.
@@ -61,6 +62,14 @@ export default function Compras({
   const [compras, setCompras] = useState<Compra[]>([]);
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState(false);
+
+  // Escape cierra lo que se abrió en el lugar del botón: con teclado,
+  // llegar hasta "Cancelar" son varios Tab en una dirección que la
+  // persona no puede prever. Ver `useEscape`.
+  // Se llama a `cerrarFormulario` y no a `setAbierto(false)`: cerrar el
+  // panel sin limpiar dejaría las líneas cargadas esperando a la próxima
+  // compra, que es exactamente lo que nadie quiere.
+  useEscape(abierto, () => cerrarFormulario());
   const [contactoId, setContactoId] = useState("");
   const [proveedorNuevo, setProveedorNuevo] = useState<Contacto | null>(null);
   const [creandoProveedor, setCreandoProveedor] = useState(false);

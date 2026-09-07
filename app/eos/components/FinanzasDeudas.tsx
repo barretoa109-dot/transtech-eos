@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import FallaDeCarga from "./FallaDeCarga";
 import { CalendarClock, Heart } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
@@ -81,7 +82,9 @@ export default function FinanzasDeudas() {
       .catch(() => setError(true));
   }, []);
 
-  if (error || data === null) return null;
+  if (error) return <FallaDeCarga que="tus deudas" />;
+
+  if (data === null) return null;
 
   const vivas = data.deudas.filter((d) => d.estado !== "saldada");
 

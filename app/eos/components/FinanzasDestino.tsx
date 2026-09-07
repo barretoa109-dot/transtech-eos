@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import FallaDeCarga from "./FallaDeCarga";
 import { ArrowDown, ArrowUp, HelpCircle, Minus } from "lucide-react";
 import { formatearMonto, nombreDelMes } from "@/lib/finanzas/formato";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
@@ -97,7 +98,9 @@ export default function FinanzasDestino() {
   // Sin política configurada no se dice nada: el panel de estado de arriba ya
   // está invitando a configurarla, y pedirlo dos veces en la misma pantalla
   // parece un reclamo.
-  if (error || data === null || !data.configurado) return null;
+  if (error) return <FallaDeCarga que="a dónde se te fue la plata" />;
+
+  if (data === null || !data.configurado) return null;
   if (bloques.length === 0) return null;
 
   const bloque = bloques.find((b) => b.moneda === monedaVista) ?? bloques[0];

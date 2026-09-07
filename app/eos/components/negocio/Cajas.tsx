@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { useEscape } from "../useEscape";
 
 /**
  * Dónde tiene la plata el negocio.
@@ -72,6 +73,14 @@ export default function Cajas() {
   const [tipo, setTipo] = useState("efectivo");
   const [monto, setMonto] = useState("");
   const [contando, setContando] = useState<string | null>(null);
+
+  // Escape cierra lo que se abrió en el lugar del botón: con teclado,
+  // llegar hasta "Cancelar" son varios Tab en una dirección que la
+  // persona no puede prever. Ver `useEscape`.
+  useEscape(contando !== null, () => {
+    setContando(null);
+    setMonto("");
+  });
 
   useEffect(() => {
     let vivo = true;

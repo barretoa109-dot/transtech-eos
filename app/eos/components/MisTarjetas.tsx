@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CreditCard, Loader2, Star, Trash2 } from "lucide-react";
+import { useEscape } from "./useEscape";
 
 /**
  * Las tarjetas guardadas, y cómo sacarlas.
@@ -42,6 +43,11 @@ export default function MisTarjetas() {
   const [cargando, setCargando] = useState(true);
   const [borrando, setBorrando] = useState("");
   const [confirmando, setConfirmando] = useState("");
+
+  // Escape cierra lo que se abrió en el lugar del botón: con teclado,
+  // llegar hasta "Cancelar" son varios Tab en una dirección que la
+  // persona no puede prever. Ver `useEscape`.
+  useEscape(confirmando !== "", () => setConfirmando(""));
   const [error, setError] = useState("");
 
   /*

@@ -3,6 +3,8 @@
 import { CalendarDays, Plus, RefreshCw, Scale } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { useEscape } from "./useEscape";
+
 type Decision = {
   id: string;
   titulo: string;
@@ -50,6 +52,8 @@ export default function DecisionsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+
+  useEscape(showForm, () => setShowForm(false));
   const [form, setForm] = useState(emptyDecision);
   const [resultFor, setResultFor] = useState<string | null>(null);
   const [result, setResult] = useState({ tipo: "observacion", resumen: "", aprendizaje: "" });

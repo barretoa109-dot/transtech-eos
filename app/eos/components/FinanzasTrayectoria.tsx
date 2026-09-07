@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import FallaDeCarga from "./FallaDeCarga";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 
@@ -61,7 +62,11 @@ export default function FinanzasTrayectoria() {
       .catch(() => setError(true));
   }, []);
 
-  if (error || data === null || !data.configurado) return null;
+  if (error) return <FallaDeCarga que="tu trayectoria de saldo" />;
+
+  // Mientras carga y sin Constitución Financiera, callada: son las dos
+  // situaciones donde no hay nada que decir todavía.
+  if (data === null || !data.configurado) return null;
 
   const { trayectoria, riesgo, aviso, moneda } = data;
   if (trayectoria.puntos.length < 2) return null;

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileSpreadsheet, Upload } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { useEscape } from "../useEscape";
 
 /**
  * Traer el catálogo desde la planilla que ya tenés.
@@ -52,6 +53,11 @@ export default function ImportarProductos({ onImportado }: { onImportado: () => 
   const entrada = useRef<HTMLInputElement | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [vista, setVista] = useState<Vista | null>(null);
+
+  // Escape cierra lo que se abrió en el lugar del botón: con teclado,
+  // llegar hasta "Cancelar" son varios Tab en una dirección que la
+  // persona no puede prever. Ver `useEscape`.
+  useEscape(vista !== null, () => setVista(null));
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState("");
   const [listo, setListo] = useState("");

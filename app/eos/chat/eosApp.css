@@ -3824,6 +3824,25 @@
   color: var(--amber);
 }
 .eos-app .neg-load-error p { margin: 4px 0 10px; color: var(--muted); font-size: 12.5px; }
+
+/*
+  El renglón que reemplaza a una tarjeta del panel que no pudo leer sus datos.
+
+  Fino y sin caja a propósito: cuando se cae la conexión se caen todas las
+  tarjetas a la vez, y cinco recuadros ámbar apilados para un solo problema se
+  leen como cinco cosas rotas. Cinco renglones se leen como lo que son, y cada
+  uno dice qué parte del panel falta — que es exactamente lo que antes no se
+  podía saber, porque las tarjetas simplemente desaparecían.
+*/
+.eos-app .fin-falla {
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 8px 8px 0;
+  background: var(--amber-light);
+  color: var(--amber);
+  font-size: 12.5px;
+}
 .eos-app .neg-module-note {
   display: flex;
   align-items: center;

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Clock } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import type { Tramo } from "@/lib/erp/cartera";
+import { useEscape } from "../useEscape";
 
 /**
  * El estado de cuenta: quién te debe, desde cuándo, y cobrar una parte.
@@ -101,6 +102,11 @@ function Lista({ tipo, onCambio }: { tipo: "cobrar" | "pagar"; onCambio?: () => 
 
   // El documento sobre el que se está cargando un cobro, y su monto.
   const [cobrando, setCobrando] = useState<string | null>(null);
+
+  // Escape cierra lo que se abrió en el lugar del botón: con teclado,
+  // llegar hasta "Cancelar" son varios Tab en una dirección que la
+  // persona no puede prever. Ver `useEscape`.
+  useEscape(cobrando !== null, () => setCobrando(null));
   const [monto, setMonto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [avisoCobro, setAvisoCobro] = useState("");
