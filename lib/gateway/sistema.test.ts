@@ -161,6 +161,58 @@ test("cada acción del negocio trae su forma de datos", () => {
   }
 });
 
+test("el prompt no puede tener comillas invertidas", () => {
+  /*
+   * En n8n el prompt vive DENTRO de un literal de plantilla de JavaScript
+   * (`text: ` seguido de comilla invertida). Una comilla invertida en el
+   * texto lo termina antes de tiempo.
+   *
+   * Pasó el 7 de septiembre de 2026: se agregó a las instrucciones la palabra
+   * `total` entre comillas invertidas, para que se leyera como nombre de
+   * campo. El prompt quedó cortado en "El MONTO: mandá " y el resto del
+   * cuerpo de la petición pasó a ser JavaScript inválido. El chat de
+   * producción se cayó entero hasta que se restauró el respaldo.
+   *
+   * Lo detectó la prueba de paridad de acá abajo, pero después de escribir en
+   * producción. Esta prueba mira el texto y falla antes.
+   */
+  assert.doesNotMatch(
+    PROMPT_SISTEMA,
+    /`/,
+    "el prompt tiene una comilla invertida y en n8n eso corta el literal de plantilla",
+  );
+});
+
+test("los nodos de código del gateway son JavaScript válido", () => {
+  /*
+   * El otro lado del mismo accidente: si un parche deja un nodo con código
+   * roto, n8n no avisa al guardar — falla recién cuando alguien escribe en el
+   * chat, y falla para todos.
+   *
+   * `jsonBody` no es código suelto sino una expresión de n8n, envuelta en
+   * `={{ … }}`. Se desenvuelve y se compila igual.
+   */
+  const flujo = JSON.parse(
+    fs.readFileSync(path.join(RAIZ, "n8n", "workflows", "eos-conversational-gateway-rc1.json"), "utf8"),
+  );
+
+  for (const nodo of flujo.nodes as { name: string; parameters?: Record<string, unknown> }[]) {
+    const codigo = nodo.parameters?.jsCode;
+    if (typeof codigo === "string") {
+      assert.doesNotThrow(() => new Function(codigo), `el nodo "${nodo.name}" no compila`);
+    }
+
+    const cuerpo = nodo.parameters?.jsonBody;
+    if (typeof cuerpo === "string" && cuerpo.startsWith("={{")) {
+      const expresion = cuerpo.replace(/^=\{\{/, "(").replace(/\}\}$/, ")");
+      assert.doesNotThrow(
+        () => new Function(`return ${expresion}`),
+        `la expresión del nodo "${nodo.name}" no compila`,
+      );
+    }
+  }
+});
+
 test("el prompt de n8n y el del repo son el mismo texto", () => {
   /*
    * La regla que la cabecera de `sistema.ts` pide y que hasta hoy no

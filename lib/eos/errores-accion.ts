@@ -93,6 +93,49 @@ const REGLAS: Regla[] = [
     mensaje: () => "No entendí qué producto cargar. Decime el nombre y el precio de venta.",
   },
   {
+    codigo: "EOS_ACCION_COMPRA_SIN_ITEMS",
+    mensaje: () =>
+      "No entendí qué se compró. Decímelo así: \"cargá 3 bolsas de balanceado a 68.000 cada una\".",
+  },
+  {
+    codigo: "EOS_ACCION_COMPRA_SIN_CONCEPTO",
+    mensaje: () => "Para registrar una compra necesito saber qué se compró, aunque sea con una palabra.",
+  },
+  {
+    codigo: "EOS_ACCION_COMPRA_SIN_MONTO",
+    mensaje: (d) =>
+      `Me falta cuánto costó "${d}". Decime el total o el precio de cada uno y lo registro.`,
+  },
+  {
+    codigo: "EOS_ACCION_COMPRA_DEMASIADOS",
+    mensaje: () =>
+      "Son demasiados conceptos para una sola compra dictada. Pasámelos de a veinte, " +
+      "o cargá la factura desde Negocio > Compras.",
+  },
+  {
+    codigo: "EOS_ACCION_COMPRA_SIN_ID",
+    mensaje: () =>
+      "Algo falló registrando la compra y prefiero no decirte que quedó. " +
+      "Probá de nuevo, y si vuelve a pasar cargala desde Negocio > Compras.",
+  },
+  {
+    codigo: "EOS_ACCION_FIJO_SIN_DATOS",
+    mensaje: () =>
+      'No entendí qué gasto fijo declarar. Decímelo así: "el alquiler son 2.000.000 por mes".',
+  },
+  {
+    codigo: "EOS_ACCION_FIJO_SIN_DESCRIPCION",
+    mensaje: () => "Para declarar un gasto fijo necesito saber de qué es.",
+  },
+  {
+    codigo: "EOS_ACCION_FIJO_SIN_MONTO",
+    mensaje: (d) => `Me falta cuánto es "${d}" y cada cuánto se paga.`,
+  },
+  {
+    codigo: "EOS_ACCION_FIJO_DEMASIADOS",
+    mensaje: () => "Son demasiados gastos fijos de una. Pasámelos de a diez.",
+  },
+  {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
       "Tu cuenta no tiene activo el módulo ERP, que es el que registra ventas y stock. " +

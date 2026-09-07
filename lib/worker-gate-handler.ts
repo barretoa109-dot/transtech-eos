@@ -152,6 +152,38 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * La plata que sale.
+   *
+   * Una compra cuesta lo mismo que una venta —tier 3, 6 puntos— y es de las
+   * pocas simetrías que se sostienen solas: las dos mueven plata y stock, las
+   * dos dejan un movimiento financiero, y las dos son igual de caras de
+   * revertir. Si una venta mal cargada ensucia el inventario y las finanzas a
+   * la vez, una compra mal cargada hace exactamente lo mismo con el signo
+   * cambiado.
+   *
+   * El gasto fijo es más barato y más peligroso de otra manera: no mueve un
+   * guaraní hoy, pero se proyecta hacia adelante todos los meses. Un fijo de
+   * más no descuadra nada; simplemente hace que el pronóstico de caja diga
+   * que hay menos plata de la que va a haber. 3 puntos, como agendar un
+   * contacto, y la protección real es que la respuesta diga el monto mensual
+   * y el día, que es lo que permite verlo mal enseguida.
+   */
+  REGISTRAR_COMPRA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  REGISTRAR_GASTO_FIJO: {
+    tier: 2,
+    points: 3,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*
