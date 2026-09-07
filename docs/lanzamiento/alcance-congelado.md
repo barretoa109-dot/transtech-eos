@@ -1,6 +1,14 @@
 # Alcance congelado de lanzamiento
 
-Estado: **borrador para firma**. Fecha: 31 de agosto de 2026.
+Estado: **borrador para firma**. Fecha: 31 de agosto de 2026, **corregido el
+6 de septiembre** contra lo que el producto hace hoy.
+
+La corrección no agrega promesas: saca de la lista de "no existe" cinco cosas
+que se construyeron entre el 2 y el 4 de septiembre y que el documento seguía
+dando por ausentes. Un alcance congelado que subestima al producto hace exactamente
+el mismo daño que uno que lo exagera: retiene un lanzamiento por trabajo ya
+hecho, y le dice al cliente que no puede hacer algo que sí puede. Cada línea
+que cambió está verificada contra la base de producción, no contra el código.
 
 Este documento define qué se anuncia, qué se anuncia como beta y qué no se
 nombra todavía. Mientras no esté firmado, nada se publica.
@@ -52,8 +60,8 @@ de doce módulos la gente lee nombres.
 | Módulo | Qué falta, dicho en la pantalla |
 | --- | --- |
 | **Comprobantes de venta (beta)** — Gs. 0 | Hace numeración correlativa, CDC de 44 dígitos y comprobante imprimible. **No** firma ni envía a SIFEN. El papel sale rotulado como borrador. Ya resuelto en la v87. |
-| **ERP (beta)** — Gs. 120.000 | Productos, ventas, compras, stock, anulación y ajustes: cerrado. **No** hay empresas con miembros y sucursales, ni depósitos, ni cuenta corriente con vencimientos y cuotas, ni kardex valorizado. Ver `docs/erp-profesional-arquitectura.md`. |
-| **CRM (beta)** — Gs. 90.000 | Contactos, oportunidades y actividades: cerrado. Falta embudo, razones de pérdida y reportes de desempeño. |
+| **ERP (beta)** — Gs. 120.000 | Productos, ventas, compras, stock, anulación y ajustes: cerrado. Desde el 4 de septiembre también **empresa con miembros y roles** (v109-v119: la empresa es la única frontera, en las policies y en el filtro de las rutas), **cuenta corriente con vencimientos** (v107), **kardex valorizado** con costo promedio ponderado (v108) y **caja del negocio** (v120). **No** hay sucursales, depósitos ni el circuito de documentos: orden de compra, cotización, entrega parcial y nota de crédito. Ver `docs/erp-profesional-arquitectura.md`. |
+| **CRM (beta)** — Gs. 90.000 | Contactos, oportunidades y actividades: cerrado. El **embudo** existe con etapas desde el 2 de septiembre (v103/v104) y se llena solo con las ventas: la venta a un cliente cierra su oportunidad, y si no había ninguna la crea ya ganada con el monto real. Falta razones de pérdida y reportes de desempeño. |
 | **Lectura automática** — Gs. 35.000 | Lee avisos bancarios por correo. **No** hay conexión directa con bancos, cooperativas ni billeteras: eso es importación, no integración, y así hay que decirlo. |
 | **Avisos antes de que pase** — Gs. 20.000 | Avisa faltante de dinero y vencimientos. La cobertura de riesgos de inventario y cobranzas depende del ERP, que está en beta. |
 
@@ -80,11 +88,16 @@ una demo, y EOS no lo ofrece en una conversación.
   solo de nosotros. Hasta entonces la palabra es "comprobante", nunca "factura".
 - **Conexión automática con bancos, cooperativas, financieras y billeteras.**
   El campo `origen='integracion'` está reservado y no hay integración detrás.
-- **Empresas, sucursales, miembros y roles.** El tenant hoy es `usuario_id`.
-- **Depósitos, ubicaciones, transferencias, lotes, series, vencimientos, kardex.**
+- **Sucursales.** Empresas, miembros y roles SÍ existen desde el 4 de
+  septiembre y el tenant es `empresa_id`; sucursales no, y siguen sin nombrarse.
+- **Depósitos, ubicaciones, transferencias, lotes, series y vencimientos de
+  mercadería.** El kardex valorizado salió de esta lista: existe desde la v108.
 - **Ciclo documental de compras y ventas** (orden, cotización, pedido, recepción
   parcial, entrega parcial, nota de crédito).
-- **Caja y tesorería** (turno, arqueo, cierre, diferencias).
+- **Turnos, arqueos, cierres y diferencias de caja.** La caja del negocio en sí
+  existe desde la v120 —saldo declarado con su fecha, más el arrastre de los
+  cobros y pagos que EOS ya registra—; lo que no existe es la operatoria de
+  tesorería de un punto de venta.
 - **Apps en Android y iOS.** El proyecto Capacitor existe; las tiendas exigen
   D-U-N-S, cuentas, políticas y verificaciones que todavía no están resueltas.
   Se lanza web primero.
@@ -99,7 +112,10 @@ Frases prohibidas hasta que la sección 3 se mueva:
 - "se conecta con tu banco" — es lectura de correo, y solo si el usuario la
   activa.
 - "ERP completo" / "sistema de gestión completo" — falta lo de la sección 3.
-- "multiempresa" / "para tu equipo" — el tenant es una persona, no una empresa.
+- "multiempresa" — un usuario tiene UNA empresa activa; no se opera con varias
+  a la vez ni se cambia de una a otra como en un ERP multiempresa. Lo que sí se
+  puede decir es "para tu equipo": los miembros con roles existen y la empresa
+  es la frontera de los datos desde el 4 de septiembre.
 - Cualquier cifra de ahorro, rendimiento o resultado que no salga de un dato
   medido y citable.
 
