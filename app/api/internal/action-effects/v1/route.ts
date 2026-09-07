@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errorDeAccion } from "@/lib/eos/errores-accion";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
@@ -34,6 +35,22 @@ function mapRpcError(error: unknown) {
     error && typeof error === "object" && "message" in error
       ? String((error as { message?: unknown }).message || "")
       : "";
+
+  /*
+   * Las reglas de negocio primero: no encontré el producto, no encontré el
+   * contacto, falta el módulo. Son seis, y hasta el 7 de septiembre de 2026
+   * las seis caían al 500 genérico de más abajo — que es la razón por la que
+   * el chat decía "no pude completar la acción" sin decir nunca por qué.
+   * Ver `lib/eos/errores-accion.ts`.
+   */
+  const negocio = errorDeAccion(message);
+
+  if (negocio) {
+    return respond(
+      { ok: false, code: negocio.codigo, error: negocio.mensaje },
+      negocio.estado,
+    );
+  }
 
   if (message.includes("EOS_INTERNAL_EFFECT_COMMAND_NOT_FOUND")) {
     return respond(
