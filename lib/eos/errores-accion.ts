@@ -132,6 +132,22 @@ const REGLAS: Regla[] = [
     mensaje: (d) => `Me falta cuánto es "${d}" y cada cuánto se paga.`,
   },
   {
+    codigo: "EOS_ACCION_PERSONAL_SIN_DATOS",
+    mensaje: () => 'No entendí qué anotar. Decímelo así: "gasté 50 mil en nafta".',
+  },
+  {
+    codigo: "EOS_ACCION_PERSONAL_SIN_DESCRIPCION",
+    mensaje: () => "Para anotarlo necesito saber en qué fue, aunque sea una palabra.",
+  },
+  {
+    codigo: "EOS_ACCION_PERSONAL_SIN_MONTO",
+    mensaje: (d) => `Me falta cuánto fue "${d}".`,
+  },
+  {
+    codigo: "EOS_ACCION_PERSONAL_DEMASIADOS",
+    mensaje: () => "Son demasiados movimientos de una. Pasámelos de a quince.",
+  },
+  {
     codigo: "EOS_ACCION_FIJO_DEMASIADOS",
     mensaje: () => "Son demasiados gastos fijos de una. Pasámelos de a diez.",
   },

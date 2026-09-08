@@ -54,6 +54,7 @@ export async function GET(request: Request) {
     .from("eos_movimientos_financieros")
     .select("tipo,monto,moneda,fecha,descripcion,categoria,origen,documento_id")
     .eq("usuario_id", user.id)
+    .eq("ambito", "personal")
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha", { ascending: true });

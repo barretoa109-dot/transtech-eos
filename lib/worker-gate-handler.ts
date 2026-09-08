@@ -184,6 +184,27 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * La plata de la persona, que no es la del negocio.
+   *
+   * Más barata que una compra —2 puntos, como crear una tarea— y no por
+   * simetría contable sino porque el daño es distinto. Una compra mal cargada
+   * mueve stock y ensucia el margen de un mes entero; un gasto personal mal
+   * cargado corre el disponible real de una persona hasta que lo borra, que
+   * es un clic.
+   *
+   * Y sobre todo: si esto costara caro, dejaría de usarse. Anotar "gasté 50
+   * mil en nafta" es la única vía que existe para tapar el punto ciego del
+   * efectivo, y una vía que se raciona es igual a no tenerla.
+   */
+  REGISTRAR_MOVIMIENTO_PERSONAL: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*

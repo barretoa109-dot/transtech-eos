@@ -1,0 +1,2287 @@
+{
+  "id": "iUMdg9fhAg54irmy",
+  "name": "EOS 4.0 - Background Worker WORKER GATE RC1",
+  "description": null,
+  "active": true,
+  "activeVersionId": "96d399b3-45d2-4708-b714-ec181daf6203",
+  "createdAt": "2026-08-17T04:19:09.232Z",
+  "updatedAt": "2026-09-07T22:09:39.811Z",
+  "isArchived": false,
+  "versionId": "96d399b3-45d2-4708-b714-ec181daf6203",
+  "versionCounter": 18,
+  "sourceWorkflowId": null,
+  "triggerCount": 5,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker-rc1-internal",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "91beb339-ec29-4b23-83f6-bff57c8946c9",
+      "name": "00 INT Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "c5160ae2-1643-4eca-bcc2-0dce1d9c9a63"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA',\n\n  /*\n    Las tres del negocio. Estaban listas en todos lados menos acá.\n\n    El modelo las sabia pedir, el prompt se las ensenaba, el gateway tenia su\n    ruta, la tabla de riesgo del gate les daba tier 3, los constraints de la\n    base las admitian desde la v83 y el ejecutor existia desde la v84. Pero\n    esta lista no las incluia, asi que el worker las rechazaba antes de\n    llegar a pedir autorizacion.\n\n    Efecto visible: el chat mostraba 'Operacion lista para registrar' y la\n    pantalla de aprobaciones quedaba vacia. Una clienta lo reporto el 31 de\n    agosto de 2026; el gate no habia visto un REGISTRAR_VENTA en su vida.\n  */\n  'REGISTRAR_VENTA',\n  'AJUSTAR_STOCK',\n  'CREAR_CONTACTO',\n\n  /*\n    Cargar productos al catálogo (v131). Cuarta acción del negocio, y cuarto\n    lugar donde hay que darla de alta: cuando faltó SOLO acá, el gateway\n    recibía un {} sin error y desde el chat parecía que se había ejecutado.\n  */\n  'CREAR_PRODUCTO',\n\n  /*\n    Poner el costo y corregir el precio de lo que ya existe. Quinta acción del\n    negocio, cuarta vez que se pasa por esta lista, y la tercera vez que hay\n    que acordarse de que existe.\n  */\n  'ACTUALIZAR_PRODUCTO',\n\n  /*\n    La plata que sale y la que se va a repetir. Sexta y séptima acción del\n    negocio, y cuarta vez que hay que acordarse de esta lista.\n  */\n  'REGISTRAR_COMPRA',\n  'REGISTRAR_GASTO_FIJO'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "id": "06409967-57ef-4d87-be9b-98df8c0e205e",
+      "name": "01 INT Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2ea15723-5f20-4ee7-bb88-2b18bb598939",
+      "name": "02 INT Autorizar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('01 INT Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\n\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-effects/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { command_id: auth.command_id }\n      : src.authorize_body\n  }\n}];"
+      },
+      "id": "df383035-d423-407e-84d9-fedd47b34464",
+      "name": "03 INT Preparar Efecto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.target_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8b88967d-46ca-43c7-a2bf-431db433c646",
+      "name": "04 INT Efecto o Revalidar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n/*\n  Guaraníes como los escribe alguien de acá: punto para los miles, coma para\n  los decimales, y sin decimales cuando no los hay.\n\n  Los costos que salen de una cuenta con envío llegan con medio guaraní\n  (122.414,5) y redondearlos en la confirmación mostraría un número distinto\n  del que quedó guardado.\n*/\nfunction plata(n) {\n  const x = Number(n);\n  if (!isFinite(x)) return String(n);\n\n  const negativo = x < 0;\n  const abs = Math.abs(x);\n  const entero = Math.floor(abs);\n\n  let texto = String(entero).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');\n\n  const decimal = Math.round((abs - entero) * 100);\n  if (decimal > 0) {\n    let d = String(decimal);\n    if (d.length === 1) d = '0' + d;\n    if (d.charAt(1) === '0') d = d.charAt(0);\n    texto = texto + ',' + d;\n  }\n\n  return (negativo ? '-' : '') + texto;\n}\n\n/*\n  Qué cambió, campo por campo, con el antes y el después.\n\n  \"Actualicé el producto\" no sirve: cambiar un precio de 165.000 a 200.000 y\n  decir \"listo\" deja a la persona sin saber si el sistema entendió 200.000 o\n  20.000, que es exactamente el error que hay que poder ver enseguida. La\n  v133 devuelve el antes justamente para poder escribirlo.\n*/\nfunction fraseDeCambios(result) {\n  const r = (result && result.resultado) || {};\n  const hechos = Array.isArray(r.actualizados) ? r.actualizados : [];\n  const faltan = Array.isArray(r.no_encontrados) ? r.no_encontrados : [];\n  const iguales = Array.isArray(r.sin_cambios) ? r.sin_cambios : [];\n\n  const etiqueta = { precio_venta: 'precio', costo: 'costo', iva: 'IVA' };\n\n  const partes = [];\n\n  for (const p of hechos) {\n    const cambios = p.cambios || {};\n    const trozos = [];\n\n    for (const campo of ['precio_venta', 'costo', 'iva']) {\n      const c = cambios[campo];\n      if (!c) continue;\n\n      const antes = c.antes === null || c.antes === undefined;\n      const valor = campo === 'iva' ? c.despues + '%' : plata(c.despues);\n\n      trozos.push(\n        antes\n          ? etiqueta[campo] + ' ' + valor + ' (no tenía)'\n          : etiqueta[campo] + ' de ' + (campo === 'iva' ? c.antes + '%' : plata(c.antes)) + ' a ' + valor\n      );\n    }\n\n    if (trozos.length) partes.push('\\u201C' + p.nombre + '\\u201D: ' + trozos.join(', '));\n  }\n\n  const frases = [];\n\n  if (partes.length === 1) frases.push('Actualicé ' + partes[0] + '.');\n  else if (partes.length > 1) frases.push('Actualicé ' + partes.length + ' productos. ' + partes.join('. ') + '.');\n\n  // Acá y no al final: después del aviso de que un producto no estaba, \"lo\n  // ves en Negocio > Productos\" se lee como si hablara de ese.\n  if (partes.length) frases.push('Lo ves en Negocio > Productos.');\n\n  if (iguales.length === 1) frases.push('\\u201C' + iguales[0] + '\\u201D ya estaba así.');\n  else if (iguales.length > 1) frases.push(iguales.length + ' ya estaban así.');\n\n  if (faltan.length) {\n    frases.push(\n      (faltan.length === 1 ? 'No encontré \\u201C' + faltan[0] + '\\u201D' : 'No encontré ' + faltan.length + ' de los que nombraste') +\n      ' en tu catálogo: pasame el precio de venta y te lo cargo.'\n    );\n  }\n\n  if (!frases.length) return 'No quedó nada para actualizar.';\n\n  return frases.join(' ');\n}\n\n/*\n  La frase la arma la acción que sabe qué pasó; las que no tienen nada que\n  contar además de que se hicieron caen en `doneText`.\n*/\n/*\n  La compra dice el TOTAL, que es lo único verificable de un vistazo contra lo\n  que la persona dictó, y dice qué conceptos NO están en el catálogo, porque\n  de eso depende si movió stock o solamente plata.\n*/\nfunction fraseDeCompra(result) {\n  const r = (result && result.resultado) || {};\n  const items = Array.isArray(r.compra) ? r.compra : [];\n  const fuera = Array.isArray(r.sin_catalogo) ? r.sin_catalogo : [];\n  const total = r.total_compra;\n\n  if (!items.length) return 'No quedó ningún concepto para registrar.';\n\n  const frases = [];\n\n  frases.push(\n    items.length === 1\n      ? 'Registré la compra de ' + items[0].concepto + ' por \\u20B2 ' + plata(total) + '.'\n      : 'Registré una compra de ' + items.length + ' conceptos por \\u20B2 ' + plata(total) + ' en total.'\n  );\n\n  frases.push('La ves en Negocio > Compras, y el gasto ya está en el panel financiero.');\n\n  /*\n    Tres estados distintos, y la diferencia importa:\n\n      · en el catálogo y con inventario  -> subió el stock y el costo\n      · en el catálogo sin inventario    -> SOLO el costo\n      · fuera del catálogo               -> ni una cosa ni la otra\n\n    El del medio decía lo mismo que el primero, y hacía creer que el sistema\n    estaba contando existencias que nadie contaba.\n  */\n  const conStock = items.filter(function (x) { return x.mueve_stock; });\n  const soloCosto = items.filter(function (x) { return x.en_catalogo && !x.mueve_stock; });\n\n  if (conStock.length) {\n    frases.push(\n      conStock.length === 1\n        ? 'A \\u201C' + conStock[0].concepto + '\\u201D le sumé el stock y le actualicé el costo.'\n        : 'A ' + conStock.length + ' de ellos les sumé stock y les actualicé el costo.'\n    );\n  }\n\n  if (soloCosto.length) {\n    frases.push(\n      (soloCosto.length === 1\n        ? 'A \\u201C' + soloCosto[0].concepto + '\\u201D le actualicé el costo'\n        : 'A ' + soloCosto.length + ' de ellos les actualicé el costo') +\n      ', pero no llevan inventario, así que el stock no se movió. Se activa en Negocio > Productos.'\n    );\n  }\n\n  if (fuera.length) {\n    frases.push(\n      (fuera.length === 1\n        ? '\\u201C' + fuera[0] + '\\u201D no está en tu catálogo'\n        : fuera.length + ' de esos conceptos no están en tu catálogo') +\n      ', así que quedaron como gasto y no mueven inventario. Si querés que lleven stock, pasame su precio de venta y los cargo.'\n    );\n  }\n\n  if (r.proveedor && !r.proveedor.agendado) {\n    frases.push('No encontré a \\u201C' + r.proveedor.nombre + '\\u201D en tus contactos, así que la compra quedó sin proveedor.');\n  }\n\n  return frases.join(' ');\n}\n\n/*\n  El fijo dice la CONVERSIÓN. \"750.000 cada 15 días\" se guarda como 1.500.000\n  por mes y ese número sale después en el pronóstico de caja: sin explicar de\n  dónde salió, la única lectura posible es que el sistema se equivocó al doble.\n*/\nfunction fraseDeFijos(result) {\n  const r = (result && result.resultado) || {};\n  const fijos = Array.isArray(r.fijos) ? r.fijos : [];\n\n  if (!fijos.length) return 'No quedó ningún gasto fijo declarado.';\n\n  const partes = fijos.map(function (f) {\n    const base = f.descripcion + ': \\u20B2 ' + plata(f.monto_mensual) + ' por mes';\n    return f.convertido\n      ? base + ' (\\u20B2 ' + plata(f.monto_original) + ' ' + f.frecuencia + ')'\n      : base;\n  });\n\n  const dias = fijos.map(function (f) { return f.dia_del_mes; });\n  const mismoDia = dias.every(function (d) { return d === dias[0]; });\n\n  return (\n    (fijos.length === 1 ? 'Anoté ' : 'Anoté ' + fijos.length + ' fijos: ') +\n    partes.join('; ') + '. ' +\n    'Lo cuento ' + (mismoDia ? 'el día ' + dias[0] : 'en el día que registré cada uno') +\n    ' de cada mes; si es otro, cambialo en Gastos.'\n  );\n}\n\nfunction fraseDeAccion(accion, result) {\n  if (accion === 'CREAR_PRODUCTO') return fraseDeProductos(result);\n  if (accion === 'ACTUALIZAR_PRODUCTO') return fraseDeCambios(result);\n  if (accion === 'REGISTRAR_COMPRA') return fraseDeCompra(result);\n  if (accion === 'REGISTRAR_GASTO_FIJO') return fraseDeFijos(result);\n  return null;\n}\n\n/*\n  La frase de CREAR_PRODUCTO se arma con lo que pasó, no con un texto fijo.\n\n  El ejecutor devuelve `creados` y `ya_existian` (v132). Sin mirarlos, la\n  respuesta decía \"los productos quedaron cargados\" incluso cuando no se cargó\n  ninguno porque todos ya estaban — y quien lo lee se va creyendo que le\n  cambiamos el precio.\n*/\nfunction fraseDeProductos(result) {\n  const r = (result && result.resultado) || {};\n  const creados = Array.isArray(r.creados) ? r.creados : [];\n  const existian = Array.isArray(r.ya_existian) ? r.ya_existian : [];\n\n  const partes = [];\n\n  if (creados.length === 1) {\n    partes.push(`Cargué \\u201C${creados[0].nombre}\\u201D en tu catálogo.`);\n  } else if (creados.length > 1) {\n    partes.push(`Cargué ${creados.length} productos en tu catálogo.`);\n  }\n\n  if (existian.length === 1) {\n    partes.push(\n      `\\u201C${existian[0]}\\u201D ya estaba y no le toqué el precio: cambiarlo todavía se hace desde Negocio > Productos.`\n    );\n  } else if (existian.length > 1) {\n    partes.push(\n      `${existian.length} ya estaban y no les toqué el precio: cambiarlo todavía se hace desde Negocio > Productos.`\n    );\n  }\n\n  if (!partes.length) return 'No quedó ningún producto para cargar.';\n\n  if (creados.length) partes.push('Los ves en Negocio > Productos.');\n\n  return partes.join(' ');\n}\n\n/*\n  El motivo de verdad, y siempre como texto.\n\n  Cuando el efecto interno falla, `result` es el objeto de error de Axios y\n  `result.error` es `{ message, name, stack }`. Poner eso en `respuesta`\n  mandaba un rastro de pila con rutas del servidor al chat de la persona.\n\n  Y el cuerpo de la respuesta viene con DOS niveles de escape adentro del\n  mensaje de Axios:\n\n      422 - \"{\\\"ok\\\":false,\\\"error\\\":\\\"No encontré a \\\\\\\"Rossana\\\\\\\"…\\\"}\"\n\n  Desde la primera comilla, eso es un literal JSON completo: parsearlo una vez\n  da el texto del cuerpo, parsearlo otra vez da el objeto. Sin expresiones\n  regulares y sin reescribir comillas a mano, que es donde falló el primer\n  intento.\n*/\nfunction motivoDelError(result) {\n  const directo = result && result.error;\n  if (typeof directo === 'string' && directo.trim()) return directo.trim();\n\n  const crudo =\n    (directo && typeof directo === 'object' && typeof directo.message === 'string' && directo.message) ||\n    (result && typeof result.message === 'string' && result.message) ||\n    '';\n\n  const comilla = crudo.indexOf('\"');\n\n  if (comilla >= 0) {\n    try {\n      const cuerpo = JSON.parse(JSON.parse(crudo.slice(comilla)));\n      if (cuerpo && typeof cuerpo.error === 'string' && cuerpo.error.trim()) {\n        return cuerpo.error.trim();\n      }\n    } catch (e) { /* sigue abajo */ }\n  }\n\n  // Por si algún día el cuerpo llega sin envolver en un literal de texto.\n  const llave = crudo.indexOf('{');\n  if (llave >= 0) {\n    try {\n      const cuerpo = JSON.parse(crudo.slice(llave));\n      if (cuerpo && typeof cuerpo.error === 'string' && cuerpo.error.trim()) {\n        return cuerpo.error.trim();\n      }\n    } catch (e) { /* se cae al genérico */ }\n  }\n\n  return 'No fue posible completar la acción interna.';\n}\nconst prep = $('03 INT Preparar Efecto').first().json || {};\nconst result = $input.first().json || {};\nconst auth = prep.auth || {};\n\nconst doneText = {\n  CREAR_TAREA: 'La tarea quedó registrada.',\n  CREAR_OBJETIVO: 'El objetivo quedó creado.',\n  GUARDAR_MEMORIA: 'Guardé esa información en la memoria empresarial.',\n\n  /*\n    Las tres del negocio. Sin estas entradas caian en el texto generico\n    'La accion quedo completada.', que despues de cargar una venta no le\n    dice a nadie que la venta esta.\n  */\n  REGISTRAR_VENTA: 'La venta quedó registrada. La ves en Negocio > Ventas.',\n  AJUSTAR_STOCK: 'Ajusté el stock. Lo ves en Negocio > Productos.',\n  CREAR_CONTACTO: 'El contacto quedó guardado. Lo ves en Negocio > Contactos.',\n  CREAR_PRODUCTO: 'Los productos quedaron cargados. Los ves en Negocio > Productos.'\n};\n\nif (!prep.execute) {\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed) respuesta = 'Esta acción ya había sido completada y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'Esta acción requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La acción quedó sin ejecución automática por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La acción fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      resultado: auth.resultado || {}\n    }\n  }];\n}\n\nconst success = result.ok === true && result.command_id;\nreturn [{\n  json: {\n    ok: Boolean(success),\n    executed: Boolean(success),\n    idempotent: result.idempotent === true,\n    request_id: prep.request_id,\n    command_id: result.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: result.estado || (success ? 'completada' : 'error'),\n    effect_type: result.effect_type || '',\n    effect_id: result.effect_id || null,\n    resultado: result.resultado || {},\n    respuesta: success\n      ? (fraseDeAccion(prep.accion, result) || doneText[prep.accion] || 'La acción quedó completada.')\n      : motivoDelError(result)\n  }\n}];"
+      },
+      "id": "45da5c74-2aaa-4871-81e2-f99015e2721b",
+      "name": "05 INT Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "40c072d6-51af-4c9e-acb5-c577ab082f73",
+      "name": "06 INT Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1424,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker-rc1-file",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "3c4ab429-0887-445d-a81d-bfe41baebf2a",
+      "name": "00 FILE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        432
+      ],
+      "webhookId": "7b6fc211-92c0-4b51-8114-ed39f1444056"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "id": "82893b1b-e458-4eda-a35e-dee5f527a857",
+      "name": "01 FILE Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a068a56d-d09b-44c6-9058-754a6b1c45df",
+      "name": "02 FILE Autorizar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        432
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('01 FILE Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-claims/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { operation: 'claim', command_id: auth.command_id, lease_seconds: 300 }\n      : src.authorize_body\n  }\n}];"
+      },
+      "id": "c4fa189c-5354-4ef8-91d2-4339a0e9f4a6",
+      "name": "03 FILE Preparar Claim",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.target_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8f3798f2-25ac-4177-a7ae-474e6ecd1bb2",
+      "name": "04 FILE Claim o Revalidar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        944,
+        432
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prep = $('03 FILE Preparar Claim').first().json || {};\nconst claim = $input.first().json || {};\nconst auth = prep.auth || {};\nconst datos = prep.accion_datos || {};\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\n\n/* =========================================================\n   HELPERS\n========================================================= */\n\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(v || '')\n  );\n\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\n\n/*\n  n8n Code sandbox no expone URLSearchParams\n  en esta versión.\n\n  Construimos el query string manualmente\n  usando encodeURIComponent.\n*/\nconst construirQuery = (params) => {\n  return Object.entries(params)\n    .map(([key, value]) => {\n      const k = encodeURIComponent(\n        String(key ?? '')\n      );\n\n      const v = encodeURIComponent(\n        String(value ?? '')\n      );\n\n      return `${k}=${v}`;\n    })\n    .join('&');\n};\n\n\n/* =========================================================\n   VALIDAR CLAIM\n========================================================= */\n\nconst claimed =\n  prep.execute === true &&\n  claim.ok === true &&\n  claim.claimed === true &&\n  isUuid(claim.command_id) &&\n  isUuid(claim.lease_token) &&\n  Number.isInteger(\n    Number(claim.attempt_count)\n  ) &&\n  Number(claim.attempt_count) > 0;\n\n\n/* =========================================================\n   VALORES TERMINALES POR DEFECTO\n========================================================= */\n\nlet archivo_url = '';\nlet archivo_tipo = '';\nlet archivo_nombre = '';\n\nlet estado = 'no_disponible';\n\nlet resultado = {};\n\nlet error_code = null;\nlet error_message = null;\n\n\n/* =========================================================\n   GENERAR_EXCEL\n========================================================= */\n\nif (\n  claimed &&\n  prep.accion === 'GENERAR_EXCEL'\n) {\n\n  const textoCompleto = [\n    prep.mensaje,\n    datos.tema,\n    datos.tipo,\n    datos.rubro,\n    datos.negocio,\n    datos.descripcion\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n\n  /* -------------------------------------------------------\n     ELEGIR PLANTILLA\n  ------------------------------------------------------- */\n\n  let plantilla = 'business';\n\n  let rubro =\n    datos.rubro ||\n    'negocio_general';\n\n\n  if (\n    /finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(\n      textoCompleto\n    )\n  ) {\n    plantilla = 'personal';\n    rubro = 'persona_fisica';\n\n  } else if (\n    /restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(\n      textoCompleto\n    )\n  ) {\n    rubro = 'gastronomia';\n  }\n\n\n  /* -------------------------------------------------------\n     NOMBRE DEL ARCHIVO\n  ------------------------------------------------------- */\n\n  const nombreBase =\n    datos.negocio ||\n    datos.nombre ||\n    prep.nombre ||\n    'usuario';\n\n\n  archivo_nombre =\n    plantilla === 'personal'\n      ? `plan_financiero_eos_${normalizar(nombreBase)}.xlsx`\n      : `control_negocio_eos_${normalizar(nombreBase)}.xlsx`;\n\n\n  /* -------------------------------------------------------\n     QUERY STRING\n\n     IMPORTANTE:\n     Ya NO usamos URLSearchParams.\n  ------------------------------------------------------- */\n\n  const query = construirQuery({\n    tipo: 'excel',\n\n    plantilla,\n\n    nombre:\n      archivo_nombre.replace(\n        /\\.xlsx$/i,\n        ''\n      ),\n\n    rubro:\n      String(rubro),\n\n    negocio:\n      String(nombreBase),\n\n    tema:\n      String(\n        datos.tema ||\n        prep.mensaje ||\n        'control general'\n      ),\n\n    command_id:\n      String(claim.command_id)\n  });\n\n\n  /* -------------------------------------------------------\n     URL GOBERNADA\n  ------------------------------------------------------- */\n\n  archivo_url =\n    `${base}/descargar?${query}`;\n\n\n  archivo_tipo = 'excel';\n\n  estado = 'completada';\n\n\n  /* -------------------------------------------------------\n     RESULTADO DURABLE\n  ------------------------------------------------------- */\n\n  resultado = {\n    archivo_url,\n    archivo_tipo,\n    archivo_nombre,\n\n    artifact_key:\n      `${claim.command_id}.xlsx`,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   PDF / WORD\n\n   Todavía no conectados.\n========================================================= */\n\nelse if (claimed) {\n\n  archivo_tipo =\n    prep.accion === 'GENERAR_PDF'\n      ? 'pdf'\n      : 'word';\n\n\n  estado =\n    'no_disponible';\n\n\n  error_code =\n    prep.accion === 'GENERAR_PDF'\n      ? 'PDF_GENERATOR_NOT_CONNECTED'\n      : 'WORD_GENERATOR_NOT_CONNECTED';\n\n\n  error_message =\n    prep.accion === 'GENERAR_PDF'\n      ? 'El generador PDF todavía no está conectado al Worker Gate RC1.'\n      : 'El generador Word todavía no está conectado al Worker Gate RC1.';\n\n\n  resultado = {\n    archivo_tipo,\n\n    disponible: false,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   TARGET FINAL\n========================================================= */\n\nconst target_url =\n  claimed\n    ? `${base}/api/internal/action-results/v1`\n    : `${base}/api/internal/worker-authorize/v1`;\n\n\nconst target_body =\n  claimed\n    ? {\n        command_id:\n          claim.command_id,\n\n        lease_token:\n          claim.lease_token,\n\n        attempt_count:\n          Number(\n            claim.attempt_count\n          ),\n\n        estado,\n\n        resultado,\n\n        error_code,\n\n        error_message\n      }\n    : prep.authorize_body;\n\n\n/* =========================================================\n   SALIDA\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...prep,\n\n      claim,\n\n      claimed,\n\n      archivo_url,\n\n      archivo_tipo,\n\n      archivo_nombre,\n\n      terminal_estado:\n        estado,\n\n      terminal_resultado:\n        resultado,\n\n      target_url,\n\n      target_body\n    }\n  }\n];"
+      },
+      "id": "b85e9789-63b2-4a5b-8046-06cee8b11151",
+      "name": "05 FILE Preparar Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.target_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5ce72aea-d837-49be-a3e3-4a3431bb7184",
+      "name": "06 FILE Finalizar o Revalidar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1424,
+        432
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const prep = $('05 FILE Preparar Resultado').first().json || {};\nconst final = $input.first().json || {};\nconst auth = prep.auth || {};\nconst claim = prep.claim || {};\n\nif (!prep.execute) {\n  const r = auth.resultado || {};\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed && r.archivo_url) respuesta = `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`;\n  else if (completed) respuesta = 'Esta generación ya había terminado y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'La generación requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La generación no se ejecutó automáticamente por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La generación fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nif (!prep.claimed) {\n  const r = claim.resultado || {};\n  const completed = claim.code === 'EOS_COMMAND_ALREADY_COMPLETED' || claim.estado === 'completada';\n  return [{\n    json: {\n      ok: claim.ok !== false,\n      executed: false,\n      idempotent: claim.idempotent === true,\n      decision: claim.code || 'not_claimed',\n      reason: claim.error || claim.code || '',\n      respuesta: completed && r.archivo_url\n        ? `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`\n        : completed\n          ? 'Esta generación ya estaba completada y no se repitió.'\n          : 'La generación ya está siendo procesada por otro Worker; no se inició una segunda copia.',\n      request_id: prep.request_id,\n      command_id: claim.command_id || prep.command_id,\n      accion: prep.accion,\n      estado: claim.estado || null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nconst finalized = final.ok === true;\nconst isExcel = prep.accion === 'GENERAR_EXCEL';\nreturn [{\n  json: {\n    ok: finalized,\n    executed: finalized && prep.terminal_estado === 'completada',\n    idempotent: final.idempotent === true,\n    request_id: prep.request_id,\n    command_id: final.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: final.estado || prep.terminal_estado,\n    archivo_url: finalized && isExcel ? prep.archivo_url : '',\n    archivo_tipo: prep.archivo_tipo,\n    archivo_nombre: prep.archivo_nombre,\n    resultado: final.resultado || prep.terminal_resultado || {},\n    respuesta: finalized\n      ? (isExcel\n          ? `Tu Excel ya está listo.\\n\\nDescargar archivo: ${prep.archivo_url}`\n          : 'Ese formato todavía no está disponible para generación gobernada en EOS.')\n      : (final.error || 'No fue posible cerrar el resultado del archivo de forma segura.')\n  }\n}];"
+      },
+      "id": "0808aff3-03c2-4e21-9e87-5ac7956afdfa",
+      "name": "07 FILE Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c57bf5d4-cf21-46f2-a721-4647da62e093",
+      "name": "08 FILE Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1904,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker-rc1-dashboard",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "0f9a2e89-a0a8-4282-a820-0b578f963dc9",
+      "name": "00 DASH Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        848
+      ],
+      "webhookId": "f572626b-ffab-44a7-b72e-b35ced9464f2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_DASHBOARD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "id": "71ad0f16-330f-492a-a8c8-710aa25da6d3",
+      "name": "01 DASH Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "cd185772-4257-48cf-8dd9-36d41896b8c0",
+      "name": "02 DASH Auth Ping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        848
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('01 DASH Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+      },
+      "id": "0faa34ec-131b-4e07-8261-76ff41d5b220",
+      "name": "03 DASH Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_dashboard_metrics",
+        "limit": 10,
+        "orderBy": "updated_at.desc",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('03 DASH Gate').first().json.effective_user_id }}"
+            }
+          ]
+        }
+      },
+      "id": "a14787f4-721f-4948-98fe-b305cac3736e",
+      "name": "04 DASH Leer",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        944,
+        848
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('03 DASH Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst metricas = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nlet lineas = metricas.map(m => `- ${m.metric_label || m.metric_key || 'Métrica'}: ${m.metric_value || m.metric_number || 'sin valor'}`).join('\\n');\nif (!lineas) lineas = 'Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{\n  ok:true,executed:true,request_id:src.request_id,accion:src.accion,\n  respuesta:`Dashboard EOS:\\n${lineas}`,tipo:'texto'\n}}];"
+      },
+      "id": "0a838ba1-1efe-47a1-8c9e-13f324881487",
+      "name": "05 DASH Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "684050ed-9110-44c5-bdd2-36ac61d08ecb",
+      "name": "06 DASH Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1424,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker-rc1-briefing",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "1e8b83cc-8a92-43e3-b51a-03295f970535",
+      "name": "00 BRIEF Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1184
+      ],
+      "webhookId": "bc102c85-bd21-434f-963b-acb6014136c7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_BRIEFING'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "id": "aeaf6017-0c6c-4500-bdf0-1e95cca58f3d",
+      "name": "01 BRIEF Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2b198ec0-f2db-41ee-822e-9273f5a1ad96",
+      "name": "02 BRIEF Auth Ping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        1184
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('01 BRIEF Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+      },
+      "id": "16280ae6-3ebf-4e48-8d68-6e5aa8073e31",
+      "name": "03 BRIEF Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "eos_daily_briefings",
+        "limit": 1,
+        "orderBy": "created_at.desc",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "usuario_id",
+              "condition": "eq",
+              "keyValue": "={{ $('03 BRIEF Gate').first().json.effective_user_id }}"
+            }
+          ]
+        }
+      },
+      "id": "3f90857b-9912-424d-890c-206e9e674b4d",
+      "name": "04 BRIEF Leer",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        944,
+        1184
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "BXf6r1VynLo3h7o3",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('03 BRIEF Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst b = $input.first().json || {};\nconst respuesta = b.resumen\n  ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1 || 'Sin prioridad'}\\n2. ${b.prioridad_2 || 'Sin prioridad'}\\n3. ${b.prioridad_3 || 'Sin prioridad'}`\n  : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{ok:true,executed:true,request_id:src.request_id,accion:src.accion,respuesta,tipo:'texto'}}];"
+      },
+      "id": "b0ac51f6-3cdf-4758-b86d-13ef6da2c6a8",
+      "name": "05 BRIEF Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "93b8c0ad-f98e-4770-9b06-cb314b62b8ec",
+      "name": "06 BRIEF Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1424,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eos-worker-rc1-respond",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "435a635b-2ffb-4acd-8b41-9c6fe5822b70",
+      "name": "00 RESP Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1520
+      ],
+      "webhookId": "05950990-7e67-450e-a75e-fd9a126ff557"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'RESPONDER'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+      },
+      "id": "90c7942d-2ff0-4b1a-b583-b42a71dfb4f8",
+      "name": "01 RESP Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            },
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "66d80b51-0770-4deb-9e0c-c23fb5b8075f",
+      "name": "02 RESP Auth Ping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        1520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('01 RESP Preparar').first().json || {};\nconst ping = $input.first().json || {};\nreturn [{json:{\n  ok: ping.ok === true,\n  executed: false,\n  request_id: src.request_id,\n  accion: 'RESPONDER',\n  respuesta: src.respuesta_gateway || '',\n  tipo: 'texto',\n  ...(ping.ok === true ? {} : {error:'Worker no autorizado.'})\n}}];"
+      },
+      "id": "557b2110-6a62-432e-8b67-1bcf60a67a4a",
+      "name": "03 RESP Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "eb06f390-c9e7-411f-810e-b895beb2b4cd",
+      "name": "04 RESP Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        944,
+        1520
+      ]
+    }
+  ],
+  "connections": {
+    "00 INT Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 INT Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 INT Preparar": {
+      "main": [
+        [
+          {
+            "node": "02 INT Autorizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 INT Autorizar": {
+      "main": [
+        [
+          {
+            "node": "03 INT Preparar Efecto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 INT Preparar Efecto": {
+      "main": [
+        [
+          {
+            "node": "04 INT Efecto o Revalidar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 INT Efecto o Revalidar": {
+      "main": [
+        [
+          {
+            "node": "05 INT Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 INT Respuesta": {
+      "main": [
+        [
+          {
+            "node": "06 INT Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00 FILE Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 FILE Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 FILE Preparar": {
+      "main": [
+        [
+          {
+            "node": "02 FILE Autorizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 FILE Autorizar": {
+      "main": [
+        [
+          {
+            "node": "03 FILE Preparar Claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 FILE Preparar Claim": {
+      "main": [
+        [
+          {
+            "node": "04 FILE Claim o Revalidar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 FILE Claim o Revalidar": {
+      "main": [
+        [
+          {
+            "node": "05 FILE Preparar Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 FILE Preparar Resultado": {
+      "main": [
+        [
+          {
+            "node": "06 FILE Finalizar o Revalidar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 FILE Finalizar o Revalidar": {
+      "main": [
+        [
+          {
+            "node": "07 FILE Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 FILE Respuesta": {
+      "main": [
+        [
+          {
+            "node": "08 FILE Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00 DASH Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 DASH Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 DASH Preparar": {
+      "main": [
+        [
+          {
+            "node": "02 DASH Auth Ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 DASH Auth Ping": {
+      "main": [
+        [
+          {
+            "node": "03 DASH Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 DASH Gate": {
+      "main": [
+        [
+          {
+            "node": "04 DASH Leer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 DASH Leer": {
+      "main": [
+        [
+          {
+            "node": "05 DASH Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 DASH Respuesta": {
+      "main": [
+        [
+          {
+            "node": "06 DASH Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00 BRIEF Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 BRIEF Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 BRIEF Preparar": {
+      "main": [
+        [
+          {
+            "node": "02 BRIEF Auth Ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 BRIEF Auth Ping": {
+      "main": [
+        [
+          {
+            "node": "03 BRIEF Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 BRIEF Gate": {
+      "main": [
+        [
+          {
+            "node": "04 BRIEF Leer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 BRIEF Leer": {
+      "main": [
+        [
+          {
+            "node": "05 BRIEF Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 BRIEF Respuesta": {
+      "main": [
+        [
+          {
+            "node": "06 BRIEF Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00 RESP Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 RESP Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 RESP Preparar": {
+      "main": [
+        [
+          {
+            "node": "02 RESP Auth Ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 RESP Auth Ping": {
+      "main": [
+        [
+          {
+            "node": "03 RESP Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 RESP Respuesta": {
+      "main": [
+        [
+          {
+            "node": "04 RESP Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "iUMdg9fhAg54irmy",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "updatedAt": "2026-06-05T21:16:13.176Z"
+      },
+      "createdAt": "2026-08-17T04:19:09.232Z",
+      "updatedAt": "2026-08-17T04:19:09.232Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "96d399b3-45d2-4708-b714-ec181daf6203",
+    "workflowId": "iUMdg9fhAg54irmy",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker-rc1-internal",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "91beb339-ec29-4b23-83f6-bff57c8946c9",
+        "name": "00 INT Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "c5160ae2-1643-4eca-bcc2-0dce1d9c9a63"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'CREAR_TAREA',\n  'CREAR_OBJETIVO',\n  'GUARDAR_MEMORIA',\n\n  /*\n    Las tres del negocio. Estaban listas en todos lados menos acá.\n\n    El modelo las sabia pedir, el prompt se las ensenaba, el gateway tenia su\n    ruta, la tabla de riesgo del gate les daba tier 3, los constraints de la\n    base las admitian desde la v83 y el ejecutor existia desde la v84. Pero\n    esta lista no las incluia, asi que el worker las rechazaba antes de\n    llegar a pedir autorizacion.\n\n    Efecto visible: el chat mostraba 'Operacion lista para registrar' y la\n    pantalla de aprobaciones quedaba vacia. Una clienta lo reporto el 31 de\n    agosto de 2026; el gate no habia visto un REGISTRAR_VENTA en su vida.\n  */\n  'REGISTRAR_VENTA',\n  'AJUSTAR_STOCK',\n  'CREAR_CONTACTO',\n\n  /*\n    Cargar productos al catálogo (v131). Cuarta acción del negocio, y cuarto\n    lugar donde hay que darla de alta: cuando faltó SOLO acá, el gateway\n    recibía un {} sin error y desde el chat parecía que se había ejecutado.\n  */\n  'CREAR_PRODUCTO',\n\n  /*\n    Poner el costo y corregir el precio de lo que ya existe. Quinta acción del\n    negocio, cuarta vez que se pasa por esta lista, y la tercera vez que hay\n    que acordarse de que existe.\n  */\n  'ACTUALIZAR_PRODUCTO',\n\n  /*\n    La plata que sale y la que se va a repetir. Sexta y séptima acción del\n    negocio, y cuarta vez que hay que acordarse de esta lista.\n  */\n  'REGISTRAR_COMPRA',\n  'REGISTRAR_GASTO_FIJO'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+        },
+        "id": "06409967-57ef-4d87-be9b-98df8c0e205e",
+        "name": "01 INT Preparar",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "2ea15723-5f20-4ee7-bb88-2b18bb598939",
+        "name": "02 INT Autorizar",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          464,
+          0
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('01 INT Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\n\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-effects/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { command_id: auth.command_id }\n      : src.authorize_body\n  }\n}];"
+        },
+        "id": "df383035-d423-407e-84d9-fedd47b34464",
+        "name": "03 INT Preparar Efecto",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.target_url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "8b88967d-46ca-43c7-a2bf-431db433c646",
+        "name": "04 INT Efecto o Revalidar",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          944,
+          0
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 1000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "\n/*\n  Guaraníes como los escribe alguien de acá: punto para los miles, coma para\n  los decimales, y sin decimales cuando no los hay.\n\n  Los costos que salen de una cuenta con envío llegan con medio guaraní\n  (122.414,5) y redondearlos en la confirmación mostraría un número distinto\n  del que quedó guardado.\n*/\nfunction plata(n) {\n  const x = Number(n);\n  if (!isFinite(x)) return String(n);\n\n  const negativo = x < 0;\n  const abs = Math.abs(x);\n  const entero = Math.floor(abs);\n\n  let texto = String(entero).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');\n\n  const decimal = Math.round((abs - entero) * 100);\n  if (decimal > 0) {\n    let d = String(decimal);\n    if (d.length === 1) d = '0' + d;\n    if (d.charAt(1) === '0') d = d.charAt(0);\n    texto = texto + ',' + d;\n  }\n\n  return (negativo ? '-' : '') + texto;\n}\n\n/*\n  Qué cambió, campo por campo, con el antes y el después.\n\n  \"Actualicé el producto\" no sirve: cambiar un precio de 165.000 a 200.000 y\n  decir \"listo\" deja a la persona sin saber si el sistema entendió 200.000 o\n  20.000, que es exactamente el error que hay que poder ver enseguida. La\n  v133 devuelve el antes justamente para poder escribirlo.\n*/\nfunction fraseDeCambios(result) {\n  const r = (result && result.resultado) || {};\n  const hechos = Array.isArray(r.actualizados) ? r.actualizados : [];\n  const faltan = Array.isArray(r.no_encontrados) ? r.no_encontrados : [];\n  const iguales = Array.isArray(r.sin_cambios) ? r.sin_cambios : [];\n\n  const etiqueta = { precio_venta: 'precio', costo: 'costo', iva: 'IVA' };\n\n  const partes = [];\n\n  for (const p of hechos) {\n    const cambios = p.cambios || {};\n    const trozos = [];\n\n    for (const campo of ['precio_venta', 'costo', 'iva']) {\n      const c = cambios[campo];\n      if (!c) continue;\n\n      const antes = c.antes === null || c.antes === undefined;\n      const valor = campo === 'iva' ? c.despues + '%' : plata(c.despues);\n\n      trozos.push(\n        antes\n          ? etiqueta[campo] + ' ' + valor + ' (no tenía)'\n          : etiqueta[campo] + ' de ' + (campo === 'iva' ? c.antes + '%' : plata(c.antes)) + ' a ' + valor\n      );\n    }\n\n    if (trozos.length) partes.push('\\u201C' + p.nombre + '\\u201D: ' + trozos.join(', '));\n  }\n\n  const frases = [];\n\n  if (partes.length === 1) frases.push('Actualicé ' + partes[0] + '.');\n  else if (partes.length > 1) frases.push('Actualicé ' + partes.length + ' productos. ' + partes.join('. ') + '.');\n\n  // Acá y no al final: después del aviso de que un producto no estaba, \"lo\n  // ves en Negocio > Productos\" se lee como si hablara de ese.\n  if (partes.length) frases.push('Lo ves en Negocio > Productos.');\n\n  if (iguales.length === 1) frases.push('\\u201C' + iguales[0] + '\\u201D ya estaba así.');\n  else if (iguales.length > 1) frases.push(iguales.length + ' ya estaban así.');\n\n  if (faltan.length) {\n    frases.push(\n      (faltan.length === 1 ? 'No encontré \\u201C' + faltan[0] + '\\u201D' : 'No encontré ' + faltan.length + ' de los que nombraste') +\n      ' en tu catálogo: pasame el precio de venta y te lo cargo.'\n    );\n  }\n\n  if (!frases.length) return 'No quedó nada para actualizar.';\n\n  return frases.join(' ');\n}\n\n/*\n  La frase la arma la acción que sabe qué pasó; las que no tienen nada que\n  contar además de que se hicieron caen en `doneText`.\n*/\n/*\n  La compra dice el TOTAL, que es lo único verificable de un vistazo contra lo\n  que la persona dictó, y dice qué conceptos NO están en el catálogo, porque\n  de eso depende si movió stock o solamente plata.\n*/\nfunction fraseDeCompra(result) {\n  const r = (result && result.resultado) || {};\n  const items = Array.isArray(r.compra) ? r.compra : [];\n  const fuera = Array.isArray(r.sin_catalogo) ? r.sin_catalogo : [];\n  const total = r.total_compra;\n\n  if (!items.length) return 'No quedó ningún concepto para registrar.';\n\n  const frases = [];\n\n  frases.push(\n    items.length === 1\n      ? 'Registré la compra de ' + items[0].concepto + ' por \\u20B2 ' + plata(total) + '.'\n      : 'Registré una compra de ' + items.length + ' conceptos por \\u20B2 ' + plata(total) + ' en total.'\n  );\n\n  frases.push('La ves en Negocio > Compras, y el gasto ya está en el panel financiero.');\n\n  /*\n    Tres estados distintos, y la diferencia importa:\n\n      · en el catálogo y con inventario  -> subió el stock y el costo\n      · en el catálogo sin inventario    -> SOLO el costo\n      · fuera del catálogo               -> ni una cosa ni la otra\n\n    El del medio decía lo mismo que el primero, y hacía creer que el sistema\n    estaba contando existencias que nadie contaba.\n  */\n  const conStock = items.filter(function (x) { return x.mueve_stock; });\n  const soloCosto = items.filter(function (x) { return x.en_catalogo && !x.mueve_stock; });\n\n  if (conStock.length) {\n    frases.push(\n      conStock.length === 1\n        ? 'A \\u201C' + conStock[0].concepto + '\\u201D le sumé el stock y le actualicé el costo.'\n        : 'A ' + conStock.length + ' de ellos les sumé stock y les actualicé el costo.'\n    );\n  }\n\n  if (soloCosto.length) {\n    frases.push(\n      (soloCosto.length === 1\n        ? 'A \\u201C' + soloCosto[0].concepto + '\\u201D le actualicé el costo'\n        : 'A ' + soloCosto.length + ' de ellos les actualicé el costo') +\n      ', pero no llevan inventario, así que el stock no se movió. Se activa en Negocio > Productos.'\n    );\n  }\n\n  if (fuera.length) {\n    frases.push(\n      (fuera.length === 1\n        ? '\\u201C' + fuera[0] + '\\u201D no está en tu catálogo'\n        : fuera.length + ' de esos conceptos no están en tu catálogo') +\n      ', así que quedaron como gasto y no mueven inventario. Si querés que lleven stock, pasame su precio de venta y los cargo.'\n    );\n  }\n\n  if (r.proveedor && !r.proveedor.agendado) {\n    frases.push('No encontré a \\u201C' + r.proveedor.nombre + '\\u201D en tus contactos, así que la compra quedó sin proveedor.');\n  }\n\n  return frases.join(' ');\n}\n\n/*\n  El fijo dice la CONVERSIÓN. \"750.000 cada 15 días\" se guarda como 1.500.000\n  por mes y ese número sale después en el pronóstico de caja: sin explicar de\n  dónde salió, la única lectura posible es que el sistema se equivocó al doble.\n*/\nfunction fraseDeFijos(result) {\n  const r = (result && result.resultado) || {};\n  const fijos = Array.isArray(r.fijos) ? r.fijos : [];\n\n  if (!fijos.length) return 'No quedó ningún gasto fijo declarado.';\n\n  const partes = fijos.map(function (f) {\n    const base = f.descripcion + ': \\u20B2 ' + plata(f.monto_mensual) + ' por mes';\n    return f.convertido\n      ? base + ' (\\u20B2 ' + plata(f.monto_original) + ' ' + f.frecuencia + ')'\n      : base;\n  });\n\n  const dias = fijos.map(function (f) { return f.dia_del_mes; });\n  const mismoDia = dias.every(function (d) { return d === dias[0]; });\n\n  return (\n    (fijos.length === 1 ? 'Anoté ' : 'Anoté ' + fijos.length + ' fijos: ') +\n    partes.join('; ') + '. ' +\n    'Lo cuento ' + (mismoDia ? 'el día ' + dias[0] : 'en el día que registré cada uno') +\n    ' de cada mes; si es otro, cambialo en Gastos.'\n  );\n}\n\nfunction fraseDeAccion(accion, result) {\n  if (accion === 'CREAR_PRODUCTO') return fraseDeProductos(result);\n  if (accion === 'ACTUALIZAR_PRODUCTO') return fraseDeCambios(result);\n  if (accion === 'REGISTRAR_COMPRA') return fraseDeCompra(result);\n  if (accion === 'REGISTRAR_GASTO_FIJO') return fraseDeFijos(result);\n  return null;\n}\n\n/*\n  La frase de CREAR_PRODUCTO se arma con lo que pasó, no con un texto fijo.\n\n  El ejecutor devuelve `creados` y `ya_existian` (v132). Sin mirarlos, la\n  respuesta decía \"los productos quedaron cargados\" incluso cuando no se cargó\n  ninguno porque todos ya estaban — y quien lo lee se va creyendo que le\n  cambiamos el precio.\n*/\nfunction fraseDeProductos(result) {\n  const r = (result && result.resultado) || {};\n  const creados = Array.isArray(r.creados) ? r.creados : [];\n  const existian = Array.isArray(r.ya_existian) ? r.ya_existian : [];\n\n  const partes = [];\n\n  if (creados.length === 1) {\n    partes.push(`Cargué \\u201C${creados[0].nombre}\\u201D en tu catálogo.`);\n  } else if (creados.length > 1) {\n    partes.push(`Cargué ${creados.length} productos en tu catálogo.`);\n  }\n\n  if (existian.length === 1) {\n    partes.push(\n      `\\u201C${existian[0]}\\u201D ya estaba y no le toqué el precio: cambiarlo todavía se hace desde Negocio > Productos.`\n    );\n  } else if (existian.length > 1) {\n    partes.push(\n      `${existian.length} ya estaban y no les toqué el precio: cambiarlo todavía se hace desde Negocio > Productos.`\n    );\n  }\n\n  if (!partes.length) return 'No quedó ningún producto para cargar.';\n\n  if (creados.length) partes.push('Los ves en Negocio > Productos.');\n\n  return partes.join(' ');\n}\n\n/*\n  El motivo de verdad, y siempre como texto.\n\n  Cuando el efecto interno falla, `result` es el objeto de error de Axios y\n  `result.error` es `{ message, name, stack }`. Poner eso en `respuesta`\n  mandaba un rastro de pila con rutas del servidor al chat de la persona.\n\n  Y el cuerpo de la respuesta viene con DOS niveles de escape adentro del\n  mensaje de Axios:\n\n      422 - \"{\\\"ok\\\":false,\\\"error\\\":\\\"No encontré a \\\\\\\"Rossana\\\\\\\"…\\\"}\"\n\n  Desde la primera comilla, eso es un literal JSON completo: parsearlo una vez\n  da el texto del cuerpo, parsearlo otra vez da el objeto. Sin expresiones\n  regulares y sin reescribir comillas a mano, que es donde falló el primer\n  intento.\n*/\nfunction motivoDelError(result) {\n  const directo = result && result.error;\n  if (typeof directo === 'string' && directo.trim()) return directo.trim();\n\n  const crudo =\n    (directo && typeof directo === 'object' && typeof directo.message === 'string' && directo.message) ||\n    (result && typeof result.message === 'string' && result.message) ||\n    '';\n\n  const comilla = crudo.indexOf('\"');\n\n  if (comilla >= 0) {\n    try {\n      const cuerpo = JSON.parse(JSON.parse(crudo.slice(comilla)));\n      if (cuerpo && typeof cuerpo.error === 'string' && cuerpo.error.trim()) {\n        return cuerpo.error.trim();\n      }\n    } catch (e) { /* sigue abajo */ }\n  }\n\n  // Por si algún día el cuerpo llega sin envolver en un literal de texto.\n  const llave = crudo.indexOf('{');\n  if (llave >= 0) {\n    try {\n      const cuerpo = JSON.parse(crudo.slice(llave));\n      if (cuerpo && typeof cuerpo.error === 'string' && cuerpo.error.trim()) {\n        return cuerpo.error.trim();\n      }\n    } catch (e) { /* se cae al genérico */ }\n  }\n\n  return 'No fue posible completar la acción interna.';\n}\nconst prep = $('03 INT Preparar Efecto').first().json || {};\nconst result = $input.first().json || {};\nconst auth = prep.auth || {};\n\nconst doneText = {\n  CREAR_TAREA: 'La tarea quedó registrada.',\n  CREAR_OBJETIVO: 'El objetivo quedó creado.',\n  GUARDAR_MEMORIA: 'Guardé esa información en la memoria empresarial.',\n\n  /*\n    Las tres del negocio. Sin estas entradas caian en el texto generico\n    'La accion quedo completada.', que despues de cargar una venta no le\n    dice a nadie que la venta esta.\n  */\n  REGISTRAR_VENTA: 'La venta quedó registrada. La ves en Negocio > Ventas.',\n  AJUSTAR_STOCK: 'Ajusté el stock. Lo ves en Negocio > Productos.',\n  CREAR_CONTACTO: 'El contacto quedó guardado. Lo ves en Negocio > Contactos.',\n  CREAR_PRODUCTO: 'Los productos quedaron cargados. Los ves en Negocio > Productos.'\n};\n\nif (!prep.execute) {\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed) respuesta = 'Esta acción ya había sido completada y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'Esta acción requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La acción quedó sin ejecución automática por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La acción fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      resultado: auth.resultado || {}\n    }\n  }];\n}\n\nconst success = result.ok === true && result.command_id;\nreturn [{\n  json: {\n    ok: Boolean(success),\n    executed: Boolean(success),\n    idempotent: result.idempotent === true,\n    request_id: prep.request_id,\n    command_id: result.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: result.estado || (success ? 'completada' : 'error'),\n    effect_type: result.effect_type || '',\n    effect_id: result.effect_id || null,\n    resultado: result.resultado || {},\n    respuesta: success\n      ? (fraseDeAccion(prep.accion, result) || doneText[prep.accion] || 'La acción quedó completada.')\n      : motivoDelError(result)\n  }\n}];"
+        },
+        "id": "45da5c74-2aaa-4871-81e2-f99015e2721b",
+        "name": "05 INT Respuesta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1184,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "40c072d6-51af-4c9e-acb5-c577ab082f73",
+        "name": "06 INT Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1424,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker-rc1-file",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "3c4ab429-0887-445d-a81d-bfe41baebf2a",
+        "name": "00 FILE Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          432
+        ],
+        "webhookId": "7b6fc211-92c0-4b51-8114-ed39f1444056"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'GENERAR_EXCEL',\n  'GENERAR_PDF',\n  'GENERAR_WORD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+        },
+        "id": "82893b1b-e458-4eda-a35e-dee5f527a857",
+        "name": "01 FILE Preparar",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-authorize/v1' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.authorize_body) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "a068a56d-d09b-44c6-9058-754a6b1c45df",
+        "name": "02 FILE Autorizar",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          464,
+          432
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('01 FILE Preparar').first().json || {};\nconst auth = $input.first().json || {};\nconst isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || ''));\nconst execute = auth.ok === true && auth.execute === true && isUuid(auth.command_id);\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\nreturn [{\n  json: {\n    ...src,\n    auth,\n    execute,\n    command_id: isUuid(auth.command_id) ? auth.command_id : null,\n    target_url: execute\n      ? `${base}/api/internal/action-claims/v1`\n      : `${base}/api/internal/worker-authorize/v1`,\n    target_body: execute\n      ? { operation: 'claim', command_id: auth.command_id, lease_seconds: 300 }\n      : src.authorize_body\n  }\n}];"
+        },
+        "id": "c4fa189c-5354-4ef8-91d2-4339a0e9f4a6",
+        "name": "03 FILE Preparar Claim",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.target_url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "8f3798f2-25ac-4177-a7ae-474e6ecd1bb2",
+        "name": "04 FILE Claim o Revalidar",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          944,
+          432
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 1000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const prep = $('03 FILE Preparar Claim').first().json || {};\nconst claim = $input.first().json || {};\nconst auth = prep.auth || {};\nconst datos = prep.accion_datos || {};\nconst base = 'https://www.transtech.com.py'.replace(/\\/$/, '');\n\n\n/* =========================================================\n   HELPERS\n========================================================= */\n\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(\n    String(v || '')\n  );\n\n\nconst normalizar = (texto) =>\n  String(texto || '')\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n\n\n/*\n  n8n Code sandbox no expone URLSearchParams\n  en esta versión.\n\n  Construimos el query string manualmente\n  usando encodeURIComponent.\n*/\nconst construirQuery = (params) => {\n  return Object.entries(params)\n    .map(([key, value]) => {\n      const k = encodeURIComponent(\n        String(key ?? '')\n      );\n\n      const v = encodeURIComponent(\n        String(value ?? '')\n      );\n\n      return `${k}=${v}`;\n    })\n    .join('&');\n};\n\n\n/* =========================================================\n   VALIDAR CLAIM\n========================================================= */\n\nconst claimed =\n  prep.execute === true &&\n  claim.ok === true &&\n  claim.claimed === true &&\n  isUuid(claim.command_id) &&\n  isUuid(claim.lease_token) &&\n  Number.isInteger(\n    Number(claim.attempt_count)\n  ) &&\n  Number(claim.attempt_count) > 0;\n\n\n/* =========================================================\n   VALORES TERMINALES POR DEFECTO\n========================================================= */\n\nlet archivo_url = '';\nlet archivo_tipo = '';\nlet archivo_nombre = '';\n\nlet estado = 'no_disponible';\n\nlet resultado = {};\n\nlet error_code = null;\nlet error_message = null;\n\n\n/* =========================================================\n   GENERAR_EXCEL\n========================================================= */\n\nif (\n  claimed &&\n  prep.accion === 'GENERAR_EXCEL'\n) {\n\n  const textoCompleto = [\n    prep.mensaje,\n    datos.tema,\n    datos.tipo,\n    datos.rubro,\n    datos.negocio,\n    datos.descripcion\n  ]\n    .filter(Boolean)\n    .join(' ')\n    .toLowerCase();\n\n\n  /* -------------------------------------------------------\n     ELEGIR PLANTILLA\n  ------------------------------------------------------- */\n\n  let plantilla = 'business';\n\n  let rubro =\n    datos.rubro ||\n    'negocio_general';\n\n\n  if (\n    /finanzas personales|deuda|deudas|ahorro|presupuesto personal|salir de deudas/.test(\n      textoCompleto\n    )\n  ) {\n    plantilla = 'personal';\n    rubro = 'persona_fisica';\n\n  } else if (\n    /restaurante|gastronomia|comida|hamburg|pizza|cafeteria|bar/.test(\n      textoCompleto\n    )\n  ) {\n    rubro = 'gastronomia';\n  }\n\n\n  /* -------------------------------------------------------\n     NOMBRE DEL ARCHIVO\n  ------------------------------------------------------- */\n\n  const nombreBase =\n    datos.negocio ||\n    datos.nombre ||\n    prep.nombre ||\n    'usuario';\n\n\n  archivo_nombre =\n    plantilla === 'personal'\n      ? `plan_financiero_eos_${normalizar(nombreBase)}.xlsx`\n      : `control_negocio_eos_${normalizar(nombreBase)}.xlsx`;\n\n\n  /* -------------------------------------------------------\n     QUERY STRING\n\n     IMPORTANTE:\n     Ya NO usamos URLSearchParams.\n  ------------------------------------------------------- */\n\n  const query = construirQuery({\n    tipo: 'excel',\n\n    plantilla,\n\n    nombre:\n      archivo_nombre.replace(\n        /\\.xlsx$/i,\n        ''\n      ),\n\n    rubro:\n      String(rubro),\n\n    negocio:\n      String(nombreBase),\n\n    tema:\n      String(\n        datos.tema ||\n        prep.mensaje ||\n        'control general'\n      ),\n\n    command_id:\n      String(claim.command_id)\n  });\n\n\n  /* -------------------------------------------------------\n     URL GOBERNADA\n  ------------------------------------------------------- */\n\n  archivo_url =\n    `${base}/descargar?${query}`;\n\n\n  archivo_tipo = 'excel';\n\n  estado = 'completada';\n\n\n  /* -------------------------------------------------------\n     RESULTADO DURABLE\n  ------------------------------------------------------- */\n\n  resultado = {\n    archivo_url,\n    archivo_tipo,\n    archivo_nombre,\n\n    artifact_key:\n      `${claim.command_id}.xlsx`,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   PDF / WORD\n\n   Todavía no conectados.\n========================================================= */\n\nelse if (claimed) {\n\n  archivo_tipo =\n    prep.accion === 'GENERAR_PDF'\n      ? 'pdf'\n      : 'word';\n\n\n  estado =\n    'no_disponible';\n\n\n  error_code =\n    prep.accion === 'GENERAR_PDF'\n      ? 'PDF_GENERATOR_NOT_CONNECTED'\n      : 'WORD_GENERATOR_NOT_CONNECTED';\n\n\n  error_message =\n    prep.accion === 'GENERAR_PDF'\n      ? 'El generador PDF todavía no está conectado al Worker Gate RC1.'\n      : 'El generador Word todavía no está conectado al Worker Gate RC1.';\n\n\n  resultado = {\n    archivo_tipo,\n\n    disponible: false,\n\n    command_id:\n      claim.command_id\n  };\n}\n\n\n/* =========================================================\n   TARGET FINAL\n========================================================= */\n\nconst target_url =\n  claimed\n    ? `${base}/api/internal/action-results/v1`\n    : `${base}/api/internal/worker-authorize/v1`;\n\n\nconst target_body =\n  claimed\n    ? {\n        command_id:\n          claim.command_id,\n\n        lease_token:\n          claim.lease_token,\n\n        attempt_count:\n          Number(\n            claim.attempt_count\n          ),\n\n        estado,\n\n        resultado,\n\n        error_code,\n\n        error_message\n      }\n    : prep.authorize_body;\n\n\n/* =========================================================\n   SALIDA\n========================================================= */\n\nreturn [\n  {\n    json: {\n      ...prep,\n\n      claim,\n\n      claimed,\n\n      archivo_url,\n\n      archivo_tipo,\n\n      archivo_nombre,\n\n      terminal_estado:\n        estado,\n\n      terminal_resultado:\n        resultado,\n\n      target_url,\n\n      target_body\n    }\n  }\n];"
+        },
+        "id": "b85e9789-63b2-4a5b-8046-06cee8b11151",
+        "name": "05 FILE Preparar Resultado",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1184,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.target_url }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.target_body) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "5ce72aea-d837-49be-a3e3-4a3431bb7184",
+        "name": "06 FILE Finalizar o Revalidar",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1424,
+          432
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 1000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const prep = $('05 FILE Preparar Resultado').first().json || {};\nconst final = $input.first().json || {};\nconst auth = prep.auth || {};\nconst claim = prep.claim || {};\n\nif (!prep.execute) {\n  const r = auth.resultado || {};\n  const completed = auth.decision === 'completed';\n  let respuesta = '';\n  if (completed && r.archivo_url) respuesta = `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`;\n  else if (completed) respuesta = 'Esta generación ya había terminado y no se repitió.';\n  else if (auth.decision === 'approval' || auth.decision === 'approval_ready') respuesta = 'La generación requiere aprobación antes de ejecutarse.';\n  else if (auth.decision === 'prepare' || auth.decision === 'recommend') respuesta = 'La generación no se ejecutó automáticamente por la configuración de autonomía actual.';\n  else respuesta = auth.reason || auth.error || 'La generación fue bloqueada por seguridad.';\n\n  return [{\n    json: {\n      ok: auth.ok !== false,\n      executed: false,\n      idempotent: completed || auth.command_idempotent === true,\n      decision: auth.decision || 'block',\n      reason: auth.reason || auth.error || '',\n      respuesta,\n      request_id: prep.request_id,\n      command_id: auth.command_id || null,\n      accion: prep.accion,\n      estado: completed ? 'completada' : null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nif (!prep.claimed) {\n  const r = claim.resultado || {};\n  const completed = claim.code === 'EOS_COMMAND_ALREADY_COMPLETED' || claim.estado === 'completada';\n  return [{\n    json: {\n      ok: claim.ok !== false,\n      executed: false,\n      idempotent: claim.idempotent === true,\n      decision: claim.code || 'not_claimed',\n      reason: claim.error || claim.code || '',\n      respuesta: completed && r.archivo_url\n        ? `El archivo ya estaba listo.\\n\\nDescargar archivo: ${r.archivo_url}`\n        : completed\n          ? 'Esta generación ya estaba completada y no se repitió.'\n          : 'La generación ya está siendo procesada por otro Worker; no se inició una segunda copia.',\n      request_id: prep.request_id,\n      command_id: claim.command_id || prep.command_id,\n      accion: prep.accion,\n      estado: claim.estado || null,\n      archivo_url: r.archivo_url || '',\n      archivo_tipo: r.archivo_tipo || '',\n      archivo_nombre: r.archivo_nombre || '',\n      resultado: r\n    }\n  }];\n}\n\nconst finalized = final.ok === true;\nconst isExcel = prep.accion === 'GENERAR_EXCEL';\nreturn [{\n  json: {\n    ok: finalized,\n    executed: finalized && prep.terminal_estado === 'completada',\n    idempotent: final.idempotent === true,\n    request_id: prep.request_id,\n    command_id: final.command_id || prep.command_id,\n    accion: prep.accion,\n    estado: final.estado || prep.terminal_estado,\n    archivo_url: finalized && isExcel ? prep.archivo_url : '',\n    archivo_tipo: prep.archivo_tipo,\n    archivo_nombre: prep.archivo_nombre,\n    resultado: final.resultado || prep.terminal_resultado || {},\n    respuesta: finalized\n      ? (isExcel\n          ? `Tu Excel ya está listo.\\n\\nDescargar archivo: ${prep.archivo_url}`\n          : 'Ese formato todavía no está disponible para generación gobernada en EOS.')\n      : (final.error || 'No fue posible cerrar el resultado del archivo de forma segura.')\n  }\n}];"
+        },
+        "id": "0808aff3-03c2-4e21-9e87-5ac7956afdfa",
+        "name": "07 FILE Respuesta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1664,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "c57bf5d4-cf21-46f2-a721-4647da62e093",
+        "name": "08 FILE Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1904,
+          432
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker-rc1-dashboard",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "0f9a2e89-a0a8-4282-a820-0b578f963dc9",
+        "name": "00 DASH Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          848
+        ],
+        "webhookId": "f572626b-ffab-44a7-b72e-b35ced9464f2"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_DASHBOARD'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+        },
+        "id": "71ad0f16-330f-492a-a8c8-710aa25da6d3",
+        "name": "01 DASH Preparar",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({}) }}",
+          "options": {
+            "timeout": 15000
+          }
+        },
+        "id": "cd185772-4257-48cf-8dd9-36d41896b8c0",
+        "name": "02 DASH Auth Ping",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          464,
+          848
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('01 DASH Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+        },
+        "id": "0faa34ec-131b-4e07-8261-76ff41d5b220",
+        "name": "03 DASH Gate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_dashboard_metrics",
+          "limit": 10,
+          "orderBy": "updated_at.desc",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('03 DASH Gate').first().json.effective_user_id }}"
+              }
+            ]
+          }
+        },
+        "id": "a14787f4-721f-4948-98fe-b305cac3736e",
+        "name": "04 DASH Leer",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          944,
+          848
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('03 DASH Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst metricas = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nlet lineas = metricas.map(m => `- ${m.metric_label || m.metric_key || 'Métrica'}: ${m.metric_value || m.metric_number || 'sin valor'}`).join('\\n');\nif (!lineas) lineas = 'Todavía no hay métricas cargadas para este usuario.';\nreturn [{json:{\n  ok:true,executed:true,request_id:src.request_id,accion:src.accion,\n  respuesta:`Dashboard EOS:\\n${lineas}`,tipo:'texto'\n}}];"
+        },
+        "id": "0a838ba1-1efe-47a1-8c9e-13f324881487",
+        "name": "05 DASH Respuesta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1184,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "684050ed-9110-44c5-bdd2-36ac61d08ecb",
+        "name": "06 DASH Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1424,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker-rc1-briefing",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "1e8b83cc-8a92-43e3-b51a-03295f970535",
+        "name": "00 BRIEF Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          1184
+        ],
+        "webhookId": "bc102c85-bd21-434f-963b-acb6014136c7"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'VER_BRIEFING'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+        },
+        "id": "aeaf6017-0c6c-4500-bdf0-1e95cca58f3d",
+        "name": "01 BRIEF Preparar",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          1184
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({}) }}",
+          "options": {
+            "timeout": 15000
+          }
+        },
+        "id": "2b198ec0-f2db-41ee-822e-9273f5a1ad96",
+        "name": "02 BRIEF Auth Ping",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          464,
+          1184
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('01 BRIEF Preparar').first().json || {};\nconst ping = $input.first().json || {};\nconst authorized = ping.ok === true;\nreturn [{json: {\n  ...src,\n  ping,\n  authorized,\n  effective_user_id: authorized ? src.usuario_id : '00000000-0000-0000-0000-000000000000'\n}}];"
+        },
+        "id": "16280ae6-3ebf-4e48-8d68-6e5aa8073e31",
+        "name": "03 BRIEF Gate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          1184
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "eos_daily_briefings",
+          "limit": 1,
+          "orderBy": "created_at.desc",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "usuario_id",
+                "condition": "eq",
+                "keyValue": "={{ $('03 BRIEF Gate').first().json.effective_user_id }}"
+              }
+            ]
+          }
+        },
+        "id": "3f90857b-9912-424d-890c-206e9e674b4d",
+        "name": "04 BRIEF Leer",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          944,
+          1184
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "BXf6r1VynLo3h7o3",
+            "name": "Supabase account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('03 BRIEF Gate').first().json || {};\nif (!src.authorized) {\n  return [{json:{ok:false,executed:false,request_id:src.request_id,accion:src.accion,error:'Worker no autorizado.'}}];\n}\nconst b = $input.first().json || {};\nconst respuesta = b.resumen\n  ? `Briefing EOS:\\n${b.resumen}\\n\\nPrioridades:\\n1. ${b.prioridad_1 || 'Sin prioridad'}\\n2. ${b.prioridad_2 || 'Sin prioridad'}\\n3. ${b.prioridad_3 || 'Sin prioridad'}`\n  : 'Todavía no hay briefing generado para este usuario.';\nreturn [{json:{ok:true,executed:true,request_id:src.request_id,accion:src.accion,respuesta,tipo:'texto'}}];"
+        },
+        "id": "b0ac51f6-3cdf-4758-b86d-13ef6da2c6a8",
+        "name": "05 BRIEF Respuesta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1184,
+          1184
+        ]
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "93b8c0ad-f98e-4770-9b06-cb314b62b8ec",
+        "name": "06 BRIEF Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1424,
+          1184
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "eos-worker-rc1-respond",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "435a635b-2ffb-4acd-8b41-9c6fe5822b70",
+        "name": "00 RESP Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          1520
+        ],
+        "webhookId": "05950990-7e67-450e-a75e-fd9a126ff557"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json || {};\nconst headers = $json.headers || {};\nconst clean = (v) => String(v ?? '').trim();\nconst isUuid = (v) =>\n  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(v));\n\nconst authorization = clean(headers.authorization || headers.Authorization);\nif (!authorization.startsWith('Bearer ') || authorization.length <= 7) {\n  throw new Error('Worker RC1 requiere Authorization Bearer.');\n}\n\nconst request_id = clean(body.request_id);\nconst usuario_id = clean(body.usuario_id);\nconst conversacion_id = clean(body.conversacion_id);\nif (!isUuid(request_id) || !isUuid(usuario_id) || !isUuid(conversacion_id)) {\n  throw new Error('Worker RC1 recibió identidad inválida.');\n}\n\nconst accionObj = body.accion && typeof body.accion === 'object' && !Array.isArray(body.accion)\n  ? body.accion\n  : {};\nconst accion = clean(accionObj.tipo).toUpperCase();\nconst allowed = new Set([\n  'RESPONDER'\n]);\nif (!allowed.has(accion)) {\n  throw new Error(`Acción no permitida en este endpoint: ${accion || 'vacía'}`);\n}\n\nconst datos = accionObj.datos && typeof accionObj.datos === 'object' && !Array.isArray(accionObj.datos)\n  ? accionObj.datos\n  : {};\n\nconst payload = {\n  mensaje: clean(body.mensaje),\n  datos,\n  metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)\n    ? body.metadata\n    : {}\n};\n\nconst authorize_body = {\n  usuario_id,\n  request_id,\n  accion,\n  payload,\n  conversacion_id,\n  origen: 'n8n-worker-gated-rc1'\n};\n\nreturn [{\n  json: {\n    request_id,\n    usuario_id,\n    conversacion_id,\n    nombre: clean(body.nombre || 'Usuario'),\n    mensaje: clean(body.mensaje),\n    respuesta_gateway: clean(body.respuesta_gateway),\n    accion,\n    accion_datos: datos,\n    plan: clean(body.plan || 'free'),\n    origen: clean(body.origen || 'eos-web'),\n    metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},\n    authorization,\n    authorize_body,\n    received_at: clean(body.received_at || new Date().toISOString())\n  }\n}];"
+        },
+        "id": "90c7942d-2ff0-4b1a-b583-b42a71dfb4f8",
+        "name": "01 RESP Preparar",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          1520
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ 'https://www.transtech.com.py'.replace(/\\/$/, '') + '/api/internal/worker-ping/v1' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ $json.authorization }}"
+              },
+              {
+                "name": "x-vercel-protection-bypass",
+                "value": "={{ $env.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({}) }}",
+          "options": {
+            "timeout": 15000
+          }
+        },
+        "id": "66d80b51-0770-4deb-9e0c-c23fb5b8075f",
+        "name": "02 RESP Auth Ping",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          464,
+          1520
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const src = $('01 RESP Preparar').first().json || {};\nconst ping = $input.first().json || {};\nreturn [{json:{\n  ok: ping.ok === true,\n  executed: false,\n  request_id: src.request_id,\n  accion: 'RESPONDER',\n  respuesta: src.respuesta_gateway || '',\n  tipo: 'texto',\n  ...(ping.ok === true ? {} : {error:'Worker no autorizado.'})\n}}];"
+        },
+        "id": "557b2110-6a62-432e-8b67-1bcf60a67a4a",
+        "name": "03 RESP Respuesta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          704,
+          1520
+        ]
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "eb06f390-c9e7-411f-810e-b895beb2b4cd",
+        "name": "04 RESP Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          944,
+          1520
+        ]
+      }
+    ],
+    "connections": {
+      "00 INT Webhook": {
+        "main": [
+          [
+            {
+              "node": "01 INT Preparar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 INT Preparar": {
+        "main": [
+          [
+            {
+              "node": "02 INT Autorizar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 INT Autorizar": {
+        "main": [
+          [
+            {
+              "node": "03 INT Preparar Efecto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 INT Preparar Efecto": {
+        "main": [
+          [
+            {
+              "node": "04 INT Efecto o Revalidar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 INT Efecto o Revalidar": {
+        "main": [
+          [
+            {
+              "node": "05 INT Respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "05 INT Respuesta": {
+        "main": [
+          [
+            {
+              "node": "06 INT Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "00 FILE Webhook": {
+        "main": [
+          [
+            {
+              "node": "01 FILE Preparar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 FILE Preparar": {
+        "main": [
+          [
+            {
+              "node": "02 FILE Autorizar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 FILE Autorizar": {
+        "main": [
+          [
+            {
+              "node": "03 FILE Preparar Claim",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 FILE Preparar Claim": {
+        "main": [
+          [
+            {
+              "node": "04 FILE Claim o Revalidar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 FILE Claim o Revalidar": {
+        "main": [
+          [
+            {
+              "node": "05 FILE Preparar Resultado",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "05 FILE Preparar Resultado": {
+        "main": [
+          [
+            {
+              "node": "06 FILE Finalizar o Revalidar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "06 FILE Finalizar o Revalidar": {
+        "main": [
+          [
+            {
+              "node": "07 FILE Respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "07 FILE Respuesta": {
+        "main": [
+          [
+            {
+              "node": "08 FILE Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "00 DASH Webhook": {
+        "main": [
+          [
+            {
+              "node": "01 DASH Preparar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 DASH Preparar": {
+        "main": [
+          [
+            {
+              "node": "02 DASH Auth Ping",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 DASH Auth Ping": {
+        "main": [
+          [
+            {
+              "node": "03 DASH Gate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 DASH Gate": {
+        "main": [
+          [
+            {
+              "node": "04 DASH Leer",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 DASH Leer": {
+        "main": [
+          [
+            {
+              "node": "05 DASH Respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "05 DASH Respuesta": {
+        "main": [
+          [
+            {
+              "node": "06 DASH Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "00 BRIEF Webhook": {
+        "main": [
+          [
+            {
+              "node": "01 BRIEF Preparar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 BRIEF Preparar": {
+        "main": [
+          [
+            {
+              "node": "02 BRIEF Auth Ping",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 BRIEF Auth Ping": {
+        "main": [
+          [
+            {
+              "node": "03 BRIEF Gate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 BRIEF Gate": {
+        "main": [
+          [
+            {
+              "node": "04 BRIEF Leer",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "04 BRIEF Leer": {
+        "main": [
+          [
+            {
+              "node": "05 BRIEF Respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "05 BRIEF Respuesta": {
+        "main": [
+          [
+            {
+              "node": "06 BRIEF Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "00 RESP Webhook": {
+        "main": [
+          [
+            {
+              "node": "01 RESP Preparar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "01 RESP Preparar": {
+        "main": [
+          [
+            {
+              "node": "02 RESP Auth Ping",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "02 RESP Auth Ping": {
+        "main": [
+          [
+            {
+              "node": "03 RESP Respuesta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "03 RESP Respuesta": {
+        "main": [
+          [
+            {
+              "node": "04 RESP Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "createdAt": "2026-09-07T22:09:40.245Z",
+    "updatedAt": "2026-09-07T22:09:40.245Z",
+    "workflowPublishHistory": [
+      {
+        "id": 632,
+        "workflowId": "iUMdg9fhAg54irmy",
+        "versionId": "96d399b3-45d2-4708-b714-ec181daf6203",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3",
+        "createdAt": "2026-09-07T22:09:53.845Z"
+      }
+    ]
+  }
+}

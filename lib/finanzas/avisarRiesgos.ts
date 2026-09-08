@@ -107,6 +107,7 @@ export async function avisarRiesgos(
           .from("eos_movimientos_financieros")
           .select("tipo,monto,moneda,fecha,descripcion")
           .eq("usuario_id", uid)
+          .eq("ambito", "personal")
           .order("fecha", { ascending: true }),
         admin
           .from("eos_finanzas_conciliaciones")
@@ -116,6 +117,7 @@ export async function avisarRiesgos(
           .from("eos_finanzas_fijos")
           .select("tipo,descripcion,monto,moneda,dia_del_mes")
           .eq("usuario_id", uid)
+          .eq("ambito", "personal")
           .eq("activo", true),
         admin
           .from("eos_finanzas_deudas")

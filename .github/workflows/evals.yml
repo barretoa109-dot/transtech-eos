@@ -79,3 +79,11 @@ jobs:
       # todos con un 200 y sin un error en ningún log. Probado en rojo: se le
       # sacó el filtro a una ruta real y falló señalando archivo, línea y tabla.
       - run: npm run rutas
+
+      # Que ninguna consulta a la plata mezcle el negocio con la persona.
+      # `eos_movimientos_financieros` y `eos_finanzas_fijos` guardan las dos, y
+      # una consulta sin `.eq("ambito", …)` las suma en silencio: el panel de
+      # "¿estoy bien?" pasa a incluir la inversión de un negocio, y el resultado
+      # del negocio pasa a incluir el sueldo de la persona. Los dos números
+      # quedan mal y los dos siguen pareciendo números.
+      - run: npm run ambito

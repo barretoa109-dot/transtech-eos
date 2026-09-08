@@ -85,12 +85,14 @@ export async function leerHechos(
       .from("eos_movimientos_financieros")
       .select("tipo,monto,moneda,fecha,descripcion")
       .eq("usuario_id", usuarioId)
+      .eq("ambito", "negocio")
       .gte("fecha", rango.desde)
       .lte("fecha", rango.hasta),
     admin
       .from("eos_finanzas_fijos")
       .select("tipo,monto,moneda,descripcion")
       .eq("usuario_id", usuarioId)
+      .eq("ambito", "negocio")
       .eq("activo", true),
   ]);
 

@@ -109,6 +109,7 @@ export async function GET() {
         .from("eos_movimientos_financieros")
         .select("tipo,monto,moneda,fecha,descripcion")
         .eq("usuario_id", user.id)
+        .eq("ambito", "personal")
         .order("fecha", { ascending: true }),
       supabase.from("eos_goals").select("estado,progreso").eq("usuario_id", user.id),
       supabase
@@ -120,6 +121,7 @@ export async function GET() {
         .from("eos_finanzas_fijos")
         .select("tipo,descripcion,monto,moneda,dia_del_mes")
         .eq("usuario_id", user.id)
+        .eq("ambito", "personal")
         .eq("activo", true),
       supabase
         .from("eos_finanzas_deudas")

@@ -40,6 +40,7 @@ export async function GET() {
       .from("eos_movimientos_financieros")
       .select("metadata")
       .eq("usuario_id", user.id)
+      .eq("ambito", "personal")
       .eq("origen", "documento"),
   ]);
 

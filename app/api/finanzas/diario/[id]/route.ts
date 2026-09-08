@@ -46,6 +46,7 @@ async function propio(id: string) {
     .select("id,tipo,monto,moneda,descripcion,fecha,origen")
     .eq("id", id)
     .eq("usuario_id", user.id)
+    .eq("ambito", "personal")
     .maybeSingle();
 
   if (error) {
@@ -131,6 +132,7 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
     .update(cambios)
     .eq("id", id)
     .eq("usuario_id", puerta.user.id)
+    .eq("ambito", "personal")
     .select("id,tipo,monto,moneda,descripcion,categoria,fecha,origen")
     .single();
 
@@ -167,7 +169,8 @@ export async function DELETE(_request: Request, contexto: { params: Promise<{ id
     .from("eos_movimientos_financieros")
     .delete()
     .eq("id", id)
-    .eq("usuario_id", puerta.user.id);
+    .eq("usuario_id", puerta.user.id)
+    .eq("ambito", "personal");
 
   if (error) {
     console.error("Finanzas: no se pudo borrar el movimiento:", error);

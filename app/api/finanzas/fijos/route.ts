@@ -40,6 +40,7 @@ export async function GET() {
     .from("eos_finanzas_fijos")
     .select("id,tipo,descripcion,monto,dia_del_mes")
     .eq("usuario_id", user.id)
+    .eq("ambito", "personal")
     .eq("activo", true)
     .order("tipo", { ascending: true })
     .order("dia_del_mes", { ascending: true });
@@ -120,7 +121,8 @@ export async function PUT(request: Request) {
   const { error: borradoError } = await supabase
     .from("eos_finanzas_fijos")
     .delete()
-    .eq("usuario_id", user.id);
+    .eq("usuario_id", user.id)
+    .eq("ambito", "personal");
 
   if (borradoError) {
     console.error("No se pudieron reemplazar los fijos:", borradoError);

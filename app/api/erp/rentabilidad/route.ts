@@ -94,12 +94,14 @@ export async function GET(request: Request) {
       .from("eos_movimientos_financieros")
       .select("tipo,monto,moneda,fecha")
       .eq("usuario_id", puerta.usuarioId)
+      .eq("ambito", "negocio")
       .gte("fecha", anterior.desde)
       .lte("fecha", periodo.hasta),
     admin
       .from("eos_finanzas_fijos")
       .select("tipo,monto,moneda")
       .eq("usuario_id", puerta.usuarioId)
+      .eq("ambito", "negocio")
       .eq("activo", true),
   ]);
 

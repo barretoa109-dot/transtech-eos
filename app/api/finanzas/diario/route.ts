@@ -74,6 +74,7 @@ export async function GET(request: Request) {
     .from("eos_movimientos_financieros")
     .select("id,tipo,monto,moneda,descripcion,categoria,fecha,origen")
     .eq("usuario_id", user.id)
+    .eq("ambito", "personal")
     .gte("fecha", desde)
     .lte("fecha", hasta)
     .order("fecha", { ascending: false })

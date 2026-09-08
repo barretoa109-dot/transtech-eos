@@ -51,6 +51,7 @@ export async function GET() {
         .from("eos_movimientos_financieros")
         .select("tipo,monto,fecha,descripcion")
         .eq("usuario_id", user.id)
+        .eq("ambito", "personal")
         .order("fecha", { ascending: true }),
       supabase
         .from("eos_finanzas_conciliaciones")
@@ -60,6 +61,7 @@ export async function GET() {
         .from("eos_finanzas_fijos")
         .select("tipo,descripcion,monto,dia_del_mes")
         .eq("usuario_id", user.id)
+        .eq("ambito", "personal")
         .eq("activo", true),
       supabase
         .from("eos_finanzas_deudas")

@@ -14,7 +14,8 @@
     "lint:tope": "node scripts/lint-tope.mjs",
     "migraciones": "node scripts/migraciones-sanas.mjs",
     "tema": "node scripts/tema-oscuro-sano.mjs",
-    "rutas": "node scripts/rutas-con-alcance.mjs"
+    "rutas": "node scripts/rutas-con-alcance.mjs",
+    "ambito": "node scripts/ambito-declarado.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

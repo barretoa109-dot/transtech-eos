@@ -108,6 +108,7 @@ export async function avisarRiesgosNegocio(
           .from("eos_movimientos_financieros")
           .select("id,fecha,monto,moneda,categoria,descripcion,recurrente")
           .eq("usuario_id", uid)
+          .eq("ambito", "negocio")
           .eq("tipo", "gasto")
           .gte("fecha", sumarDias(hoy, -400))
           .order("fecha", { ascending: true }),
@@ -116,6 +117,7 @@ export async function avisarRiesgosNegocio(
           .from("eos_finanzas_fijos")
           .select("descripcion")
           .eq("usuario_id", uid)
+          .eq("ambito", "negocio")
           .eq("activo", true),
         admin.from("eos_negocio_avisos").select("tipo,clave").eq("usuario_id", uid),
       ]);
