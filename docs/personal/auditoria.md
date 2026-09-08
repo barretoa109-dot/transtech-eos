@@ -168,13 +168,13 @@ misma plata dos veces**. Una compra con tarjeta puede aparecer como gasto del
 día, como saldo de la tarjeta y como pago del resumen el mes siguiente.
 
 La regla que sigue todo el módulo: **lo que sale del bolsillo es el pago del
-resumen, no la compra**. Por eso  devuelve una línea por
+resumen, no la compra**. Por eso `obligacionesDe` devuelve una línea por
 vencimiento y nunca una por compra, y las obligaciones pasan por el mismo
- que las cuotas de deuda — así una tarjeta cargada además como
+`sinDuplicar` que las cuotas de deuda — así una tarjeta cargada además como
 deuda, o un "pagué la tarjeta" ya anotado, no se descuenta dos veces.
 
-· , 18 pruebas, cuatro de ellas sobre el doble
-  conteo.  es el único lugar que las lee, para
+· `lib/finanzas/tarjetas.ts`, 18 pruebas, cuatro de ellas sobre el doble
+  conteo. `lib/finanzas/leerTarjetas.ts` es el único lugar que las lee, para
   las CINCO pantallas que arman la línea de tiempo: si cada una leyera lo
   suyo, bastaría con que una se olvidara para que mostrara un disponible
   distinto sobre la misma plata. Ya pasó con las cuotas de deuda.
@@ -185,8 +185,8 @@ deuda, o un "pagué la tarjeta" ya anotado, no se descuenta dos veces.
   menos. Un resumen de más de 45 días tampoco se usa como si fuera el de este
   ciclo.
 
-· Ni tasas, ni intereses, ni cargos. Y  NO es lo que costó la
-  compra cuando hubo financiación:  es un dato aparte y opcional.
+· Ni tasas, ni intereses, ni cargos. Y `cuota × cuotas` NO es lo que costó la
+  compra cuando hubo financiación: `monto_total` es un dato aparte y opcional.
 
 Verificado contra producción: una tarjeta con dos compras en cuotas produce
 TRES vencimientos en 90 días (no seis), y la diferencia que introduce en el
