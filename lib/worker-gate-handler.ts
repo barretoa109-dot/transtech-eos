@@ -226,6 +226,33 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Las deudas.
+   *
+   * Declarar una es barata —2 puntos— y tiene que serlo: a alguien endeudado
+   * hay que ponerle la menor cantidad de trabas posible para contarle a EOS
+   * cuánto debe, que es el dato del que depende todo el centro de deudas.
+   *
+   * Pagar una cuota cuesta más, 4 puntos, y es la única acción del sistema que
+   * escribe en dos tablas: baja el saldo de la deuda y deja el gasto del mes.
+   * Un pago mal cargado deja mal las dos cosas a la vez, y sobre el saldo de
+   * una deuda se decide a quién pagarle primero el mes siguiente.
+   */
+  REGISTRAR_DEUDA: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  REGISTRAR_PAGO_DEUDA: {
+    tier: 2,
+    points: 4,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*

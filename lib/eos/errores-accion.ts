@@ -166,6 +166,25 @@ const REGLAS: Regla[] = [
     mensaje: (d) => `Pusiste \"${d}\" de los dos lados: una transferencia va de una cuenta a otra.`,
   },
   {
+    codigo: "EOS_ACCION_DEUDA_SIN_ACREEDOR",
+    mensaje: () => "Para anotar una deuda necesito a quién le debés.",
+  },
+  {
+    codigo: "EOS_ACCION_DEUDA_SIN_SALDO",
+    mensaje: (d) =>
+      `Me falta cuánto le debés a "${d}". Sin el saldo no puedo ordenar tus pagos ni decirte en cuánto salís.`,
+  },
+  {
+    codigo: "EOS_ACCION_DEUDA_NO_ENCONTRADA",
+    mensaje: (d) =>
+      `No tengo ninguna deuda con "${d}". Contame cuánto le debés y la anoto: "debo 8 millones a ${d}".`,
+  },
+  {
+    codigo: "EOS_ACCION_PAGO_SIN_MONTO",
+    mensaje: (d) =>
+      `No sé de cuánto fue el pago a "${d}" y esa deuda no tiene cuota declarada. Decime el monto: descontar un número inventado del saldo sería peor que no anotarlo.`,
+  },
+  {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
       "Tu cuenta no tiene activo el módulo ERP, que es el que registra ventas y stock. " +
