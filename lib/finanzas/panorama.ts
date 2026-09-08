@@ -1,3 +1,4 @@
+import { sumarDias } from "../fecha.ts";
 import { conciliar, type Conciliacion, type ResultadoConciliacion } from "./conciliacion.ts";
 import { combinarSeries, type Fijo } from "./fijos.ts";
 import { cuotasPendientes, sinDuplicar, type Deuda } from "./deudas.ts";
@@ -30,6 +31,12 @@ import {
  * de las deudas y la alerta sí, así que las dos pantallas daban números
  * distintos sobre la misma plata y una de las dos estaba mintiendo.
  */
+
+/**
+ * Cuántos días hacia atrás se miran los pagos ya hechos para no proyectar una
+ * cuota que ya se pagó. Diez cubre lo pagado con anticipación y con atraso.
+ */
+const DIAS_DE_PAGOS_RECIENTES = 10;
 
 /**
  * De dónde salió cada egreso.
@@ -149,12 +156,42 @@ export function armarPanorama(datos: {
       fuente: "anotado",
     }));
 
+  /*
+   * Lo que YA se pagó hace pocos días también cuenta como duplicado.
+   *
+   * Encontrado el 8 de septiembre de 2026 verificando el presupuesto contra
+   * datos reales: se registró "pagué la cuota de Ueno" el día 8, y el
+   * calendario la seguía mostrando como pendiente el 10, porque `anotados`
+   * solo mira movimientos con fecha FUTURA.
+   *
+   * El efecto es el que este módulo justamente tiene prohibido causar: la
+   * misma plata descontada dos veces —una como gasto hecho, otra como
+   * compromiso por venir— y un disponible más bajo del real. A alguien
+   * endeudado eso le dice que está peor de lo que está, que es la peor
+   * mentira que puede decirle un panel de finanzas.
+   *
+   * La ventana de diez días cubre lo pagado con anticipación y lo pagado con
+   * atraso: `sinDuplicar` después exige que coincidan importe (±10%) y fecha
+   * (±3 días), así que un gasto cualquiera de la semana no tapa una cuota.
+   */
+  const desdeRecientes = sumarDias(hoy, -DIAS_DE_PAGOS_RECIENTES);
+  const pagadosRecientes: MovimientoProyectado[] = movimientos
+    .filter((m) => m.tipo === "gasto" && m.fecha >= desdeRecientes && m.fecha <= hoy)
+    .map((m) => ({
+      tipo: "gasto",
+      descripcion: m.descripcion ?? "",
+      monto: m.monto,
+      fecha: m.fecha,
+      periodicidad: "mensual",
+      confianza: 1,
+    }));
+
   // Las cuotas se agregan al final y filtradas: si el débito de la cuota
   // además viene detectado como serie, sumarla otra vez descontaría dos veces
   // la misma plata y produciría una alerta que no corresponde.
   const cuotas: EgresoPanorama[] = sinDuplicar(
     cuotasPendientes(deudas, { desde: hoy, hasta }),
-    [...previsibles, ...anotados],
+    [...previsibles, ...anotados, ...pagadosRecientes],
   ).map((c) => ({ ...c, fuente: "cuota" }));
 
   const ingresos = proyectar(

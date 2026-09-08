@@ -199,3 +199,88 @@ test("la conciliación viaja con el panorama, no se recalcula afuera", () => {
   assert.equal(panorama.aplicado.ingresos, 300_000);
   assert.equal(panorama.conciliacion.base, 5_000_000);
 });
+
+test("una cuota ya pagada hace días no se vuelve a proyectar", () => {
+  /*
+   * Encontrado el 8 de septiembre de 2026 verificando el presupuesto contra
+   * datos reales: se registró "pagué la cuota de Ueno" el día 8 y el
+   * calendario la seguía mostrando pendiente el 10, porque los compromisos
+   * anotados solo miraban movimientos con fecha FUTURA.
+   *
+   * Es el error que este módulo tiene prohibido causar: la misma plata
+   * descontada dos veces, una como gasto hecho y otra como compromiso por
+   * venir. A alguien endeudado eso le dice que está peor de lo que está.
+   */
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-09-30",
+    saldoInicial: 3_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "gasto", monto: 800_000, fecha: "2026-09-08", descripcion: "Pago de deuda — Ueno" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [
+      {
+        acreedor: "Ueno",
+        tipo: "prestamo",
+        moneda: "PYG",
+        saldo_declarado: 7_200_000,
+        cuota_monto: 800_000,
+        cuota_dia: 10,
+        cuotas_totales: null,
+        cuotas_pagadas: 1,
+        vence_el: null,
+        estado: "al_dia",
+      } as never,
+    ],
+  });
+
+  const cuotasDeSeptiembre = panorama.egresos.filter(
+    (e) => e.fuente === "cuota" && e.fecha.startsWith("2026-09"),
+  );
+
+  assert.equal(
+    cuotasDeSeptiembre.length,
+    0,
+    "la cuota de septiembre ya se pagó el 8 y se volvió a proyectar para el 10",
+  );
+});
+
+test("un gasto cualquiera de la semana NO tapa una cuota que sí viene", () => {
+  // El otro lado: el filtro exige que coincidan importe y fecha, así que una
+  // compra suelta no puede hacer desaparecer una obligación real.
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-09-30",
+    saldoInicial: 3_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "gasto", monto: 120_000, fecha: "2026-09-07", descripcion: "supermercado" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [
+      {
+        acreedor: "Ueno",
+        tipo: "prestamo",
+        moneda: "PYG",
+        saldo_declarado: 7_200_000,
+        cuota_monto: 800_000,
+        cuota_dia: 10,
+        cuotas_totales: null,
+        cuotas_pagadas: 1,
+        vence_el: null,
+        estado: "al_dia",
+      } as never,
+    ],
+  });
+
+  assert.ok(
+    panorama.egresos.some((e) => e.fuente === "cuota" && e.fecha === "2026-09-10"),
+    "la cuota del 10 desapareció por una compra de supermercado del 7",
+  );
+});
