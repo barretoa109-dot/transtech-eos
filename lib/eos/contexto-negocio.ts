@@ -26,6 +26,19 @@ export type ContextoNegocio = {
     gastos_mes: number;
     neto_mes: number;
   }>;
+  /*
+   * La plata de la PERSONA, separada de la del negocio desde la v137.
+   *
+   * Misma forma que `finanzas` a propósito: es la misma pregunta hecha sobre
+   * el otro ámbito, y dos formas distintas para lo mismo obligarían a mirar
+   * cuál es cuál cada vez que se toca esto.
+   */
+  personal?: Array<{
+    moneda: string;
+    ingresos_mes: number;
+    gastos_mes: number;
+    neto_mes: number;
+  }>;
   erp?: {
     ventas_mes?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
     /*
@@ -108,7 +121,31 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
         `queda ${formatearMonto(f.neto_mes, f.moneda)}`,
     );
 
-    partes.push(`Movimientos del mes:\n${lineas.join("\n")}`);
+    partes.push(`Movimientos del mes (NEGOCIO):\n${lineas.join("\n")}`);
+  }
+
+  /*
+   * Y lo personal, con su rótulo.
+   *
+   * Los dos bloques tienen la misma forma y dicen cosas incompatibles, así que
+   * el rótulo no es decorativo: sin él, el modelo lee dos listas de números
+   * parecidos y contesta sobre la que encuentra primero. Con "NEGOCIO" y "VOS"
+   * escritos, puede contestar "en tu negocio entraron X, y a vos te entraron
+   * Y", que es la respuesta correcta a la mitad de las preguntas que le hacen.
+   */
+  const personal = lista<NonNullable<ContextoNegocio["personal"]>[number]>(
+    contexto.personal,
+  ).filter((f) => f.ingresos_mes > 0 || f.gastos_mes > 0);
+
+  if (personal.length > 0) {
+    const lineas = personal.map(
+      (f) =>
+        `  ${f.moneda}: entró ${formatearMonto(f.ingresos_mes, f.moneda)}, ` +
+        `salió ${formatearMonto(f.gastos_mes, f.moneda)}, ` +
+        `queda ${formatearMonto(f.neto_mes, f.moneda)}`,
+    );
+
+    partes.push(`Movimientos del mes (VOS, personal):\n${lineas.join("\n")}`);
   }
 
   const erp = contexto.erp;

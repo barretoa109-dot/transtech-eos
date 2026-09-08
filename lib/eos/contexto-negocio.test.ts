@@ -206,3 +206,47 @@ test("una forma escalar legada de la RPC no derriba todo el chat", () => {
   assert.doesNotThrow(() => textoContexto(legado));
   assert.equal(textoContexto(legado), "Negocio este mes: 2 ventas.");
 });
+
+test("el negocio y lo personal salen rotulados y separados", () => {
+  /*
+   * El invariante que la v137 vino a sostener.
+   *
+   * Antes de separar, `eos_contexto_negocio` sumaba TODOS los movimientos del
+   * mes sin mirar el ámbito, así que el modelo recibía un solo renglón con la
+   * venta del negocio y el sueldo de la persona adentro. Cualquier respuesta
+   * sobre cómo venía el mes era sobre una mezcla que no le pasa a nadie.
+   *
+   * Los dos bloques tienen la misma forma y dicen cosas incompatibles: el
+   * rótulo es lo único que le permite al modelo saber cuál es cuál.
+   */
+  const texto = textoContexto({
+    mes: "2026-09",
+    finanzas: [{ moneda: "PYG", ingresos_mes: 8_000_000, gastos_mes: 3_000_000, neto_mes: 5_000_000 }],
+    personal: [{ moneda: "PYG", ingresos_mes: 4_200_000, gastos_mes: 1_300_000, neto_mes: 2_900_000 }],
+  });
+
+  assert.match(texto, /NEGOCIO/);
+  assert.match(texto, /personal/i);
+
+  // Y cada cifra en su bloque: el sueldo no puede aparecer bajo el rótulo del
+  // negocio ni al revés.
+  const negocio = texto.slice(texto.indexOf("NEGOCIO"), texto.indexOf("VOS"));
+  const propio = texto.slice(texto.indexOf("VOS"));
+
+  assert.match(negocio, /8\.000\.000/);
+  assert.doesNotMatch(negocio, /4\.200\.000/);
+  assert.match(propio, /4\.200\.000/);
+  assert.doesNotMatch(propio, /8\.000\.000/);
+});
+
+test("sin movimientos personales no se inventa el bloque", () => {
+  // Una sección vacía con ceros le dice a alguien que EOS mira algo que no
+  // tiene. Se calla, como el resto del contexto.
+  const texto = textoContexto({
+    mes: "2026-09",
+    finanzas: [{ moneda: "PYG", ingresos_mes: 8_000_000, gastos_mes: 3_000_000, neto_mes: 5_000_000 }],
+    personal: [],
+  });
+
+  assert.doesNotMatch(texto, /VOS, personal/);
+});
