@@ -152,6 +152,20 @@ const REGLAS: Regla[] = [
     mensaje: () => "Son demasiados gastos fijos de una. Pasámelos de a diez.",
   },
   {
+    codigo: "EOS_ACCION_TRANSFERENCIA_SIN_MONTO",
+    mensaje: () => "Me falta cuánto pasaste de una cuenta a la otra.",
+  },
+  {
+    codigo: "EOS_ACCION_TRANSFERENCIA_SIN_CUENTAS",
+    mensaje: () =>
+      "Para anotar una transferencia necesito las dos puntas. Decímelo así: " +
+      "\"pasé 1 millón de Ueno a Continental\".",
+  },
+  {
+    codigo: "EOS_ACCION_TRANSFERENCIA_MISMA_CUENTA",
+    mensaje: (d) => `Pusiste \"${d}\" de los dos lados: una transferencia va de una cuenta a otra.`,
+  },
+  {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
       "Tu cuenta no tiene activo el módulo ERP, que es el que registra ventas y stock. " +

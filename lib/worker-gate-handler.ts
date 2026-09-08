@@ -205,6 +205,27 @@ const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Mover plata entre cuentas propias.
+   *
+   * Es la más barata de todas —1 punto— y no por descuido: no cambia cuánto
+   * tiene la persona, solo dónde lo tiene. Una transferencia mal cargada se
+   * borra y no deja rastro en ningún cálculo de flujo, porque por diseño no
+   * entra en la tabla de movimientos.
+   *
+   * Y tiene que ser barata por la misma razón que el gasto rápido: si
+   * registrar una transferencia gastara presupuesto de riesgo, la gente
+   * dejaría de registrarlas, y volveríamos a tener transferencias anotadas
+   * como gastos, que es justo el error que la v138 vino a sacar.
+   */
+  REGISTRAR_TRANSFERENCIA: {
+    tier: 1,
+    points: 1,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /*
