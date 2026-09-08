@@ -285,13 +285,26 @@ function acumular(movimientos: MovimientoGasto[]): Map<string, { total: number; 
 
   for (const m of movimientos) {
     const monto = Number(m.monto);
-    // Un importe roto no puede ensuciar el desglose entero.
-    if (!Number.isFinite(monto) || monto <= 0) continue;
+
+    /*
+     * Un importe roto no puede ensuciar el desglose entero. Pero un NEGATIVO
+     * no está roto: desde la v141 es una devolución, y tiene que restar.
+     *
+     * Estaba escrito `monto <= 0` y descartaba las devoluciones en silencio.
+     * El efecto era el peor posible: una camisa de 200.000 comprada y devuelta
+     * seguía apareciendo como 200.000 gastados en su categoría, y el
+     * presupuesto de ese rubro consumido por una compra que se deshizo.
+     */
+    if (!Number.isFinite(monto) || monto === 0) continue;
 
     const clave = clasificar(m.descripcion, m.categoria);
     const actual = mapa.get(clave) ?? { total: 0, cantidad: 0 };
     actual.total += monto;
-    actual.cantidad += 1;
+
+    // Una devolución no es un gasto más: resta del total pero no cuenta como
+    // una salida. Contarla haría que "3 compras" sean 4 con una devuelta.
+    if (monto > 0) actual.cantidad += 1;
+
     mapa.set(clave, actual);
   }
 

@@ -100,13 +100,36 @@ test("sin período anterior no inventa una comparación", () => {
 });
 
 test("un importe roto no ensucia el desglose entero", () => {
+  /*
+   * Un negativo dejó de ser un importe roto.
+   *
+   * Esta prueba usaba -50.000 como ejemplo de dato corrupto, y era razonable
+   * mientras un gasto solo podía ser positivo. Desde la v141 un gasto negativo
+   * significa algo preciso —una devolución— y tiene que restar. Se cambia el
+   * ejemplo por uno que sigue siendo indiscutiblemente roto (NaN y cero) sin
+   * aflojar lo que la prueba cuida: que un dato ilegible no arrastre al resto.
+   */
   const desglose = desglosarGastos([
     gasto("PAGO ANDE", Number.NaN),
-    gasto("Alquiler", -50_000),
+    gasto("Alquiler", 0),
     gasto("Alquiler agosto", 600_000),
   ]);
 
   assert.equal(desglose.total, 600_000);
+  assert.equal(desglose.cantidad, 1);
+});
+
+test("un gasto negativo NO es un importe roto: es una devolución y resta", () => {
+  // El otro lado de la prueba de arriba, para que nadie vuelva a tratarlos
+  // igual: lo ilegible se descarta, lo negativo se resta.
+  const desglose = desglosarGastos([
+    gasto("Alquiler agosto", 600_000),
+    gasto("Devolución — alquiler", -100_000),
+  ]);
+
+  assert.equal(desglose.total, 500_000);
+  // Y no cuenta como una salida más: fueron un pago y una devolución, no dos
+  // pagos.
   assert.equal(desglose.cantidad, 1);
 });
 
@@ -153,4 +176,34 @@ test("de siete orígenes en adelante, el sobrante se junta en una sola línea", 
   assert.equal(desglose.origenes.length, 7);
   assert.match(desglose.origenes[6].etiqueta, /^Otros 3 orígenes$/);
   assert.equal(desglose.origenes[6].cantidad, 3);
+});
+
+test("una devolución RESTA del gasto de su categoría, no suma como ingreso", () => {
+  /*
+   * El invariante de la v141, y la razón por la que una devolución se guarda
+   * como un gasto de monto negativo en vez de vivir en su propia tabla.
+   *
+   * Si viviera aparte, cada una de las veintitrés consultas que suman gastos
+   * tendría que acordarse de restarle esa otra tabla, y la que se olvidara
+   * seguiría mostrando el gasto entero sin fallar y sin avisar.
+   *
+   * El caso: se compra una camisa de 200.000 y se devuelve. En "Ropa" tiene
+   * que quedar cero gastado, no 200.000 gastados y 200.000 ganados.
+   */
+  const desglose = desglosarGastos([
+    { monto: 200_000, fecha: "2026-09-05", descripcion: "camisa" },
+    { monto: -200_000, fecha: "2026-09-07", descripcion: "Devolución — camisa" },
+    { monto: 150_000, fecha: "2026-09-06", descripcion: "supermercado" },
+  ]);
+
+  // El total del período es solo lo que de verdad se gastó.
+  assert.equal(desglose.total, 150_000);
+
+  // Y la camisa quedó neteada: su categoría no puede seguir mostrando los
+  // 200.000 de una compra que se deshizo.
+  const conMonto = desglose.destinos.filter((d) => d.total !== 0);
+  assert.ok(
+    conMonto.every((d) => d.total !== 200_000),
+    "la categoría de la camisa sigue mostrando el gasto entero: la devolución no restó",
+  );
 });

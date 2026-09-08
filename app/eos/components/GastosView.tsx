@@ -444,8 +444,16 @@ export default function GastosView() {
                 )}
               </div>
 
-              <span className={`neg-fila-monto ${m.tipo}`}>
-                {m.tipo === "ingreso" ? "+" : "−"} {formatearMonto(m.monto, m.moneda)}
+              {/*
+                Una devolución es un gasto de monto NEGATIVO (v141), y así es
+                como resta sola en las veintitrés consultas que suman gastos.
+                Acá hay que deshacer ese truco: "− ₲ -200.000" no lo entiende
+                nadie. Se muestra con el signo que corresponde y el monto en
+                positivo, que es lo que la persona vio en su cuenta.
+              */}
+              <span className={`neg-fila-monto ${m.monto < 0 ? "ingreso" : m.tipo}`}>
+                {m.tipo === "ingreso" || m.monto < 0 ? "+" : "−"}{" "}
+                {formatearMonto(Math.abs(m.monto), m.moneda)}
               </span>
 
               {m.editable ? (
