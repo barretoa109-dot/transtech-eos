@@ -1,3 +1,4 @@
+import { leerTarjetas } from "./leerTarjetas.ts";
 import { armarPanorama } from "./panorama.ts";
 import { codigoMoneda } from "./monedas.ts";
 import { detectarRiesgo, redactarAviso } from "./riesgo.ts";
@@ -150,9 +151,17 @@ export async function avisarRiesgos(
       const deLaPrincipal = (filas: Record<string, unknown>[]) =>
         filas.filter((f) => codigoMoneda(f.moneda, principal) === principal);
 
+      /*
+       * Las tarjetas también, o el aviso por correo diría otra cosa que el
+       * panel. Ya pasó con las cuotas de deuda: dos pantallas dando números
+       * distintos sobre la misma plata, y una de las dos mintiendo.
+       */
+      const { obligaciones: deTarjetas } = await leerTarjetas(admin, uid, { desde: hoy, hasta });
+
       const panorama = armarPanorama({
         hoy,
         hasta,
+        obligacionesTarjeta: deTarjetas,
         saldoInicial: num(politica.saldo_inicial),
         saldoInicialFecha: politica.saldo_inicial_fecha,
         reservaMinima: num(politica.reserva_minima),

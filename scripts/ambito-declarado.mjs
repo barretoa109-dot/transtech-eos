@@ -51,6 +51,8 @@ const TABLAS = [
   "eos_finanzas_activos",
   // Desde la v144. Un objetivo del negocio no va en el panel de la persona.
   "eos_goals",
+  // Desde la v146. Las compras quedan afuera: heredan el ámbito de su tarjeta.
+  "eos_finanzas_tarjetas",
 ];
 const CARPETAS = ["app", "lib"];
 

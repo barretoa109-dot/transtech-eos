@@ -69,7 +69,7 @@ usuario puede ver.
 |---|---|
 | Cuentas | Sin `inversiones` ni `ahorro` como tipo; sin historial de saldo; sin evolución |
 | Deudas | Sin tasa, sin prioridad, sin escenarios (avalancha / bola de nieve), sin fecha de salida |
-| Tarjetas | `tarjeta_credito` es un tipo de cuenta y `tarjeta` un tipo de deuda: no hay línea, cierre, vencimiento, utilización ni compras en cuotas |
+| ~~Tarjetas~~ | **HECHO en P5 (v146).** Tabla propia con línea, utilización, cierre, vencimiento, resumen y compras en cuotas. |
 | Alertas | El motor de riesgo avisa por correo; no hay hallazgos proactivos priorizados en pantalla |
 | Briefing | No tiene sección Personal |
 | Informe | No incluye cuentas, deuda, objetivos ni proyección |
@@ -161,7 +161,38 @@ descontada dos veces.
   y fallar ruidosamente si no está. Probado de punta a punta insertando el
   comando como lo hace el worker.
 
-Queda desde P5: tarjetas, inteligencia comparativa, escenarios y el resto de la
+**P5 — tarjetas de crédito: HECHO.**
+
+El problema central no era mostrar una línea de crédito: era **no contar la
+misma plata dos veces**. Una compra con tarjeta puede aparecer como gasto del
+día, como saldo de la tarjeta y como pago del resumen el mes siguiente.
+
+La regla que sigue todo el módulo: **lo que sale del bolsillo es el pago del
+resumen, no la compra**. Por eso  devuelve una línea por
+vencimiento y nunca una por compra, y las obligaciones pasan por el mismo
+ que las cuotas de deuda — así una tarjeta cargada además como
+deuda, o un "pagué la tarjeta" ya anotado, no se descuenta dos veces.
+
+· , 18 pruebas, cuatro de ellas sobre el doble
+  conteo.  es el único lugar que las lee, para
+  las CINCO pantallas que arman la línea de tiempo: si cada una leyera lo
+  suyo, bastaría con que una se olvidara para que mostrara un disponible
+  distinto sobre la misma plata. Ya pasó con las cuotas de deuda.
+
+· Sin resumen cargado, lo que se muestra es la suma de las cuotas conocidas y
+  queda marcado como PISO: en el mes casi con seguridad hubo compras de un
+  solo pago que nadie cargó, y presentar el piso como total haría pagar de
+  menos. Un resumen de más de 45 días tampoco se usa como si fuera el de este
+  ciclo.
+
+· Ni tasas, ni intereses, ni cargos. Y  NO es lo que costó la
+  compra cuando hubo financiación:  es un dato aparte y opcional.
+
+Verificado contra producción: una tarjeta con dos compras en cuotas produce
+TRES vencimientos en 90 días (no seis), y la diferencia que introduce en el
+panorama es exactamente la suma de esas tres obligaciones.
+
+Queda desde P6: inteligencia comparativa, escenarios y el resto de la
 autonomía.
 
 ## El orden, y por qué

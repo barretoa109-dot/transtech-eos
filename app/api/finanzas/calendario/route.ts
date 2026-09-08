@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
+import { leerTarjetas } from "@/lib/finanzas/leerTarjetas";
 import { armarPanorama } from "@/lib/finanzas/panorama";
 import { codigoMoneda } from "@/lib/finanzas/monedas";
 import { exigirModulo } from "@/lib/modulos/acceso";
@@ -101,9 +102,23 @@ export async function GET() {
 
   const principal = codigoMoneda(politica.moneda, "PYG");
 
+  /*
+   * Las tarjetas, en la misma línea de tiempo que todo lo demás.
+   *
+   * El pago del resumen es lo que SALE del bolsillo; las compras en cuotas ya
+   * están adentro de ese pago y no se proyectan aparte. `leerTarjetas` lo
+   * resuelve en un solo lugar para las cinco pantallas, y `armarPanorama` las
+   * pasa por el mismo filtro de duplicados que las cuotas de deuda.
+   */
+  const { obligaciones: deTarjetas } = await leerTarjetas(supabase, usuarioId, {
+    desde: hoy,
+    hasta,
+  });
+
   const panorama = armarPanorama({
     hoy,
     hasta,
+    obligacionesTarjeta: deTarjetas,
     saldoInicial: num(politica.saldo_inicial),
     saldoInicialFecha: politica.saldo_inicial_fecha,
     reservaMinima: num(politica.reserva_minima),

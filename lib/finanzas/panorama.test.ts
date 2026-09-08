@@ -284,3 +284,80 @@ test("un gasto cualquiera de la semana NO tapa una cuota que sí viene", () => {
     "la cuota del 10 desapareció por una compra de supermercado del 7",
   );
 });
+
+test("las tarjetas entran en la línea de tiempo por el mismo filtro que las cuotas", () => {
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-31",
+    saldoInicial: 5_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+    obligacionesTarjeta: [
+      {
+        tipo: "gasto",
+        descripcion: "Tarjeta — La azul",
+        monto: 700_000,
+        fecha: "2026-10-05",
+        periodicidad: "mensual",
+        confianza: 0.7,
+      },
+    ],
+  });
+
+  const tarjeta = panorama.egresos.find((e) => e.descripcion.startsWith("Tarjeta"));
+  assert.ok(tarjeta, "la obligación de la tarjeta tiene que estar en los egresos");
+  assert.equal(tarjeta?.fuente, "cuota");
+  assert.equal(tarjeta?.monto, 700_000);
+});
+
+test("la misma tarjeta cargada como deuda Y como tarjeta se descuenta una sola vez", () => {
+  /*
+   * Antes de la v146 la única forma de cargar una tarjeta era como deuda de
+   * tipo `tarjeta`. Quien ya lo hizo y ahora la carga en Tarjetas tendría la
+   * obligación contada dos veces todos los meses: el disponible real le diría
+   * que está 700.000 peor de lo que está.
+   */
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-31",
+    saldoInicial: 5_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [
+      {
+        acreedor: "Tarjeta Continental",
+        tipo: "tarjeta",
+        moneda: "PYG",
+        saldo_declarado: 4_000_000,
+        saldo_declarado_el: "2026-09-01",
+        cuota_monto: 700_000,
+        cuota_dia: 5,
+        cuotas_totales: null,
+        cuotas_pagadas: 0,
+        vence_el: null,
+        estado: "al_dia",
+        preocupa: false,
+      },
+    ],
+    obligacionesTarjeta: [
+      {
+        tipo: "gasto",
+        descripcion: "Tarjeta — La azul",
+        monto: 700_000,
+        fecha: "2026-10-05",
+        periodicidad: "mensual",
+        confianza: 0.7,
+      },
+    ],
+  });
+
+  const enOctubre = panorama.egresos.filter((e) => e.fecha === "2026-10-05");
+  assert.equal(enOctubre.length, 1);
+});

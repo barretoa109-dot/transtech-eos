@@ -100,6 +100,19 @@ export function armarPanorama(datos: {
   conciliaciones: Conciliacion[];
   fijos: Fijo[];
   deudas: Deuda[];
+  /**
+   * Lo que las tarjetas van a sacar del bolsillo, ya calculado por
+   * `lib/finanzas/tarjetas.ts::obligacionesDe`.
+   *
+   * Viene resuelto de afuera a propósito: el ciclo de una tarjeta —cierre,
+   * vencimiento, resumen, cuotas— no tiene por qué vivir acá, y lo único que
+   * este módulo necesita es cuándo y cuánto sale.
+   *
+   * Entra por el MISMO `sinDuplicar` que las cuotas de deuda, y por eso una
+   * tarjeta cargada también como deuda, o un "pagué la tarjeta" ya anotado, no
+   * la descuentan dos veces.
+   */
+  obligacionesTarjeta?: MovimientoProyectado[];
 }): Panorama {
   const { hoy, hasta, movimientos, fijos, deudas } = datos;
 
@@ -189,10 +202,37 @@ export function armarPanorama(datos: {
   // Las cuotas se agregan al final y filtradas: si el débito de la cuota
   // además viene detectado como serie, sumarla otra vez descontaría dos veces
   // la misma plata y produciría una alerta que no corresponde.
-  const cuotas: EgresoPanorama[] = sinDuplicar(
-    cuotasPendientes(deudas, { desde: hoy, hasta }),
-    [...previsibles, ...anotados, ...pagadosRecientes],
-  ).map((c) => ({ ...c, fuente: "cuota" }));
+  /*
+   * Las tarjetas entran junto con las cuotas y por el mismo filtro.
+   *
+   * Van en el bucket "cuota" y no en uno propio porque para quien lee son lo
+   * mismo —plata pactada que sale en una fecha conocida— y la descripción ya
+   * dice "Tarjeta — …". Un cuarto origen obligaría a tocar la trazabilidad y
+   * las tres pantallas que la muestran, sin decirle nada nuevo a nadie.
+   *
+   * Lo que sí importa es que pasen por `sinDuplicar` CON las cuotas de deuda
+   * en la lista de referencia: quien tenga la misma tarjeta cargada de las dos
+   * formas la vería descontada dos veces todos los meses.
+   */
+  const deLasTarjetas = datos.obligacionesTarjeta ?? [];
+
+  const cuotasDeDeuda = sinDuplicar(cuotasPendientes(deudas, { desde: hoy, hasta }), [
+    ...previsibles,
+    ...anotados,
+    ...pagadosRecientes,
+  ]);
+
+  const cuotasDeTarjeta = sinDuplicar(deLasTarjetas, [
+    ...previsibles,
+    ...anotados,
+    ...pagadosRecientes,
+    ...cuotasDeDeuda,
+  ]);
+
+  const cuotas: EgresoPanorama[] = [...cuotasDeDeuda, ...cuotasDeTarjeta].map((c) => ({
+    ...c,
+    fuente: "cuota",
+  }));
 
   const ingresos = proyectar(
     series.filter((s) => s.tipo === "ingreso"),

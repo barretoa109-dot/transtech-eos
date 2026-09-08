@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { convieneConciliar } from "@/lib/finanzas/conciliacion";
 import { confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
+import { leerTarjetas } from "@/lib/finanzas/leerTarjetas";
 import { armarPanorama, type EgresoPanorama } from "@/lib/finanzas/panorama";
 import { noCuadran, trazarPanel } from "@/lib/finanzas/trazabilidad";
 import {
@@ -246,6 +247,27 @@ export async function GET() {
   const objetivosEnRitmo =
     objetivosActivos.length === 0 || objetivosActivos.every((o) => (o.progreso ?? 0) > 0);
 
+  /*
+   * Las tarjetas, leídas UNA vez y repartidas por moneda.
+   *
+   * El pago del resumen es lo que sale del bolsillo; las compras en cuotas
+   * ya están adentro de ese pago y no se proyectan aparte. Una tarjeta en
+   * dólares no puede caer en la línea de tiempo de los guaraníes, por lo
+   * mismo que no se convierte ninguna otra cifra del panel.
+   */
+  const { obligaciones: deTarjetas, tarjetas: estadoTarjetas } = await leerTarjetas(
+    supabase,
+    user.id,
+    { desde: hoyISO, hasta: sumarDias(hoyISO, HORIZONTE_ARMADO_DIAS) },
+  );
+
+  const monedaDeTarjeta = new Map(estadoTarjetas.map((t) => [t.id, codigoMoneda(t.moneda, principal)]));
+  // La descripción que arma `obligacionesDe`. Se compara contra ella en vez de
+  // llevar el id adentro del movimiento proyectado, que es un tipo compartido
+  // con los fijos y las series y no tiene por qué saber de tarjetas.
+  const tarjetaDe = (descripcion: string) =>
+    estadoTarjetas.find((t) => descripcion === `Tarjeta — ${t.nombre ?? t.emisor}`);
+
   const bloques = monedas.map((moneda) =>
     armarBloque({
       moneda,
@@ -263,6 +285,10 @@ export async function GET() {
       conciliaciones: moneda === principal ? conciliaciones : [],
       cuentas: cuentas.filter((c) => c.moneda === moneda),
       objetivosEnRitmo: moneda === principal ? objetivosEnRitmo : true,
+      obligacionesTarjeta: deTarjetas.filter((o) => {
+        const t = tarjetaDe(o.descripcion);
+        return t !== undefined && monedaDeTarjeta.get(t.id) === moneda;
+      }),
     }),
   );
 
@@ -326,6 +352,7 @@ function armarBloque(datos: {
   conciliaciones: { fecha: string; saldo_declarado: number }[];
   cuentas: { nombre: string; tipo: string; saldo_declarado: number | null; saldo_declarado_el: string | null }[];
   objetivosEnRitmo: boolean;
+  obligacionesTarjeta: MovimientoProyectado[];
 }) {
   const { hoyISO, movimientos } = datos;
 
@@ -339,6 +366,7 @@ function armarBloque(datos: {
     conciliaciones: datos.conciliaciones,
     fijos: datos.fijos,
     deudas: datos.deudas,
+    obligacionesTarjeta: datos.obligacionesTarjeta,
   });
 
   const ingresos = panorama.aplicado.ingresos;

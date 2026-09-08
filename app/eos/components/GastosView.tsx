@@ -28,6 +28,7 @@ import FinanzasDestino from "./FinanzasDestino";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
 import FinanzasPlanDeudas from "./FinanzasPlanDeudas";
+import FinanzasTarjetas from "./FinanzasTarjetas";
 import FinanzasFondo from "./FinanzasFondo";
 import FinanzasObjetivos from "./FinanzasObjetivos";
 import FinanzasPatrimonio from "./FinanzasPatrimonio";
@@ -405,6 +406,12 @@ export default function GastosView() {
         por otra tarjeta se leerían como dos temas, y son el mismo.
       */}
       <FinanzasPlanDeudas moneda={monedaPrincipal} />
+      {/*
+        Las tarjetas van pegadas a las deudas porque son una deuda con un
+        calendario propio. Y van DESPUÉS del plan de pago: el plan ordena lo
+        que ya se debe, y la tarjeta es el lugar por donde se sigue debiendo.
+      */}
+      <FinanzasTarjetas moneda={monedaPrincipal} />
       {/*
         Y después de lo que debe, lo que quiere.
         ============================================================
