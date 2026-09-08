@@ -46,6 +46,11 @@ const TABLAS = [
   // filtro y sumaba el préstamo del auto de la persona a su pasivo corriente.
   "eos_finanzas_cuentas",
   "eos_finanzas_deudas",
+  // Desde la v145. Una camioneta puede ser del negocio o de la persona, y de
+  // esa diferencia depende en qué patrimonio aparece.
+  "eos_finanzas_activos",
+  // Desde la v144. Un objetivo del negocio no va en el panel de la persona.
+  "eos_goals",
 ];
 const CARPETAS = ["app", "lib"];
 

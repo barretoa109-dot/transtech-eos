@@ -648,7 +648,7 @@ export async function POST(req: Request) {
       try {
         const admin = adminSinTipos();
 
-        const [memorias, objetivos, tareas, aprendizajes] = await Promise.all([
+        const [memorias, objetivosPersonales, objetivosNegocio, tareas, aprendizajes] = await Promise.all([
           admin
             .from("eos_memory")
             .select("titulo, contenido, importancia, estado")
@@ -657,10 +657,27 @@ export async function POST(req: Request) {
             .order("importancia", { ascending: false })
             .order("updated_at", { ascending: false })
             .limit(30),
+          /*
+           * Los objetivos, en dos consultas y no en una.
+           *
+           * "Llegar a 30 millones" significa cosas distintas si es la
+           * facturación del negocio o el ahorro de la persona. Leerlos juntos
+           * los deja indistinguibles para el modelo, que después contesta
+           * sobre una mezcla; `textoMemoria` los rotula cuando hay de los dos.
+           */
           admin
             .from("eos_goals")
-            .select("titulo, progreso, fecha_limite, proximo_paso, estado")
+            .select("titulo, progreso, fecha_limite, proximo_paso, estado, ambito")
             .eq("usuario_id", user.id)
+            .eq("ambito", "personal")
+            .eq("estado", "activo")
+            .order("prioridad", { ascending: false })
+            .limit(20),
+          admin
+            .from("eos_goals")
+            .select("titulo, progreso, fecha_limite, proximo_paso, estado, ambito")
+            .eq("usuario_id", user.id)
+            .eq("ambito", "negocio")
             .eq("estado", "activo")
             .order("prioridad", { ascending: false })
             .limit(20),
@@ -685,7 +702,7 @@ export async function POST(req: Request) {
 
         return textoMemoria({
           memorias: memorias.data ?? [],
-          objetivos: objetivos.data ?? [],
+          objetivos: [...(objetivosPersonales.data ?? []), ...(objetivosNegocio.data ?? [])],
           tareas: tareas.data ?? [],
           aprendizajes: aprendizajes.data ?? [],
         });

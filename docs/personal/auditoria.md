@@ -60,7 +60,7 @@ usuario puede ver.
 |---|---|
 | **Plan de pago + borradores de negociación** | `/api/finanzas/plan` (GET arma el plan, POST lo adopta y lo audita), `planPago.ts`, `negociacion.ts`. **Ninguna pantalla lo consume.** Es la fase "EOS prepara la solución completa y el usuario solo aprueba", construida y invisible. |
 | **Resumen del período para el contador** | `/api/finanzas/periodo`, `periodoFiscal.ts`. Ninguna pantalla. |
-| **Objetivos** | `eos_goals` tiene `valor_objetivo`, `valor_actual`, `unidad`, `fecha_limite` y `CREAR_OBJETIVO` funciona desde el chat — pero no está atado a Finanzas: no descuenta del disponible, no calcula aporte necesario ni ritmo. |
+| ~~**Objetivos**~~ | **Conectado en P4 (v144).** `objetivos.ts` convierte cada objetivo en aporte por mes, ritmo real y desvío; `FinanzasObjetivos` lo muestra y lo contrasta con el ahorro comprometido. |
 | **Historia diaria de indicadores** | `eos_kpi_historia_v105` la escribe el cron. No alimenta ninguna vista personal. |
 
 ### EXISTE PERO ESTÁ INCOMPLETO
@@ -81,12 +81,12 @@ usuario puede ver.
 |---|---|
 | **Transferencias entre cuentas** | P0 — hoy mover plata de un banco a otro se cuenta como gasto Y como ingreso: infla las dos columnas y ensucia todo ratio |
 | **Reembolsos y devoluciones** | P0 — una devolución aparece como ingreso nuevo |
-| Presupuesto construido por EOS | P3 |
-| Fondo de emergencia | P4 |
+| ~~Presupuesto construido por EOS~~ | HECHO en P3 |
+| ~~Fondo de emergencia~~ | HECHO en P4 |
 | Salud financiera explicable | P6 |
 | Escenarios ("¿puedo comprar…?") | P6 |
-| Calendario financiero como vista | P2 (el motor está: `panorama.ts`) |
-| Patrimonio neto real (activos − pasivos) | P4, y solo con activos modelados |
+| ~~Calendario financiero como vista~~ | HECHO en P2 |
+| ~~Patrimonio neto real (activos − pasivos)~~ | HECHO en P4, con `eos_finanzas_activos` |
 | Movimiento con dos lados (retiro del negocio → ingreso personal) | P7 |
 
 ### NO DEBE CONSTRUIRSE TODAVÍA
@@ -120,8 +120,48 @@ que faltaba era el calendario, `/api/finanzas/calendario` +
 `FinanzasCalendario.tsx`, con la cuenta del saldo corrido en
 `lib/finanzas/calendario.ts` y sus cinco pruebas.
 
-Queda desde P3: presupuesto que arma EOS, fondo de emergencia, patrimonio con
-activos, tarjetas, inteligencia comparativa, escenarios y el resto de la
+**P3 — presupuesto que arma EOS: HECHO.** Cuatro entradas, ninguna pedida en
+un formulario. El margen sale de la mediana de los meses anteriores y no de un
+porcentaje inventado. Verificarlo contra datos reales encontró que una cuota
+pagada el día 8 se seguía proyectando como pendiente el 10: la misma plata
+descontada dos veces.
+
+**P4 — objetivos, fondo de emergencia y patrimonio: HECHO.**
+
+· **Objetivos** (`lib/finanzas/objetivos.ts`, 15 pruebas). Un objetivo se
+  convierte en aporte por mes, aportes restantes, ritmo real, desvío y fecha de
+  llegada. El atraso se mide contra el esfuerzo ORIGINAL —si el aporte
+  necesario subió desde que lo definió— y no contra un porcentaje de avance,
+  que obligaría a inventar una tolerancia que no sale de ningún lado. Los
+  aportes se cuentan por mes de calendario: del 8 de septiembre al 31 de
+  diciembre hay CUATRO, no 3,8. Y no se restan del disponible real, que ya
+  descuenta el ahorro: los objetivos compiten contra el ahorro, así que hay un
+  contraste y no una resta.
+
+· **Fondo de emergencia** (`lib/finanzas/fondoEmergencia.ts`, 9 pruebas). Nada
+  de "tres a seis meses": es una recomendación de economías con seguro de
+  desempleo. EOS calcula lo que cuesta cada opción con el gasto esencial de
+  esta persona y la deja elegir. Sugiere solo cuando hay un dato que lo
+  sostenga —si su ingreso llega parejo o varía— y siempre con el motivo al
+  lado.
+
+· **Patrimonio** (`lib/finanzas/patrimonio.ts`, 9 pruebas, tabla
+  `eos_finanzas_activos` en la v145). Se niega a dar un neto mientras falte una
+  de las dos mitades, y dice cuál falta. Verificado contra producción: con tres
+  deudas cargadas y ninguna cuenta devuelve `neto: null` en vez de −10.800.000.
+
+· **El ámbito llegó a cuentas y deudas (v143).** La posición del NEGOCIO leía
+  `eos_finanzas_deudas` sin filtro alguno: el préstamo del auto de la persona
+  bajaba el capital de trabajo de su empresa y empeoraba su liquidez.
+  `npm run ambito` vigila ahora seis tablas y 66 consultas, no dos y 29.
+
+· **CREAR_OBJETIVO escribe el ámbito.** El trigger `eos_process_goal_command()`
+  quedó parcheado en la v144 con la misma técnica que usó la v25 sobre esa
+  misma función: leerla de `pg_get_functiondef`, reemplazar un patrón conocido
+  y fallar ruidosamente si no está. Probado de punta a punta insertando el
+  comando como lo hace el worker.
+
+Queda desde P5: tarjetas, inteligencia comparativa, escenarios y el resto de la
 autonomía.
 
 ## El orden, y por qué

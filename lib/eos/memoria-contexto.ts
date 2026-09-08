@@ -104,6 +104,16 @@ export type ObjetivoAbierto = {
   fecha_limite?: string | null;
   proximo_paso?: string | null;
   estado?: string | null;
+  /**
+   * De quién es el objetivo.
+   *
+   * Va rotulado y no mezclado. "Llegar a 30 millones" significa cosas
+   * distintas si es la facturación del negocio o el ahorro de la persona, y el
+   * modelo que recibe las dos cosas en la misma lista contesta sobre una
+   * mezcla que no le pasa a nadie. Es la misma separación que ya hace el
+   * contexto financiero desde la v137.
+   */
+  ambito?: string | null;
 };
 
 export type TareaPendiente = {
@@ -198,7 +208,7 @@ export function textoMemoria(datos: {
   ).slice(0, TOPES.objetivos);
 
   if (objetivos.length > 0) {
-    const lineas = objetivos.map((o) => {
+    const linea = (o: ObjetivoAbierto) => {
       const detalle: string[] = [];
 
       // El progreso solo cuando alguien lo movió: "0%" en todos los objetivos
@@ -213,9 +223,27 @@ export function textoMemoria(datos: {
 
       const cola = detalle.length > 0 ? ` (${detalle.join(", ")})` : "";
       return `  - ${recortar(o.titulo as string, TOPES.linea)}${cola}`;
-    });
+    };
 
-    partes.push(`Lo que se propuso:\n${lineas.join("\n")}`);
+    /*
+     * Rotulados, no mezclados.
+     *
+     * Un objetivo del negocio y uno personal en la misma lista hacen que el
+     * modelo conteste "vas bien con tus objetivos" sobre una suma que no
+     * existe. Cuando todos son del mismo lado —el caso normal— no hace falta
+     * ningún rótulo y el bloque queda como estaba.
+     */
+    const delNegocio = objetivos.filter((o) => o.ambito === "negocio");
+    const personales = objetivos.filter((o) => o.ambito !== "negocio");
+
+    if (delNegocio.length > 0 && personales.length > 0) {
+      partes.push(
+        `Lo que se propuso para su negocio:\n${delNegocio.map(linea).join("\n")}`,
+        `Lo que se propuso en lo personal:\n${personales.map(linea).join("\n")}`,
+      );
+    } else {
+      partes.push(`Lo que se propuso:\n${objetivos.map(linea).join("\n")}`);
+    }
   }
 
   /*

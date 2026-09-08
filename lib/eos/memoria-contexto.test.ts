@@ -282,3 +282,32 @@ test("las tareas más prioritarias van primero y no entran más que el tope", ()
   assert.equal(renglones.length, TOPES.tareas);
   assert.match(renglones[0], /tarea numero 19/);
 });
+
+test("los objetivos del negocio y los personales van rotulados, no mezclados", () => {
+  /*
+   * "Llegar a 30 millones" significa cosas distintas si es la facturación del
+   * negocio o el ahorro de la persona. En una sola lista el modelo contesta
+   * "vas bien con tus objetivos" sobre una suma que no le pasa a nadie.
+   */
+  const texto = textoMemoria({
+    objetivos: [
+      objetivo({ titulo: "Facturar 300 millones este año", ambito: "negocio" }),
+      objetivo({ titulo: "Juntar 30 millones para diciembre", ambito: "personal" }),
+    ],
+  });
+
+  assert.match(texto, /Lo que se propuso para su negocio:/);
+  assert.match(texto, /Lo que se propuso en lo personal:/);
+  assert.doesNotMatch(texto, /Lo que se propuso:/);
+});
+
+test("con objetivos de un solo lado no aparece ningún rótulo de más", () => {
+  // El caso normal. Rotular cuando no hay nada que distinguir es ruido en un
+  // bloque que tiene que mantenerse chico.
+  const texto = textoMemoria({
+    objetivos: [objetivo({ titulo: "Juntar 30 millones", ambito: "personal" })],
+  });
+
+  assert.match(texto, /Lo que se propuso:/);
+  assert.doesNotMatch(texto, /para su negocio/);
+});

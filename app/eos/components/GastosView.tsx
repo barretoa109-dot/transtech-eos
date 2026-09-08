@@ -28,6 +28,9 @@ import FinanzasDestino from "./FinanzasDestino";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
 import FinanzasPlanDeudas from "./FinanzasPlanDeudas";
+import FinanzasFondo from "./FinanzasFondo";
+import FinanzasObjetivos from "./FinanzasObjetivos";
+import FinanzasPatrimonio from "./FinanzasPatrimonio";
 import FinanzasInforme from "./FinanzasInforme";
 
 /**
@@ -402,6 +405,26 @@ export default function GastosView() {
         por otra tarjeta se leerían como dos temas, y son el mismo.
       */}
       <FinanzasPlanDeudas moneda={monedaPrincipal} />
+      {/*
+        Y después de lo que debe, lo que quiere.
+        ============================================================
+
+        El orden no es arbitrario. Las tres tarjetas de acá abajo contestan
+        preguntas cada vez más lejanas: qué pasa si se corta el ingreso, qué
+        quiere lograr y cuánto tiene en total. Ninguna sirve mientras el mes no
+        cierre, y por eso van después del presupuesto, el calendario y las
+        deudas.
+
+        El fondo va antes que los objetivos porque los sostiene: juntar para un
+        terreno sin colchón termina en gastar el terreno la primera vez que
+        algo sale mal.
+
+        El patrimonio va último porque es la pregunta más lenta de todas: la
+        que alguien se hace una vez cada tanto, no todos los días.
+      */}
+      <FinanzasFondo moneda={monedaPrincipal} />
+      <FinanzasObjetivos moneda={monedaPrincipal} />
+      <FinanzasPatrimonio moneda={monedaPrincipal} />
       <FinanzasInforme />
 
       <div className="card">
