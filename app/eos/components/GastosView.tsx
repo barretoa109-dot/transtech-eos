@@ -25,6 +25,7 @@ import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasDestino from "./FinanzasDestino";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
+import FinanzasPlanDeudas from "./FinanzasPlanDeudas";
 import FinanzasInforme from "./FinanzasInforme";
 
 /**
@@ -379,6 +380,13 @@ export default function GastosView() {
       */}
       <FinanzasCuentas moneda={monedaPrincipal} />
       <FinanzasDeudas />
+      {/*
+        Y qué hacer con esas deudas. La tarjeta de arriba dice a quién le debe;
+        ésta dice en qué orden pagar, por qué, qué pasa con lo que no entra y
+        en cuántos meses sale. Va inmediatamente después a propósito: separadas
+        por otra tarjeta se leerían como dos temas, y son el mismo.
+      */}
+      <FinanzasPlanDeudas moneda={monedaPrincipal} />
       <FinanzasInforme />
 
       <div className="card">
