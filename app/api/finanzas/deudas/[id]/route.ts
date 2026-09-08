@@ -55,6 +55,7 @@ export async function PATCH(request: Request, contexto: Contexto) {
     .from("eos_finanzas_deudas")
     .select(COLUMNAS)
     .eq("id", id)
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id)
     .maybeSingle();
 
@@ -87,6 +88,7 @@ export async function PATCH(request: Request, contexto: Contexto) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id)
     .select(COLUMNAS)
     .single();
@@ -130,6 +132,7 @@ export async function DELETE(_request: Request, contexto: Contexto) {
     .from("eos_finanzas_deudas")
     .delete()
     .eq("id", id)
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id);
 
   if (error) {

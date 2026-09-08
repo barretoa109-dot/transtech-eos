@@ -43,6 +43,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("eos_finanzas_cuentas")
     .select(COLUMNAS)
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id)
     .eq("activa", true)
     .order("nombre");
@@ -138,12 +139,20 @@ export async function PUT(request: Request) {
     });
   }
 
-  // Borrado y alta, en ese orden: si el alta fallara queda la lista vacía, que
-  // es un estado honesto —el usuario lo ve y vuelve a cargar— y no una mezcla
-  // silenciosa de lo viejo con lo nuevo.
+  /*
+   * Borrado y alta, en ese orden: si el alta fallara queda la lista vacía, que
+   * es un estado honesto —el usuario lo ve y vuelve a cargar— y no una mezcla
+   * silenciosa de lo viejo con lo nuevo.
+   *
+   * El borrado va acotado al ámbito personal, que es el que esta pantalla
+   * edita. Sin ese filtro, guardar las cuentas de la persona borraría las del
+   * negocio sin que nadie lo pida ni lo vea. Es el mismo error que ya se
+   * cometió una vez con el PUT de los gastos fijos.
+   */
   const { error: borradoError } = await supabase
     .from("eos_finanzas_cuentas")
     .delete()
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id);
 
   if (borradoError) {

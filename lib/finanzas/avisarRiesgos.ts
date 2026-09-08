@@ -124,6 +124,7 @@ export async function avisarRiesgos(
           .select(
             "acreedor,tipo,moneda,saldo_declarado,saldo_declarado_el,cuota_monto,cuota_dia,cuotas_totales,cuotas_pagadas,vence_el,estado,preocupa",
           )
+          .eq("ambito", "personal")
           .eq("usuario_id", uid)
           .neq("estado", "saldada"),
         admin

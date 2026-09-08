@@ -86,6 +86,7 @@ export async function GET() {
     supabase
       .from("eos_finanzas_deudas")
       .select("acreedor,tipo,moneda,saldo_declarado,cuota_monto,cuota_dia,cuotas_totales,cuotas_pagadas,estado")
+      .eq("ambito", "personal")
       .eq("usuario_id", usuarioId)
       .neq("estado", "saldada"),
   ]);

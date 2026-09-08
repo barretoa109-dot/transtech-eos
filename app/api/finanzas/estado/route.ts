@@ -128,11 +128,13 @@ export async function GET() {
         .select(
           "acreedor,tipo,moneda,saldo_declarado,saldo_declarado_el,cuota_monto,cuota_dia,cuotas_totales,cuotas_pagadas,vence_el,estado,preocupa",
         )
+        .eq("ambito", "personal")
         .eq("usuario_id", user.id)
         .neq("estado", "saldada"),
       supabase
         .from("eos_finanzas_cuentas")
         .select("nombre,tipo,moneda,saldo_declarado,saldo_declarado_el")
+        .eq("ambito", "personal")
         .eq("usuario_id", user.id)
         .eq("activa", true),
     ]);

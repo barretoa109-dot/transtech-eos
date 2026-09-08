@@ -43,6 +43,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("eos_finanzas_deudas")
     .select(COLUMNAS)
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id);
 
   if (error) {
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
   const { count, error: conteoError } = await supabase
     .from("eos_finanzas_deudas")
     .select("id", { count: "exact", head: true })
+    .eq("ambito", "personal")
     .eq("usuario_id", user.id);
 
   if (!conteoError && (count ?? 0) >= MAX_DEUDAS) {

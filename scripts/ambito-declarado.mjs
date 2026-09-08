@@ -39,7 +39,14 @@ const RAIZ = path.resolve(
   "..",
 );
 
-const TABLAS = ["eos_movimientos_financieros", "eos_finanzas_fijos"];
+const TABLAS = [
+  "eos_movimientos_financieros",
+  "eos_finanzas_fijos",
+  // Desde la v143. La posición del negocio leía `eos_finanzas_deudas` sin
+  // filtro y sumaba el préstamo del auto de la persona a su pasivo corriente.
+  "eos_finanzas_cuentas",
+  "eos_finanzas_deudas",
+];
 const CARPETAS = ["app", "lib"];
 
 /** Hasta dónde llega una cadena: el `.from(` siguiente, o el fin del statement. */

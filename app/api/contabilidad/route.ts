@@ -62,11 +62,25 @@ export async function GET(request: Request) {
   // sigue siendo activo aunque el período sea el mes en curso.
   const hechos = await leerHechos(admin, user.id, periodo, { erp: true, crm: crm.permitido });
 
-  // Las deudas son declaradas por la persona y viven del lado personal:
-  // service_role no pasa por RLS, así que el filtro va a mano.
+  /*
+   * SOLO las deudas del negocio.
+   *
+   * Hasta la v143 esta consulta no tenía filtro de ámbito, y su comentario
+   * decía —correctamente— que las deudas las declara la persona. Las sumaba
+   * igual al pasivo corriente de la empresa: el préstamo del auto de alguien
+   * bajaba el capital de trabajo de su negocio y empeoraba su liquidez.
+   *
+   * Ahora la posición cuenta lo del negocio y nada más. Si todavía no hay
+   * deudas del negocio cargadas, el pasivo sale sin ellas y `posicion()` lo
+   * declara en `faltantes` — que es la verdad, y es lo que hace visible que
+   * falta cargarlas.
+   *
+   * service_role no pasa por RLS, así que los dos filtros van a mano.
+   */
   const { data: filasDeuda, error } = await admin
     .from("eos_finanzas_deudas")
     .select("moneda,cuota_monto,cuotas_totales,cuotas_pagadas,estado")
+    .eq("ambito", "negocio")
     .eq("usuario_id", user.id)
     .neq("estado", "saldada");
 
