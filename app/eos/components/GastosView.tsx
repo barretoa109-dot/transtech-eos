@@ -22,6 +22,7 @@ import { DESTINOS } from "@/lib/finanzas/destinos";
 */
 import FinanzasPanel from "./FinanzasPanel";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
+import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasDestino from "./FinanzasDestino";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
@@ -371,6 +372,12 @@ export default function GastosView() {
         mezcla que la v136 vino a deshacer.
       */}
       <FinanzasTrayectoria />
+      {/*
+        La curva y la lista, juntas y en ese orden. La curva contesta cuánto va
+        a haber; la lista, qué va a pasar. Separadas por otra tarjeta, alguien
+        que ve la línea bajar el 25 tiene que ir a buscar por qué.
+      */}
+      <FinanzasCalendario moneda={monedaPrincipal} />
       <FinanzasDestino />
       {/*
         "¿Cuánto tengo?" y "¿a quién le debo?" son la misma pregunta partida en
