@@ -195,6 +195,25 @@ export default function GastosView() {
 
   return (
     <div className="gastos">
+      {/*
+        El encabezado es el mismo patrón que Negocio, y es a propósito: desde
+        la v136 son dos lugares separados de verdad —la plata de cada uno vive
+        en filas distintas— y tienen que leerse como contrapartes y no como una
+        sección y su pestaña.
+
+        La segunda línea dice explícitamente que esto no toca el negocio. Es lo
+        que alguien necesita saber antes de anotar su sueldo acá y quedarse con
+        la duda de si le acaba de ensuciar el resultado del mes.
+      */}
+      <div className="page-header">
+        <div className="page-eyebrow">Personal</div>
+        <div className="page-title">Tu plata, aparte de la del negocio</div>
+        <div className="page-sub">
+          Lo que cobrás y lo que gastás vos. Nada de lo que anotes acá entra en las cuentas de
+          Negocio, ni al revés.
+        </div>
+      </div>
+
       <div className="card">
         <div className="neg-section-heading">
           <div>

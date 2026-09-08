@@ -31,14 +31,23 @@ const NAV_ITEMS: { vista: Vista; label: string; icon: React.ReactNode }[] = [
   { vista: "dashboard", label: "Dashboard", icon: <BarChart3 size={16} /> },
   { vista: "negocio", label: "Negocio", icon: <Store size={16} /> },
   /*
-   * Gastos va después de Negocio y no adentro a propósito.
+   * Personal va después de Negocio y no adentro a propósito.
    *
    * EOS no es sólo para quien tiene un comercio. Alguien en relación de
    * dependencia no tiene ventas ni stock, y meterle su combustible y su
    * almuerzo dentro de una sección llamada "Negocio" le dice que el
    * producto no es para él.
+   *
+   * Se llamaba "Gastos" y desde la v136 se llama "Personal", por dos motivos.
+   * El primero es que acá también entra lo que la persona COBRA, y una
+   * sección llamada Gastos donde aparece un sueldo se lee como un error.
+   * El segundo importa más: desde que la plata está separada por ámbito, esta
+   * sección es la contraparte de Negocio y tiene que leerse como tal. "Gastos"
+   * sonaba a una pestaña de Negocio; "Personal" dice de quién es la plata que
+   * hay adentro, que es exactamente la distinción que el sistema ahora
+   * sostiene en la base.
    */
-  { vista: "gastos", label: "Gastos", icon: <Wallet size={16} /> },
+  { vista: "gastos", label: "Personal", icon: <Wallet size={16} /> },
   { vista: "decisions", label: "Decisiones", icon: <ScrollText size={16} /> },
   { vista: "learnings", label: "Aprendizajes", icon: <Lightbulb size={16} /> },
 ];
