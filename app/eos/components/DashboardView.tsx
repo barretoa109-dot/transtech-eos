@@ -2,11 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
-import FinanzasPanel from "./FinanzasPanel";
-import FinanzasDestino from "./FinanzasDestino";
-import FinanzasTrayectoria from "./FinanzasTrayectoria";
-import FinanzasDeudas from "./FinanzasDeudas";
-import FinanzasInforme from "./FinanzasInforme";
 import PanelIndicadores from "./PanelIndicadores";
 import Hallazgos from "./Hallazgos";
 import type { Briefing } from "../types/briefing";
@@ -71,23 +66,25 @@ export default function DashboardView({
           <div className="page-sub">Métricas, prioridades y recomendaciones en un solo lugar.</div>
         </div>
 
-        {/* Doctrina EOS Finanzas: primero responder "¿Estoy bien?", el detalle
-            es opt-in. Por eso va arriba de todo, antes de cualquier métrica. */}
-        <FinanzasPanel />
+        {/* El bloque financiero PERSONAL —"¿estoy bien?", la trayectoria del
+            saldo, en qué se fue, las deudas y el informe— se fue a Personal.
 
-        {/* El orden de acá abajo sigue el orden en que se hacen las preguntas,
-            no el de las tablas: "¿estoy bien?" (arriba), "¿qué se viene?",
-            "¿en qué se me fue?" y "¿a quién le debo?". Cada tarjeta se calla
-            sola cuando no tiene nada que decir. */}
-        <FinanzasTrayectoria />
-        <FinanzasDestino />
-        <FinanzasDeudas />
-        <FinanzasInforme />
+            Estaba acá arriba por una buena razón: la doctrina pide contestar
+            "¿estoy bien?" antes que cualquier métrica. Pero desde la v136 la
+            plata de la persona y la del negocio están separadas de verdad —dos
+            ámbitos, dos paneles, filas que no se suman entre sí— y dejar el
+            panel personal encima de los indicadores del negocio reponía en la
+            pantalla exactamente la mezcla que se acababa de deshacer en la
+            base.
 
-        {/* Los indicadores del negocio van después del bloque financiero y no
-            antes: primero "¿tengo plata?", que es la pregunta de todos los
-            días, y después "¿cómo viene el negocio?". Se calla solo cuando no
-            hay nada cargado, igual que las tarjetas de arriba.
+            El efecto secundario era peor de lo que parece: Personal quedaba
+            siendo un campo de texto y una lista, porque todo lo que le daba
+            sentido estaba en esta pantalla. Quien entraba a ver cómo estaba se
+            encontraba con un formulario.
+
+            La regla no cambió, cambió dónde se aplica: en Personal, "¿estoy
+            bien?" sigue yendo arriba de todo. Acá manda la pregunta del
+            negocio.
 
             Y la LECTURA va antes que los números: los indicadores son el
             material, los hallazgos son la conclusión. Un panel con veinte
