@@ -16,6 +16,21 @@ export const dynamic = "force-dynamic";
  */
 
 const MAX_FIJOS = 40;
+
+/*
+ * De quién son los fijos que se piden.
+ *
+ * Desde la v136 esta tabla guarda los dos: el alquiler de la casa y el sueldo
+ * de un empleado. La ruta estaba clavada en "personal", así que un fijo del
+ * negocio —que el chat sí sabe registrar y que YA entra en los números de
+ * rentabilidad— no se veía ni se podía corregir desde ninguna pantalla.
+ *
+ * El default sigue siendo personal: es lo que pide la pantalla de Personal,
+ * que es la que existía cuando esta ruta se escribió.
+ */
+function ambitoDe(valor: unknown): "negocio" | "personal" {
+  return valor === "negocio" ? "negocio" : "personal";
+}
 const MAXIMO_RAZONABLE = 999_999_999_999;
 
 type FijoEntrada = {
@@ -25,7 +40,7 @@ type FijoEntrada = {
   dia_del_mes?: unknown;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,11 +51,13 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
+  const ambito = ambitoDe(new URL(request.url).searchParams.get("ambito"));
+
   const { data, error } = await supabase
     .from("eos_finanzas_fijos")
     .select("id,tipo,descripcion,monto,dia_del_mes")
     .eq("usuario_id", user.id)
-    .eq("ambito", "personal")
+    .eq("ambito", ambito)
     .eq("activo", true)
     .order("tipo", { ascending: true })
     .order("dia_del_mes", { ascending: true });
@@ -67,7 +84,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { fijos?: unknown };
+  let body: { fijos?: unknown; ambito?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -85,12 +102,15 @@ export async function PUT(request: Request) {
     );
   }
 
+  const ambito = ambitoDe(body.ambito);
+
   const limpios: {
     usuario_id: string;
     tipo: string;
     descripcion: string;
     monto: number;
     dia_del_mes: number;
+    ambito: string;
   }[] = [];
 
   for (const crudo of body.fijos as FijoEntrada[]) {
@@ -112,6 +132,7 @@ export async function PUT(request: Request) {
       descripcion: descripcion.slice(0, 120),
       monto: Math.round(monto * 100) / 100,
       dia_del_mes: dia,
+      ambito,
     });
   }
 
@@ -122,7 +143,9 @@ export async function PUT(request: Request) {
     .from("eos_finanzas_fijos")
     .delete()
     .eq("usuario_id", user.id)
-    .eq("ambito", "personal");
+    // Acotado al ámbito que se está guardando: sin esto, guardar los fijos
+    // personales borraría los del negocio, que la pantalla ni siquiera mandó.
+    .eq("ambito", ambito);
 
   if (borradoError) {
     console.error("No se pudieron reemplazar los fijos:", borradoError);

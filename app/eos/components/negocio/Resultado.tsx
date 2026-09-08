@@ -5,6 +5,7 @@ import { FileText, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import type { ClaveCifra, Trazado } from "@/lib/finanzas/trazabilidad";
 import Traza, { Cifra } from "../Traza";
+import FinanzasFijos from "../FinanzasFijos";
 
 /**
  * El resultado del período y con qué cuenta el negocio.
@@ -105,16 +106,50 @@ export default function ResultadoView() {
   if (error) return <p className="neg-load-error" role="alert">{error}</p>;
   if (!datos) return null;
 
+  const moneda = datos.resultados[0]?.moneda ?? datos.posiciones[0]?.moneda ?? "PYG";
+
+  /*
+    Los costos fijos del negocio van ANTES del estado vacío, no adentro del
+    resultado.
+
+    Desde la v136 el chat sabe anotar "el capataz cobra 750.000 cada 15 días" y
+    lo guarda como fijo del negocio; desde entonces esos fijos ya entran en el
+    resultado y en la rentabilidad. Pero no había pantalla que los mostrara: la
+    ruta de fijos estaba clavada en los personales. Se registraban, se usaban
+    para calcular, y no se podían ver ni corregir.
+
+    Y tienen que estar visibles justo cuando todavía no hay ventas, que es
+    cuando un negocio nuevo carga sus costos y todavía no tiene resultado que
+    mirar.
+  */
+  const fijosDelNegocio = (
+    <FinanzasFijos
+      ambito="negocio"
+      moneda={moneda}
+      confirmados={0}
+      onGuardado={() => {
+        void traer().then((res) => {
+          if (!("error" in res)) setDatos(res);
+        });
+      }}
+    />
+  );
+
   if (datos.resultados.length === 0 && datos.posiciones.length === 0) {
     return (
-      <p className="neg-empty-state">
-        Todavía no hay movimiento para armar un resultado. Cargá ventas, compras o gastos y volvé.
-      </p>
+      <div className="neg-resultado">
+        {fijosDelNegocio}
+        <p className="neg-empty-state">
+          Todavía no hay movimiento para armar un resultado. Cargá ventas, compras o gastos y volvé.
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="neg-resultado">
+      {fijosDelNegocio}
+
       {datos.aviso && <p className="neg-error" role="alert">{datos.aviso}</p>}
 
       {datos.resultados.map((r) => (

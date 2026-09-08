@@ -28,10 +28,17 @@ export default function FinanzasFijos({
   moneda,
   confirmados,
   onGuardado,
+  ambito = "personal",
 }: {
   moneda: string;
   confirmados: number;
   onGuardado: () => void;
+  /*
+   * De quién son estos fijos. Desde la v136 la tabla guarda los dos y el
+   * mismo componente sirve a las dos pantallas: el alquiler de la casa en
+   * Personal y el sueldo de un empleado en Negocio.
+   */
+  ambito?: "negocio" | "personal";
 }) {
   const [fijos, setFijos] = useState<Fijo[] | null>(null);
   const [editando, setEditando] = useState(false);
@@ -39,7 +46,7 @@ export default function FinanzasFijos({
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
-    return fetch("/api/finanzas/fijos", { cache: "no-store" })
+    return fetch(`/api/finanzas/fijos?ambito=${ambito}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
       .then((payload) => {
         const lista: Fijo[] = (payload.fijos ?? []).map(
@@ -53,7 +60,7 @@ export default function FinanzasFijos({
         setFijos(lista);
       })
       .catch(() => setFijos([]));
-  }, []);
+  }, [ambito]);
 
   useEffect(() => {
     void cargar();
@@ -62,6 +69,31 @@ export default function FinanzasFijos({
   if (fijos === null) return null;
 
   const simbolo = simboloDe(moneda);
+
+  /*
+   * Los mismos controles, otro vocabulario. "Colegio" en la pantalla del
+   * negocio hace dudar de si uno está donde cree que está, y esa duda es
+   * exactamente la que la separación por ámbito vino a sacar.
+   */
+  const esNegocio = ambito === "negocio";
+
+  const copia = esNegocio
+    ? {
+        titulo: "COSTOS FIJOS DEL NEGOCIO",
+        vacio:
+          "Alquiler del local, sueldos, seguros, servicios. Decíselos una vez y entran en el resultado y en el pronóstico desde hoy, sin esperar a que se repitan dos meses.",
+        ayuda:
+          "Solo lo que se repite todos los meses: alquiler, sueldos, seguros, servicios. Las compras del día a día van en Compras.",
+        ejemplo: "Alquiler del local",
+      }
+    : {
+        titulo: "INGRESOS Y GASTOS FIJOS",
+        vacio:
+          "EOS aprende tus gastos fijos viéndolos repetirse, pero eso tarda un par de meses. Decíselos una vez y el panel te sirve desde hoy. Después, cuando lleguen por correo, EOS corrige solo los importes.",
+        ayuda:
+          "Solo lo que se repite todos los meses: sueldo, alquiler, cuotas, colegio. Los gastos del día a día no van acá — esos EOS los ve solo.",
+        ejemplo: "Alquiler",
+      };
 
   async function guardar() {
     setGuardando(true);
@@ -72,6 +104,7 @@ export default function FinanzasFijos({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ambito,
           fijos: (fijos ?? []).map((f) => ({
             tipo: f.tipo,
             descripcion: f.descripcion,
@@ -103,15 +136,13 @@ export default function FinanzasFijos({
         <div className="fin-head">
           <span className="fin-badge fin-badge-neutral">
             <Repeat size={14} />
-            INGRESOS Y GASTOS FIJOS
+            {copia.titulo}
           </span>
         </div>
 
         {fijos.length === 0 ? (
           <p className="prose" style={{ marginTop: 10 }}>
-            EOS aprende tus gastos fijos viéndolos repetirse, pero eso tarda un par de meses.
-            Decíselos una vez y el panel te sirve desde hoy. Después, cuando lleguen por correo,
-            EOS corrige solo los importes.
+            {copia.vacio}
           </p>
         ) : (
           <>
@@ -159,13 +190,12 @@ export default function FinanzasFijos({
       <div className="fin-head">
         <span className="fin-badge fin-badge-neutral">
           <Repeat size={14} />
-          INGRESOS Y GASTOS FIJOS
+          {copia.titulo}
         </span>
       </div>
 
       <p className="prose" style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>
-        Solo lo que se repite todos los meses: sueldo, alquiler, cuotas, colegio. Los gastos del
-        día a día no van acá — esos EOS los ve solo.
+        {copia.ayuda}
       </p>
 
       <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
@@ -183,7 +213,7 @@ export default function FinanzasFijos({
               type="text"
               value={f.descripcion}
               onChange={(e) => actualizar(i, "descripcion", e.target.value)}
-              placeholder="Alquiler"
+              placeholder={copia.ejemplo}
               style={{ ...campo(0), flex: 2, minWidth: 110 }}
             />
             <input
