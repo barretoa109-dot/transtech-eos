@@ -23,6 +23,7 @@ import { DESTINOS } from "@/lib/finanzas/destinos";
 import FinanzasPanel from "./FinanzasPanel";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
+import FinanzasPresupuesto from "./FinanzasPresupuesto";
 import FinanzasDestino from "./FinanzasDestino";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
@@ -371,6 +372,13 @@ export default function GastosView() {
         vivían al lado de los indicadores del negocio, que es justamente la
         mezcla que la v136 vino a deshacer.
       */}
+      {/*
+        El presupuesto va antes que la proyección del saldo: "cuánto puedo
+        gastar" es la pregunta de todos los días y "cómo viene el saldo" la de
+        cada tanto. Y el presupuesto es el que da la conclusión —vas a cerrar
+        por encima o por debajo— que la curva después ilustra.
+      */}
+      <FinanzasPresupuesto moneda={monedaPrincipal} />
       <FinanzasTrayectoria />
       {/*
         La curva y la lista, juntas y en ese orden. La curva contesta cuánto va
