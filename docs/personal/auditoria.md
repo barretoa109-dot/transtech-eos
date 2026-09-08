@@ -100,6 +100,30 @@ usuario puede ver.
 
 ---
 
+## Estado al 8 de septiembre
+
+**P0 — exactitud: HECHO.** Transferencias en tabla propia (v138) y devoluciones
+como gasto de monto negativo (v141+v142). Los dos modelos son opuestos a
+propósito: una hay que excluirla del flujo, la otra tiene que entrar restando.
+La prueba de la devolución encontró que `acumular` en `destinos.ts` descartaba
+todo `monto <= 0` como importe roto.
+
+**P1 — conectar lo que existía: HECHO.** `FinanzasPlanDeudas.tsx` consume
+`/api/finanzas/plan`, que llevaba semanas calculando el orden de pago con su
+motivo, qué negociar y en cuántos meses se sale, sin que ninguna pantalla lo
+mostrara. Y `REGISTRAR_DEUDA` / `REGISTRAR_PAGO_DEUDA` para cargarlas
+hablando — el motor estaba detrás de un formulario por acreedor.
+
+**P2 — disponible real y calendario: HECHO.** El disponible real YA tenía su
+trazabilidad completa (`Traza` + `Cifra`): eso no había que construirlo. Lo
+que faltaba era el calendario, `/api/finanzas/calendario` +
+`FinanzasCalendario.tsx`, con la cuenta del saldo corrido en
+`lib/finanzas/calendario.ts` y sus cinco pruebas.
+
+Queda desde P3: presupuesto que arma EOS, fondo de emergencia, patrimonio con
+activos, tarjetas, inteligencia comparativa, escenarios y el resto de la
+autonomía.
+
 ## El orden, y por qué
 
 **P0 — exactitud.** Transferencias y devoluciones. Va primero porque todo lo
