@@ -68,7 +68,7 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "debo 8 millones a Financiera Ueno" | `REGISTRAR_DEUDA` | **Ejecuta** |
 | "pagué la cuota de Ueno" | `REGISTRAR_PAGO_DEUDA` | **Ejecuta** |
 | "quiero juntar 30 millones para diciembre" | `CREAR_OBJETIVO` | **Ejecuta desde hoy** |
-| **"tengo 3 millones en Ueno"** | — | **NO EXISTE.** Las cuentas solo se cargan por pantalla |
+| "tengo 3 millones en Ueno", "no me queda nada en el banco" | `DECLARAR_SALDO` | **Ejecuta desde hoy** (v149) |
 | **"mi tarjeta cierra el 20 y vence el 5"** | — | **NO EXISTE.** Nuevo desde la v146 |
 | "ese gasto de nafta era 80 mil, no 800 mil" | `CORREGIR_MOVIMIENTO` | **Ejecuta desde hoy** (v148) |
 | **"borrá ese movimiento"** | — | **NO EXISTE** |
@@ -92,9 +92,23 @@ siempre fue así.
 No borra, a propósito: borrar por chat es la única operación donde una
 coincidencia equivocada destruye un dato sin dejar rastro.
 
-**2. Declarar el saldo de una cuenta.** Es el dato del que dependen el
-patrimonio, el disponible real y la cobertura. Pedirlo por pantalla contradice
-la doctrina —"EOS trabaja, el usuario observa"— justo en el dato más frecuente.
+**2. ~~Declarar el saldo de una cuenta~~ — HECHO (v149).** Era el dato del que
+dependen el patrimonio, el disponible real y la cobertura, y el único que
+obligaba a salir del chat para cargarlo.
+
+Crea la cuenta si no existe, y no supone qué clase de institución es: entra
+como `otro` —sin clasificar— y la confirmación lo ofrece en una línea. Solo
+deduce de palabras que la persona escribió.
+
+Con dos cuentas parecidas **no elige**. Es la única acción del sistema que se
+niega a desempatar sola: un saldo en la cuenta equivocada deja mal el
+patrimonio, el disponible y la cobertura a la vez, y los dos números quedan
+plausibles.
+
+Lo que NO hace todavía: contrastar el saldo declarado contra el que EOS venía
+proyectando. "Declaraste 3.000.000 y yo venía calculando 3.450.000" es la
+frase más útil que puede decir este verbo, y requiere el arrastre de
+`lib/empresa/caja.ts` del lado de la base. Queda anotado.
 
 **3. Cobrar una venta a crédito.** La cartera existe, el RPC existe, el panel
 existe. Sin el verbo, quien vende a crédito por chat tiene que ir a marcar el
@@ -129,6 +143,36 @@ Desde entonces el camino es:
 5. `node n8n/exportar.mjs` para que el repo tenga lo que está corriendo.
 
 ---
+
+## El defecto que apareció probando esto, y no era de este verbo
+
+La prueba de `DECLARAR_SALDO` le mandó el monto como lo escribe una persona:
+`"3.000.000"`. Falló. Y `"800.000"` no falló — entró como **800**.
+
+Once funciones vivas leían el monto del chat con el mismo texto:
+
+```sql
+nullif(regexp_replace(coalesce(p_datos ->> 'monto', ''),
+       '[^0-9.]', '', 'g'), '')::numeric
+```
+
+Deja pasar el punto, que en Paraguay es el separador de **miles**. El caso
+grave es el que no falla: entra un gasto de ochocientos guaraníes donde la
+persona dijo ochocientos mil, la confirmación dice "listo", y el panel del mes
+queda mil veces por debajo sin una sola señal.
+
+Nunca se disparó: se miraron los comandos reales de producción y en todos el
+modelo mandó el monto como número de JSON. Está a un cambio de modelo de
+dispararse, y cuando lo haga no va a haber ningún error que lo delate.
+
+Lo arregla `public.eos_leer_monto` (v150), que lee el último separador: tres
+dígitos atrás es de miles, uno o dos es decimal. Las once funciones se
+reescribieron en su lugar desde `pg_get_functiondef`. Hay un candado en
+`npm run migraciones` para que ninguna migración nueva vuelva a escribirla.
+
+De regalo: la expresión vieja borraba el signo menos, así que los guardas
+`if v_monto <= 0 then raise` de todas esas funciones no podían dispararse
+nunca. Estaban escritos y no protegían nada.
 
 ## Las tres listas que estaban viejas
 
