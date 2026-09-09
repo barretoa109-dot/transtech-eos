@@ -23,7 +23,15 @@ const VACIA: Cuenta = {
   recibe_avisos: false,
 };
 
-/** Los mismos seis que acepta la ruta. Si se agrega uno allá, va acá también. */
+/**
+ * Los mismos siete que acepta la ruta. Si se agrega uno allá, va acá también.
+ *
+ * "Sin clasificar" es el que pone el chat cuando alguien dice "tengo 3
+ * millones en Ueno" sin decir qué clase de institución es. Aparece en la
+ * lista a propósito, aunque nadie lo elija a mano: si no estuviera, el
+ * desplegable mostraría "Banco" sobre una cuenta que no lo es, y el primer
+ * guardado de esta pantalla convertiría la suposición en un dato.
+ */
 const TIPOS: { valor: string; etiqueta: string }[] = [
   { valor: "banco", etiqueta: "Banco" },
   { valor: "cooperativa", etiqueta: "Cooperativa" },
@@ -31,6 +39,7 @@ const TIPOS: { valor: string; etiqueta: string }[] = [
   { valor: "billetera", etiqueta: "Billetera" },
   { valor: "efectivo", etiqueta: "Efectivo" },
   { valor: "tarjeta_credito", etiqueta: "Tarjeta de crédito" },
+  { valor: "otro", etiqueta: "Sin clasificar" },
 ];
 
 /**

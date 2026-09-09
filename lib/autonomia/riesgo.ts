@@ -280,6 +280,27 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Declarar el saldo de una cuenta cuesta 1 punto, el mínimo, y tiene que
+   * costarlo.
+   *
+   * Es el dato del que dependen el patrimonio, el disponible real y la
+   * cobertura del fondo de emergencia, y el que más cambia: cada vez que la
+   * persona mira su homebanking hay uno nuevo. Cobrarle presupuesto de riesgo
+   * por contarle a EOS cuánto tiene la enseñaría a no contárselo, y el sistema
+   * entero pasa a proyectar sobre un número viejo.
+   *
+   * No mueve plata: corrige lo que EOS cree. Y lo único que pisa —el saldo
+   * anterior— era, por definición, el que estaba desactualizado.
+   */
+  DECLARAR_SALDO: {
+    tier: 1,
+    points: 1,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /**

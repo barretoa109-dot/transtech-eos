@@ -210,6 +210,35 @@ const REGLAS: Regla[] = [
       `No encontré ningún movimiento tuyo de los últimos siete días que diga "${d}". ` +
       "Si es más viejo, corregilo desde Personal, en la lista de movimientos.",
   },
+  /*
+   * Los de declarar un saldo.
+   *
+   * El de la cuenta ambigua es el único error del sistema que existe porque
+   * una acción se NIEGA a desempatar sola: un saldo escrito en la cuenta
+   * equivocada deja mal el patrimonio, el disponible y la cobertura a la vez,
+   * y los dos números quedan plausibles. Por eso el mensaje trae los nombres
+   * que coincidieron: la persona contesta con uno y listo.
+   */
+  {
+    codigo: "EOS_ACCION_SALDO_SIN_CUENTA",
+    mensaje: () =>
+      "Decime en qué cuenta. Por ejemplo: \"tengo 3 millones en Ueno\" o " +
+      "\"en efectivo me quedan 500 mil\".",
+  },
+  {
+    codigo: "EOS_ACCION_SALDO_SIN_MONTO",
+    mensaje: (d) => `Me falta cuánto tenés en "${d}".`,
+  },
+  {
+    codigo: "EOS_ACCION_SALDO_NEGATIVO",
+    mensaje: () =>
+      "Un saldo no puede ser negativo. Si estás en descubierto o le debés a " +
+      "esa cuenta, eso es una deuda: decime a quién y cuánto.",
+  },
+  {
+    codigo: "EOS_ACCION_CUENTA_AMBIGUA",
+    mensaje: (d) => `Tenés más de una cuenta que se parece: ${d}. ¿En cuál lo anoto?`,
+  },
   {
     codigo: "EOS_ACCION_DEUDA_SIN_SALDO",
     mensaje: (d) =>

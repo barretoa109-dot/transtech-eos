@@ -73,6 +73,7 @@ export const RUTAS: Record<string, string> = {
   REGISTRAR_DEUDA: "eos-worker-rc1-internal",
   REGISTRAR_PAGO_DEUDA: "eos-worker-rc1-internal",
   CORREGIR_MOVIMIENTO: "eos-worker-rc1-internal",
+  DECLARAR_SALDO: "eos-worker-rc1-internal",
 };
 
 export type Job = {

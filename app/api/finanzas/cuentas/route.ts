@@ -24,7 +24,28 @@ export const dynamic = "force-dynamic";
 const MAX_CUENTAS = 25;
 const MAXIMO_RAZONABLE = 999_999_999_999;
 
-const TIPOS = ["banco", "cooperativa", "financiera", "billetera", "efectivo", "tarjeta_credito"];
+/*
+ * Los siete que acepta la base.
+ *
+ * "otro" existe desde la v149, cuando el chat aprendió a declarar un saldo:
+ * quien dice "tengo 3 millones en Ueno" no dijo si Ueno es un banco o una
+ * financiera, y suponerlo sería inventarle un dato. La cuenta se crea sin
+ * clasificar y la persona la clasifica acá.
+ *
+ * Tiene que estar en esta lista aunque la pantalla no lo ofrezca como opción
+ * nueva: el PUT reemplaza la lista entera y descarta lo que no reconoce, así
+ * que sin "otro" acá, guardar las cuentas borraría en silencio justo las que
+ * creó el chat.
+ */
+const TIPOS = [
+  "banco",
+  "cooperativa",
+  "financiera",
+  "billetera",
+  "efectivo",
+  "tarjeta_credito",
+  "otro",
+];
 
 const COLUMNAS =
   "id,nombre,tipo,institucion,moneda,saldo_declarado,saldo_declarado_el,recibe_avisos,activa";
