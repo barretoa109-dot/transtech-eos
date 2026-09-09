@@ -152,17 +152,28 @@ function componentesDe(r: ResultadoKPI, tieneUmbrales: boolean): Componente[] {
  * vez de leerlo del registro acá adentro— para que esta función siga siendo
  * pura y testeable sin montar el catálogo entero.
  */
+/**
+ * El conjunto de dimensiones a puntuar.
+ *
+ * Es un parámetro desde la v147 porque Personal usa la MISMA aritmética con
+ * otras dimensiones (`lib/finanzas/pulso.ts`). Compartir la máquina y no la
+ * tabla es lo que evita las dos cosas malas a la vez: duplicar la forma de
+ * puntuar, y que un indicador personal se cuele en el score del negocio.
+ */
+export type Dimension = { id: string; nombre: string; indicadores: string[] };
+
 export function calcularScore(
   resultados: ResultadoKPI[],
   conUmbrales: Set<string>,
   moneda: string,
+  dimensionesAPuntuar: Dimension[] = DIMENSIONES,
 ): BusinessScore {
   const deMoneda = resultados.filter((r) => r.moneda === moneda);
   const porId = new Map(deMoneda.map((r) => [r.id, r]));
 
   const confianzas: number[] = [];
 
-  const dimensiones: DimensionScore[] = DIMENSIONES.map((d) => {
+  const dimensiones: DimensionScore[] = dimensionesAPuntuar.map((d) => {
     const componentes: Componente[] = [];
 
     for (const id of d.indicadores) {
@@ -208,7 +219,7 @@ export function calcularScore(
       puntuadas.length === 0
         ? null
         : Math.round(puntuadas.reduce((s, d) => s + (d.puntaje as number), 0) / puntuadas.length),
-    cobertura: Number((puntuadas.length / DIMENSIONES.length).toFixed(3)),
+    cobertura: Number((puntuadas.length / dimensionesAPuntuar.length).toFixed(3)),
     confianza:
       confianzas.length === 0
         ? 0
@@ -255,9 +266,12 @@ export function explicarCambio(
  * Null cuando no hace falta. Que aparezca solo cuando importa es lo que hace
  * que se lea el día que aparece.
  */
-export function avisoDeCobertura(score: BusinessScore): string | null {
+export function avisoDeCobertura(score: BusinessScore, sujeto = "del negocio"): string | null {
   if (score.cobertura >= 0.7) return null;
 
+  // El total sale del propio score y no de la constante del negocio: desde la
+  // v147 las dimensiones son un parámetro, y usar la constante haría que el
+  // aviso de Personal hablara de siete dimensiones que no miró.
   const puntuadas = score.dimensiones.filter((d) => d.puntaje !== null).length;
-  return `Calculado sobre ${puntuadas} de ${DIMENSIONES.length} dimensiones. Todavía no es una foto completa del negocio.`;
+  return `Calculado sobre ${puntuadas} de ${score.dimensiones.length} dimensiones. Todavía no es una foto completa ${sujeto}.`;
 }

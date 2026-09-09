@@ -21,6 +21,7 @@ import { DESTINOS } from "@/lib/finanzas/destinos";
   Personal se sentía pobre. Acá se reúne todo lo que es de la persona.
 */
 import FinanzasPanel from "./FinanzasPanel";
+import FinanzasPulso from "./FinanzasPulso";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasPresupuesto from "./FinanzasPresupuesto";
@@ -382,6 +383,18 @@ export default function GastosView() {
         cada tanto. Y el presupuesto es el que da la conclusión —vas a cerrar
         por encima o por debajo— que la curva después ilustra.
       */}
+      {/*
+        El pulso va antes que el presupuesto porque contesta la pregunta que
+        trae la persona cuando abre esto: cómo está y qué necesita su
+        atención hoy. El presupuesto y todo lo demás son el detalle de esa
+        respuesta.
+
+        Los hallazgos y el score salen del MISMO motor que usa el negocio
+        (`lib/kpi/anomalias.ts` y `lib/kpi/score.ts`). Dos formas de decidir
+        qué es grave habrían divergido en un mes, y la misma persona vería un
+        criterio en su empresa y otro en su vida.
+      */}
+      <FinanzasPulso moneda={monedaPrincipal} />
       <FinanzasPresupuesto moneda={monedaPrincipal} />
       <FinanzasTrayectoria />
       {/*

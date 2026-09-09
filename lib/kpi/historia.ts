@@ -23,6 +23,17 @@ export type PuntoHistoria = {
   valor: number | null;
   confianza: number;
   motivo: string | null;
+  /**
+   * El estado que tenía ese día.
+   *
+   * La tabla lo guarda desde la v105 y hasta la v147 nadie lo leía. Hace
+   * falta para poder reconstruir el score de hace un mes: sin él habría que
+   * recalcular el estado con los umbrales de HOY, y una mejora que en
+   * realidad fue un cambio de umbral se leería como una mejora de la plata.
+   *
+   * Opcional porque las series que solo dibujan una curva no lo piden.
+   */
+  estado?: Estado;
 };
 
 export type Serie = {

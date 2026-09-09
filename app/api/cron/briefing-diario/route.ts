@@ -8,6 +8,7 @@ import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
+import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -189,6 +190,24 @@ export async function GET(request: Request) {
       console.log("KPI: foto diaria de indicadores", captura);
     } catch (error) {
       console.error("KPI: falló la captura diaria de indicadores:", error);
+    }
+  });
+
+  /*
+   * Y la foto del pulso PERSONAL, en su propio `after`.
+   *
+   * Separada de la del negocio y no dentro del mismo try: si la del negocio
+   * falla, quien solo lleva sus finanzas personales igual tiene que quedarse
+   * con su serie. Son dos poblaciones distintas —una necesita ERP o CRM, la
+   * otra solo Constitución Financiera— y un fallo de una no es motivo para
+   * perder el día de la otra.
+   */
+  after(async () => {
+    try {
+      const pulso = await capturarPulsoPersonal(adminSinTipos(), { hoy: hoyEnParaguay() });
+      console.log("Pulso: foto diaria personal", pulso);
+    } catch (error) {
+      console.error("Pulso: falló la captura diaria personal:", error);
     }
   });
 

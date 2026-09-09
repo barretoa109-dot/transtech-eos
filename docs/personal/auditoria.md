@@ -61,7 +61,7 @@ usuario puede ver.
 | **Plan de pago + borradores de negociación** | `/api/finanzas/plan` (GET arma el plan, POST lo adopta y lo audita), `planPago.ts`, `negociacion.ts`. **Ninguna pantalla lo consume.** Es la fase "EOS prepara la solución completa y el usuario solo aprueba", construida y invisible. |
 | **Resumen del período para el contador** | `/api/finanzas/periodo`, `periodoFiscal.ts`. Ninguna pantalla. |
 | ~~**Objetivos**~~ | **Conectado en P4 (v144).** `objetivos.ts` convierte cada objetivo en aporte por mes, ritmo real y desvío; `FinanzasObjetivos` lo muestra y lo contrasta con el ahorro comprometido. |
-| **Historia diaria de indicadores** | `eos_kpi_historia_v105` la escribe el cron. No alimenta ninguna vista personal. |
+| ~~**Historia diaria de indicadores**~~ | **Conectada en P6.** `capturarPulsoPersonal` escribe ocho indicadores `pers_*` en la misma tabla, y de ahí sale el "qué cambió". |
 
 ### EXISTE PERO ESTÁ INCOMPLETO
 
@@ -70,7 +70,7 @@ usuario puede ver.
 | Cuentas | Sin `inversiones` ni `ahorro` como tipo; sin historial de saldo; sin evolución |
 | Deudas | Sin tasa, sin prioridad, sin escenarios (avalancha / bola de nieve), sin fecha de salida |
 | ~~Tarjetas~~ | **HECHO en P5 (v146).** Tabla propia con línea, utilización, cierre, vencimiento, resumen y compras en cuotas. |
-| Alertas | El motor de riesgo avisa por correo; no hay hallazgos proactivos priorizados en pantalla |
+| ~~Alertas~~ | **HECHO en P6.** Hallazgos priorizados por impacto × urgencia × confianza en `FinanzasPulso`, con el mismo detector que el negocio. |
 | Briefing | No tiene sección Personal |
 | Informe | No incluye cuentas, deuda, objetivos ni proyección |
 | Aprendizaje | Las correcciones de categoría se guardan en la fila, no como criterio reutilizable |
@@ -83,8 +83,8 @@ usuario puede ver.
 | **Reembolsos y devoluciones** | P0 — una devolución aparece como ingreso nuevo |
 | ~~Presupuesto construido por EOS~~ | HECHO en P3 |
 | ~~Fondo de emergencia~~ | HECHO en P4 |
-| Salud financiera explicable | P6 |
-| Escenarios ("¿puedo comprar…?") | P6 |
+| ~~Salud financiera explicable~~ | HECHO en P6 |
+| ~~Escenarios ("¿puedo comprar…?")~~ | HECHO en P6 |
 | ~~Calendario financiero como vista~~ | HECHO en P2 |
 | ~~Patrimonio neto real (activos − pasivos)~~ | HECHO en P4, con `eos_finanzas_activos` |
 | Movimiento con dos lados (retiro del negocio → ingreso personal) | P7 |
@@ -192,8 +192,49 @@ Verificado contra producción: una tarjeta con dos compras en cuotas produce
 TRES vencimientos en 90 días (no seis), y la diferencia que introduce en el
 panorama es exactamente la suma de esas tres obligaciones.
 
-Queda desde P6: inteligencia comparativa, escenarios y el resto de la
-autonomía.
+**P6 — inteligencia financiera: HECHO.**
+
+No estrenó ningún motor. `lib/kpi/` ya tenía detector de anomalías, orden por
+impacto × urgencia × confianza y score explicable, todo para el negocio. Lo
+único que le faltaba a Personal era hablar ese idioma.
+
+· `lib/finanzas/pulso.ts` (14 pruebas) traduce el estado de la persona a ocho
+  `ResultadoKPI`. Después `detectarAnomalias`, `ordenar` y `calcularScore`
+  funcionan tal cual. Dos motores de "qué es grave" habrían divergido en un
+  mes, y la misma persona vería un criterio en su empresa y otro en su vida.
+
+· **Los umbrales salen de ella.** Cuatro de los ocho se comparan contra algo
+  que declaró: su porcentaje de ahorro, los meses de cobertura que eligió, su
+  propia mediana de gasto. Los dos que necesitan constante —días de colchón y
+  carga de deuda— la declaran con su motivo, y ninguno sale de "los expertos
+  recomiendan": la carga de deuda usa el rango en que los bancos paraguayos
+  dejan de prestar, que es un hecho verificable del entorno.
+
+· **Los indicadores personales NO se agregaron al catálogo del negocio.** Sería
+  lo cómodo, pero entonces bastaría una consulta sin filtro para que el
+  alquiler de la casa de alguien apareciera entre los indicadores de su
+  empresa. Dos catálogos separados y el prefijo `pers_` en los ids: no hay
+  filtro que olvidar.
+
+· `lib/finanzas/escenarios.ts` (12 pruebas) contesta "¿puedo comprar esto?"
+  con antes → escenario → consecuencia. No escribe nada: preguntarlo no puede
+  dejar rastro de una compra que nadie hizo. Atrasar un objetivo ADVIERTE pero
+  no impide — postergarlo es una decisión legítima de la persona.
+
+· La foto diaria (`capturarPulsoPersonal`) cuelga del cron del briefing, en su
+  propio `after`: si falla la del negocio, quien solo lleva sus finanzas
+  personales igual conserva su serie.
+
+**Lo que encontró la verificación contra producción, y no era de P6.** Una
+cuenta real mostraba un disponible de −49.500.000 sobre un saldo de 15.500.000.
+Dos causas: los ingresos ya anotados a futuro no entraban a la línea de tiempo
+—los gastos sí— y el tramo del disponible se cortaba de forma inclusiva, así
+que un gasto del mismo día del cobro se restaba contra un saldo sin ese cobro.
+La regla del tramo estaba escrita a mano en tres lugares; ahora vive en
+`tramoHastaElProximoIngreso`.
+
+Queda desde P7: la autonomía —los verbos de chat que falten, cada uno por el
+circuito completo—, la UX por subáreas y las pruebas de punta a punta.
 
 ## El orden, y por qué
 
