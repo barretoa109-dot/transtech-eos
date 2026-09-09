@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { armarPanorama } from "./panorama.ts";
+import { armarPanorama, tramoHastaElProximoIngreso } from "./panorama.ts";
 import { detectarRiesgo } from "./riesgo.ts";
 import type { Deuda } from "./deudas.ts";
 
@@ -360,4 +360,167 @@ test("la misma tarjeta cargada como deuda Y como tarjeta se descuenta una sola v
 
   const enOctubre = panorama.egresos.filter((e) => e.fecha === "2026-10-05");
   assert.equal(enOctubre.length, 1);
+});
+
+test("un ingreso ya anotado a futuro cuenta, igual que un gasto anotado a futuro", () => {
+  /*
+   * Hasta la v147 esto era asimétrico: el gasto futuro entraba como `anotado`
+   * y descontaba; el ingreso futuro no entraba en ningún lado.
+   *
+   * Se vio el 8 de septiembre de 2026 en una cuenta real: un documento cargó,
+   * para el 20 de septiembre, un gasto de 65.000.000 y 130.000.000 de
+   * ingresos. El panel restaba los 65 y no sumaba los 130.
+   */
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-31",
+    saldoInicial: 15_500_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "gasto", monto: 65_000_000, fecha: "2026-09-20", descripcion: "Compra grande" },
+      { tipo: "ingreso", monto: 60_000_000, fecha: "2026-09-20", descripcion: "200 unidades" },
+      { tipo: "ingreso", monto: 5_000_000, fecha: "2026-09-20", descripcion: "30 unidades" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  assert.equal(panorama.ingresos.length, 2);
+  assert.equal(
+    panorama.ingresos.reduce((t, i) => t + i.monto, 0),
+    65_000_000,
+  );
+  assert.equal(panorama.egresos.filter((e) => e.fuente === "anotado").length, 1);
+});
+
+test("los ingresos vuelven ordenados por fecha, anotados y proyectados juntos", () => {
+  // El primero de la lista es el próximo cobro de verdad, y varias pantallas
+  // lo leen así. Si los anotados fueran al final, el panel diría que la
+  // persona cobra recién dentro de un mes teniendo plata anotada para mañana.
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-12-31",
+    saldoInicial: 1_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      // Tres meses del mismo sueldo: EOS lo detecta como serie y lo proyecta.
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-06-30", descripcion: "Sueldo" },
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-07-30", descripcion: "Sueldo" },
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-08-30", descripcion: "Sueldo" },
+      // Y un cobro suelto ya anotado para pasado mañana.
+      { tipo: "ingreso", monto: 900_000, fecha: "2026-09-10", descripcion: "Trabajo extra" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  assert.equal(panorama.ingresos[0].fecha, "2026-09-10");
+  assert.equal(panorama.ingresos[0].monto, 900_000);
+  // Y el sueldo proyectado sigue estando, no lo tapó el anotado.
+  assert.ok(panorama.ingresos.some((i) => i.monto === 4_200_000));
+});
+
+test("un ingreso anotado no se duplica con la serie que lo detectó", () => {
+  /*
+   * `proyectar` recibe los futuros como `yaRegistrados`. Sin eso, el sueldo de
+   * septiembre ya cargado aparecería dos veces —una anotado y otra
+   * proyectado— y el panel diría que entra el doble.
+   */
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-05",
+    saldoInicial: 1_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-06-30", descripcion: "Sueldo" },
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-07-30", descripcion: "Sueldo" },
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-08-30", descripcion: "Sueldo" },
+      { tipo: "ingreso", monto: 4_200_000, fecha: "2026-09-30", descripcion: "Sueldo" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  const enSeptiembre = panorama.ingresos.filter((i) => i.fecha.startsWith("2026-09"));
+  assert.equal(enSeptiembre.length, 1);
+});
+
+test("el tramo termina cuando entra plata, sin incluir ese día", () => {
+  /*
+   * La regla vivía escrita a mano en tres lugares —el panel, el pulso y la
+   * foto diaria— y con `<=`. Una cuenta real con un gasto de 65.000.000 y
+   * 130.000.000 de ingresos el mismo 20 de septiembre mostraba un disponible
+   * de −49.500.000: restaba el gasto de ese día contra un saldo que no incluía
+   * la entrada de ese mismo día.
+   */
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-31",
+    saldoInicial: 15_500_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "gasto", monto: 65_000_000, fecha: "2026-09-20", descripcion: "Compra grande" },
+      { tipo: "ingreso", monto: 60_000_000, fecha: "2026-09-20", descripcion: "Cobro" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  const tramo = tramoHastaElProximoIngreso(panorama, "2026-09-08");
+
+  assert.equal(tramo.horizonte, "2026-09-20");
+  assert.equal(tramo.total, 0);
+  assert.equal(panorama.saldoActual - tramo.total, 15_500_000);
+});
+
+test("un gasto anterior al cobro sí entra en el tramo", () => {
+  // El corte es del día del ingreso, no una excusa para no contar nada.
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-10-31",
+    saldoInicial: 5_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [
+      { tipo: "gasto", monto: 1_200_000, fecha: "2026-09-15", descripcion: "Alquiler" },
+      { tipo: "ingreso", monto: 4_000_000, fecha: "2026-09-30", descripcion: "Sueldo" },
+    ],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  const tramo = tramoHastaElProximoIngreso(panorama, "2026-09-08");
+
+  assert.equal(tramo.horizonte, "2026-09-30");
+  assert.equal(tramo.total, 1_200_000);
+  assert.equal(tramo.egresos.length, 1);
+});
+
+test("sin ingreso a la vista el tramo es el ciclo por defecto", () => {
+  const panorama = armarPanorama({
+    hoy: "2026-09-08",
+    hasta: "2026-12-31",
+    saldoInicial: 5_000_000,
+    saldoInicialFecha: "2026-09-01",
+    reservaMinima: 0,
+    movimientos: [{ tipo: "gasto", monto: 300_000, fecha: "2026-09-25", descripcion: "Seguro" }],
+    conciliaciones: [],
+    fijos: [],
+    deudas: [],
+  });
+
+  const tramo = tramoHastaElProximoIngreso(panorama, "2026-09-08");
+
+  assert.equal(tramo.proximoIngreso, null);
+  assert.equal(tramo.horizonte, "2026-10-08");
+  assert.equal(tramo.total, 300_000);
 });

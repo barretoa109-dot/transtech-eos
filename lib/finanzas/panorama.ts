@@ -234,10 +234,47 @@ export function armarPanorama(datos: {
     fuente: "cuota",
   }));
 
-  const ingresos = proyectar(
-    series.filter((s) => s.tipo === "ingreso"),
-    { desde: hoy, hasta, yaRegistrados: futuros },
-  );
+  /*
+   * Los ingresos ya anotados a futuro son ingresos CIERTOS.
+   *
+   * ============================================================
+   * LA ASIMETRÍA QUE ESTUVO ACÁ HASTA LA v147
+   * ============================================================
+   *
+   * Un gasto con fecha futura entraba como `anotado` y descontaba. Un ingreso
+   * con fecha futura no entraba en ningún lado: `futuros` se usaba solo para
+   * que `proyectar` no duplicara lo ya registrado, nunca como fuente.
+   *
+   * El resultado se vio el 8 de septiembre de 2026 en una cuenta real: un
+   * documento cargó, para el 20 de septiembre, un gasto de 65.000.000 y
+   * 130.000.000 de ingresos. El panel restaba los 65 y no sumaba los 130, así
+   * que el disponible real daba −49.500.000. El calendario dibujaba la caída
+   * del 20 sin dibujar la entrada del mismo día, y el presupuesto no contaba
+   * como "por cobrar" un sueldo que la persona ya tenía anotado.
+   *
+   * Los dos lados de la plata tienen que entrar por la misma puerta.
+   * `proyectar` sigue recibiendo `futuros` como `yaRegistrados`, así que una
+   * serie detectada no vuelve a sumar lo que acá ya está.
+   */
+  const ingresosAnotados: MovimientoProyectado[] = futuros
+    .filter((m) => m.tipo === "ingreso")
+    .map((m) => ({
+      tipo: "ingreso",
+      descripcion: m.descripcion ?? "Ingreso",
+      monto: m.monto,
+      fecha: m.fecha,
+      periodicidad: "mensual",
+      confianza: 1,
+    }));
+
+  const ingresos = [
+    ...ingresosAnotados,
+    ...proyectar(series.filter((s) => s.tipo === "ingreso"), {
+      desde: hoy,
+      hasta,
+      yaRegistrados: futuros,
+    }),
+  ].sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   return {
     saldoActual,
@@ -257,5 +294,54 @@ export function armarPanorama(datos: {
       desde: estado.desde,
       hasta: hoy,
     },
+  };
+}
+
+/**
+ * El tramo que hay que atravesar con lo que hay hoy, y lo que sale en él.
+ *
+ * ============================================================
+ * POR QUÉ ESTO VIVE ACÁ Y NO EN CADA RUTA
+ * ============================================================
+ *
+ * El disponible real es `saldo − esto − reserva − ahorro`. Hasta la v147 el
+ * "esto" se calculaba en TRES lugares —el panel, el pulso y la foto diaria— y
+ * los tres tenían escrita la misma regla a mano. Alcanzaba con corregir uno
+ * para que el panel y la historia dejaran de coincidir, y entonces la persona
+ * vería una mejora que no fue de su plata sino de dónde miró.
+ *
+ * Es la misma lección que dejó `armarPanorama`: cuando dos pantallas suman lo
+ * mismo por separado, un día dan números distintos y las dos parecen bien.
+ *
+ * ============================================================
+ * HASTA EL PRÓXIMO INGRESO, SIN INCLUIRLO
+ * ============================================================
+ *
+ * El tramo termina cuando vuelve a entrar plata. Un gasto que cae EL MISMO DÍA
+ * lo cubre esa entrada, no el saldo de hoy — por eso el corte es estricto.
+ *
+ * Con el `<=` que había antes, una cuenta real con un gasto de 65.000.000 y
+ * 130.000.000 de ingresos el mismo 20 de septiembre mostraba un disponible de
+ * −49.500.000. Ese número no era conservador: era falso, y del lado que asusta.
+ */
+export function tramoHastaElProximoIngreso(
+  panorama: Panorama,
+  hoy: string,
+  cicloPorDefectoDias = 30,
+): { horizonte: string; egresos: EgresoPanorama[]; total: number; proximoIngreso: MovimientoProyectado | null } {
+  const proximoIngreso = panorama.ingresos[0] ?? null;
+
+  // Sin un ingreso a la vista, el ciclo por defecto de un mes. No es una
+  // suposición sobre la persona: es cuánto hay que poder aguantar cuando no se
+  // sabe cuándo entra lo próximo.
+  const horizonte = proximoIngreso ? proximoIngreso.fecha : sumarDias(hoy, cicloPorDefectoDias);
+
+  const egresos = panorama.egresos.filter((e) => e.fecha < horizonte);
+
+  return {
+    horizonte,
+    egresos,
+    total: egresos.reduce((t, e) => t + e.monto, 0),
+    proximoIngreso,
   };
 }

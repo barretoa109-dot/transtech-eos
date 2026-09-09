@@ -3,7 +3,11 @@ import { convieneConciliar } from "@/lib/finanzas/conciliacion";
 import { confirmadosPorLaRealidad, type Fijo } from "@/lib/finanzas/fijos";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { leerTarjetas } from "@/lib/finanzas/leerTarjetas";
-import { armarPanorama, type EgresoPanorama } from "@/lib/finanzas/panorama";
+import {
+  armarPanorama,
+  tramoHastaElProximoIngreso,
+  type EgresoPanorama,
+} from "@/lib/finanzas/panorama";
 import { noCuadran, trazarPanel } from "@/lib/finanzas/trazabilidad";
 import {
   agruparPorMoneda,
@@ -373,32 +377,17 @@ function armarBloque(datos: {
   const gastos = panorama.aplicado.gastos;
   const estadoConciliacion = panorama.conciliacion;
 
-  // El próximo ingreso es el más cercano de los dos mundos: el que ya está
-  // cargado a futuro y el que EOS proyecta. Mirar solo las proyecciones diría
-  // "cobrás el 25 de septiembre" a alguien que tiene el sueldo de septiembre
-  // ya anotado — y un ingreso que EOS no ve es plata que el usuario cree que
-  // EOS está contando.
-  const ingresoAnotado = movimientos
-    .filter((m) => m.tipo === "ingreso" && m.fecha > hoyISO)
-    .map<MovimientoProyectado>((m) => ({
-      tipo: "ingreso",
-      descripcion: m.descripcion ?? "Ingreso",
-      monto: m.monto,
-      fecha: m.fecha,
-      periodicidad: "mensual",
-      confianza: 1,
-    }))[0];
-
-  const ingresoEstimado = primeroPorFecha(ingresoAnotado, panorama.ingresos[0]);
-
-  // El horizonte natural del disponible real es "hasta que vuelva a entrar
-  // plata": ese es el tramo que el usuario tiene que atravesar con lo que
-  // tiene hoy. Sin un ingreso detectado, 30 días es el ciclo por defecto.
-  const horizonte = ingresoEstimado
-    ? ingresoEstimado.fecha
-    : sumarDias(hoyISO, CICLO_POR_DEFECTO_DIAS);
-
-  const egresos = panorama.egresos.filter((e) => e.fecha <= horizonte);
+  /*
+   * El tramo que hay que atravesar con lo que hay hoy.
+   *
+   * La regla vive en `panorama.ts` y la usan también el pulso y la foto
+   * diaria. Hasta la v147 estaba escrita a mano en los tres, y bastaba
+   * corregir uno para que el panel y la historia dejaran de coincidir.
+   */
+  const tramo = tramoHastaElProximoIngreso(panorama, hoyISO, CICLO_POR_DEFECTO_DIAS);
+  const ingresoEstimado = tramo.proximoIngreso;
+  const horizonte = tramo.horizonte;
+  const egresos = tramo.egresos;
   const porFuente = (fuente: EgresoPanorama["fuente"]) => egresos.filter((e) => e.fuente === fuente);
 
   const anotados = porFuente("anotado");
@@ -562,16 +551,6 @@ function armarBloque(datos: {
       conviene_preguntar: convieneConciliar(estadoConciliacion),
     },
   };
-}
-
-/** El que ocurre antes. Cualquiera de los dos puede faltar. */
-function primeroPorFecha(
-  a: MovimientoProyectado | undefined,
-  b: MovimientoProyectado | undefined,
-): MovimientoProyectado | null {
-  if (!a) return b ?? null;
-  if (!b) return a;
-  return a.fecha <= b.fecha ? a : b;
 }
 
 function num(value: number | string | null | undefined) {
