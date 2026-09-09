@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { errorDeAccion } from "@/lib/eos/errores-accion";
+import { errorDeAccion, errorDeLaBase } from "@/lib/eos/errores-accion";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
@@ -136,6 +136,44 @@ function mapRpcError(error: unknown) {
         error: "La orden no pudo ejecutarse de forma segura.",
       },
       409,
+    );
+  }
+
+  /*
+   * Lo que rompe una regla de la BASE, no una del negocio.
+   *
+   * Una clave foránea que no existe, un `check` que no se cumple, un único
+   * duplicado. Hasta hoy los tres caían al 500 genérico —"No fue posible
+   * ejecutar el efecto interno."— sin código y sin motivo, y desde afuera eran
+   * indistinguibles de que el servidor se hubiera caído.
+   *
+   * Costó veinte minutos de diagnóstico encontrar que una prueba fallaba por
+   * un `conversacion_id` que no existía. Para una persona usando el chat,
+   * habría sido imposible.
+   *
+   * Lo que cambia NO es que se le muestre el detalle de la base: eso puede
+   * traer datos de otra fila y no le dice nada a nadie. Lo que cambia es la
+   * única distinción que sí le sirve: **esto no es culpa de lo que escribiste**.
+   * Con eso, en vez de reformular la frase diez veces, sabe que hay que
+   * avisar. El detalle queda en el log, que es donde se puede leer entero.
+   */
+  const sqlstate =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code || "")
+      : "";
+
+  const deLaBase = errorDeLaBase(sqlstate);
+
+  if (deLaBase) {
+    // El detalle entero al log, que es donde se puede leer sin riesgo.
+    console.error("Worker effect executor: la base rechazó la orden", {
+      sqlstate,
+      detalle: paraRegistro(error),
+    });
+
+    return respond(
+      { ok: false, code: deLaBase.codigo, error: deLaBase.mensaje },
+      deLaBase.estado,
     );
   }
 

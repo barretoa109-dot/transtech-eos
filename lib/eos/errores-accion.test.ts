@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CODIGOS_DE_NEGOCIO, detalleDelError, errorDeAccion } from "./errores-accion.ts";
+import {
+  CODIGOS_DE_NEGOCIO,
+  detalleDelError,
+  errorDeAccion,
+  errorDeLaBase,
+} from "./errores-accion.ts";
 
 test("el nombre que no se pudo resolver llega al mensaje", () => {
   // Es el único dato accionable del error, y era el que se descartaba.
@@ -94,4 +99,39 @@ test("la lista cubre TODOS los códigos que levantan las migraciones", () => {
 
   const sinTraducir = [...enSql].filter((c) => !CODIGOS_DE_NEGOCIO.includes(c));
   assert.deepEqual(sinTraducir, [], `códigos sin traducción: ${sinTraducir.join(", ")}`);
+});
+
+test("una violación de integridad se declara problema del sistema, no del usuario", () => {
+  /*
+   * Encontrado probando CREAR_OBJETIVO de punta a punta: la orden fallaba por
+   * una clave foránea y el chat decía "No fue posible ejecutar el efecto
+   * interno", sin código y sin motivo. Averiguarlo llevó veinte minutos con
+   * acceso al log de n8n y a la base.
+   */
+  const fk = errorDeLaBase("23503");
+
+  assert.equal(fk?.codigo, "EOS_INTERNAL_EFFECT_DB_23503");
+  assert.equal(fk?.estado, 500);
+  assert.match(fk?.mensaje ?? "", /no por lo que escribiste/);
+});
+
+test("no le muestra a la persona el detalle de la base", () => {
+  // Puede traer datos de otra fila, y además no le dice nada a nadie.
+  for (const codigo of ["22P02", "23503", "23514", "23505", "42703"]) {
+    const e = errorDeLaBase(codigo);
+    assert.ok(e, `${codigo} debería mapearse`);
+    assert.doesNotMatch(e.mensaje, /constraint|violates|column|relation|null value/i);
+  }
+});
+
+test("los errores que pueden ser pasajeros NO se declaran del sistema", () => {
+  /*
+   * Un deadlock (40P01) o una conexión caída (08006) suelen resolverse
+   * reintentando. Marcarlos como "problema del sistema" haría que un reintento
+   * que iba a funcionar se lea como un fallo definitivo.
+   */
+  assert.equal(errorDeLaBase("40P01"), null);
+  assert.equal(errorDeLaBase("08006"), null);
+  assert.equal(errorDeLaBase("53300"), null);
+  assert.equal(errorDeLaBase(""), null);
 });

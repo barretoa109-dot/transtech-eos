@@ -44,8 +44,18 @@ export type ErrorDeAccion = {
   codigo: string;
   /** Lo que ve el usuario. Tiene que decir qué hacer, no solo qué pasó. */
   mensaje: string;
-  /** 422: la petición está bien y la regla dice que no. */
-  estado: 422;
+  /**
+   * Qué clase de "no" es.
+   *
+   *   422 — la petición está bien y la regla del negocio dice que no. Es una
+   *         situación normal y la persona puede resolverla.
+   *   500 — la base rechazó la orden. No es culpa de lo que escribió y no lo
+   *         va a arreglar reformulando.
+   *
+   * La diferencia importa del lado de adentro también: un 500 es una alarma, y
+   * seis situaciones normales disfrazadas de alarma enseñan a ignorarlas.
+   */
+  estado: 422 | 500;
 };
 
 type Regla = { codigo: string; mensaje: (detalle: string) => string };
@@ -244,3 +254,59 @@ export function errorDeAccion(mensaje: string): ErrorDeAccion | null {
 
 /** Los códigos que este módulo reconoce. Para las pruebas y para el que agregue uno. */
 export const CODIGOS_DE_NEGOCIO = REGLAS.map((r) => r.codigo);
+
+/**
+ * Lo que rompe una regla de la BASE, no una del negocio.
+ *
+ * ============================================================
+ * LA OTRA MITAD DEL PROBLEMA
+ * ============================================================
+ *
+ * Las reglas de arriba son situaciones normales: no encontré el producto, el
+ * módulo no está activo. Salen con 422 y con una instrucción.
+ *
+ * Esto es lo otro: una clave foránea que no existe, un `check` que no se
+ * cumple, un único duplicado. Hasta el 8 de septiembre de 2026 los tres caían
+ * al 500 genérico —"No fue posible ejecutar el efecto interno."— sin código y
+ * sin motivo, indistinguibles desde afuera de que el servidor se hubiera
+ * caído.
+ *
+ * Se encontró probando `CREAR_OBJETIVO` de punta a punta: la orden fallaba por
+ * un `conversacion_id` que no existía, y averiguarlo llevó veinte minutos con
+ * acceso al log de n8n y a la base. Para alguien usando el chat habría sido
+ * imposible.
+ *
+ * ============================================================
+ * LO QUE SE LE DICE, Y LO QUE NO
+ * ============================================================
+ *
+ * NO se le muestra el detalle de la base. Puede traer datos de otra fila y no
+ * le dice nada a nadie.
+ *
+ * Se le dice la única distinción que sí le sirve: **esto no es culpa de lo que
+ * escribiste**. Con eso, en vez de reformular la frase diez veces buscando la
+ * palabra mágica, sabe que hay que avisar. El detalle queda en el log, que es
+ * donde se puede leer entero.
+ */
+export function errorDeLaBase(sqlstate: string): ErrorDeAccion | null {
+  /*
+   * Las clases de Postgres que importan:
+   *
+   *   22 — dato mal formado (un texto donde va un número, una fecha inválida)
+   *   23 — violación de integridad (foránea, check, único, not null)
+   *   42 — consulta o permiso mal formados
+   *
+   * Ninguna es un error de la persona ni algo que pueda reintentar escribiendo
+   * distinto. Las demás clases —conexión, recursos, deadlock— sí pueden ser
+   * transitorias, y por eso quedan afuera: convertirlas en "problema del
+   * sistema" haría que un reintento que iba a funcionar se lea como un fallo.
+   */
+  if (!/^(22|23|42)/.test(sqlstate)) return null;
+
+  return {
+    codigo: `EOS_INTERNAL_EFFECT_DB_${sqlstate}`,
+    mensaje:
+      "No pude registrarlo por un problema del sistema, no por lo que escribiste. Ya quedó anotado para revisar.",
+    estado: 500,
+  };
+}
