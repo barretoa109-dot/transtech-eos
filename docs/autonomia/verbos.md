@@ -70,7 +70,7 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "quiero juntar 30 millones para diciembre" | `CREAR_OBJETIVO` | **Ejecuta desde hoy** |
 | **"tengo 3 millones en Ueno"** | — | **NO EXISTE.** Las cuentas solo se cargan por pantalla |
 | **"mi tarjeta cierra el 20 y vence el 5"** | — | **NO EXISTE.** Nuevo desde la v146 |
-| **"ese gasto de nafta era 80 mil, no 800 mil"** | — | **NO EXISTE.** Y es el que arregla los errores del propio EOS |
+| "ese gasto de nafta era 80 mil, no 800 mil" | `CORREGIR_MOVIMIENTO` | **Ejecuta desde hoy** (v148) |
 | **"borrá ese movimiento"** | — | **NO EXISTE** |
 | **"saqué 2 millones del negocio para mí"** | — | **NO EXISTE.** Es el movimiento de dos lados |
 
@@ -80,10 +80,17 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 
 No por cuántos son, sino por qué pasa cuando faltan.
 
-**1. Corregir un movimiento personal.** Es el único verbo cuya ausencia hace
-que los errores de EOS sean permanentes. Hoy, si el chat entiende 800.000 donde
-la persona dijo 80.000, la única salida es la pantalla. Un sistema que se
-equivoca y no se deja corregir hablando enseña a no usar el chat.
+**1. ~~Corregir un movimiento personal~~ — HECHO (v148).** Era el único verbo
+cuya ausencia hacía que los errores de EOS fueran permanentes.
+
+Probado de punta a punta contra producción: "gasté 800 mil en nafta" se anota,
+y "ese gasto de nafta era 80 mil" devuelve *"Corregí nafta del 2026-09-08: de
+₲ 800.000 a ₲ 80.000"*, con el monto anterior guardado en `metadata` — la tabla
+no tiene historial, y sin eso una corrección es indistinguible de un dato que
+siempre fue así.
+
+No borra, a propósito: borrar por chat es la única operación donde una
+coincidencia equivocada destruye un dato sin dejar rastro.
 
 **2. Declarar el saldo de una cuenta.** Es el dato del que dependen el
 patrimonio, el disponible real y la cobertura. Pedirlo por pantalla contradice
@@ -120,3 +127,30 @@ Desde entonces el camino es:
 3. `verificarFlujo()` compila cada nodo y cada expresión **antes** del PUT.
 4. Una prueba que prohíbe comillas invertidas en el prompt.
 5. `node n8n/exportar.mjs` para que el repo tenga lo que está corriendo.
+
+---
+
+## Las tres listas que estaban viejas
+
+Agregar `CORREGIR_MOVIMIENTO` destapó algo que no se veía: el gateway en
+TypeScript —la etapa 1, detrás de la bandera `EOS_GATEWAY_TS`— tenía sus
+propias copias de las listas de n8n, y las tres se habían quedado atrás.
+
+| Lista | Tenía | n8n tenía |
+|---|---|---|
+| `ACCIONES_PERMITIDAS` (espejo del nodo 05) | 11 | 20 |
+| `ACCIONES_INTERNAS` (espejo del allowlist del worker) | 6 | 20 |
+| `RUTAS` (espejo del `paths` del nodo 06) | 3 | 12 |
+
+Como ese gateway todavía no atiende producción, la diferencia no se veía. El
+día que se prendiera la bandera, ocho acciones se habrían descartado en
+silencio y una venta habría salido sin ruta.
+
+Y había **dos pruebas que las daban por buenas**, con la lista copiada a mano y
+el título "exactamente la de n8n". Dos listas clavadas que se copian entre sí no
+prueban nada: se quedan viejas juntas y siguen en verde.
+
+Las reemplazó un guard que las DERIVA de la lista de acciones del prompt, y que
+además exige que toda acción tenga fila en `SYSTEM_RISK`. Para poder probarlo,
+la tabla de riesgo se mudó a `lib/autonomia/riesgo.ts`: vivía en un archivo que
+importa `next/server`, así que ninguna prueba de `lib/` podía tocarla.
