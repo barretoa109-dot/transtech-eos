@@ -18,18 +18,32 @@ import { ACCIONES_PERMITIDAS } from "./respuesta.ts";
  * con el corpus de `evals/casos/acciones.ts`.
  */
 
-test("las acciones internas son exactamente las que acepta el worker de n8n", () => {
-  assert.deepEqual(
-    [...ACCIONES_INTERNAS].sort(),
-    [
-      "AJUSTAR_STOCK",
-      "CREAR_CONTACTO",
-      "CREAR_OBJETIVO",
-      "CREAR_TAREA",
-      "GUARDAR_MEMORIA",
-      "REGISTRAR_VENTA",
-    ],
-  );
+/*
+ * Acá había un test con la lista de seis acciones escrita a mano, que afirmaba
+ * ser "exactamente la que acepta el worker de n8n". No lo era: n8n tenía veinte
+ * y esta lista se había quedado en seis, así que el test pasaba en verde
+ * mientras describía algo falso.
+ *
+ * Una lista clavada deja de cubrir justo lo que se agrega, que es lo único que
+ * todavía no se probó a mano. La comprobación vive ahora en
+ * `sistema.test.ts::"las listas del gateway en TypeScript no se quedan atrás
+ * del prompt"`, donde se DERIVA de la lista de acciones del prompt y no puede
+ * envejecer.
+ */
+
+test("las acciones internas son las que dejan efecto, y ninguna lectura", () => {
+  // Lo que este archivo sí puede probar sin la fuente: que ninguna acción de
+  // archivo o de vista se coló entre las que escriben en la base.
+  for (const accion of ACCIONES_INTERNAS) {
+    assert.ok(
+      !ACCIONES_DE_ARCHIVO.has(accion),
+      `${accion} genera un archivo: no va por la rama interna`,
+    );
+    assert.ok(
+      !accion.startsWith("VER_"),
+      `${accion} es una lectura: no va por la rama interna`,
+    );
+  }
 });
 
 test("toda acción interna va por el webhook interno, y ninguna otra", () => {

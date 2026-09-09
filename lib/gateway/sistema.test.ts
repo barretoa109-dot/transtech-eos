@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { PROMPT_SISTEMA } from "./sistema.ts";
+import { ACCIONES_PERMITIDAS } from "./respuesta.ts";
+import { ACCIONES_INTERNAS } from "./ejecutar.ts";
+import { RUTAS } from "./jobs.ts";
+import { ACCIONES_CON_RIESGO } from "../autonomia/riesgo.ts";
 
 /**
  * Las reglas del prompt que no se pueden perder en una edición.
@@ -256,4 +260,87 @@ test("el prompt no promete formatos de archivo que el sistema no arma", () => {
   const prometidos = PROMPT_SISTEMA.match(/en Excel, PDF y Word/g) ?? [];
   assert.ok(prometidos.length > 0);
   assert.doesNotMatch(PROMPT_SISTEMA, /PowerPoint|CSV descargable|Google Sheets/);
+});
+
+test("las listas del gateway en TypeScript no se quedan atrás del prompt", () => {
+  /*
+   * ============================================================
+   * EL PATRÓN QUE ESTE PROYECTO YA PAGÓ TRES VECES
+   * ============================================================
+   *
+   * Una acción hay que darla de alta en nueve lugares. Los que fallan ruidoso
+   * se arreglan el mismo día; los que fallan callados —una lista blanca que
+   * descarta lo que no conoce— se descubren semanas después, cuando alguien
+   * reporta que "EOS no registra nada".
+   *
+   * `ACCIONES_PERMITIDAS` se escribió con once acciones y se quedó ahí
+   * mientras n8n llegaba a veinte. `ACCIONES_INTERNAS` se quedó en seis, con
+   * un comentario que decía "misma lista que n8n". Como el gateway en
+   * TypeScript vive detrás de una bandera y todavía no atiende producción, la
+   * diferencia no se veía: el día que se prendiera, ocho acciones se habrían
+   * descartado en silencio.
+   *
+   * El prompt es la fuente: si el modelo puede pedir una acción, las dos
+   * listas que la reciben tienen que conocerla.
+   */
+  const seccion = PROMPT_SISTEMA.slice(
+    PROMPT_SISTEMA.indexOf("Acciones permitidas:"),
+    PROMPT_SISTEMA.indexOf("Acciones del negocio"),
+  );
+
+  const delPrompt = [...seccion.matchAll(/^([A-Z_]{4,})$/gm)].map((m) => m[1]).sort();
+
+  assert.deepEqual(
+    [...ACCIONES_PERMITIDAS].sort(),
+    delPrompt,
+    "ACCIONES_PERMITIDAS dejó de coincidir con la lista del prompt",
+  );
+
+  /*
+   * Las internas son un subconjunto: las que dejan un efecto durable en la
+   * base. Los archivos y las vistas van por otro worker, así que no están —
+   * pero ninguna acción del prompt puede faltar en las DOS listas.
+   */
+  const noInternas = new Set([
+    "GENERAR_EXCEL",
+    "GENERAR_PDF",
+    "GENERAR_WORD",
+    "VER_DASHBOARD",
+    "VER_BRIEFING",
+  ]);
+
+  const esperadas = delPrompt.filter((a) => !noInternas.has(a));
+
+  assert.deepEqual(
+    [...ACCIONES_INTERNAS].sort(),
+    esperadas,
+    "ACCIONES_INTERNAS dejó de coincidir con las acciones del prompt que dejan efecto",
+  );
+
+  /*
+   * Y la tercera lista: a qué worker va cada acción. Se había quedado en
+   * tres mientras n8n llegaba a doce, así que una venta habría salido sin
+   * ruta el día que se prendiera la bandera.
+   */
+  for (const accion of delPrompt) {
+    assert.ok(RUTAS[accion], `${accion} no tiene ruta de worker en jobs.ts`);
+  }
+});
+
+test("toda acción que el modelo puede pedir tiene su riesgo declarado", () => {
+  /*
+   * Sin fila en SYSTEM_RISK, el gate la rechaza en la puerta con un 400 y la
+   * persona lee "no pude" sin motivo. Es el quinto de los nueve lugares.
+   */
+  const seccion = PROMPT_SISTEMA.slice(
+    PROMPT_SISTEMA.indexOf("Acciones permitidas:"),
+    PROMPT_SISTEMA.indexOf("Acciones del negocio"),
+  );
+
+  for (const accion of [...seccion.matchAll(/^([A-Z_]{4,})$/gm)].map((m) => m[1])) {
+    assert.ok(
+      ACCIONES_CON_RIESGO.has(accion),
+      `${accion} no tiene entrada en SYSTEM_RISK`,
+    );
+  }
 });

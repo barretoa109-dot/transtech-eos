@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  ACCIONES_PERMITIDAS,
   SIN_INTERPRETAR,
   extraerTexto,
   prepararRespuesta,
@@ -146,24 +145,19 @@ test("las acciones permitidas pasan y normalizan el tipo", () => {
   assert.equal(r.accion, "REGISTRAR_VENTA");
 });
 
-test("la lista blanca es exactamente la de n8n", () => {
-  assert.deepEqual(
-    [...ACCIONES_PERMITIDAS].sort(),
-    [
-      "AJUSTAR_STOCK",
-      "CREAR_CONTACTO",
-      "CREAR_OBJETIVO",
-      "CREAR_TAREA",
-      "GENERAR_EXCEL",
-      "GENERAR_PDF",
-      "GENERAR_WORD",
-      "GUARDAR_MEMORIA",
-      "VER_BRIEFING",
-      "VER_DASHBOARD",
-      "REGISTRAR_VENTA",
-    ].sort(),
-  );
-});
+/*
+ * Acá había una segunda lista escrita a mano, con once acciones y el título
+ * "la lista blanca es exactamente la de n8n". No lo era: n8n tenía veinte.
+ *
+ * Dos listas clavadas que se copian entre sí no prueban nada — se quedan
+ * viejas juntas y el test sigue en verde. La comprobación vive ahora en
+ * `sistema.test.ts::"las listas del gateway en TypeScript no se quedan atrás
+ * del prompt"`, donde se deriva de la lista de acciones del prompt.
+ *
+ * Lo que este archivo sí prueba, y aquel no, es el COMPORTAMIENTO de la lista:
+ * que una acción fuera de ella se descarta sin frenar la conversación. Está
+ * doce líneas más arriba y no hacía falta repetirlo.
+ */
 
 test("unos datos que no son objeto quedan en objeto vacío, no en null", () => {
   const r = prepararRespuesta(

@@ -179,6 +179,37 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ACCION_DEUDA_SIN_ACREEDOR",
     mensaje: () => "Para anotar una deuda necesito a quién le debés.",
   },
+
+  /*
+   * Las cuatro de CORREGIR_MOVIMIENTO (v148).
+   *
+   * Las tres primeras son datos que faltan y que la persona puede completar en
+   * la misma frase. La cuarta —no lo encontré— es la que más importa que diga
+   * QUÉ buscó: si EOS buscó "nafta" y la fila decía "combustible", el único
+   * dato que resuelve el problema es cuál palabra usó.
+   */
+  {
+    codigo: "EOS_ACCION_CORRECCION_SIN_REFERENCIA",
+    mensaje: () =>
+      "Decime cuál movimiento corrijo. Alcanza con la palabra con la que lo anotaste: " +
+      '"el gasto de nafta era 80 mil".',
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_SIN_CAMBIO",
+    mensaje: () =>
+      "Entendí cuál movimiento, pero no qué cambiarle. Decime el monto correcto, " +
+      "la fecha o cómo debería llamarse.",
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_MONTO_INVALIDO",
+    mensaje: () => "Ese monto no me cierra: tiene que ser mayor que cero.",
+  },
+  {
+    codigo: "EOS_ACCION_MOVIMIENTO_NO_ENCONTRADO",
+    mensaje: (d) =>
+      `No encontré ningún movimiento tuyo de los últimos siete días que diga "${d}". ` +
+      "Si es más viejo, corregilo desde Personal, en la lista de movimientos.",
+  },
   {
     codigo: "EOS_ACCION_DEUDA_SIN_SALDO",
     mensaje: (d) =>

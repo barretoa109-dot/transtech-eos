@@ -50,13 +50,29 @@ export const RUTAS: Record<string, string> = {
   VER_BRIEFING: "eos-worker-rc1-briefing",
 
   /*
-   * Las tres del negocio dejan un efecto durable igual que una tarea, así que
-   * van por el mismo camino interno. Lo que las distingue no es el worker sino
-   * su riesgo: la puerta de autonomía les exige aprobación explícita.
+   * Todo lo que deja un efecto durable en la base va por el mismo camino
+   * interno: una venta, un producto, un movimiento personal, una corrección.
+   * Lo que las distingue no es el worker sino su riesgo, y eso lo decide
+   * `lib/autonomia/riesgo.ts`.
+   *
+   * Este mapa se había quedado en tres mientras n8n llegaba a doce, igual que
+   * `ACCIONES_PERMITIDAS` y `ACCIONES_INTERNAS`. Como el gateway en TypeScript
+   * vive detrás de una bandera, la diferencia no se veía: el día que se
+   * prendiera, una venta habría salido sin ruta. Hay una prueba que lo compara
+   * contra la lista del prompt.
    */
   REGISTRAR_VENTA: "eos-worker-rc1-internal",
   AJUSTAR_STOCK: "eos-worker-rc1-internal",
   CREAR_CONTACTO: "eos-worker-rc1-internal",
+  CREAR_PRODUCTO: "eos-worker-rc1-internal",
+  ACTUALIZAR_PRODUCTO: "eos-worker-rc1-internal",
+  REGISTRAR_COMPRA: "eos-worker-rc1-internal",
+  REGISTRAR_GASTO_FIJO: "eos-worker-rc1-internal",
+  REGISTRAR_MOVIMIENTO_PERSONAL: "eos-worker-rc1-internal",
+  REGISTRAR_TRANSFERENCIA: "eos-worker-rc1-internal",
+  REGISTRAR_DEUDA: "eos-worker-rc1-internal",
+  REGISTRAR_PAGO_DEUDA: "eos-worker-rc1-internal",
+  CORREGIR_MOVIMIENTO: "eos-worker-rc1-internal",
 };
 
 export type Job = {

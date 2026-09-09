@@ -28,6 +28,25 @@
 
 import type { Entrada } from "./entrada.ts";
 
+/*
+ * Lo que el gateway acepta del modelo. Espejo del nodo 05 de n8n.
+ *
+ * ============================================================
+ * ESTABA VIEJA, Y EL CANDADO ES LA PRUEBA
+ * ============================================================
+ *
+ * Se escribió con once acciones y se quedó ahí mientras n8n llegaba a veinte.
+ * El gateway en TypeScript vive detrás de una bandera y todavía no atiende
+ * producción, así que la diferencia no se veía: el día que se prendiera,
+ * ocho acciones —productos, compras, fijos, movimientos personales,
+ * transferencias, deudas— se habrían descartado en silencio.
+ *
+ * Es exactamente el patrón que este proyecto ya pagó dos veces: una lista de
+ * acciones que se queda atrás y no falla, solo deja de hacer cosas.
+ *
+ * Por eso ahora hay una prueba que la compara contra la lista del prompt. Si
+ * alguien agrega una acción y se olvida de acá, el CI lo dice.
+ */
 export const ACCIONES_PERMITIDAS = new Set([
   "GENERAR_EXCEL",
   "GENERAR_PDF",
@@ -40,6 +59,15 @@ export const ACCIONES_PERMITIDAS = new Set([
   "REGISTRAR_VENTA",
   "AJUSTAR_STOCK",
   "CREAR_CONTACTO",
+  "CREAR_PRODUCTO",
+  "ACTUALIZAR_PRODUCTO",
+  "REGISTRAR_COMPRA",
+  "REGISTRAR_GASTO_FIJO",
+  "REGISTRAR_MOVIMIENTO_PERSONAL",
+  "REGISTRAR_TRANSFERENCIA",
+  "REGISTRAR_DEUDA",
+  "REGISTRAR_PAGO_DEUDA",
+  "CORREGIR_MOVIMIENTO",
 ]);
 
 const ACCIONES_DE_ARCHIVO = new Set(["GENERAR_EXCEL", "GENERAR_PDF", "GENERAR_WORD"]);

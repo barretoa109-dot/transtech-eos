@@ -92,7 +92,14 @@ async function puertasReales(): Promise<Puertas> {
   };
 }
 
-/** Las que la rama INT del worker acepta. Misma lista que n8n. */
+/**
+ * Las que la rama INT del worker acepta. Misma lista que n8n.
+ *
+ * Se había quedado en seis mientras n8n llegaba a veinte. Ver el comentario de
+ * `ACCIONES_PERMITIDAS` en `respuesta.ts`: el mismo olvido, y ahora el mismo
+ * candado, porque una lista que se queda atrás no falla — solo deja de hacer
+ * cosas.
+ */
 export const ACCIONES_INTERNAS = new Set([
   "CREAR_TAREA",
   "CREAR_OBJETIVO",
@@ -100,6 +107,15 @@ export const ACCIONES_INTERNAS = new Set([
   "REGISTRAR_VENTA",
   "AJUSTAR_STOCK",
   "CREAR_CONTACTO",
+  "CREAR_PRODUCTO",
+  "ACTUALIZAR_PRODUCTO",
+  "REGISTRAR_COMPRA",
+  "REGISTRAR_GASTO_FIJO",
+  "REGISTRAR_MOVIMIENTO_PERSONAL",
+  "REGISTRAR_TRANSFERENCIA",
+  "REGISTRAR_DEUDA",
+  "REGISTRAR_PAGO_DEUDA",
+  "CORREGIR_MOVIMIENTO",
 ]);
 
 /** Qué se le dice a la persona cuando la acción salió bien. */
@@ -110,6 +126,7 @@ const HECHO: Record<string, string> = {
   REGISTRAR_VENTA: "La venta quedó registrada. La ves en Negocio > Ventas.",
   AJUSTAR_STOCK: "Ajusté el stock. Lo ves en Negocio > Productos.",
   CREAR_CONTACTO: "El contacto quedó guardado. Lo ves en Negocio > Contactos.",
+  CORREGIR_MOVIMIENTO: "Lo corregí.",
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
