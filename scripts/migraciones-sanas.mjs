@@ -170,7 +170,41 @@ for (const archivo of archivos) {
 }
 
 // ============================================================
-// 4. El orden de los archivos tiene que ser el de las fechas
+// 4. El monto se lee con eos_leer_monto, y con nada más
+// ============================================================
+//
+// Once funciones leían el monto del chat con esta expresión:
+//
+//     nullif(regexp_replace(coalesce(…), '[^0-9.]', '', 'g'), '')::numeric
+//
+// Deja pasar el punto, que en Paraguay es el separador de MILES. "800.000"
+// entra como OCHOCIENTOS y no falla: la confirmación dice "listo" y el panel
+// del mes queda mil veces por debajo sin una sola señal. La v150 lo movió a
+// `public.eos_leer_monto`, que sabe leer un separador.
+//
+// El control mira sólo las migraciones POSTERIORES a la v150: las de antes
+// tienen la expresión vieja en su texto histórico y así tienen que quedar —
+// reescribir un archivo ya aplicado no cambia la base y sí borra el rastro de
+// lo que realmente corrió.
+
+const V150 = "20260909120000";
+
+for (const archivo of archivos) {
+  if (archivo.slice(0, 14) <= V150) continue;
+
+  const texto = fs.readFileSync(path.join(DIR, archivo), "utf8");
+  const sinComentarios = texto.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  if (/'\[\^0-9\.\]'/.test(sinComentarios)) {
+    problemas.push(
+      `${archivo}: lee un monto con la expresión vieja '[^0-9.]'.\n` +
+        `      Usá public.eos_leer_monto(...): esa expresión toma "800.000" por 800.`,
+    );
+  }
+}
+
+// ============================================================
+// 5. El orden de los archivos tiene que ser el de las fechas
 // ============================================================
 //
 // Sólo un aviso: un archivo con fecha muy anterior a su vecino suele ser un
