@@ -102,6 +102,41 @@ const VENTANAS = [
   ["trimestre", "90 días"],
 ] as const;
 
+/**
+ * Las subáreas, con la pregunta que contesta cada una.
+ *
+ * ============================================================
+ * POR QUÉ PREGUNTAS Y NO NOMBRES DE TABLA
+ * ============================================================
+ *
+ * Personal llegó a diecisiete tarjetas apiladas. Cada una funcionaba y el
+ * conjunto era ilegible: quien entraba a ver si podía comprar algo tenía que
+ * pasar por su patrimonio, sus tarjetas y su fondo de emergencia para llegar.
+ *
+ * Los nombres son la pregunta que trae la persona, no el módulo que la
+ * contesta. "Lo que debo" y no "Deudas y plan de pago": el segundo describe
+ * el código, el primero describe a quien lo mira.
+ *
+ * ============================================================
+ * EL ALTA RÁPIDA NO ESTÁ ACÁ ADENTRO
+ * ============================================================
+ *
+ * Es lo que más se usa —anotar un gasto es la acción diaria— y esconderla
+ * detrás de una pestaña la haría desaparecer. Queda arriba, siempre visible,
+ * junto con el panel de "¿estoy bien?".
+ */
+const SUBAREAS = [
+  ["hoy", "¿Cómo estoy?"],
+  ["mes", "Mi mes"],
+  ["viene", "Lo que viene"],
+  ["fue", "En qué se fue"],
+  ["tengo", "Lo que tengo"],
+  ["debo", "Lo que debo"],
+  ["quiero", "Lo que quiero"],
+] as const;
+
+type Subarea = (typeof SUBAREAS)[number][0];
+
 function dia(iso: string): string {
   const [, mes, numero] = iso.split("-");
   return `${numero}/${mes}`;
@@ -111,6 +146,7 @@ export default function GastosView() {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState<Total[]>([]);
   const [ventana, setVentana] = useState<"semana" | "mes" | "trimestre">("mes");
+  const [subarea, setSubarea] = useState<Subarea>("hoy");
   const [cargando, setCargando] = useState(true);
   const [nuncaCargo, setNuncaCargo] = useState(true);
   const [error, setError] = useState("");
@@ -309,13 +345,46 @@ export default function GastosView() {
         {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
       </div>
 
-      <div className="card">
-        <div className="neg-section-heading">
-          <div>
-            <div className="card-title">Cómo venís</div>
-            <div className="card-sub">Lo que entró y lo que salió en el período.</div>
-          </div>
-        </div>
+      {/*
+        Las subáreas. Mismo vocabulario visual que el resto del producto
+        (`chip-row` + `chip.active`), que ya funciona en claro y en oscuro y
+        se envuelve solo en pantalla angosta — que es lo que hace falta en un
+        teléfono, mejor que un carrusel horizontal donde las últimas no se ven.
+      */}
+      <div className="chip-row" role="tablist" aria-label="Secciones de Personal">
+        {SUBAREAS.map(([clave, etiqueta]) => (
+          <button
+            key={clave}
+            type="button"
+            role="tab"
+            aria-selected={subarea === clave}
+            className={`chip${subarea === clave ? " active" : ""}`}
+            style={{ cursor: "pointer" }}
+            onClick={() => setSubarea(clave)}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {subarea === "hoy" && <FinanzasPulso moneda={monedaPrincipal} />}
+
+      {subarea === "mes" && (
+        <>
+          {/*
+            El presupuesto primero: "cuánto puedo gastar" es la pregunta de
+            todos los días y "cómo viene el saldo" la de cada tanto. Y el
+            presupuesto da la conclusión —vas a cerrar por encima o por
+            debajo— que el resumen de abajo después respalda.
+          */}
+          <FinanzasPresupuesto moneda={monedaPrincipal} />
+          <div className="card">
+            <div className="neg-section-heading">
+              <div>
+                <div className="card-title">Cómo venís</div>
+                <div className="card-sub">Lo que entró y lo que salió en el período.</div>
+              </div>
+            </div>
 
         <div className="neg-ventanas" role="group" aria-label="Período">
           {VENTANAS.map(([clave, etiqueta]) => (
@@ -365,178 +434,176 @@ export default function GastosView() {
             </section>
           ))
         )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/*
-        El detalle, en el orden en que se hacen las preguntas y no en el de las
-        tablas: "¿qué se viene?", "¿en qué se me fue?", "¿a quién le debo?" y
-        "quiero el papel". Cada tarjeta se calla sola cuando no tiene nada que
-        decir, así que quien recién empieza no ve cinco cajas vacías.
-
-        Las cuatro estaban en Dashboard. Ahí no estaban mal —funcionaban— pero
-        vivían al lado de los indicadores del negocio, que es justamente la
-        mezcla que la v136 vino a deshacer.
-      */}
-      {/*
-        El presupuesto va antes que la proyección del saldo: "cuánto puedo
-        gastar" es la pregunta de todos los días y "cómo viene el saldo" la de
-        cada tanto. Y el presupuesto es el que da la conclusión —vas a cerrar
-        por encima o por debajo— que la curva después ilustra.
-      */}
-      {/*
-        El pulso va antes que el presupuesto porque contesta la pregunta que
-        trae la persona cuando abre esto: cómo está y qué necesita su
-        atención hoy. El presupuesto y todo lo demás son el detalle de esa
-        respuesta.
-
-        Los hallazgos y el score salen del MISMO motor que usa el negocio
-        (`lib/kpi/anomalias.ts` y `lib/kpi/score.ts`). Dos formas de decidir
-        qué es grave habrían divergido en un mes, y la misma persona vería un
-        criterio en su empresa y otro en su vida.
-      */}
-      <FinanzasPulso moneda={monedaPrincipal} />
-      <FinanzasPresupuesto moneda={monedaPrincipal} />
-      <FinanzasTrayectoria />
-      {/*
-        La curva y la lista, juntas y en ese orden. La curva contesta cuánto va
-        a haber; la lista, qué va a pasar. Separadas por otra tarjeta, alguien
-        que ve la línea bajar el 25 tiene que ir a buscar por qué.
-      */}
-      <FinanzasCalendario moneda={monedaPrincipal} />
-      <FinanzasDestino />
-      {/*
-        "¿Cuánto tengo?" y "¿a quién le debo?" son la misma pregunta partida en
-        dos, así que van juntas. Las cuentas existían en la base y en el
-        onboarding desde hacía semanas y no se veían desde ninguna pantalla:
-        se preguntaban una vez y nunca más.
-      */}
-      <FinanzasCuentas moneda={monedaPrincipal} />
-      <FinanzasDeudas />
-      {/*
-        Y qué hacer con esas deudas. La tarjeta de arriba dice a quién le debe;
-        ésta dice en qué orden pagar, por qué, qué pasa con lo que no entra y
-        en cuántos meses sale. Va inmediatamente después a propósito: separadas
-        por otra tarjeta se leerían como dos temas, y son el mismo.
-      */}
-      <FinanzasPlanDeudas moneda={monedaPrincipal} />
-      {/*
-        Las tarjetas van pegadas a las deudas porque son una deuda con un
-        calendario propio. Y van DESPUÉS del plan de pago: el plan ordena lo
-        que ya se debe, y la tarjeta es el lugar por donde se sigue debiendo.
-      */}
-      <FinanzasTarjetas moneda={monedaPrincipal} />
-      {/*
-        Y después de lo que debe, lo que quiere.
+        El reparto.
         ============================================================
 
-        El orden no es arbitrario. Las tres tarjetas de acá abajo contestan
-        preguntas cada vez más lejanas: qué pasa si se corta el ingreso, qué
-        quiere lograr y cuánto tiene en total. Ninguna sirve mientras el mes no
-        cierre, y por eso van después del presupuesto, el calendario y las
-        deudas.
+        Cada tarjeta se calla sola cuando no tiene nada que decir, así que
+        quien recién empieza no ve cajas vacías dentro de las pestañas.
 
-        El fondo va antes que los objetivos porque los sostiene: juntar para un
-        terreno sin colchón termina en gastar el terreno la primera vez que
-        algo sale mal.
-
-        El patrimonio va último porque es la pregunta más lenta de todas: la
-        que alguien se hace una vez cada tanto, no todos los días.
+        Los hallazgos y el score del pulso salen del MISMO motor que usa el
+        negocio (`lib/kpi/anomalias.ts` y `lib/kpi/score.ts`). Dos formas de
+        decidir qué es grave habrían divergido en un mes, y la misma persona
+        vería un criterio en su empresa y otro en su vida.
       */}
-      <FinanzasFondo moneda={monedaPrincipal} />
-      <FinanzasObjetivos moneda={monedaPrincipal} />
-      <FinanzasPatrimonio moneda={monedaPrincipal} />
-      <FinanzasInforme />
 
-      <div className="card">
-        <div className="neg-section-heading">
-          <div>
-            <div className="card-title">Tus movimientos</div>
-            <div className="card-sub">
-              EOS agrupa solo por destino. Si se equivocó, corregilo y manda tu corrección.
-            </div>
-          </div>
-          <button type="button" className="chip" onClick={() => void cargar()}>
-            <RefreshCw size={13} /> Actualizar
-          </button>
-        </div>
+      {/*
+        La curva y la lista, juntas y en ese orden. La curva contesta cuánto
+        va a haber; la lista, qué va a pasar. Separadas, alguien que ve la
+        línea bajar el 25 tiene que ir a buscar por qué.
+      */}
+      {subarea === "viene" && (
+        <>
+          <FinanzasTrayectoria />
+          <FinanzasCalendario moneda={monedaPrincipal} />
+        </>
+      )}
 
-        {error && (
-          <p className="neg-error" role="alert">
-            <AlertCircle size={14} /> {error}
-          </p>
-        )}
 
-        {movimientos.length === 0 ? (
-          <div className="neg-empty-state">
-            <Wallet size={28} />
-            <strong>Sin movimientos en el período</strong>
-            <p>Los que anotes, los que lleguen del correo de tu banco y los de tus ventas aparecen todos acá.</p>
-          </div>
-        ) : (
-          movimientos.map((m) => (
-            <div className="neg-fila" key={m.id}>
-              <span className={`gastos-signo ${m.tipo}`} aria-hidden="true">
-                {m.tipo === "ingreso" ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}
-              </span>
+      {/*
+        "¿Cuánto tengo?" son las cuentas y el patrimonio: la primera es la
+        plata que puede tocar hoy, el segundo es todo lo que tiene menos lo
+        que debe. Van juntas porque quien se hace una se hace la otra.
+      */}
+      {subarea === "tengo" && (
+        <>
+          <FinanzasCuentas moneda={monedaPrincipal} />
+          <FinanzasPatrimonio moneda={monedaPrincipal} />
+        </>
+      )}
 
-              <div className="neg-fila-texto">
-                <strong>{m.descripcion || "Sin detalle"}</strong>
-                <small>
-                  {dia(m.fecha)}
-                  {!m.editable && ` · ${m.etiqueta} · lo generó otra parte de EOS`}
-                </small>
+      {/*
+        Las deudas: a quién le debe, en qué orden pagar y por dónde sigue
+        endeudándose. Las tarjetas van con ellas porque son una deuda con
+        calendario propio, y después del plan porque el plan ordena lo que ya
+        se debe.
+      */}
+      {subarea === "debo" && (
+        <>
+          <FinanzasDeudas />
+          <FinanzasPlanDeudas moneda={monedaPrincipal} />
+          <FinanzasTarjetas moneda={monedaPrincipal} />
+        </>
+      )}
 
-                {m.editable && (
-                  <select
-                    className="neg-input gastos-categoria"
-                    value={m.categoria}
-                    aria-label={`Categoría de ${m.descripcion}`}
-                    onChange={(e) => void recategorizar(m, e.target.value)}
-                  >
-                    {DESTINOS.map((d) => (
-                      <option key={d.clave} value={d.clave}>
-                        {d.etiqueta}
-                      </option>
-                    ))}
-                  </select>
-                )}
+      {/*
+        El fondo va antes que los objetivos porque los sostiene: juntar para
+        un terreno sin colchón termina en gastar el terreno la primera vez que
+        algo sale mal.
+      */}
+      {subarea === "quiero" && (
+        <>
+          <FinanzasFondo moneda={monedaPrincipal} />
+          <FinanzasObjetivos moneda={monedaPrincipal} />
+        </>
+      )}
+
+      {/*
+        "¿En qué se fue?" en un solo lugar: el desglose por destino, el
+        papel para el contador y la lista renglón por renglón. Estaban
+        separados por seis tarjetas de otros temas.
+      */}
+      {subarea === "fue" && (
+        <>
+          <FinanzasDestino />
+          <FinanzasInforme />
+
+          <div className="card">
+            <div className="neg-section-heading">
+              <div>
+                <div className="card-title">Tus movimientos</div>
+                <div className="card-sub">
+                  EOS agrupa solo por destino. Si se equivocó, corregilo y manda tu corrección.
+                </div>
               </div>
-
-              {/*
-                Una devolución es un gasto de monto NEGATIVO (v141), y así es
-                como resta sola en las veintitrés consultas que suman gastos.
-                Acá hay que deshacer ese truco: "− ₲ -200.000" no lo entiende
-                nadie. Se muestra con el signo que corresponde y el monto en
-                positivo, que es lo que la persona vio en su cuenta.
-              */}
-              <span className={`neg-fila-monto ${m.monto < 0 ? "ingreso" : m.tipo}`}>
-                {m.tipo === "ingreso" || m.monto < 0 ? "+" : "−"}{" "}
-                {formatearMonto(Math.abs(m.monto), m.moneda)}
-              </span>
-
-              {m.editable ? (
-                <button
-                  type="button"
-                  className="chip"
-                  aria-label={`Borrar ${m.descripcion}`}
-                  onClick={() => void borrar(m)}
-                >
-                  <Trash2 size={13} />
-                </button>
-              ) : (
-                /*
-                  No se puede borrar desde acá y se dice por qué. Un botón que
-                  falla al apretarlo enseña que el sistema está roto; uno que no
-                  está, con el motivo al lado, enseña dónde se corrige.
-                */
-                <span className="neg-estado" title="Se corrige donde nació">
-                  <Lock size={12} /> {m.origen === "erp" ? "Negocio" : "Buzón"}
-                </span>
-              )}
+              <button type="button" className="chip" onClick={() => void cargar()}>
+                <RefreshCw size={13} /> Actualizar
+              </button>
             </div>
-          ))
-        )}
-        </div>
+
+            {error && (
+              <p className="neg-error" role="alert">
+                <AlertCircle size={14} /> {error}
+              </p>
+            )}
+
+            {movimientos.length === 0 ? (
+              <div className="neg-empty-state">
+                <Wallet size={28} />
+                <strong>Sin movimientos en el período</strong>
+                <p>Los que anotes, los que lleguen del correo de tu banco y los de tus ventas aparecen todos acá.</p>
+              </div>
+            ) : (
+              movimientos.map((m) => (
+                <div className="neg-fila" key={m.id}>
+                  <span className={`gastos-signo ${m.tipo}`} aria-hidden="true">
+                    {m.tipo === "ingreso" ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}
+                  </span>
+
+                  <div className="neg-fila-texto">
+                    <strong>{m.descripcion || "Sin detalle"}</strong>
+                    <small>
+                      {dia(m.fecha)}
+                      {!m.editable && ` · ${m.etiqueta} · lo generó otra parte de EOS`}
+                    </small>
+
+                    {m.editable && (
+                      <select
+                        className="neg-input gastos-categoria"
+                        value={m.categoria}
+                        aria-label={`Categoría de ${m.descripcion}`}
+                        onChange={(e) => void recategorizar(m, e.target.value)}
+                      >
+                        {DESTINOS.map((d) => (
+                          <option key={d.clave} value={d.clave}>
+                            {d.etiqueta}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/*
+                    Una devolución es un gasto de monto NEGATIVO (v141), y así es
+                    como resta sola en las veintitrés consultas que suman gastos.
+                    Acá hay que deshacer ese truco: "− ₲ -200.000" no lo entiende
+                    nadie. Se muestra con el signo que corresponde y el monto en
+                    positivo, que es lo que la persona vio en su cuenta.
+                  */}
+                  <span className={`neg-fila-monto ${m.monto < 0 ? "ingreso" : m.tipo}`}>
+                    {m.tipo === "ingreso" || m.monto < 0 ? "+" : "−"}{" "}
+                    {formatearMonto(Math.abs(m.monto), m.moneda)}
+                  </span>
+
+                  {m.editable ? (
+                    <button
+                      type="button"
+                      className="chip"
+                      aria-label={`Borrar ${m.descripcion}`}
+                      onClick={() => void borrar(m)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  ) : (
+                    /*
+                      No se puede borrar desde acá y se dice por qué. Un botón que
+                      falla al apretarlo enseña que el sistema está roto; uno que no
+                      está, con el motivo al lado, enseña dónde se corrige.
+                    */
+                    <span className="neg-estado" title="Se corrige donde nació">
+                      <Lock size={12} /> {m.origen === "erp" ? "Negocio" : "Buzón"}
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+            </div>
+        </>
+      )}
       </div>
     </div>
   );
