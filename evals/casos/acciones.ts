@@ -215,6 +215,60 @@ export const acciones: Suite = {
       "Perder o alterar un ítem carga una venta distinta de la que se dijo.",
     ),
 
+    /*
+     * EL CASO DEL 9 DE SEPTIEMBRE DE 2026, EN LA PARTE QUE SE PUEDE PROBAR
+     *
+     * "Vendí un conjunto verde oliva talle S a 185.000gs". Lo que decide si
+     * esa venta entra o se pierde es el PRECIO: desde la v156, cuando el
+     * producto no está en el catálogo, el ejecutor lo crea con el precio que
+     * la persona acaba de decir y registra la venta en el mismo paso.
+     *
+     * Sin precio no puede crear nada —un producto en cero ensucia el margen
+     * de todo el mes— así que si `precio_unitario` se perdiera en el camino,
+     * volveríamos exactamente al fallo original: EOS entiende y no registra.
+     *
+     * Esta prueba no puede ver la parte de SQL. Lo que sí puede ver, y es lo
+     * que se rompería en silencio, es que el precio llegue intacto al job.
+     */
+    caso(
+      "el precio de la venta llega intacto al worker: es lo que crea el producto",
+      "Vendí un conjunto verde oliva talle S a 185.000gs",
+      {
+        respuesta: "Registro la venta.",
+        acciones: [
+          {
+            tipo: "REGISTRAR_VENTA",
+            datos: {
+              items: [
+                {
+                  producto: "Conjunto verde oliva talle S",
+                  cantidad: 1,
+                  precio_unitario: 185000,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      [
+        {
+          tipo: "REGISTRAR_VENTA",
+          worker_path: "eos-worker-rc1-internal",
+          datos: {
+            items: [
+              {
+                producto: "Conjunto verde oliva talle S",
+                cantidad: 1,
+                precio_unitario: 185000,
+              },
+            ],
+          },
+        },
+      ],
+      "critico",
+      "Sin el precio, un producto que no está en el catálogo no se puede crear y la venta se pierde.",
+    ),
+
     caso(
       "un ajuste de stock por conteo conserva stock_contado",
       "conté y hay 40 gaseosas",
