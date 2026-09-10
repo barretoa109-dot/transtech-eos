@@ -79,6 +79,14 @@ export const RUTAS: Record<string, string> = {
   REGISTRAR_TARJETA: "eos-worker-rc1-internal",
   REGISTRAR_COMPRA_TARJETA: "eos-worker-rc1-internal",
   REGISTRAR_OPORTUNIDAD: "eos-worker-rc1-internal",
+
+  /*
+   * Anular va por el mismo camino interno: deja un efecto durable igual que
+   * las demás. Lo que la distingue es que el efecto es sobre filas que YA
+   * existían —la venta, el stock y el movimiento de plata— y eso lo resuelve
+   * el ejecutor, no la ruta.
+   */
+  ANULAR_VENTA: "eos-worker-rc1-internal",
 };
 
 export type Job = {

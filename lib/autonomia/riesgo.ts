@@ -282,6 +282,29 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
   },
 
   /*
+   * Deshacer una venta.
+   *
+   * Cuesta lo mismo que hacerla —tier 3, 6 puntos— y es la simetría más clara
+   * de la tabla: anular devuelve el stock al estante y borra el ingreso del
+   * panel, o sea que mueve exactamente las mismas dos cosas que registrar, con
+   * el signo cambiado. Anular la venta equivocada ensucia el inventario y las
+   * finanzas igual que cargar la equivocada.
+   *
+   * Lo que la hace segura no es el nivel sino dos cosas de la v159: sólo mira
+   * las de los últimos siete días, y la respuesta dice SIEMPRE qué anuló
+   * —fecha, total y productos—, que es lo que permite ver en el momento que se
+   * anuló la que no era. Y la base se niega sola si la venta tiene una factura
+   * emitida: eso es un trámite ante la SET, no una fila que se cambia.
+   */
+  ANULAR_VENTA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  /*
    * Declarar el saldo de una cuenta cuesta 1 punto, el mínimo, y tiene que
    * costarlo.
    *
