@@ -380,3 +380,32 @@ test("toda acción que el modelo puede pedir tiene su riesgo declarado", () => {
     );
   }
 });
+
+test("el prompt dice que GUARDAR_MEMORIA no reemplaza a un verbo del negocio", () => {
+  /*
+   * ============================================================
+   * LA ACCIÓN QUE SIEMPRE FUNCIONA, Y POR ESO TAPA
+   * ============================================================
+   *
+   * GUARDAR_MEMORIA acepta cualquier texto y nunca falla. Es la salida cómoda
+   * cuando el modelo no encuentra el verbo que corresponde, y la peor forma de
+   * fallar que tiene este sistema: la respuesta suena a que quedó hecho.
+   *
+   * Pasó dos veces con la misma usuaria. El 7 de septiembre de 2026 pidió
+   * cargar cuatro productos y EOS guardó una memoria: ninguno entró al
+   * catálogo (ver la migración v131). El 9 calculó los costos de sus conjuntos
+   * y EOS dijo "guardé esa información en la memoria empresarial": el panel de
+   * rentabilidad nunca los vio.
+   *
+   * Si alguien saca esta regla en una edición del prompt, no se rompe nada
+   * visible — vuelve a fallar en silencio, que es de donde salió.
+   */
+  assert.match(PROMPT_SISTEMA, /NUNCA la uses para un dato que tiene su propio verbo/);
+  assert.match(PROMPT_SISTEMA, /Ante la duda entre la memoria y un verbo del negocio, es el verbo/);
+});
+
+test("el prompt explica para qué SÍ es la memoria", () => {
+  // La regla en negativo sola convertiría GUARDAR_MEMORIA en una acción que el
+  // modelo no usa nunca, y hay cosas que de verdad no tienen otro lugar.
+  assert.match(PROMPT_SISTEMA, /Es para lo que NO tiene otro lugar/);
+});
