@@ -234,10 +234,14 @@ cuentas de QA que hoy no existen.
 **Alto — ninguno conocido.**
 
 **Medio.**
-- Las frases del worker viven en JavaScript dentro de n8n y **no tienen
-  pruebas**. `verificarFlujo` comprueba que compilan, no que digan lo correcto.
-  Es como salió "Cerró 1 facturas" a producción: lo encontró una conversación
-  real, no el CI.
+- ~~Las frases del worker no tienen pruebas.~~ **Cerrado.**
+  `lib/gateway/frases-worker.test.ts` lee el workflow exportado, recorta el
+  nodo hasta donde empieza el código propio de n8n y ejercita `fraseDeAccion`
+  —el mismo despacho que usa producción— con los datos que devolvieron las
+  funciones reales de la base. 17 casos, más un candado que exige que toda
+  acción con efecto durable declare si tiene frase propia o usa la genérica.
+  Se comprobó que la prueba habría cazado "Cerró 1 facturas": con el código
+  viejo, falla.
 - El gateway en TypeScript sigue detrás de su bandera. Las tres listas ahora se
   derivan del prompt con un candado, pero el camino entero nunca atendió
   tráfico real.
@@ -277,6 +281,6 @@ cada uno dice lo que hizo con el número real.
 por lo que falta construir, sino por lo que falta probar: nadie recorrió todavía
 un registro, una recuperación de contraseña ni dos usuarios simultáneos.
 
-**Y una condición nueva:** las frases del worker necesitan pruebas. Seis verbos
-nuevos son seis frases nuevas escritas en JavaScript sin red, y ya se vio que un
-error ahí llega a producción y solo lo encuentra alguien conversando.
+**La condición que quedaba —probar las frases del worker— está cumplida.** Lo
+que falta para el GO del conjunto es el recorrido de P9, que no depende de
+escribir código sino de tener cuentas de prueba.
