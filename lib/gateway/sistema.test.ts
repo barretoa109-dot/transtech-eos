@@ -63,10 +63,46 @@ test("el prompt prohíbe dar por hecho lo que todavía tiene que ejecutar el Wor
   );
 });
 
-test("el prompt prohíbe adivinar el producto de una venta", () => {
-  // Vender el producto equivocado descuenta el stock equivocado y cobra el
-  // precio equivocado. Es la regla más cara de las tres del negocio.
-  assert.match(PROMPT_SISTEMA, /NO ADIVINES NOMBRES/);
+test("el prompt prohíbe elegir entre varios productos parecidos", () => {
+  /*
+   * Vender el producto equivocado descuenta el stock equivocado y cobra el
+   * precio equivocado. Es la regla más cara de las del negocio.
+   *
+   * Decía "NO ADIVINES NOMBRES" hasta la v158, cuando el modelo no veía el
+   * catálogo. Sin catálogo, esa regla sólo se podía cumplir preguntando
+   * siempre — y preguntar "¿cuál de todos?" cuando hay uno solo es la forma
+   * más rápida de que alguien deje de usar el chat. Ahora la regla distingue
+   * los dos casos, que es lo que se comprueba acá.
+   */
+  assert.match(PROMPT_SISTEMA, /VARIOS que podrían ser/);
+  assert.match(PROMPT_SISTEMA, /preguntá cuál antes de pedir la acción/);
+  assert.match(PROMPT_SISTEMA, /UNO SOLO que puede ser, ese es: no preguntes/);
+});
+
+test("el prompt le dice al modelo que el catálogo está adelante", () => {
+  // Sin esto, la instrucción de usar el nombre exacto habla de una lista que
+  // el modelo no sabe que tiene.
+  assert.match(PROMPT_SISTEMA, /EL CATÁLOGO ESTÁ ARRIBA/);
+  assert.match(PROMPT_SISTEMA, /nombre TAL\s+CUAL figura ahí/);
+});
+
+test('el prompt prohíbe mandar "uno" o "ese" como nombre de producto', () => {
+  /*
+   * Una usuaria escribió "vendí uno a 185.000" después de tres mensajes
+   * hablando del mismo conjunto. Si eso viaja como producto: "uno", no hay
+   * resolución posible del otro lado y la venta se pierde con un error que no
+   * explica nada.
+   */
+  assert.match(PROMPT_SISTEMA, /NO SON NOMBRES DE PRODUCTO/);
+  assert.match(PROMPT_SISTEMA, /resolvé de qué producto hablan y mandá SU NOMBRE/);
+});
+
+test("el prompt NO manda a cargar el producto antes de vender", () => {
+  // Desde la v156 el sistema crea el producto con el precio que la persona
+  // acaba de decir y registra la venta en el mismo paso. Pedirle que lo
+  // cargue primero es mandarla a otra pantalla para algo que EOS hace solo.
+  assert.match(PROMPT_SISTEMA, /mandá la acción IGUAL, con\s+el nombre como te lo dijeron/);
+  assert.match(PROMPT_SISTEMA, /No le pidas a la\s+persona que lo cargue primero/);
 });
 
 test("el prompt prohíbe inventar el dígito verificador de un RUC", () => {
