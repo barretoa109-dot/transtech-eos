@@ -39,6 +39,44 @@ export type ContextoNegocio = {
     gastos_mes: number;
     neto_mes: number;
   }>;
+  /*
+   * La posición de la persona, desde la v158/v159.
+   *
+   * Es lo que contesta "cuánto tengo", "cuándo vence", "cuánto debo" y "cuánto
+   * me falta" — las cuatro preguntas más frecuentes que recibe un asistente de
+   * finanzas, y las cuatro que EOS no podía contestar sobre datos que él mismo
+   * había escrito. Ver `textoPosicion` más abajo.
+   *
+   * Todo opcional: quien no cargó nada no tiene bloque, y el modelo no lee
+   * ceros que leería como hechos.
+   */
+  posicion?: {
+    cuentas?: Array<{ nombre: string; moneda?: string; saldo?: number | null; al?: string | null }>;
+    tarjetas?: Array<{
+      nombre: string;
+      moneda?: string;
+      cierra?: number | null;
+      vence?: number | null;
+      resumen?: number | null;
+      minimo?: number | null;
+      resumen_al?: string | null;
+    }>;
+    deudas?: Array<{
+      acreedor: string;
+      moneda?: string;
+      saldo?: number | null;
+      cuota?: number | null;
+      dia?: number | null;
+    }>;
+    objetivos?: Array<{
+      titulo: string;
+      ambito?: string;
+      moneda?: string;
+      objetivo?: number | null;
+      actual?: number | null;
+      para?: string | null;
+    }>;
+  };
   erp?: {
     ventas_mes?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
     /*
@@ -284,6 +322,155 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
     }
 
     if (linea.length > 0) partes.push(`Oportunidades: ${linea.join("; ")}.`);
+  }
+
+  const posicion = textoPosicion(contexto.posicion);
+  if (posicion) partes.push(posicion);
+
+  return partes.join("\n");
+}
+
+/** `2026-09-10` a `10/09`. En una lista de ocho, el año no aporta. */
+function diaMes(iso: string | null | undefined): string {
+  if (typeof iso !== "string" || iso.length < 10) return "";
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+/**
+ * Lo que la persona tiene, debe y quiere.
+ *
+ * ============================================================
+ * EL AGUJERO QUE ESTO TAPA
+ * ============================================================
+ *
+ * Hasta el 10 de septiembre de 2026 el modelo recibía el catálogo, las ventas,
+ * la cartera y los totales del mes —de los dos ámbitos— y NADA de la posición
+ * de la persona. Reproducido contra producción, dos mensajes seguidos:
+ *
+ *   > tengo 3 millones en Ueno y mi tarjeta vence el 5
+ *   Anoté ₲ 3.000.000 en Ueno. Cuenta nueva. Cargué Visa.
+ *
+ *   > ¿cuánta plata tengo y cuándo vence mi tarjeta?
+ *   Voy a consultar tus saldos…
+ *
+ * Y no consultaba nada, porque no había nada que consultar. EOS acababa de
+ * escribir ese dato y en el mensaje siguiente ya no lo sabía.
+ *
+ * ============================================================
+ * EL TOTAL SE CALCULA ACÁ, POR MONEDA
+ * ============================================================
+ *
+ * Si fueran solo los renglones sueltos, el modelo sumaría — y sumaría también
+ * los dólares con los guaraníes, que es el error más caro que puede cometer
+ * con estos datos. El total por moneda va escrito, y no hay ninguno que los
+ * cruce.
+ *
+ * ============================================================
+ * CADA SALDO CON SU FECHA
+ * ============================================================
+ *
+ * Un saldo declarado hace tres semanas no es el de hoy. Sin la fecha al lado,
+ * el modelo no tiene forma de saberlo y lo va a presentar como el saldo
+ * actual. Es la misma regla que ya sostiene la pantalla.
+ */
+export function textoPosicion(posicion: ContextoNegocio["posicion"]): string {
+  if (!posicion) return "";
+
+  const partes: string[] = [];
+
+  const cuentas = lista<NonNullable<NonNullable<ContextoNegocio["posicion"]>["cuentas"]>[number]>(
+    posicion.cuentas,
+  ).filter((c) => typeof c.saldo === "number");
+
+  if (cuentas.length > 0) {
+    const monedas = [...new Set(cuentas.map((c) => c.moneda || "PYG"))];
+
+    const lineas = monedas.map((moneda) => {
+      const suyas = cuentas.filter((c) => (c.moneda || "PYG") === moneda);
+      const total = suyas.reduce((a, c) => a + (c.saldo ?? 0), 0);
+      const detalle = suyas
+        .map((c) => {
+          const cuando = diaMes(c.al);
+          return `${c.nombre} ${formatearMonto(c.saldo ?? 0, moneda)}${cuando ? ` (${cuando})` : ""}`;
+        })
+        .join(", ");
+
+      return suyas.length === 1
+        ? `  ${detalle}`
+        : `  ${formatearMonto(total, moneda)} en total: ${detalle}`;
+    });
+
+    partes.push(`Lo que tenés (VOS, según lo que declaraste):\n${lineas.join("\n")}`);
+  }
+
+  const tarjetas = lista<NonNullable<NonNullable<ContextoNegocio["posicion"]>["tarjetas"]>[number]>(
+    posicion.tarjetas,
+  );
+
+  if (tarjetas.length > 0) {
+    const lineas = tarjetas.map((t) => {
+      const datos: string[] = [];
+      if (t.vence) datos.push(`vence el ${t.vence}`);
+      if (t.cierra) datos.push(`cierra el ${t.cierra}`);
+
+      if (typeof t.resumen === "number") {
+        const cuando = diaMes(t.resumen_al);
+        datos.push(
+          `resumen ${formatearMonto(t.resumen, t.moneda || "PYG")}${cuando ? ` del ${cuando}` : ""}`,
+        );
+      }
+
+      if (typeof t.minimo === "number") {
+        datos.push(`mínimo ${formatearMonto(t.minimo, t.moneda || "PYG")}`);
+      }
+
+      // Sin nada cargado se nombra igual: que la tarjeta EXISTA ya es el dato
+      // que evita que el modelo diga que no tiene ninguna.
+      return `  ${t.nombre}${datos.length > 0 ? ` — ${datos.join(", ")}` : ""}`;
+    });
+
+    partes.push(`Sus tarjetas:\n${lineas.join("\n")}`);
+  }
+
+  const deudas = lista<NonNullable<NonNullable<ContextoNegocio["posicion"]>["deudas"]>[number]>(
+    posicion.deudas,
+  ).filter((d) => typeof d.saldo === "number" && d.saldo > 0);
+
+  if (deudas.length > 0) {
+    const lineas = deudas.map((d) => {
+      const moneda = d.moneda || "PYG";
+      const cuota =
+        typeof d.cuota === "number"
+          ? `, cuota ${formatearMonto(d.cuota, moneda)}${d.dia ? ` el ${d.dia}` : ""}`
+          : "";
+      return `  ${d.acreedor}: ${formatearMonto(d.saldo ?? 0, moneda)}${cuota}`;
+    });
+
+    partes.push(`Lo que debe (VOS, personal):\n${lineas.join("\n")}`);
+  }
+
+  const objetivos = lista<
+    NonNullable<NonNullable<ContextoNegocio["posicion"]>["objetivos"]>[number]
+  >(posicion.objetivos);
+
+  if (objetivos.length > 0) {
+    const lineas = objetivos.map((o) => {
+      const moneda = o.moneda || "PYG";
+      const meta =
+        typeof o.objetivo === "number" && o.objetivo > 0
+          ? `: ${formatearMonto(o.objetivo, moneda)}`
+          : "";
+      const lleva =
+        typeof o.actual === "number" && o.actual > 0
+          ? ` (lleva ${formatearMonto(o.actual, moneda)})`
+          : "";
+      const cuando = o.para ? ` para el ${diaMes(o.para)}` : "";
+      const donde = o.ambito === "negocio" ? " [negocio]" : "";
+
+      return `  ${o.titulo}${meta}${cuando}${lleva}${donde}`;
+    });
+
+    partes.push(`Lo que quiere lograr:\n${lineas.join("\n")}`);
   }
 
   return partes.join("\n");
