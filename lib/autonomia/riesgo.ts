@@ -301,6 +301,37 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Cobrar una venta y pagar una compra: 4 puntos, como pagar una cuota.
+   *
+   * Son las dos acciones del negocio que escriben en DOS lados a la vez —
+   * bajan el saldo del documento y dejan el movimiento financiero— y por eso
+   * cuestan lo mismo que su hermana personal, REGISTRAR_PAGO_DEUDA.
+   *
+   * Un cobro mal cargado no solo ensucia la caja: deja una factura como
+   * cobrada, y la persona deja de reclamarla. Es de los pocos errores del
+   * sistema que le cuestan plata de verdad, y no solo un número mal.
+   *
+   * Aun así se auto-aprueban, como todo lo que viene del chat: es lo que el
+   * usuario pidió en estos términos —"auto-aprobar todo lo que venga del
+   * chat, sin excepción"— y el freno real es el presupuesto diario, no una
+   * pantalla de aprobación que nadie mira.
+   */
+  REGISTRAR_COBRO: {
+    tier: 2,
+    points: 4,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  REGISTRAR_PAGO_COMPRA: {
+    tier: 2,
+    points: 4,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /**

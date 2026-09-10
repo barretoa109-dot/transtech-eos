@@ -40,6 +40,8 @@
  * y una instrucción.
  */
 
+import { formatearMonto } from "../finanzas/formato.ts";
+
 export type ErrorDeAccion = {
   codigo: string;
   /** Lo que ve el usuario. Tiene que decir qué hacer, no solo qué pasó. */
@@ -59,6 +61,33 @@ export type ErrorDeAccion = {
 };
 
 type Regla = { codigo: string; mensaje: (detalle: string) => string };
+
+/**
+ * Los detalles que traen plata vienen como `MONEDA|resto`.
+ *
+ * ============================================================
+ * LA BASE NO FORMATEA MONTOS, Y ESTE ES EL MOTIVO
+ * ============================================================
+ *
+ * La v151 escribía el importe con `to_char` de Postgres, que usa el locale
+ * del servidor: agrupa con coma y separa decimales con punto. Sesenta mil
+ * guaraníes le llegaban a la persona como "60,000." — su propia plata con el
+ * formato de otro país.
+ *
+ * El formato de la plata vive en `lib/finanzas/formato.ts` y en ningún otro
+ * lado. La base manda el número pelado con su moneda, y acá se escribe.
+ */
+function conMoneda(detalle: string): { moneda: string; resto: string } {
+  const corte = detalle.indexOf("|");
+  if (corte < 0) return { moneda: "PYG", resto: detalle };
+  return { moneda: detalle.slice(0, corte) || "PYG", resto: detalle.slice(corte + 1) };
+}
+
+/** `2026-08-21` a `21/08`. La fecha larga en una lista de tres no aporta. */
+function diaYMes(iso: string): string {
+  const [, mes, dia] = iso.split("-");
+  return mes && dia ? `${dia}/${mes}` : iso;
+}
 
 const REGLAS: Regla[] = [
   {
@@ -238,6 +267,67 @@ const REGLAS: Regla[] = [
   {
     codigo: "EOS_ACCION_CUENTA_AMBIGUA",
     mensaje: (d) => `Tenés más de una cuenta que se parece: ${d}. ¿En cuál lo anoto?`,
+  },
+  /*
+   * Los de cobrar una venta y pagar una compra.
+   *
+   * Los dos que valen: "varios pendientes" y "excede".
+   *
+   * El primero es la negativa a elegir. "Me pagó la factura" de alguien que
+   * tiene tres es una frase incompleta, y completarla por él deja escrito un
+   * ingreso que sí ocurrió contra el documento que no era — y una factura
+   * marcada como cobrada es una factura que la persona deja de reclamar. Por
+   * eso el mensaje trae las tres con su fecha y su importe.
+   *
+   * El segundo evita el saldo a favor. Un monto mayor a lo que se debe es
+   * casi siempre un cero de más al escribir, y el saldo negativo resultante
+   * no se parece a un error: se parece a un anticipo, y nadie lo revisa.
+   */
+  {
+    codigo: "EOS_ACCION_COBRO_SIN_CONTACTO",
+    mensaje: () => "Decime de quién es el cobro: el nombre del cliente o del proveedor.",
+  },
+  {
+    codigo: "EOS_ACCION_COBRO_SIN_PENDIENTES",
+    mensaje: (d) =>
+      `"${d}" no tiene nada pendiente conmigo. Si la venta no está cargada, ` +
+      "contámela y después la cobramos.",
+  },
+  {
+    codigo: "EOS_ACCION_COBRO_MONTO_INVALIDO",
+    mensaje: () => "Ese monto no me cierra: tiene que ser mayor que cero.",
+  },
+  {
+    codigo: "EOS_ACCION_COBRO_VARIAS_MONEDAS",
+    mensaje: (d) => `Te debe en ${d}. Decime en cuál de las dos te pagó.`,
+  },
+  {
+    codigo: "EOS_ACCION_COBRO_VARIOS_PENDIENTES",
+    mensaje: (d) => {
+      const { moneda, resto } = conMoneda(d);
+      const docs = resto
+        .split(";")
+        .filter(Boolean)
+        .map((par) => {
+          const [fecha, saldo] = par.split(":");
+          return `${diaYMes(fecha)} por ${formatearMonto(Number(saldo), moneda)}`;
+        });
+
+      return (
+        `Tiene ${docs.length} facturas abiertas: ${docs.join(", ")}. ` +
+        "¿Cuál te pagó, o cuánto te dio?"
+      );
+    },
+  },
+  {
+    codigo: "EOS_ACCION_COBRO_EXCEDE",
+    mensaje: (d) => {
+      const { moneda, resto } = conMoneda(d);
+      return (
+        `Eso es más de lo que te debe: son ${formatearMonto(Number(resto), moneda)} en total. ` +
+        "Decime el monto correcto."
+      );
+    },
   },
   {
     codigo: "EOS_ACCION_DEUDA_SIN_SALDO",

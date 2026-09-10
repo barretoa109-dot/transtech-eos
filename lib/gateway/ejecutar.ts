@@ -117,6 +117,8 @@ export const ACCIONES_INTERNAS = new Set([
   "REGISTRAR_PAGO_DEUDA",
   "CORREGIR_MOVIMIENTO",
   "DECLARAR_SALDO",
+  "REGISTRAR_COBRO",
+  "REGISTRAR_PAGO_COMPRA",
 ]);
 
 /** Qué se le dice a la persona cuando la acción salió bien. */
@@ -129,6 +131,8 @@ const HECHO: Record<string, string> = {
   CREAR_CONTACTO: "El contacto quedó guardado. Lo ves en Negocio > Contactos.",
   CORREGIR_MOVIMIENTO: "Lo corregí.",
   DECLARAR_SALDO: "Anoté el saldo.",
+  REGISTRAR_COBRO: "Registré el cobro.",
+  REGISTRAR_PAGO_COMPRA: "Registré el pago.",
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
