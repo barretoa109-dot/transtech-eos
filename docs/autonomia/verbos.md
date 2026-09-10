@@ -50,8 +50,8 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "recordame llamar al proveedor" | `CREAR_TAREA` | **Ejecuta** |
 | "quiero facturar 300 millones este año" | `CREAR_OBJETIVO` | **Ejecuta desde hoy** — el verbo existía sin forma de datos |
 | "pasame un cuadro de ventas" | campo `documento` | **Ejecuta** (Excel, PDF, Word) |
-| **"María me pagó la factura"** | — | **NO EXISTE.** `eos_erp_cobrar_venta` está en la base y sin verbo |
-| **"pagué la compra al proveedor"** | — | **NO EXISTE.** `eos_erp_pagar_compra` está en la base y sin verbo |
+| "María me pagó la factura", "me dio 25 mil" | `REGISTRAR_COBRO` | **Ejecuta desde hoy** (v151) |
+| "le pagué al proveedor de balanceado" | `REGISTRAR_PAGO_COMPRA` | **Ejecuta desde hoy** (v151) |
 | **"anulá esa venta"** | — | **NO EXISTE.** `eos_erp_anular_venta` está en la base y sin verbo |
 | **"corregí la venta de ayer: eran 3, no 30"** | — | **NO EXISTE.** `eos_erp_editar_venta` está en la base y sin verbo |
 | **"anotá una oportunidad con Pedro por 5 millones"** | — | **NO EXISTE.** El CRM solo se carga por pantalla |
@@ -110,18 +110,28 @@ proyectando. "Declaraste 3.000.000 y yo venía calculando 3.450.000" es la
 frase más útil que puede decir este verbo, y requiere el arrastre de
 `lib/empresa/caja.ts` del lado de la base. Queda anotado.
 
-**3. Cobrar una venta a crédito.** La cartera existe, el RPC existe, el panel
-existe. Sin el verbo, quien vende a crédito por chat tiene que ir a marcar el
-cobro a otro lado, y la cartera envejece sola.
+**3. ~~Cobrar una venta a crédito~~ y ~~pagar una compra~~ — HECHO (v151).**
+Los dos juntos porque son la misma operación con el signo cambiado, y
+`eos_erp_registrar_cobranza_v107` ya las trataba así.
+
+Imputa de la factura más vieja a la más nueva, en cascada, y dice a cuáles
+fue. Con varias pendientes y sin monto **no elige**: las lista con fecha e
+importe. Nunca suma monedas distintas y nunca cobra de más.
+
+Dos correcciones salieron de probarlo (v152): la base formateaba el importe
+del error con el locale del servidor —"60,000." en vez de "60.000"— y los
+códigos nuevos se llamaban `EOS_COBRANZA_*`, fuera del barrido de la prueba
+que exige traducción para todo `EOS_ACCION_*`. El prefijo no era decorativo.
 
 **4. Cargar una tarjeta.** Vertical nueva; hoy solo se carga por pantalla.
 
 **5. Oportunidades del CRM.** El embudo está construido y probado, y se llena
 a mano.
 
-**6. Anular y corregir en el negocio.** Los RPC existen y son transaccionales.
-Es el grupo más delicado: un `anular` por chat sobre la venta equivocada es
-caro, y merece confirmación explícita aunque el resto se auto-apruebe.
+**6. Anular y corregir en el negocio.** Queda `eos_erp_anular_venta` y
+`eos_erp_editar_venta`. Es el grupo más delicado: un `anular` por chat sobre la
+venta equivocada es caro, y merece confirmación explícita aunque el resto se
+auto-apruebe.
 
 ---
 
