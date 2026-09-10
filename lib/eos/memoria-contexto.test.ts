@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { textoMemoria, TOPES } from "./memoria-contexto.ts";
+import { textoMemoria, esUnaPregunta, TOPES } from "./memoria-contexto.ts";
 
 function memoria(p: Partial<Parameters<typeof textoMemoria>[0]["memorias"] extends (infer T)[] | null | undefined ? T : never> = {}) {
   return {
@@ -310,4 +310,74 @@ test("con objetivos de un solo lado no aparece ningún rótulo de más", () => {
 
   assert.match(texto, /Lo que se propuso:/);
   assert.doesNotMatch(texto, /para su negocio/);
+});
+
+// ---------------------------------------------------------------------------
+// Una pregunta no es un hecho
+// ---------------------------------------------------------------------------
+
+test("las preguntas del usuario no vuelven como si fueran datos suyos", () => {
+  /*
+   * Caso real de producción, 10 de septiembre de 2026. El bloque ENTERO de
+   * memoria de un usuario eran sus propias preguntas:
+   *
+   *   - Que recordas de mi negocio?
+   *   - que recordas sobre mi?
+   *   - Recuerdas mis negocios?
+   *
+   * Devueltas bajo el rótulo "lo que te contó y quedó guardado", que el modelo
+   * lee como hechos sobre esa persona.
+   */
+  const texto = textoMemoria({
+    memorias: [
+      { titulo: "Dato importante", contenido: "Que recordas de mi negocio?", importancia: 5 },
+      { titulo: "Dato importante", contenido: "que recordas sobre mi?", importancia: 5 },
+      { titulo: "Dato importante", contenido: "Recuerdas mis negocios?", importancia: 5 },
+      { titulo: "Negocio", contenido: "El usuario tiene una tienda de ropa.", importancia: 5 },
+    ],
+  });
+
+  assert.doesNotMatch(texto, /recordas/i);
+  assert.doesNotMatch(texto, /Recuerdas/i);
+  assert.match(texto, /tienda de ropa/);
+});
+
+test("sin signo de pregunta igual se reconocen las formas interrogativas", () => {
+  // Dictando por voz y escribiendo rápido nadie pone el signo.
+  for (const q of [
+    "que recordas sobre mi",
+    "Cuanto vendi este mes",
+    "como voy con el ahorro",
+    "donde anote la compra",
+    "te acordas de lo que te dije",
+  ]) {
+    assert.ok(esUnaPregunta(q), `no reconoció "${q}" como pregunta`);
+  }
+});
+
+test("una afirmación que empieza parecido NO se descarta", () => {
+  /*
+   * La regla mira el arranque, así que hay que comprobar que no se lleve
+   * puesto un dato bueno. "Cuando cobro" es interrogativo; "Cuando cobro el
+   * sueldo aparto el 20%" es un hecho — y por eso la regla solo actúa con el
+   * signo o con la forma interrogativa al principio de todo.
+   */
+  for (const dato of [
+    "El usuario tiene una tienda de ropa.",
+    "Quiere comprar un terreno en Luque para diciembre.",
+    "Margen del conjunto azul: 27,13% sobre venta.",
+    "Negocio porcino: lote actual de 6 chanchos.",
+  ]) {
+    assert.equal(esUnaPregunta(dato), false, `descartó un dato bueno: "${dato}"`);
+  }
+});
+
+test("con todas las memorias descartadas no queda un encabezado vacío", () => {
+  // Sería peor que no mandar nada: el modelo lee "lo que te contó:" y abajo
+  // nada, y concluye que la persona no le contó nunca nada.
+  const texto = textoMemoria({
+    memorias: [{ titulo: "x", contenido: "¿qué recordás de mí?", importancia: 5 }],
+  });
+
+  assert.equal(texto, "");
 });

@@ -49,7 +49,7 @@ const [memorias, objetivos, tareas] = await Promise.all([
     .from("eos_memory")
     .select("titulo,categoria,contenido,importancia")
     .eq("usuario_id", usuario)
-    .eq("archivada", false)
+    .eq("estado", "activo")
     .order("importancia", { ascending: false })
     .limit(30),
   db
