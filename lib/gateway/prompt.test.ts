@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { SIN_HISTORIAL, armarPrompt, bloqueDeNegocio, historialComoTexto } from "./prompt.ts";
+import {
+  SIN_HISTORIAL,
+  armarPrompt,
+  bloqueDeCita,
+  bloqueDeNegocio,
+  historialComoTexto,
+} from "./prompt.ts";
 import { prepararEntrada } from "./entrada.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -153,4 +159,45 @@ test("un pdf adjunto NO se anuncia como imagen", () => {
 test("el texto del contenido es exactamente el prompt", () => {
   const p = armarPrompt(entrada({ contexto_negocio: "Ventas: 100" }));
   assert.equal(p.contenido[0].type === "input_text" && p.contenido[0].text, p.prompt_eos);
+});
+
+// ============================================================
+// Preguntar sobre un pedazo de una respuesta anterior
+// ============================================================
+
+test("sin cita, el prompt no cambia en nada", () => {
+  assert.equal(bloqueDeCita(""), "");
+  assert.equal(bloqueDeCita("   "), "");
+});
+
+test("la cita se muestra marcada como propia de EOS", () => {
+  const bloque = bloqueDeCita("Margen estimado: 32%");
+
+  assert.match(bloque, /respuesta tuya/i);
+  assert.ok(bloque.includes("Margen estimado: 32%"));
+});
+
+test("la cita le pide explicar la cuenta, no rehacerla", () => {
+  // Es la diferencia entre contestar la pregunta y contestar otra: si el
+  // modelo recalcula, la persona recibe un número distinto del que señaló.
+  assert.match(bloqueDeCita("32%"), /no la rehagas/i);
+});
+
+test("la cita entra al prompt entre el historial y el mensaje", () => {
+  const { prompt_eos } = armarPrompt(
+    entrada({ cita: { texto: "Margen estimado: 32%" }, mensaje: "¿por qué es 32%?" }),
+  );
+
+  const dondeHistorial = prompt_eos.indexOf("Conversación reciente");
+  const dondeCita = prompt_eos.indexOf("Margen estimado: 32%");
+  const dondeMensaje = prompt_eos.indexOf("Mensaje actual");
+
+  assert.ok(dondeHistorial < dondeCita, "la cita quedó antes del historial");
+  assert.ok(dondeCita < dondeMensaje, "la cita quedó después del mensaje");
+});
+
+test("un mensaje sin cita no menciona ninguna respuesta anterior", () => {
+  const { prompt_eos } = armarPrompt(entrada({ mensaje: "¿cómo venimos?" }));
+
+  assert.ok(!prompt_eos.includes("respuesta tuya"));
 });

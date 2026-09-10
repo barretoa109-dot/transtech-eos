@@ -195,7 +195,15 @@ for (const archivo of archivos) {
   const texto = fs.readFileSync(path.join(DIR, archivo), "utf8");
   const sinComentarios = texto.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
-  if (/'\[\^0-9\.\]'/.test(sinComentarios)) {
+  /*
+   * También `[^0-9.\-]`, que es la MISMA expresión con el signo menos.
+   *
+   * Se coló el 10 de septiembre de 2026 copiando `eos_erp_crear_productos_v131`
+   * a una migración nueva: el control sólo miraba la forma sin el menos, así
+   * que la copia pasó limpia leyendo un costo de "142.442,46" como 142. El
+   * error no está en el guion, está en que el punto sobrevive.
+   */
+  if (/'\[\^0-9\.(\\-)?\]'/.test(sinComentarios)) {
     problemas.push(
       `${archivo}: lee un monto con la expresión vieja '[^0-9.]'.\n` +
         `      Usá public.eos_leer_monto(...): esa expresión toma "800.000" por 800.`,

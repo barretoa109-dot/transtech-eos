@@ -1018,6 +1018,19 @@
 }
 
 /*
+  Pidiendo el permiso NO es grabando.
+
+  Este estado no existía: el botón se ponía rojo apenas se tocaba, y si el
+  permiso estaba denegado se quedaba así para siempre. Rojo significa "te
+  están grabando" y no se puede usar para "estoy preguntando si puedo".
+*/
+.eos-app .icon-btn.pidiendo {
+  color: var(--blue);
+  background: var(--blue-light);
+  animation: none;
+}
+
+/*
   Alto reservado aunque esté vacío: si el bloque apareciera al empezar a
   dictar, el compositor entero saltaría hacia arriba justo cuando la persona
   está mirando el campo.
@@ -1450,6 +1463,34 @@
 }
 .eos-app .fila-editor-campos .neg-cantidad {
   flex: 0 1 110px;
+}
+/*
+  Prender o apagar el inventario, con la misma altura que los campos de al
+  lado. Una casilla suelta en una fila de inputs se lee como si perteneciera a
+  otra cosa.
+*/
+.eos-app .fila-editor-check {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eos-app .fila-editor-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--blue-solido);
+  cursor: pointer;
 }
 /* Pedir ayuda: discreto pero siempre a la vista. */
 .eos-app .soporte-fila {
@@ -5292,4 +5333,71 @@
   font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
+}
+
+/* ============================================================
+   La cita: preguntar sobre un pedazo de lo que dijo EOS
+   ============================================================
+
+   Va arriba del campo, con la misma forma que una tarjeta de adjunto, porque
+   es lo mismo: algo que se le suma al mensaje y se puede sacar antes de
+   mandarlo.
+
+   La barra azul a la izquierda es la convención de "esto es una cita" en
+   cualquier cliente de correo o de chat, y ahorra tener que escribir la
+   palabra. */
+
+.eos-app .cita-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 7px;
+  padding: 8px 10px;
+  border: 1px solid var(--linea-azul);
+  border-left: 3px solid var(--blue-solido);
+  border-radius: 10px;
+  background: var(--panel-suave);
+  box-sizing: border-box;
+}
+
+/*
+  Tres renglones como mucho.
+
+  Una cita de media respuesta empujaría el campo de texto fuera de la pantalla
+  en un teléfono justo cuando la persona va a escribir la pregunta.
+*/
+.eos-app .cita-preview-texto {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.eos-app .cita-preview button {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eos-app .cita-preview button:hover {
+  background: var(--blue-light);
+  color: var(--blue);
 }

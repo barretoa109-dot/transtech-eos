@@ -1,21 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Check,
   Copy,
   Download,
+  MessageSquareQuote,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+
+import { armarCita, type Cita } from "@/lib/eos/cita";
 
 type MessageBubbleProps = {
   rol: "usuario" | "eos";
   texto: string;
   nombre: string;
+  /** Para poder decirle al backend sobre QUÉ mensaje se está preguntando. */
+  mensajeId?: string;
   onRegenerar?: () => void;
   regenerando?: boolean;
+  /** Sin esto no aparece nada: la burbuja sigue siendo texto y se copia igual. */
+  onPreguntarSobre?: (cita: Cita) => void;
 };
 
 function esEnlace(texto: string) {
@@ -84,12 +91,87 @@ function renderizarTextoEnLinea(texto: string) {
 export default function MessageBubble({
   rol,
   texto,
+  mensajeId = "",
   onRegenerar,
   regenerando = false,
+  onPreguntarSobre,
 }: MessageBubbleProps) {
   const esUsuario = rol === "usuario";
   const lineas = texto.split("\n");
   const [copiado, setCopiado] = useState(false);
+
+  /*
+   * ============================================================
+   * PREGUNTAR SOBRE UN PEDAZO
+   * ============================================================
+   *
+   * Se escucha `selectionchange` del documento y NO un `onMouseUp` de la
+   * burbuja, por una razón que sólo se ve en el teléfono: ahí la selección la
+   * hace el sistema operativo con sus manijas, y no hay ningún evento de mouse
+   * que contar. `selectionchange` es el único que llega en los dos lados.
+   *
+   * Lo que NO se toca es la selección en sí: el menú nativo de copiar sigue
+   * apareciendo y el Ctrl+C sigue funcionando. Esto se suma, no reemplaza.
+   */
+  const articuloRef = useRef<HTMLElement | null>(null);
+  const [seleccion, setSeleccion] = useState<{ cita: Cita; x: number; y: number } | null>(null);
+
+  const cerrarMenu = useCallback(() => setSeleccion(null), []);
+
+  useEffect(() => {
+    if (esUsuario || !onPreguntarSobre) return;
+
+    function revisar() {
+      const articulo = articuloRef.current;
+      const sel = typeof window !== "undefined" ? window.getSelection() : null;
+
+      if (!articulo || !sel || sel.isCollapsed || sel.rangeCount === 0) {
+        setSeleccion(null);
+        return;
+      }
+
+      // Las dos puntas adentro de ESTA burbuja. Una selección que empezó acá y
+      // terminó en la de al lado no es una cita de este mensaje.
+      const dentro =
+        sel.anchorNode !== null &&
+        sel.focusNode !== null &&
+        articulo.contains(sel.anchorNode) &&
+        articulo.contains(sel.focusNode);
+
+      if (!dentro) {
+        setSeleccion(null);
+        return;
+      }
+
+      const cita = armarCita(sel.toString(), texto, mensajeId);
+      if (!cita) {
+        setSeleccion(null);
+        return;
+      }
+
+      const rango = sel.getRangeAt(0).getBoundingClientRect();
+      const caja = articulo.getBoundingClientRect();
+
+      setSeleccion({
+        cita,
+        // Relativo a la burbuja: el chat se desplaza y una posición fija
+        // quedaría flotando en el medio de la pantalla al hacer scroll.
+        x: Math.max(0, Math.min(rango.left + rango.width / 2 - caja.left, caja.width)),
+        y: Math.max(0, rango.top - caja.top),
+      });
+    }
+
+    document.addEventListener("selectionchange", revisar);
+    return () => document.removeEventListener("selectionchange", revisar);
+  }, [esUsuario, mensajeId, onPreguntarSobre, texto]);
+
+  function preguntarSobreLaSeleccion() {
+    if (!seleccion || !onPreguntarSobre) return;
+
+    onPreguntarSobre(seleccion.cita);
+    window.getSelection()?.removeAllRanges();
+    cerrarMenu();
+  }
 
   async function copiarMensaje() {
     try {
@@ -112,10 +194,31 @@ export default function MessageBubble({
     >
       <div className="message-column">
         <article
+          ref={articuloRef}
           className={`message-bubble ${
             esUsuario ? "message-user" : "message-eos"
           }`}
         >
+          {seleccion ? (
+            <button
+              type="button"
+              className="message-quote-chip"
+              style={{ left: `${seleccion.x}px`, top: `${seleccion.y}px` }}
+              /*
+                `preventDefault` en el mousedown y en el touchstart: sin esto,
+                apretar el botón borra la selección ANTES del click y el
+                fragmento llega vacío. Es el detalle que hace que esto ande o
+                no ande, y no se ve hasta probarlo.
+              */
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
+              onClick={preguntarSobreLaSeleccion}
+            >
+              <MessageSquareQuote size={13} />
+              <span>Preguntar sobre esto</span>
+            </button>
+          ) : null}
+
           <div className="message-content">
             {lineas.map((linea, index) => {
               const limpio = linea.trim();
@@ -290,6 +393,28 @@ export default function MessageBubble({
               <span>{copiado ? "Copiado" : "Copiar"}</span>
             </button>
 
+            {/*
+              El camino sin selección, que es el que salva al teléfono.
+
+              En móvil la selección con las manijas del sistema funciona y
+              muestra el mismo menú flotante, pero no siempre: hay teclados y
+              navegadores donde el menú nativo tapa todo. Este botón cita el
+              mensaje entero y deja preguntar igual, que es lo que importa.
+            */}
+            {onPreguntarSobre ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onPreguntarSobre({ texto: texto.trim().slice(0, 1000), mensajeId })
+                }
+                className="message-action"
+                aria-label="Preguntar sobre esta respuesta"
+              >
+                <MessageSquareQuote size={14} />
+                <span>Preguntar</span>
+              </button>
+            ) : null}
+
             {onRegenerar ? (
               <button
                 type="button"
@@ -348,6 +473,43 @@ export default function MessageBubble({
           font-size: 14px;
           line-height: 1.72;
           box-sizing: border-box;
+          /* El chip flotante se ubica contra la burbuja, no contra la ventana. */
+          position: relative;
+        }
+
+        /*
+          El menú de "Preguntar sobre esto".
+
+          Va POR ENCIMA de la selección y centrado en ella, como el de cualquier
+          lector: abajo lo taparía el menú nativo del teléfono, que aparece
+          exactamente ahí.
+
+          Sin selección propia, para que apretarlo no se sume a la selección
+          que justamente estamos por citar.
+        */
+        .message-quote-chip {
+          position: absolute;
+          z-index: 5;
+          transform: translate(-50%, -118%);
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 11px;
+          border: 1px solid var(--linea-azul);
+          border-radius: 999px;
+          background: var(--panel);
+          color: var(--blue);
+          font-family: inherit;
+          font-size: 11px;
+          font-weight: 850;
+          white-space: nowrap;
+          cursor: pointer;
+          user-select: none;
+          box-shadow: 0 6px 18px var(--sombra);
+        }
+
+        .message-quote-chip:hover {
+          background: var(--blue-light);
         }
 
         .message-user {

@@ -448,6 +448,23 @@ function Ventas({
     [productos],
   );
 
+  /*
+   * Lo anulado sale de la lista, no se tacha.
+   *
+   * Ver el comentario en la tarjeta de ventas: se esconde en vez de borrarse
+   * porque una venta anulada sigue siendo parte del registro contable, pero
+   * dejarla ocupando un renglón tachado obliga a leer dos veces cada línea
+   * para saber cuál cuenta.
+   */
+  const [verAnuladas, setVerAnuladas] = useState(false);
+
+  const anuladas = useMemo(() => ventas.filter((v) => v.estado === "anulada"), [ventas]);
+
+  const ventasVisibles = useMemo(
+    () => (verAnuladas ? ventas : ventas.filter((v) => v.estado !== "anulada")),
+    [ventas, verAnuladas],
+  );
+
   // La moneda sale de los productos que están EN esta venta, no del primero
   // del catálogo. Ver `lib/erp/moneda-documento` y el trigger de la v93.
   const monedaDocumento = useMemo(
@@ -786,19 +803,52 @@ function Ventas({
       )}
 
       <div className="card">
-        <div className="card-title">Últimas ventas</div>
+        <div className="card-title">
+          Últimas ventas
+          {/*
+            Lo anulado NO se queda en la lista.
 
-        {ventas.length === 0 ? (
-          <p className="empty-note">Todavía no cargaste ninguna venta.</p>
+            Antes se mostraba tachado, y el pedido fue explícito: cuando alguien
+            elimina algo tiene que desaparecer de la pantalla, no quedar con una
+            raya encima. Una lista donde lo borrado sigue ocupando lugar obliga
+            a leer dos veces cada renglón para saber cuál cuenta.
+
+            Pero no se borra del registro: una venta anulada es parte de la
+            contabilidad y de lo que después mira un contador. Por eso se
+            esconde y se puede volver a mirar en un clic, en vez de tacharse.
+          */}
+          {anuladas.length > 0 && (
+            <button
+              type="button"
+              className="chip"
+              style={{ marginLeft: 8 }}
+              onClick={() => setVerAnuladas((v) => !v)}
+            >
+              {verAnuladas
+                ? "Ocultar anuladas"
+                : `Ver ${anuladas.length} ${anuladas.length === 1 ? "anulada" : "anuladas"}`}
+            </button>
+          )}
+        </div>
+
+        {ventasVisibles.length === 0 ? (
+          <p className="empty-note">
+            {ventas.length === 0
+              ? "Todavía no cargaste ninguna venta."
+              : "Todas tus ventas de este período están anuladas."}
+          </p>
         ) : (
           <div className="neg-lista">
-            {ventas.map((v) => {
+            {ventasVisibles.map((v) => {
               /*
                * Una venta anulada tiene que VERSE anulada. Ver el comentario
                * largo en `negocio/Compras.tsx`: es el mismo error, reportado
                * por una clienta usando EOS de verdad. Anular borra el
                * movimiento, así que la fila volvía a ofrecer "Cobrar" y
                * "Anular" y parecía que el botón no había hecho nada.
+               *
+               * Acá solo se ve cuando la persona pidió ver las anuladas: en la
+               * lista normal ya no aparecen.
                */
               const anulada = v.estado === "anulada";
 

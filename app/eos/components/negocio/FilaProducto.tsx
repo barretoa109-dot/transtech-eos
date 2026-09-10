@@ -189,6 +189,21 @@ function Editar({
   );
   const [iva, setIva] = useState<0 | 5 | 10>(producto.iva);
   const [minimo, setMinimo] = useState(String(producto.stock_minimo ?? 0));
+
+  /*
+   * Todo lo que la ruta acepta, editable.
+   *
+   * El formulario tenía cinco campos de los once que
+   * `PATCH /api/erp/productos/[id]` sabe escribir. Los que faltaban —código,
+   * unidad, descripción y si lleva inventario— no son campos avanzados: son
+   * los que hacen que el catálogo sea el de ESTE negocio. Sin ellos, un
+   * producto cargado mal se arreglaba borrándolo y creándolo de nuevo, y con
+   * eso se perdía su historial de ventas.
+   */
+  const [codigo, setCodigo] = useState(producto.codigo ?? "");
+  const [unidad, setUnidad] = useState(producto.unidad ?? "unidad");
+  const [descripcion, setDescripcion] = useState(producto.descripcion ?? "");
+  const [controlaStock, setControlaStock] = useState(producto.controla_stock);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -225,7 +240,13 @@ function Editar({
           // un costo en cero mostraría 100% de margen, que es falso.
           costo: costo.trim() === "" ? null : Number(costo),
           iva,
-          ...(producto.controla_stock ? { stock_minimo: Number(minimo) || 0 } : {}),
+          codigo: codigo.trim(),
+          unidad: unidad.trim() || "unidad",
+          descripcion: descripcion.trim(),
+          controla_stock: controlaStock,
+          // El mínimo se manda también cuando el inventario se ACABA de
+          // prender: si no, quedaría el valor viejo, que puede ser cualquiera.
+          ...(controlaStock ? { stock_minimo: Number(minimo) || 0 } : {}),
         }),
       });
 
@@ -282,7 +303,7 @@ function Editar({
           <option value={0}>Exenta</option>
         </select>
 
-        {producto.controla_stock && (
+        {controlaStock && (
           <input
             className="neg-input neg-cantidad"
             type="number"
@@ -293,6 +314,51 @@ function Editar({
             onChange={(e) => setMinimo(e.target.value)}
           />
         )}
+
+        <input
+          className="neg-input neg-cantidad"
+          value={codigo}
+          maxLength={60}
+          placeholder="Código"
+          title="Cómo lo llamás vos, o cómo viene en la factura del proveedor"
+          onChange={(e) => setCodigo(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          value={unidad}
+          maxLength={20}
+          placeholder="Unidad"
+          title="Unidad, kilo, litro, hora, metro…"
+          onChange={(e) => setUnidad(e.target.value)}
+        />
+
+        <input
+          className="neg-input"
+          value={descripcion}
+          maxLength={500}
+          placeholder="Descripción (opcional)"
+          onChange={(e) => setDescripcion(e.target.value)}
+        />
+
+        {/*
+          Llevar inventario o no.
+
+          Es lo que faltaba para poder arreglar un producto que entró por una
+          venta —esos nacen sin control de stock, porque nadie dijo cuántos
+          hay— sin borrarlo y volver a cargarlo perdiendo su historial.
+        */}
+        <label
+          className="fila-editor-check"
+          title="Si lo prendés, EOS descuenta el stock en cada venta"
+        >
+          <input
+            type="checkbox"
+            checked={controlaStock}
+            onChange={(e) => setControlaStock(e.target.checked)}
+          />
+          Llevar inventario
+        </label>
       </div>
 
       {/*
@@ -322,7 +388,7 @@ function Editar({
         corregir "12 que en realidad son 9" abre este formulario, no lo
         encuentra y concluye que el sistema no lo deja.
       */}
-      {producto.controla_stock && (
+      {controlaStock && (
         <p className="fila-editor-nota">
           Las existencias se cambian con <strong>Ajustar</strong>, que deja el motivo anotado.
         </p>

@@ -1,4 +1,5 @@
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
+import type { Cita } from "@/lib/eos/cita";
 
 type EnviarEOSParams = {
   usuarioId: string;
@@ -9,6 +10,7 @@ type EnviarEOSParams = {
   historial: Mensaje[];
   nuevoChat: boolean;
   archivos?: ArchivoAdjunto[];
+  cita?: Cita | null;
 };
 
 export type RespuestaEOS = {
@@ -91,6 +93,15 @@ export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<Respue
        */
       archivo:(params.archivos??[])[0]??null,
       archivos:params.archivos??[],
+      /*
+       * La cita, aparte del texto.
+       *
+       * El fragmento también va adentro de `mensaje` —con "> " adelante— para
+       * que quede guardado en la conversación. Este campo es el que le dice al
+       * modelo que ese pedazo es SUYO: pegado nada más, lo lee como algo que
+       * escribió la persona y vuelve a calcularlo en vez de explicarlo.
+       */
+      cita:params.cita?.texto ? {texto:params.cita.texto, mensaje_id:params.cita.mensajeId||""} : null,
       origen:"eos-web"
     })
   });

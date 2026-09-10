@@ -1,68 +1,95 @@
-const ACCIONES_NEGOCIO_CON_APROBACION = new Set([
-  "REGISTRAR_VENTA",
-  "AJUSTAR_STOCK",
-  "CREAR_CONTACTO",
-]);
+import {
+  ACCIONES_DURABLES,
+  huboEfecto,
+  type VerificacionDeAccion,
+} from "./verificacion.ts";
 
 type AccionEOS = { tipo?: unknown };
 
-export function requiereAprobacion(acciones: AccionEOS[]): boolean {
+/**
+ * ¿El modelo pidió algo que deja un efecto durable?
+ *
+ * Antes esto se llamaba `requiereAprobacion` y miraba una lista escrita a mano
+ * con tres acciones —venta, stock, contacto— cuando ya había doce. Nueve
+ * quedaban sin verificar: una compra, un pago de deuda, una corrección podían
+ * fallar sin que nadie lo dijera.
+ *
+ * Y el nombre mentía desde el 3 de septiembre: estas acciones ya NO requieren
+ * aprobación, se ejecutan solas. Lo que sí requieren es que alguien compruebe
+ * qué pasó con ellas. Ver `lib/eos/verificacion.ts`.
+ */
+export function dejaEfectoDurable(acciones: AccionEOS[]): boolean {
   return acciones.some((accion) =>
-    ACCIONES_NEGOCIO_CON_APROBACION.has(String(accion?.tipo || "").trim().toUpperCase()),
+    ACCIONES_DURABLES.has(String(accion?.tipo || "").trim().toUpperCase()),
   );
 }
 
 /**
- * Lo que se le dice cuando la operación NO llegó a quedar pendiente.
+ * Lo que se le dice cuando NADIE reportó qué pasó con la operación.
  *
  * Es el caso que encontró una clienta: el chat le mostraba "Operación lista
  * para registrar" con su botón, apretaba, y la pantalla de aprobaciones decía
  * "No tenés aprobaciones pendientes". Nada se guardaba, y no había forma de
  * darse cuenta de por qué.
+ *
+ * OJO CON ESTE TEXTO: durante seis días se mostró sobre ventas que SÍ se
+ * habían registrado, porque se disparaba con la sola ausencia de una
+ * aprobación pendiente —que dejó de existir cuando estas acciones pasaron a
+ * ejecutarse solas—. Ahora sale únicamente cuando el worker no informó nada
+ * sobre esa acción: ni que la hizo, ni que ya estaba, ni que falló.
  */
 export const AVISO_SIN_APROBACION =
-  "⚠️ **No llegué a dejarlo listo.** Entendí lo que querés registrar, pero la " +
-  "operación no quedó pendiente de aprobación, así que **no se guardó nada**. " +
-  "Cargalo desde la sección Negocio y ahí sí queda.\n\nEsto es lo que había entendido:";
+  "⚠️ **No llegué a dejarlo listo.** Entendí lo que querés registrar, pero el " +
+  "sistema no me confirmó que se haya ejecutado, así que **no puedo darlo por " +
+  "guardado**. Revisalo en la sección Negocio antes de volver a cargarlo.\n\n" +
+  "Esto es lo que había entendido:";
+
+/** El pie que lleva a completar lo que sí quedó esperando aprobación. */
+export function enlaceDeAprobacion(origen: string): string {
+  return `Para completar el registro, revisá y aprobá la operación pendiente en ${origen}/eos/autonomy`;
+}
 
 /**
- * El enlace a aprobaciones, SOLO si la aprobación existe de verdad.
+ * El aviso que corresponde a lo que REALMENTE pasó.
  *
  * ============================================================
- * POR QUÉ HAY QUE COMPROBARLO Y NO ALCANZA CON DEDUCIRLO
+ * TRES SITUACIONES, TRES TEXTOS, Y NINGUNO SE DEDUCE
  * ============================================================
  *
- * La versión anterior agregaba el enlace cuando el modelo devolvía una acción
- * de negocio. Parecía razonable: si pidió registrar una venta, alguien va a
- * tener que aprobarla.
+ *   · Algo se ejecutó (o ya estaba hecho) → no se agrega nada. El worker ya
+ *     escribió su propia frase —"La venta quedó registrada"— y agregarle una
+ *     advertencia encima haría que la persona lea dos finales contradictorios
+ *     para la misma acción y le crea al peor.
  *
- * Pero el modelo pedir una acción y que la acción quede registrada como
- * pendiente son dos cosas distintas, y entre ellas hay un sistema entero —el
- * Worker Gate, que vive en n8n— que puede no haber hecho su parte. Cuando eso
- * pasa, el enlace lleva a una pantalla vacía y el usuario se queda esperando
- * algo que nunca va a llegar.
+ *   · Quedó esperando aprobación → el enlace a /eos/autonomy.
  *
- * Así que ahora quien llama consulta la base y pasa el resultado. Si hay
- * aprobación, se muestra el camino; si no la hay, se dice que no se guardó
- * nada. La diferencia entre las dos frases es la diferencia entre un producto
- * en el que se puede confiar y uno en el que no.
+ *   · Nadie informó nada → el aviso de arriba, que ahora sí es cierto.
+ *
+ * Un fallo NO agrega nada acá: el motivo real ya viene adentro de la respuesta
+ * —el nodo 08 de n8n y `lib/gateway/resultados.ts` lo pegan al final— y ese
+ * motivo dice qué hacer, que es más de lo que diría este aviso genérico.
  */
-export function agregarAccesoAprobacion(
+export function avisoDeVerificacion(
   respuesta: string,
-  acciones: AccionEOS[],
+  verificaciones: VerificacionDeAccion[],
   origen: string,
-  hayAprobacionPendiente: boolean,
 ): string {
-  if (!requiereAprobacion(acciones)) return respuesta;
-  if (respuesta.includes(AVISO_SIN_APROBACION)) return respuesta;
+  if (verificaciones.length === 0) return respuesta;
+  if (huboEfecto(verificaciones)) return respuesta;
 
-  if (!hayAprobacionPendiente) {
-    return `${AVISO_SIN_APROBACION}\n\n${respuesta}`;
+  const pendientes = verificaciones.filter((v) => v.estado === "pendiente_aprobacion");
+
+  if (pendientes.length > 0) {
+    if (respuesta.includes("/eos/autonomy")) return respuesta;
+    return `${respuesta}\n\n${enlaceDeAprobacion(origen)}`;
   }
 
-  if (respuesta.includes("/eos/autonomy")) return respuesta;
+  const mudas = verificaciones.filter((v) => v.estado === "sin_evidencia");
 
-  return `${respuesta}\n\nPara completar el registro, revisá y aprobá la operación pendiente en ${origen}/eos/autonomy`;
+  if (mudas.length === 0) return respuesta;
+  if (respuesta.includes(AVISO_SIN_APROBACION)) return respuesta;
+
+  return `${AVISO_SIN_APROBACION}\n\n${respuesta}`;
 }
 
 /**
@@ -168,9 +195,9 @@ const AFIRMA_HABERLO_HECHO = new RegExp(
 
 export const AVISO_NO_REGISTRADO =
   "⚠️ **No lo registré.** Te lo dije como si estuviera hecho y no lo estaba — " +
-  "perdón. Desde el chat, EOS solo puede registrar ventas, ajustar stock y crear " +
-  "contactos, y siempre con tu aprobación. Todo lo demás se carga desde la sección " +
-  "Negocio y ahí sí queda guardado.\n\nEsto es lo que te había contestado:";
+  "perdón. No hay ninguna operación asociada a este mensaje, así que no quedó " +
+  "nada guardado. Volvé a pedírmelo con el dato completo, o cargalo desde la " +
+  "sección correspondiente.\n\nEsto es lo que te había contestado:";
 
 /**
  * Antepone la corrección cuando la afirmación es falsa con certeza.
@@ -190,4 +217,39 @@ export function corregirAfirmacionSinAccion(
   if (respuesta.includes(AVISO_NO_REGISTRADO)) return respuesta;
 
   return `${AVISO_NO_REGISTRADO}\n\n${respuesta}`;
+}
+
+export const AVISO_INTENTADO_Y_FALLIDO =
+  "⚠️ **No quedó guardado.** Lo escribí como si estuviera hecho, y el sistema " +
+  "no pudo completarlo. El motivo está abajo.\n\nEsto es lo que te había contestado:";
+
+/**
+ * La otra mitad: el modelo SÍ pidió la acción, la acción falló, y el texto
+ * igual habla en pasado.
+ *
+ * `corregirAfirmacionSinAccion` solo cubre el caso de cero acciones. Este cubre
+ * el que de verdad se ve en producción: el modelo pide REGISTRAR_VENTA, el
+ * producto no se resuelve, el ejecutor devuelve 422 — y arriba de todo quedó
+ * "Listo, registré la venta de 1 conjunto verde oliva".
+ *
+ * El prompt le pide al modelo que no anuncie el resultado ("NO ANUNCIES EL
+ * RESULTADO", en `lib/gateway/sistema.ts`), pero un prompt es una súplica. Acá
+ * el servidor SABE que ninguna acción quedó escrita, y eso el modelo no lo
+ * puede falsificar.
+ *
+ * No se dispara cuando algo sí se ejecutó: en un mensaje con dos acciones
+ * donde una anduvo, "lo registré" puede referirse a la que anduvo, y corregir
+ * de más también es mentir.
+ */
+export function corregirAfirmacionFallida(
+  respuesta: string,
+  verificaciones: VerificacionDeAccion[],
+): string {
+  if (verificaciones.length === 0) return respuesta;
+  if (huboEfecto(verificaciones)) return respuesta;
+  if (!verificaciones.some((v) => v.estado === "fallida")) return respuesta;
+  if (!AFIRMA_HABERLO_HECHO.test(respuesta)) return respuesta;
+  if (respuesta.includes(AVISO_INTENTADO_Y_FALLIDO)) return respuesta;
+
+  return `${AVISO_INTENTADO_Y_FALLIDO}\n\n${respuesta}`;
 }

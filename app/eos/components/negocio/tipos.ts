@@ -21,6 +21,15 @@ export type Producto = {
   id: string;
   codigo: string | null;
   nombre: string;
+  /*
+   * Los dos que la ruta devolvía desde siempre y este tipo no nombraba.
+   *
+   * Como no estaban acá, el formulario de edición no podía mostrarlos, y
+   * corregir la unidad de un producto —"lo cargué por kilo y va por bolsa"—
+   * obligaba a borrarlo y crearlo de nuevo, perdiendo su historial de ventas.
+   */
+  descripcion?: string | null;
+  unidad?: string | null;
   precio_venta: number;
   costo?: number | null;
   moneda: string;

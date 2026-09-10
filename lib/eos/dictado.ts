@@ -149,3 +149,125 @@ export function mensajeDeErrorDeVoz(codigo: string | undefined | null): string {
       return "No pudimos usar el micrófono. Escribilo y seguimos igual.";
   }
 }
+
+/**
+ * ============================================================
+ * LA MÁQUINA DE ESTADOS, Y POR QUÉ HACÍA FALTA UNA
+ * ============================================================
+ *
+ * Lo que se reportó desde un teléfono, el 9 de septiembre de 2026: la persona
+ * aprieta el micrófono, el navegador NO tiene permiso, aparece el aviso de que
+ * falta el permiso… y el botón se queda rojo, latiendo, con "Escuchando…"
+ * abajo. No sale más de ahí: apretar de nuevo no hace nada, el chat parece
+ * estar grabando, y la única salida es recargar la página.
+ *
+ * La causa es que el estado vivía repartido en tres callbacks del reconocedor
+ * y **solo uno de ellos lo apagaba**:
+ *
+ *   · `onerror` mostraba el mensaje y NO tocaba `escuchando`.
+ *   · `onend` sí apagaba… pero `onend` no siempre llega. Con el permiso
+ *     denegado, Safari en iOS y varios Android emiten `onerror` y nunca
+ *     `onend`. Ahí `escuchando` se quedaba en `true` para siempre.
+ *   · y `alternar` sobre un reconocedor ya muerto llamaba a `stop()`, que no
+ *     hace nada y no dispara ningún evento: el segundo toque tampoco salía.
+ *
+ * La regla que arregla la clase entera de problema, y no solo este caso:
+ *
+ *   **TODO evento que no sea "se abrió el micrófono" termina en inactivo y
+ *   suelta lo que haya tomado.** No hay ningún camino que deje la interfaz
+ *   escuchando sin un micrófono abierto de verdad.
+ *
+ * Está acá y no en el hook para poder probarla sin navegador: son las tres
+ * pruebas de regresión del micrófono, y ninguna necesita un teléfono.
+ */
+export type EstadoDictado = "inactivo" | "pidiendo_permiso" | "escuchando";
+
+export type EventoDictado =
+  /** La persona apretó el botón para empezar. */
+  | { tipo: "pedir" }
+  /** El navegador avisó que el micrófono está abierto (`onstart`). */
+  | { tipo: "abrio" }
+  /** `onerror`, con el código seco del navegador. */
+  | { tipo: "error"; codigo?: string | null }
+  /** `onend`: el reconocedor terminó, por lo que sea. */
+  | { tipo: "fin" }
+  /** La persona apretó el botón para cortar. */
+  | { tipo: "cancelar" }
+  /** Pasó el tiempo y el micrófono nunca se abrió ni avisó nada. */
+  | { tipo: "vencio" };
+
+export type Transicion = {
+  estado: EstadoDictado;
+  /** Hay que abortar el reconocedor y soltar el micrófono. */
+  soltar: boolean;
+  /** Lo que se le muestra a la persona. Vacío cuando no hay nada que decir. */
+  error: string;
+};
+
+/**
+ * Cuánto se espera a que el navegador diga algo antes de darlo por colgado.
+ *
+ * Ocho segundos es holgado para un cartel de permiso que la persona todavía no
+ * respondió, y corto para no dejar el botón rojo indefinidamente si el
+ * reconocedor nunca contesta — que es lo que pasa en algunos WebView.
+ */
+export const ESPERA_MAXIMA_MS = 8_000;
+
+export const ERROR_COLGADO =
+  "No pudimos abrir el micrófono. Escribilo y seguimos igual.";
+
+export function siguienteEstado(
+  estado: EstadoDictado,
+  evento: EventoDictado,
+): Transicion {
+  switch (evento.tipo) {
+    case "pedir":
+      // Apretar mientras ya está escuchando es la forma de cortar, y quien
+      // llama lo resuelve mandando `cancelar`. Acá, pedir dos veces no
+      // arranca dos reconocedores.
+      return estado === "inactivo"
+        ? { estado: "pidiendo_permiso", soltar: false, error: "" }
+        : { estado, soltar: false, error: "" };
+
+    case "abrio":
+      return { estado: "escuchando", soltar: false, error: "" };
+
+    case "error":
+      // El único camino que muestra un mensaje, y también apaga. Antes solo
+      // mostraba.
+      return {
+        estado: "inactivo",
+        soltar: true,
+        error: mensajeDeErrorDeVoz(evento.codigo),
+      };
+
+    case "vencio":
+      return { estado: "inactivo", soltar: true, error: ERROR_COLGADO };
+
+    case "cancelar":
+    case "fin":
+      // Cortar a propósito no es un error y no lleva mensaje.
+      return { estado: "inactivo", soltar: true, error: "" };
+  }
+}
+
+/** ¿Este estado tiene que verse como "estamos grabando"? */
+export function estaEscuchando(estado: EstadoDictado): boolean {
+  return estado === "escuchando";
+}
+
+/**
+ * ¿Se puede escribir?
+ *
+ * Siempre. Está escrito como función y con su prueba porque es la regla que el
+ * bug rompía en la práctica: con el botón trabado en rojo, la persona creía
+ * que el chat estaba tomado y no volvía a escribir hasta recargar. Ningún
+ * estado del dictado puede bloquear el teclado.
+ */
+export function puedeEscribir(estado: EstadoDictado): boolean {
+  // El `void` no es adorno: la firma toma el estado a propósito, para que
+  // quien lea la llamada vea que la pregunta se hizo y la respuesta es "sí"
+  // en los tres. Una función sin argumentos no diría eso.
+  void estado;
+  return true;
+}

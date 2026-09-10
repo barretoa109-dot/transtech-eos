@@ -79,6 +79,29 @@ venga al caso, sin anunciar que lo recordás y sin repetírselo a la
 persona que te lo contó.`;
 }
 
+/**
+ * El fragmento sobre el que la persona está preguntando.
+ *
+ * Se dice explícitamente de quién es. Sin esa línea, el modelo ve un texto
+ * arriba de la pregunta y lo trata como un dato que le pasaron: vuelve a
+ * calcular el margen en vez de explicar de dónde salió el que él mismo
+ * escribió, que es justo lo que le están preguntando.
+ */
+export function bloqueDeCita(cita: string): string {
+  const limpio = cita.trim();
+  if (!limpio) return "";
+
+  return `
+
+La persona está preguntando sobre ESTE PEDAZO de una respuesta tuya
+anterior:
+"""
+${limpio}
+"""
+Contestá sobre eso. Si el número o la afirmación salieron de una cuenta,
+explicá la cuenta; no la rehagas con otros datos.`;
+}
+
 export function armarPrompt(e: Entrada): Prompt {
   const tieneImagen = e.tiene_archivo && e.archivo_categoria === "imagen" && e.imagen_data_url !== "";
 
@@ -88,7 +111,7 @@ Plan: ${e.plan || "free"}
 Origen: ${e.origen || "eos-web"}${bloqueDeNegocio(e.contexto_negocio)}
 
 Conversación reciente:
-${historialComoTexto(e.historial)}
+${historialComoTexto(e.historial)}${bloqueDeCita(e.cita)}
 
 Mensaje actual:
 ${e.mensaje}

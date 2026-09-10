@@ -6,6 +6,7 @@ import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import { debeEnviarConEnter } from "@/lib/eos/composer";
 import { fusionarDictado } from "@/lib/eos/dictado";
+import type { Cita } from "@/lib/eos/cita";
 import { useDictado, type Dictado } from "./useDictado";
 
 type PromptCard = {
@@ -81,6 +82,9 @@ type ChatViewProps = {
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
   onRegenerar?: () => void;
+  /** El pedazo de una respuesta de EOS sobre el que se está preguntando. */
+  cita: Cita | null;
+  onCitaChange: (cita: Cita | null) => void;
 };
 
 export default function ChatView({
@@ -97,6 +101,8 @@ export default function ChatView({
   obtenerEtiquetaArchivo,
   formatearTamanio,
   onRegenerar,
+  cita,
+  onCitaChange,
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
@@ -203,6 +209,8 @@ export default function ChatView({
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
               dictado={dictado}
+              cita={cita}
+              onQuitarCita={() => onCitaChange(null)}
             />
           </div>
         </div>
@@ -231,8 +239,10 @@ export default function ChatView({
                     rol={m.rol}
                     texto={m.texto}
                     nombre={nombre}
+                    mensajeId={m.id ?? String(i)}
                     onRegenerar={esUltimaDeEOS ? onRegenerar : undefined}
                     regenerando={esUltimaDeEOS && cargando}
+                    onPreguntarSobre={onCitaChange}
                   />
                 </div>
               );
@@ -270,6 +280,8 @@ export default function ChatView({
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
               dictado={dictado}
+              cita={cita}
+              onQuitarCita={() => onCitaChange(null)}
             />
           </div>
         </div>
@@ -296,6 +308,8 @@ type ComposerProps = {
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
   dictado: Dictado;
+  cita: Cita | null;
+  onQuitarCita: () => void;
 };
 
 function Composer({
@@ -313,6 +327,8 @@ function Composer({
   obtenerEtiquetaArchivo,
   formatearTamanio,
   dictado,
+  cita,
+  onQuitarCita,
 }: ComposerProps) {
   const listo = mensaje.trim().length > 0 || archivosAdjuntos.length > 0;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -337,6 +353,22 @@ function Composer({
         `aria-label`. Diez botones que dicen todos "Quitar" no le sirven a
         nadie que navegue con lector de pantalla.
       */}
+      {/*
+        El pedazo sobre el que se está preguntando, arriba del campo.
+
+        Va ACÁ y no adentro del textarea a propósito: adentro, la persona lo
+        podría editar sin querer y estaría preguntando sobre una frase que EOS
+        nunca dijo. Afuera es una cita, con su "quitar", igual que un adjunto.
+      */}
+      {cita?.texto && (
+        <div className="cita-preview">
+          <span className="cita-preview-texto">{cita.texto}</span>
+          <button type="button" onClick={onQuitarCita} aria-label="Quitar la cita">
+            ×
+          </button>
+        </div>
+      )}
+
       {archivosAdjuntos.length > 0 && (
         <div className={`file-preview-lista ${archivosAdjuntos.length > 3 ? "apretada" : ""}`}>
           {archivosAdjuntos.map((archivo, indice) => (
@@ -387,11 +419,21 @@ function Composer({
         {dictado.soportado && (
           <button
             type="button"
-            className={`icon-btn ${dictado.escuchando ? "escuchando" : ""}`}
+            /*
+              Rojo latiendo SOLO con el micrófono abierto de verdad. Mientras
+              se está pidiendo el permiso va en otro estado: el botón rojo
+              sobre un permiso denegado es exactamente lo que hacía creer que
+              EOS estaba grabando cuando no estaba pasando nada.
+            */
+            className={`icon-btn ${dictado.escuchando ? "escuchando" : ""} ${
+              dictado.estado === "pidiendo_permiso" ? "pidiendo" : ""
+            }`}
             onClick={dictado.alternar}
-            aria-label={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
-            aria-pressed={dictado.escuchando}
-            title={dictado.escuchando ? "Dejar de dictar" : "Dictar el mensaje"}
+            aria-label={
+              dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"
+            }
+            aria-pressed={dictado.estado !== "inactivo"}
+            title={dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"}
           >
             <Mic size={18} />
           </button>
@@ -416,12 +458,25 @@ function Composer({
         necesita saberlo mientras habla.
       */}
       <div className="composer-dictado" aria-live="polite">
+        {dictado.estado === "pidiendo_permiso" && (
+          <span className="dictado-estado">Pidiendo permiso al navegador…</span>
+        )}
         {dictado.escuchando && (
           <span className="dictado-estado">
             {dictado.provisorio ? dictado.provisorio : "Escuchando…"}
           </span>
         )}
-        {dictado.error && <span className="dictado-error" role="alert">{dictado.error}</span>}
+        {dictado.error && (
+          <span className="dictado-error" role="alert">
+            {/*
+              El error dice además que se puede seguir escribiendo. No es
+              relleno: lo que reportaron desde el teléfono no fue "no anda el
+              micrófono", fue "se me trabó el chat". Con el botón en rojo, la
+              persona no volvía a tocar el campo.
+            */}
+            {dictado.error} Podés seguir escribiendo normalmente.
+          </span>
+        )}
       </div>
 
       <div className="composer-help">

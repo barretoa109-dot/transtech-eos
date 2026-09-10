@@ -1,26 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { agregarAccesoAprobacion, corregirAfirmacionSinAccion } from "./acciones-chat.ts";
+import {
+  avisoDeVerificacion,
+  corregirAfirmacionFallida,
+  corregirAfirmacionSinAccion,
+  dejaEfectoDurable,
+} from "./acciones-chat.ts";
+import { leerEvidencia, verificarAcciones } from "./verificacion.ts";
 
-test("las acciones de negocio muestran cómo completar el registro", () => {
-  const respuesta = agregarAccesoAprobacion(
-    "Dejé la venta lista para confirmar.",
-    [{ tipo: "REGISTRAR_VENTA" }],
-    "https://transtech.com.py",
-    true,
+const ORIGEN = "https://transtech.com.py";
+
+/** Lo mismo que hace `app/api/eos/route.ts`, en una línea. */
+function comoLaRuta(
+  respuesta: string,
+  acciones: { tipo?: unknown }[],
+  worker: unknown,
+  hayAprobacionPendiente = false,
+) {
+  const verificaciones = verificarAcciones(
+    acciones,
+    leerEvidencia(worker),
+    hayAprobacionPendiente,
   );
 
-  assert.match(respuesta, /aprobá la operación pendiente/i);
-  assert.match(respuesta, /https:\/\/transtech\.com\.py\/eos\/autonomy/);
-});
-
-test("una respuesta informativa no agrega una aprobación", () => {
-  assert.equal(
-    agregarAccesoAprobacion("Este es tu resumen.", [], "https://transtech.com.py", false),
-    "Este es tu resumen.",
+  return avisoDeVerificacion(
+    corregirAfirmacionFallida(respuesta, verificaciones),
+    verificaciones,
+    ORIGEN,
   );
-});
+}
 
 // ============================================================
 // Que EOS no diga que hizo algo que no hizo
@@ -107,43 +116,130 @@ test("la corrección va ADELANTE, para que se lea antes que la afirmación falsa
 });
 
 // ============================================================
-// Y que no prometa una aprobación que no existe
+// La venta que SÍ entró y EOS dijo que no
 // ============================================================
 //
-// Lo encontró una clienta: el chat le mostraba "Operación lista para
-// registrar" con su botón, apretaba, y la pantalla de aprobaciones decía "No
-// tenés aprobaciones pendientes". La última aprobación que el sistema había
-// creado era de once días antes.
+// El caso real del 9 de septiembre de 2026. Una usuaria escribió "vendí un
+// conjunto verde oliva talle S a 185.000gs". El worker registró la venta y la
+// respuesta salió encabezada por "⚠️ No llegué a dejarlo listo… no se guardó
+// nada. Cargalo desde la sección Negocio", porque la ruta deducía el resultado
+// de que no hubiera una aprobación pendiente — y desde el 3 de septiembre una
+// venta que sale bien no deja ninguna.
 
-test("sin aprobación real, dice que NO se guardó nada", () => {
-  const respuesta = agregarAccesoAprobacion(
-    "Dejo lista para confirmar la venta de 1 jean blanco a Caro por Gs. 145.000.",
+test("una venta ejecutada NO se anuncia como perdida", () => {
+  const respuesta = comoLaRuta(
+    "Registro la venta de 1 conjunto verde oliva por ₲ 185.000.\n\nLa venta quedó registrada. La ves en Negocio > Ventas.",
     [{ tipo: "REGISTRAR_VENTA" }],
-    "https://transtech.com.py",
-    false,
+    { ok: true, acciones_ejecutadas: ["REGISTRAR_VENTA"], acciones_idempotentes: [], errores: [] },
+  );
+
+  assert.ok(!respuesta.includes("No llegué a dejarlo listo"), "dijo que no se guardó una venta que sí entró");
+  assert.ok(!respuesta.includes("no se guardó nada"));
+  assert.match(respuesta, /quedó registrada/);
+});
+
+test("un reintento reconocido tampoco se anuncia como perdido", () => {
+  const respuesta = comoLaRuta(
+    "Registro la venta.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    { ok: true, acciones_ejecutadas: [], acciones_idempotentes: ["REGISTRAR_VENTA"], errores: [] },
+  );
+
+  assert.ok(!respuesta.includes("No llegué a dejarlo listo"));
+});
+
+test("si el worker informó un fallo, no se agrega el aviso genérico encima del motivo", () => {
+  const motivo =
+    'No encontré "conjunto verde oliva talle S" entre tus productos, o hay más de uno que se llama parecido.';
+
+  const respuesta = comoLaRuta(
+    `Registro la venta de 1 conjunto verde oliva por ₲ 185.000.\n\n${motivo}`,
+    [{ tipo: "REGISTRAR_VENTA" }],
+    {
+      ok: false,
+      acciones_ejecutadas: [],
+      acciones_idempotentes: [],
+      errores: [{ accion: "REGISTRAR_VENTA", error: motivo }],
+    },
+  );
+
+  assert.ok(!respuesta.includes("No llegué a dejarlo listo"), "tapó el motivo con un aviso genérico");
+  assert.ok(respuesta.includes(motivo), "perdió el único dato accionable");
+});
+
+test("si falló y el texto igual habla en pasado, se corrige", () => {
+  const respuesta = comoLaRuta(
+    "Listo, ya registré la venta del conjunto verde oliva.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    {
+      ok: false,
+      acciones_ejecutadas: [],
+      acciones_idempotentes: [],
+      errores: [{ accion: "REGISTRAR_VENTA", error: "No encontré el producto." }],
+    },
+  );
+
+  assert.ok(respuesta.startsWith("⚠️ **No quedó guardado.**"));
+  assert.ok(respuesta.indexOf("No quedó guardado") < respuesta.indexOf("ya registré"));
+});
+
+test("con dos acciones y una que anduvo, no se corrige el pasado: puede referirse a esa", () => {
+  const respuesta = comoLaRuta(
+    "Listo, ya cargué el producto y registré la venta.",
+    [{ tipo: "CREAR_PRODUCTO" }, { tipo: "REGISTRAR_VENTA" }],
+    {
+      ok: false,
+      acciones_ejecutadas: ["CREAR_PRODUCTO"],
+      acciones_idempotentes: [],
+      errores: [{ accion: "REGISTRAR_VENTA", error: "Sin stock." }],
+    },
+  );
+
+  assert.ok(!respuesta.includes("No quedó guardado"));
+  assert.ok(!respuesta.includes("No llegué a dejarlo listo"));
+});
+
+// ============================================================
+// Y el caso en el que el aviso SÍ corresponde
+// ============================================================
+//
+// Lo encontró una clienta antes: el chat mostraba "Operación lista para
+// registrar" con su botón, apretaba, y la pantalla de aprobaciones decía "No
+// tenés aprobaciones pendientes". La última aprobación era de once días antes.
+
+test("sin ninguna noticia del worker, dice que no lo puede dar por guardado", () => {
+  const respuesta = comoLaRuta(
+    "Dejo lista para confirmar la venta de 1 jean blanco a Caro por ₲ 145.000.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    undefined,
   );
 
   assert.ok(respuesta.startsWith("⚠️ **No llegué a dejarlo listo.**"));
-  assert.match(respuesta, /no se guardó nada/i);
+  assert.match(respuesta, /no puedo darlo por guardado/i);
   assert.ok(!respuesta.includes("/eos/autonomy"), "mandó a una pantalla vacía");
 });
 
-test("y le dice dónde cargarlo para que quede de verdad", () => {
-  const respuesta = agregarAccesoAprobacion(
-    "Listo para confirmar.",
-    [{ tipo: "AJUSTAR_STOCK" }],
-    "https://transtech.com.py",
-    false,
+test("el worker que contesta vacío tampoco alcanza para dar algo por hecho", () => {
+  const respuesta = comoLaRuta(
+    "Dejo lista la venta.",
+    [{ tipo: "REGISTRAR_VENTA" }],
+    { ok: true, acciones_ejecutadas: [], acciones_idempotentes: [], errores: [] },
   );
 
-  assert.match(respuesta, /secci[óo]n Negocio/i);
+  assert.ok(respuesta.startsWith("⚠️ **No llegué a dejarlo listo.**"));
 });
 
-test("con aprobación real, sí manda al camino que la completa", () => {
-  const respuesta = agregarAccesoAprobacion(
+test("el aviso va adelante: la promesa falsa no se lee primero", () => {
+  const respuesta = comoLaRuta("Dejo lista la venta.", [{ tipo: "REGISTRAR_VENTA" }], undefined);
+
+  assert.ok(respuesta.indexOf("No llegué") < respuesta.indexOf("Dejo lista"));
+});
+
+test("con aprobación pendiente de verdad, manda al camino que la completa", () => {
+  const respuesta = comoLaRuta(
     "Listo para confirmar.",
     [{ tipo: "CREAR_CONTACTO" }],
-    "https://transtech.com.py",
+    undefined,
     true,
   );
 
@@ -151,22 +247,65 @@ test("con aprobación real, sí manda al camino que la completa", () => {
   assert.ok(!respuesta.includes("No llegué a dejarlo listo"));
 });
 
-test("el aviso va adelante: la promesa falsa no se lee primero", () => {
-  const respuesta = agregarAccesoAprobacion(
-    "Dejo lista la venta.",
-    [{ tipo: "REGISTRAR_VENTA" }],
-    "https://transtech.com.py",
-    false,
-  );
-
-  assert.ok(respuesta.indexOf("No llegué") < respuesta.indexOf("Dejo lista"));
-});
-
-test("una acción que no es de negocio no toca la respuesta", () => {
+test("una acción sin efecto durable no toca la respuesta", () => {
   const respuesta = "Te armé el resumen.";
 
-  assert.equal(
-    agregarAccesoAprobacion(respuesta, [{ tipo: "RESPONDER" }], "https://x.py", false),
-    respuesta,
+  assert.equal(comoLaRuta(respuesta, [{ tipo: "RESPONDER" }], undefined), respuesta);
+  assert.equal(comoLaRuta(respuesta, [{ tipo: "VER_DASHBOARD" }], undefined), respuesta);
+});
+
+test("una respuesta informativa sin acciones no agrega nada", () => {
+  assert.equal(comoLaRuta("Este es tu resumen.", [], undefined), "Este es tu resumen.");
+});
+
+test("no avisa dos veces sobre la misma respuesta", () => {
+  const una = comoLaRuta("Dejo lista la venta.", [{ tipo: "REGISTRAR_VENTA" }], undefined);
+  const dos = avisoDeVerificacion(
+    una,
+    verificarAcciones([{ tipo: "REGISTRAR_VENTA" }], leerEvidencia(undefined), false),
+    ORIGEN,
   );
+
+  assert.equal(una, dos);
+});
+
+// ============================================================
+// Las nueve acciones que nadie verificaba
+// ============================================================
+//
+// La lista escrita a mano tenía tres —venta, stock, contacto— cuando el
+// sistema ya tenía doce. Una compra, un pago de deuda o una corrección podían
+// fallar sin que la ruta se enterara.
+
+test("las acciones con efecto durable se verifican TODAS, no tres", () => {
+  const durables = [
+    "REGISTRAR_VENTA",
+    "AJUSTAR_STOCK",
+    "CREAR_CONTACTO",
+    "CREAR_PRODUCTO",
+    "ACTUALIZAR_PRODUCTO",
+    "REGISTRAR_COMPRA",
+    "REGISTRAR_GASTO_FIJO",
+    "REGISTRAR_MOVIMIENTO_PERSONAL",
+    "REGISTRAR_TRANSFERENCIA",
+    "REGISTRAR_DEUDA",
+    "REGISTRAR_PAGO_DEUDA",
+    "CORREGIR_MOVIMIENTO",
+    "CREAR_TAREA",
+    "CREAR_OBJETIVO",
+    "GUARDAR_MEMORIA",
+  ];
+
+  for (const tipo of durables) {
+    assert.ok(dejaEfectoDurable([{ tipo }]), `${tipo} no se estaba verificando`);
+
+    const respuesta = comoLaRuta("Lo dejo listo.", [{ tipo }], undefined);
+    assert.ok(respuesta.startsWith("⚠️"), `${tipo} pasó sin verificar`);
+  }
+});
+
+test("las de solo lectura no dejan efecto y no se verifican", () => {
+  for (const tipo of ["RESPONDER", "VER_DASHBOARD", "VER_BRIEFING"]) {
+    assert.ok(!dejaEfectoDurable([{ tipo }]), `${tipo} no deja nada escrito`);
+  }
 });

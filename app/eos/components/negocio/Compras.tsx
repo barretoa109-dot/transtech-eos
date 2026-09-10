@@ -63,6 +63,16 @@ export default function Compras({
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState(false);
 
+  /* Lo anulado sale de la lista. Ver el comentario en el título de la tarjeta. */
+  const [verAnuladas, setVerAnuladas] = useState(false);
+
+  const anuladas = useMemo(() => compras.filter((c) => c.estado === "anulada"), [compras]);
+
+  const comprasVisibles = useMemo(
+    () => (verAnuladas ? compras : compras.filter((c) => c.estado !== "anulada")),
+    [compras, verAnuladas],
+  );
+
   // Escape cierra lo que se abrió en el lugar del botón: con teclado,
   // llegar hasta "Cancelar" son varios Tab en una dirección que la
   // persona no puede prever. Ver `useEscape`.
@@ -569,17 +579,40 @@ export default function Compras({
       </div>
 
       <div className="card">
-        <div className="card-title">Últimas compras</div>
+        <div className="card-title">
+          Últimas compras
+          {/*
+            Lo anulado no se queda tachado en la lista: se esconde.
+
+            Mismo criterio que las ventas. Una compra anulada sigue siendo
+            parte del registro —por eso se puede volver a mirar— pero no tiene
+            por qué ocupar un renglón en la lista de todos los días.
+          */}
+          {anuladas.length > 0 && (
+            <button
+              type="button"
+              className="chip"
+              style={{ marginLeft: 8 }}
+              onClick={() => setVerAnuladas((v) => !v)}
+            >
+              {verAnuladas
+                ? "Ocultar anuladas"
+                : `Ver ${anuladas.length} ${anuladas.length === 1 ? "anulada" : "anuladas"}`}
+            </button>
+          )}
+        </div>
 
         {cargando ? (
           <div className="neg-loading" role="status"><span /> Cargando compras…</div>
         ) : errorCarga ? (
           <div className="neg-empty-state is-error"><AlertCircle size={25} /><strong>No pudimos cargar las compras</strong><p>{errorCarga}</p><button type="button" className="chip active" onClick={() => void cargar()}>Reintentar</button></div>
+        ) : comprasVisibles.length === 0 && compras.length > 0 ? (
+          <p className="empty-note">Todas tus compras de este período están anuladas.</p>
         ) : compras.length === 0 ? (
           <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p><button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button></div>
         ) : (
           <div className="neg-lista">
-            {compras.map((c) => {
+            {comprasVisibles.map((c) => {
               /*
                * Una compra anulada tiene que VERSE anulada.
                *

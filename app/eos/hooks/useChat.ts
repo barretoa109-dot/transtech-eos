@@ -10,6 +10,7 @@ import type {
 } from "../types/chat";
 
 import { enviarMensajeAEOS } from "../services/eosApi";
+import { textoConCita, type Cita } from "@/lib/eos/cita";
 import { guardarMensaje } from "../services/supabaseChat";
 
 type UseChatParams = {
@@ -44,6 +45,8 @@ type EjecutarEOSParams = {
   archivos: ArchivoAdjunto[];
   guardarUsuario: boolean;
   reemplazarUltimaRespuesta: boolean;
+  /** El pedazo de una respuesta de EOS sobre el que se está preguntando. */
+  cita: Cita | null;
 };
 
 function crearIdMensaje(prefijo: string) {
@@ -169,6 +172,15 @@ export function useChat({
   const [archivosAdjuntos, setArchivosAdjuntos] =
     useState<ArchivoAdjunto[]>([]);
 
+  /*
+   * El fragmento citado vive acá y no en el componente.
+   *
+   * Es parte de lo que se va a MANDAR, igual que los adjuntos: si viviera en
+   * ChatView habría que devolverlo hacia arriba justo en el momento del envío,
+   * que es cuando ya se limpió el campo.
+   */
+  const [cita, setCita] = useState<Cita | null>(null);
+
   const ejecutarEOS = useCallback(
     async ({
       textoUsuario,
@@ -177,6 +189,7 @@ export function useChat({
       archivos,
       guardarUsuario,
       reemplazarUltimaRespuesta,
+      cita: citaDelEnvio,
     }: EjecutarEOSParams) => {
       setCargando(true);
       setPensando(true);
@@ -205,6 +218,7 @@ export function useChat({
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
           archivos,
+          cita: citaDelEnvio,
         });
 
         const textoBase =
@@ -360,16 +374,29 @@ export function useChat({
     }
 
     const archivosActuales = archivosAdjuntos;
+    const citaActual = cita;
 
     const textoUsuario =
       textoFinal.trim() || textoPorDefecto(archivosActuales);
 
+    /*
+     * La cita se GUARDA adentro del texto del mensaje del usuario.
+     *
+     * De todo el intercambio, `mensajes.texto` es lo único que persiste: si la
+     * cita viviera sólo en el cuerpo del pedido, al recargar la conversación
+     * quedaría una pregunta suelta —"¿por qué es 32%?"— sin nada que la ubique.
+     *
+     * Al backend viaja ADEMÁS en su propio campo, que es lo que le permite al
+     * modelo saber que ese pedazo es suyo y no algo que escribió la persona.
+     */
+    const textoConLaCita = textoConCita(textoUsuario, citaActual);
+
     const textoVisibleUsuario =
       archivosActuales.length > 0
-        ? `${textoUsuario}\n\n${construirReferenciaArchivo(
+        ? `${textoConLaCita}\n\n${construirReferenciaArchivo(
             archivosActuales,
           )}`
-        : textoUsuario;
+        : textoConLaCita;
 
     const mensajeUsuario: Mensaje = {
       id: crearIdMensaje("usuario"),
@@ -394,6 +421,7 @@ export function useChat({
 
     setMensaje("");
     setArchivosAdjuntos([]);
+    setCita(null);
 
     setHistorial((actual) => [
       ...actual,
@@ -401,13 +429,16 @@ export function useChat({
     ]);
 
     await ejecutarEOS({
-      textoUsuario,
+      // El texto que se guarda y el que viaja son el mismo: la cita adentro,
+      // más el campo estructurado. Ver el comentario de arriba.
+      textoUsuario: textoConLaCita,
       conversacionActiva,
       historialParaContexto:
         historialAntesDelEnvio,
       archivos: archivosActuales,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
+      cita: citaActual,
     });
   }
 
@@ -472,6 +503,9 @@ export function useChat({
       archivos: [],
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
+      // Regenerar rehace el último mensaje tal como se mandó, y la cita ya
+      // está adentro de su texto. Mandarla otra vez la duplicaría.
+      cita: null,
     });
   }
 
@@ -484,6 +518,9 @@ export function useChat({
 
     archivosAdjuntos,
     setArchivosAdjuntos,
+
+    cita,
+    setCita,
 
     enviarMensaje,
     regenerarRespuesta,

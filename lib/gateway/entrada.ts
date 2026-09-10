@@ -37,6 +37,14 @@ export type Entrada = {
   archivo_nombre: string;
   archivo_tipo: string;
   archivo_tamanio: number;
+  /**
+   * El pedazo de una respuesta anterior de EOS sobre el que se pregunta.
+   *
+   * Vacío casi siempre. Cuando viene, el prompt lo muestra aparte y marcado
+   * como propio: pegado adentro del mensaje, el modelo lo lee como algo que
+   * escribió la persona y recalcula el número en vez de explicarlo.
+   */
+  cita: string;
   /** Data URL lista para mandar a OpenAI. Vacía si no hay imagen. */
   imagen_data_url: string;
   /**
@@ -60,6 +68,16 @@ export const TOPE_CONTEXTO = 2000;
 
 /** Solo los últimos diez turnos, igual que n8n. */
 export const TURNOS_DE_HISTORIAL = 10;
+
+/**
+ * El tope de la cita, igual que el del cliente.
+ *
+ * `lib/eos/cita.ts` ya la recorta antes de mandarla y la ruta la vuelve a
+ * recortar. Esto es la tercera puerta y existe por la misma razón que las
+ * otras dos: lo que entra al prompt no puede depender de que el pedido venga
+ * del cliente propio.
+ */
+export const TOPE_CITA = 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -157,6 +175,11 @@ export function prepararEntrada(body: Record<string, unknown>): Entrada {
     archivo_nombre: archivo?.nombre ?? "",
     archivo_tipo: archivo?.tipo ?? "",
     archivo_tamanio: archivo?.tamanio ?? 0,
+    cita: String(
+      (body.cita && typeof body.cita === "object" && !Array.isArray(body.cita)
+        ? (body.cita as Record<string, unknown>).texto
+        : "") ?? "",
+    ).slice(0, TOPE_CITA),
     imagen_data_url,
     /*
      * n8n fabrica este valor nuevo en cada pasada. Acá se prefiere la `fecha`

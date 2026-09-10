@@ -130,7 +130,7 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
   } = useConversations();
 
-  const { mensaje, setMensaje, cargando, archivosAdjuntos, setArchivosAdjuntos, enviarMensaje, regenerarRespuesta } = useChat({
+  const { mensaje, setMensaje, cargando, archivosAdjuntos, setArchivosAdjuntos, cita, setCita, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -340,6 +340,8 @@ export default function EOSPage() {
             mensaje={mensaje}
             cargando={cargando}
             archivosAdjuntos={archivosAdjuntos}
+            cita={cita}
+            onCitaChange={setCita}
             chatRef={chatRef}
             onMensajeChange={setMensaje}
             onEnviar={(texto) => enviarMensaje(texto)}

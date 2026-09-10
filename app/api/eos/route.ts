@@ -13,10 +13,12 @@ import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio"
 import { textoMemoria } from "@/lib/eos/memoria-contexto";
 import { MAX_ADJUNTOS, MAX_BASE64_TOTAL } from "@/lib/eos/adjuntos";
 import {
-  agregarAccesoAprobacion,
+  avisoDeVerificacion,
+  corregirAfirmacionFallida,
   corregirAfirmacionSinAccion,
-  requiereAprobacion,
 } from "@/lib/eos/acciones-chat";
+import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
+import { limpiarSeleccion } from "@/lib/eos/cita";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -83,6 +85,16 @@ type RespuestaN8N = {
   accion: string;
   metadata: Record<string, unknown>;
   acciones: Array<{ tipo?: unknown; datos?: unknown }>;
+  /*
+   * Lo que el Worker informó de este mensaje.
+   *
+   * n8n lo manda desde siempre (nodo `08 GW Agregar Resultados Worker`) y
+   * hasta el 9 de septiembre de 2026 se descartaba acá. Sin esto la ruta no
+   * tiene forma de saber si la venta entró, y terminaba deduciéndolo de si
+   * había una aprobación pendiente — que dejó de existir cuando estas
+   * acciones pasaron a ejecutarse solas. Ver `lib/eos/verificacion.ts`.
+   */
+  worker: unknown;
   /* Lo que consumió el mensaje en OpenAI. Cero si el gateway no lo mandó. */
   tokens_entrada: number;
   tokens_salida: number;
@@ -453,6 +465,10 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
         )
       : [],
 
+    // Se pasa crudo: `leerEvidencia` es la única que sabe leerlo, y validarlo
+    // en dos lugares distintos es cómo terminan diciendo cosas distintas.
+    worker: data.worker,
+
     /* Si el gateway todavía no los manda, quedan en cero y no rompen nada. */
     tokens_entrada: Number(data.tokens_entrada ?? 0) || 0,
     tokens_salida: Number(data.tokens_salida ?? 0) || 0,
@@ -525,6 +541,7 @@ async function analizarArchivoSincrono(
 }
 
 export async function POST(req: Request) {
+  const comienzo = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
 
@@ -801,6 +818,31 @@ export async function POST(req: Request) {
     const nuevoChat = body.nuevo_chat === true;
     const requestId = esUuid(body.request_id) ? body.request_id : crypto.randomUUID();
 
+    /*
+     * La cita, validada del lado del servidor.
+     *
+     * El `mensaje_id` se guarda como texto y no se comprueba contra la base: es
+     * para poder rastrear a qué respuesta apuntaba, no una llave que abra nada.
+     * Lo que sí se acota es el TEXTO, que es lo que entra en el prompt.
+     */
+    const citaCruda = (body.cita ?? null) as Record<string, unknown> | null;
+    const citaTexto = limpiarSeleccion(
+      citaCruda && typeof citaCruda === "object" && !Array.isArray(citaCruda)
+        ? citaCruda.texto
+        : "",
+    );
+
+    const cita = citaTexto
+      ? {
+          texto: citaTexto,
+          mensaje_id: textoSeguro(
+            (citaCruda as Record<string, unknown>).mensaje_id ??
+              (citaCruda as Record<string, unknown>).mensajeId,
+            120,
+          ),
+        }
+      : null;
+
     const payload = {
       request_id: requestId,
       usuario_id: user.id,
@@ -824,6 +866,20 @@ export async function POST(req: Request) {
        */
       archivo,
       archivos,
+      /*
+       * El pedazo de una respuesta de EOS sobre el que se está preguntando.
+       *
+       * Viaja aparte del mensaje —que ya lo lleva adentro con "> " adelante—
+       * porque las dos cosas dicen algo distinto: el texto le da el contenido
+       * al modelo, y este campo le dice que ese contenido es SUYO. Sin la
+       * distinción, el modelo lee la cita como algo que escribió la persona y
+       * recalcula el número en vez de explicar de dónde salió.
+       *
+       * Se limpia acá y no se confía en el cliente: `limpiarSeleccion` acota
+       * el largo, y sin ese tope el prompt lo pone cualquiera que edite el
+       * pedido a mano.
+       */
+      cita,
       origen,
       fecha: new Date().toISOString(),
     };
@@ -1010,21 +1066,29 @@ export async function POST(req: Request) {
     );
 
     /*
-     * ¿La aprobación existe de verdad?
+     * ============================================================
+     * QUÉ PASÓ DE VERDAD CON LO QUE PIDIÓ
+     * ============================================================
      *
-     * Se consulta la base en vez de deducirlo de que el modelo pidió una
-     * acción. Que el modelo la pida y que quede registrada como pendiente son
-     * dos cosas distintas, y entre ellas está el Worker Gate, que puede no
-     * haber hecho su parte — como pasó con una clienta, que veía "Operación
-     * lista para registrar", apretaba, y la pantalla de aprobaciones estaba
-     * vacía.
+     * Lo que había acá antes deducía "no se guardó nada" de que no hubiera
+     * una aprobación pendiente. Eso fue cierto hasta el 3 de septiembre de
+     * 2026; desde entonces las acciones del negocio se ejecutan solas y una
+     * venta que sale BIEN no deja ninguna aprobación. Resultado: durante seis
+     * días, toda venta registrada con éxito venía con "⚠️ No llegué a dejarlo
+     * listo… no se guardó nada. Cargalo desde la sección Negocio".
      *
-     * Solo cuenta lo reciente: una aprobación de la semana pasada, todavía
-     * vigente, no es la de este mensaje.
+     * Ahora se lee lo que el Worker informó —que n8n manda desde siempre y se
+     * descartaba— y la base solo se consulta cuando de verdad hace falta:
+     * cuando alguna acción quedó sin ninguna noticia. En el camino feliz eso
+     * ahorra además un viaje a Supabase en el camino crítico.
      */
-    let hayAprobacionPendiente = false;
+    const evidencia = leerEvidencia(resultado.worker);
 
-    if (requiereAprobacion(resultado.acciones)) {
+    let verificaciones = verificarAcciones(resultado.acciones, evidencia, false);
+
+    if (verificaciones.some((v) => v.estado === "sin_evidencia")) {
+      // Solo cuenta lo reciente: una aprobación de la semana pasada, todavía
+      // vigente, no es la de este mensaje.
       const desde = new Date(Date.now() - 3 * 60_000).toISOString();
 
       const { data: pendientes } = await adminSinTipos()
@@ -1036,21 +1100,29 @@ export async function POST(req: Request) {
         .gte("created_at", desde)
         .limit(1);
 
-      hayAprobacionPendiente = (pendientes?.length ?? 0) > 0;
-
-      if (!hayAprobacionPendiente) {
+      if ((pendientes?.length ?? 0) > 0) {
+        verificaciones = verificarAcciones(resultado.acciones, evidencia, true);
+      } else {
         console.error(
-          "EOS: el modelo pidió una acción de negocio y no quedó ninguna aprobación pendiente.",
-          { acciones: resultado.acciones.length },
+          "EOS: el modelo pidió una acción con efecto durable y nadie informó qué pasó con ella.",
+          {
+            acciones: verificaciones
+              .filter((v) => v.estado === "sin_evidencia")
+              .map((v) => v.accion),
+            worker_informado: evidencia.informado,
+          },
         );
       }
     }
 
-    resultado.respuesta = agregarAccesoAprobacion(
+    // Si el texto habla en pasado y ninguna acción quedó escrita, se corrige
+    // antes que nada: el resto del mensaje se lee después de la advertencia.
+    resultado.respuesta = corregirAfirmacionFallida(resultado.respuesta, verificaciones);
+
+    resultado.respuesta = avisoDeVerificacion(
       resultado.respuesta,
-      resultado.acciones,
+      verificaciones,
       new URL(req.url).origin,
-      hayAprobacionPendiente,
     );
 
     /*
@@ -1172,6 +1244,44 @@ export async function POST(req: Request) {
         console.log("Registro de decisión no disponible:", captureError);
       }
     });
+
+    /*
+     * ============================================================
+     * UNA LÍNEA POR MENSAJE, PARA PODER CONTESTAR "¿POR QUÉ NO LO HIZO?"
+     * ============================================================
+     *
+     * Hasta acá, diagnosticar por qué EOS no registró algo pedía mirar el log
+     * de Vercel, el de n8n y tres tablas de Supabase, y aun así el dato que
+     * más falta —qué acción pidió el modelo y en qué terminó— no estaba
+     * escrito en ningún lado. Reconstruir el caso de la venta del 9 de
+     * septiembre llevó una auditoría entera del pipeline.
+     *
+     * Con esto, `request_id` alcanza para saber qué entendió, qué acciones
+     * salieron y cómo terminó cada una.
+     *
+     * NO se registra: el mensaje, la respuesta, la cita, ni ningún nombre de
+     * producto o de cliente. El log de Vercel queda guardado, lo ve cualquiera
+     * con acceso al panel y no se borra cuando el usuario pide que se borren
+     * sus datos. Lo que va son identificadores, tipos de acción y estados —que
+     * es exactamente lo que sirve para diagnosticar y nada más.
+     */
+    console.info(
+      "EOS mensaje:",
+      JSON.stringify({
+        request_id: payload.request_id,
+        usuario_id: payload.usuario_id,
+        conversacion_id: payload.conversacion_id || null,
+        origen: payload.origen,
+        gateway: resultado.metadata?.gateway === "ts" ? "ts" : "n8n",
+        con_cita: Boolean(cita),
+        adjuntos: archivos.length,
+        acciones: resultado.acciones.map((a) => String(a?.tipo ?? "")),
+        verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
+        worker_informado: evidencia.informado,
+        tokens: { entrada: tokensEntrada, salida: tokensSalida },
+        ms: Date.now() - comienzo,
+      }),
+    );
 
     // La descripción del documento no viaja al cliente: ya está guardada, y
     // puede pesar más que la respuesta entera. Por eso se nombran los campos
