@@ -30,6 +30,52 @@ function respond(body: Record<string, unknown>, status = 200) {
   return NextResponse.json(body, { status, headers: noStoreHeaders() });
 }
 
+/**
+ * Cerrar la orden cuando la regla de negocio dijo que no.
+ *
+ * ============================================================
+ * POR QUÉ LA AUDITORÍA DECÍA "TIMEOUT" Y NO EL MOTIVO
+ * ============================================================
+ *
+ * `eos_execute_internal_effect_v64` levanta una excepción cuando no puede
+ * resolver el producto, cuando falta el módulo o cuando la venta viene sin
+ * ítems. La excepción tira abajo TODO lo que la función hizo —incluido el
+ * `estado = 'ejecutando'` que había escrito— y nadie la cierra.
+ *
+ * La orden queda abierta hasta que, quince minutos después, un barrido la
+ * marca `ACTION_TIMEOUT: la ejecución no confirmó un resultado`.
+ *
+ * Eso fue exactamente lo que se vio el 9 de septiembre de 2026 en las órdenes
+ * de una usuaria: cuatro REGISTRAR_VENTA en error, las cuatro con
+ * ACTION_TIMEOUT, ninguna con el motivo real —que era que el producto no
+ * estaba en el catálogo—. La única traza durable del incidente decía otra
+ * cosa que lo que había pasado, y mandaba a buscar un problema de red.
+ *
+ * Cerrar acá no cambia lo que ve el usuario: el 422 con su explicación sale
+ * igual y sale antes. Cambia lo que queda escrito, que es de dónde sale el
+ * diagnóstico la próxima vez.
+ */
+async function cerrarConMotivo(
+  admin: ReturnType<typeof adminSinTipos>,
+  commandId: string,
+  codigo: string,
+  mensaje: string,
+) {
+  const { error } = await admin.rpc("eos_finalize_action_command_v66", {
+    p_command_id: commandId,
+    p_estado: "error",
+    p_resultado: {},
+    p_error_code: codigo.slice(0, 80),
+    p_error_message: mensaje.slice(0, 500),
+  });
+
+  if (error) {
+    // No se corta la respuesta por esto: la persona ya tiene su motivo y la
+    // orden, en el peor caso, la cierra el barrido de siempre.
+    console.error("Worker effect executor: no se pudo cerrar la orden fallida:", error);
+  }
+}
+
 function mapRpcError(error: unknown) {
   const message =
     error && typeof error === "object" && "message" in error
@@ -210,7 +256,27 @@ export async function POST(request: Request) {
 
     if (error) {
       const mapped = mapRpcError(error);
-      if (mapped) return mapped;
+
+      if (mapped) {
+        /*
+         * La orden se cierra con SU motivo antes de contestar.
+         *
+         * Sin esto queda en el aire y a los quince minutos la audita un
+         * barrido como ACTION_TIMEOUT — un motivo que no es el que pasó.
+         */
+        const cuerpoMapeado = (await mapped.clone().json().catch(() => null)) as
+          | { code?: unknown; error?: unknown }
+          | null;
+
+        await cerrarConMotivo(
+          admin,
+          commandId,
+          String(cuerpoMapeado?.code ?? "EOS_INTERNAL_EFFECT_RECHAZADO"),
+          String(cuerpoMapeado?.error ?? "La regla de negocio rechazó la orden."),
+        );
+
+        return mapped;
+      }
 
       console.error("Worker effect executor RPC error:", error);
       return respond(
