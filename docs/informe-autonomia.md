@@ -145,7 +145,8 @@ reales, y después hablando con EOS contra n8n y Vercel de producción.
 | `eos_leer_monto` | 17 |
 | Las funciones reescritas por la v150 | 6 |
 | `DECLARAR_SALDO` | 30 |
-| Cobro y pago | 12 |
+| Cobro (venta) | 12 |
+| Pago a proveedor (compra) | 19 |
 | Tarjetas | 27 |
 | Oportunidades | 21 |
 
@@ -172,6 +173,10 @@ reales, y después hablando con EOS contra n8n y Vercel de producción.
 
 > **"ZZ Rossana Prueba me pagó 5 millones"**
 > *Eso es más de lo que te debe: son ₲ 15.000 en total.*
+
+> **"le pagué 400 mil a ZZ Distribuidora Prueba"**
+> *Pagué ₲ 400.000 a ZZ Distribuidora Prueba. Va a cuenta de la del 05/09. Te
+> quedan ₲ 500.000.*
 
 > **"compré la heladera en 6 cuotas de 500 mil con la ZZ Visa"**
 > *Anoté heladera: 6 cuotas de ₲ 500.000 en ZZ Visa del Itau. **No es un gasto
