@@ -1,61 +1,44 @@
--- El modelo escribía la posición de la persona y no la volvía a ver.
+-- El catálogo Y la posición, después de que dos sesiones se pisaran.
 --
 -- ============================================================
--- REPRODUCIDO CONTRA PRODUCCIÓN, EL 10 DE SEPTIEMBRE DE 2026
+-- QUÉ PASÓ, PORQUE VALE MÁS QUE EL ARREGLO
 -- ============================================================
 --
--- Dos mensajes seguidos, en la misma conversación:
+-- Dos sesiones trabajando sobre el mismo repositorio escribieron, sin
+-- saberlo, dos migraciones distintas con el MISMO timestamp:
 --
---   > tengo 3 millones en ZZ Ueno y mi tarjeta ZZ Visa vence el 5
---   Anoté ₲ 3.000.000 en ZZ Ueno. Cuenta nueva.
---   Cargué ZZ Visa.
+--   20260910180000_eos_contexto_con_catalogo_v158.sql   (la otra sesión)
+--   20260910180000_eos_contexto_con_posicion_v158.sql   (ésta)
 --
---   > ¿cuánta plata tengo en mis cuentas y cuándo vence mi tarjeta?
---   Voy a consultar tus saldos de cuentas y el próximo vencimiento.
+-- Las dos reescribían `eos_contexto_negocio` entera, cada una desde la v137
+-- y sin el bloque de la otra.
 --
--- Y no consultó nada, porque no hay nada que consultar: `eos_contexto_negocio`
--- le manda al modelo el catálogo, las ventas, la cartera y los totales del mes
--- —de los dos ámbitos— pero NADA de la posición de la persona. Ni las cuentas,
--- ni las tarjetas, ni las deudas, ni los objetivos.
+-- La del catálogo se aplicó primero y anotó la versión en el historial
+-- remoto. Entonces `supabase db push` empezó a contestar "Remote database is
+-- up to date" a la otra: mismo número de versión, ya aplicada. El cuerpo con
+-- la posición nunca llegó, y el CLI no dijo una palabra.
 --
--- Se comprobó en tres usuarios reales distintos: los tres iguales.
+-- Se salió del paso con una v159 que volvía a declarar la función — y como
+-- estaba generada desde el archivo SIN catálogo, borró el catálogo de
+-- producción. Se detectó llamando a la función contra producción, que es la
+-- única forma de saberlo: el historial de migraciones decía que todo estaba
+-- bien.
 --
--- ============================================================
--- POR QUÉ ES LO MÁS GRAVE DE TODO LO QUE HAY ABIERTO
--- ============================================================
---
--- El ciclo del producto es observar, entender, ejecutar y volver a entender.
--- Acá se cortaba justo después de ejecutar: la persona le cuenta algo a EOS,
--- EOS lo escribe bien, y en el mensaje siguiente ya no lo sabe.
---
--- Es lo que se siente como "el asistente se olvida de todo", y es peor que
--- olvidar: EOS acaba de escribir ese dato con su nombre y su fecha.
---
--- Y desde el 9 y 10 de septiembre hay seis verbos nuevos que escriben
--- exactamente ahí —saldos, tarjetas, compras en cuotas, cobros, oportunidades—
--- así que el agujero se agranda con cada uno.
+-- `npm run migraciones` ya tenía escrito el control que encuentra esto y lo
+-- gritó apenas los dos archivos convivieron en el mismo árbol. Existe desde
+-- el 2 de septiembre, por dos choques del mismo día. Lo que falló no fue el
+-- control: fue empujar a producción antes de traer lo del otro.
 --
 -- ============================================================
--- QUÉ ENTRA, Y POR QUÉ TAN POCO
+-- LO QUE ESTA MIGRACIÓN HACE
 -- ============================================================
 --
--- Esto viaja en CADA mensaje. Cada carácter son milisegundos que la persona
--- espera mirando la pantalla, y espacio que le sacan al negocio.
+-- Se genera desde el archivo del CATÁLOGO y se le injerta el bloque de la
+-- POSICIÓN. En ese orden a propósito: al revés se tira el catálogo, que es
+-- exactamente lo que ya pasó una vez hoy.
 --
--- Entran los datos que contestan las preguntas que de verdad se hacen —cuánto
--- tengo, cuándo vence, cuánto debo, cuánto me falta— y nada más. Con topes:
--- ocho cuentas, cinco tarjetas, ocho deudas, cinco objetivos.
---
--- ============================================================
--- CADA NÚMERO VIAJA CON SU FECHA
--- ============================================================
---
--- Un saldo declarado hace tres semanas no es el saldo de hoy, y el modelo no
--- tiene forma de saberlo si le llega el número pelado. Por eso `al` viaja
--- siempre al lado de `saldo`, y la prosa lo escribe: "declarado el 10/09".
---
--- Es la misma regla que ya sostiene la pantalla: nunca un saldo calculado a
--- ciegas, siempre "según lo que declaraste el <fecha>".
+-- El porqué de cada bloque está en su migración: el catálogo en la v158, la
+-- posición en la v159.
 
 create or replace function public.eos_contexto_negocio(p_usuario_id uuid)
 returns jsonb
@@ -237,6 +220,69 @@ begin
           order by p2.stock_actual
           limit 5
         ) p
+      ),
+      /*
+       * EL CATÁLOGO, QUE ES LO QUE EL MODELO NO PODÍA VER
+       *
+       * Hasta la v158, de todo el negocio el prompt llevaba tres nombres de
+       * productos: los más vendidos. Con eso, la instrucción "NO ADIVINES
+       * NOMBRES: si en su catálogo puede haber varios que empiecen así,
+       * preguntá cuál" le pedía al modelo que razonara sobre una lista que
+       * nunca había visto.
+       *
+       * El resultado eran las dos formas de equivocarse, las dos caras:
+       * inventar un nombre que no existe —y que la venta muera al
+       * resolverlo— o preguntar cuál es de una lista de uno.
+       *
+       * Con el catálogo adelante, el modelo escribe el nombre TAL CUAL está
+       * guardado y la resolución deja de ser una apuesta.
+       *
+       * Cuarenta y no todos: el catálogo entra en CADA mensaje, y lo que
+       * entra en cada mensaje se paga en cada mensaje. Cuarenta nombres son
+       * unos 300 tokens; un catálogo de quinientos productos serían 4.000 y
+       * media respuesta de latencia. Se eligen por lo que se vendió en el
+       * mes —lo que la persona nombra es lo que vende— y se dice cuántos
+       * quedaron afuera, para que el modelo sepa que la lista no es todo.
+       */
+      'catalogo', (
+        select coalesce(
+          jsonb_agg(
+            jsonb_build_object(
+              'nombre', t.nombre,
+              'precio', t.precio_venta,
+              -- Sin costo no hay margen. Que el modelo lo sepa es lo que le
+              -- permite pedir el costo UNA vez, en vez de calcular un margen
+              -- que no puede calcular.
+              'sin_costo', t.costo is null
+            )
+            order by t.unidades desc, t.nombre
+          ),
+          '[]'::jsonb
+        )
+        from (
+          select
+            p3.nombre,
+            p3.precio_venta,
+            p3.costo,
+            coalesce((
+              select sum(vi2.cantidad)
+              from public.eos_erp_venta_items vi2
+              join public.eos_erp_ventas v4 on v4.id = vi2.venta_id
+              where vi2.producto_id = p3.id
+                and v4.fecha >= v_desde
+                and v4.estado <> 'anulada'
+            ), 0) as unidades
+          from public.eos_erp_productos p3
+          where p3.usuario_id = p_usuario_id
+            and p3.activo
+          order by unidades desc, p3.nombre
+          limit 40
+        ) t
+      ),
+      'catalogo_total', (
+        select count(*)
+        from public.eos_erp_productos p4
+        where p4.usuario_id = p_usuario_id and p4.activo
       ),
       'mas_vendidos', (
         select coalesce(
