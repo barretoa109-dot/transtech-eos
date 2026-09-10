@@ -329,6 +329,41 @@ const REGLAS: Regla[] = [
       );
     },
   },
+  /*
+   * Los de las tarjetas.
+   *
+   * "¿Con cuál?" es el que importa. Una compra cargada en la tarjeta
+   * equivocada corre sus vencimientos al ciclo que no es —cada tarjeta cierra
+   * y vence un día distinto— y el calendario del mes queda mal sin que se
+   * note: los montos son los mismos, las fechas no.
+   */
+  {
+    codigo: "EOS_ACCION_TARJETA_SIN_NOMBRE",
+    mensaje: () => "Decime cuál tarjeta: como vos la llamás alcanza.",
+  },
+  {
+    codigo: "EOS_ACCION_TARJETA_CUAL",
+    mensaje: () => "¿Con cuál de tus tarjetas fue?",
+  },
+  {
+    codigo: "EOS_ACCION_TARJETA_NO_ENCONTRADA",
+    mensaje: (d) =>
+      `No tengo ninguna tarjeta tuya que se llame "${d}". Contame cuál es —el ` +
+      "emisor, el día que cierra y el día que vence— y la cargo.",
+  },
+  {
+    codigo: "EOS_ACCION_TARJETA_COMPRA_SIN_DESCRIPCION",
+    mensaje: () => "Para anotar la compra necesito saber qué compraste, aunque sea una palabra.",
+  },
+  {
+    codigo: "EOS_ACCION_TARJETA_COMPRA_SIN_MONTO",
+    mensaje: (d) =>
+      `Me falta cuánto es "${d}": el precio total o cuánto te queda cada cuota.`,
+  },
+  {
+    codigo: "EOS_ACCION_TARJETA_CUOTAS_IRREALES",
+    mensaje: (d) => `${d} cuotas no me cierra. ¿Cuántas son?`,
+  },
   {
     codigo: "EOS_ACCION_DEUDA_SIN_SALDO",
     mensaje: (d) =>

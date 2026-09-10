@@ -332,6 +332,34 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Las tarjetas.
+   *
+   * Cargar la tarjeta cuesta 1, como declarar un saldo: es la persona
+   * contándole a EOS un hecho sobre su propia plata, y el resumen cambia
+   * todos los meses. Cobrarle presupuesto por eso la enseñaría a no
+   * contárselo.
+   *
+   * La compra en cuotas cuesta 2. Crea una fila que produce hasta doce
+   * vencimientos futuros, así que una duplicada infla el calendario del mes y
+   * hace creer que no cierra. Pero sigue siendo visible y borrable de una
+   * pantalla, a diferencia de un cobro, que además mueve la caja.
+   */
+  REGISTRAR_TARJETA: {
+    tier: 1,
+    points: 1,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+  REGISTRAR_COMPRA_TARJETA: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /**
