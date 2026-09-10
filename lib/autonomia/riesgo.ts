@@ -305,6 +305,24 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
   },
 
   /*
+   * Corregir una venta cuesta lo mismo que anularla, y no por simetría:
+   * corregir ES anular y volver a registrar, en una sola transacción. Mueve
+   * el stock dos veces y reescribe el ingreso.
+   *
+   * Lo que la hace segura es lo mismo: se toca UN renglón y el resto queda
+   * como estaba, con varios renglones sin decir cuál se niega y los lista, y
+   * la respuesta dice el antes y el después —de 30 a 3— que es lo único que
+   * permite ver en el momento que se corrigió el número equivocado.
+   */
+  CORREGIR_VENTA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  /*
    * Declarar el saldo de una cuenta cuesta 1 punto, el mínimo, y tiene que
    * costarlo.
    *

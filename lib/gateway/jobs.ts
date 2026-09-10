@@ -87,6 +87,7 @@ export const RUTAS: Record<string, string> = {
    * el ejecutor, no la ruta.
    */
   ANULAR_VENTA: "eos-worker-rc1-internal",
+  CORREGIR_VENTA: "eos-worker-rc1-internal",
 };
 
 export type Job = {
