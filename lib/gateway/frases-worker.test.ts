@@ -393,3 +393,68 @@ test("los montos salen con el formato de acá, no con el del servidor", () => {
   assert.match(t ?? "", /1\.200\.000/);
   assert.doesNotMatch(t ?? "", /1,200,000/);
 });
+
+// ---------------------------------------------------------------------------
+// Anular: la frase ES la red de seguridad
+// ---------------------------------------------------------------------------
+//
+// EOS elige cuál venta anular —la más reciente que coincida— y esa elección
+// puede estar mal. Decir "listo, anulada" sin más deja el error invisible
+// hasta que alguien mira el stock, que puede ser a fin de mes.
+
+test("la anulación dice QUÉ anuló: fecha, productos y total", () => {
+  const texto = frase("ANULAR_VENTA", res({
+    fecha: "2026-09-09",
+    total: 370000,
+    items: [{ producto: "Conjunto verde oliva talle S", cantidad: 2 }],
+    productos_devueltos: 1,
+    movimiento_borrado: true,
+    candidatos: 1,
+  }));
+
+  assert.match(texto ?? "", /2026-09-09/);
+  assert.match(texto ?? "", /Conjunto verde oliva talle S/);
+  assert.match(texto ?? "", /370\.000/);
+});
+
+test("si eligió entre varias, lo dice y ofrece deshacerlo", () => {
+  // Es la línea que convierte una elección automática en una revisable.
+  const texto = frase("ANULAR_VENTA", res({
+    fecha: "2026-09-09",
+    total: 185000,
+    items: [{ producto: "Conjunto verde oliva M", cantidad: 1 }],
+    productos_devueltos: 0,
+    movimiento_borrado: true,
+    candidatos: 2,
+  }));
+
+  assert.match(texto ?? "", /m[áa]s reciente de 2/i);
+  assert.match(texto ?? "", /si no era esa/i);
+});
+
+test("con una sola candidata no se agrega ruido", () => {
+  const texto = frase("ANULAR_VENTA", res({
+    fecha: "2026-09-09", total: 185000, items: [], productos_devueltos: 0,
+    movimiento_borrado: false, candidatos: 1,
+  }));
+
+  assert.ok(!/m[áa]s reciente de/i.test(texto ?? ""));
+});
+
+test("anular dos veces no cuenta como una segunda anulación", () => {
+  const texto = frase("ANULAR_VENTA", res({ ya_estaba: true }));
+
+  assert.match(texto ?? "", /ya estaba anulada/i);
+  assert.ok(!/Anulé la venta/.test(texto ?? ""), "diría que anuló algo que ya estaba");
+});
+
+test("el stock sólo se menciona si de verdad volvió alguno", () => {
+  // Un producto sin inventario no devuelve nada, y decir "le devolví el stock"
+  // sobre algo que nadie cuenta es una afirmación falsa de las baratas.
+  const texto = frase("ANULAR_VENTA", res({
+    fecha: "2026-09-09", total: 185000, items: [{ producto: "Asesoría", cantidad: 1 }],
+    productos_devueltos: 0, movimiento_borrado: true, candidatos: 1,
+  }));
+
+  assert.ok(!/stock/i.test(texto ?? ""));
+});

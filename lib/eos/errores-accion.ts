@@ -395,6 +395,34 @@ const REGLAS: Regla[] = [
     mensaje: (d) =>
       `No sé de cuánto fue el pago a "${d}" y esa deuda no tiene cuota declarada. Decime el monto: descontar un número inventado del saldo sería peor que no anotarlo.`,
   },
+  /*
+   * Las tres de ANULAR_VENTA (v159).
+   *
+   * La primera dice QUÉ buscó, que es lo único accionable: si EOS buscó
+   * "Rossana" y la venta estaba a nombre de otra, la palabra que usó es lo
+   * que resuelve el problema.
+   *
+   * La de la factura no es un error del sistema ni de lo que escribió la
+   * persona: es la SET. Una venta facturada no se deshace borrando una fila,
+   * y decirlo así evita que alguien reintente diez veces.
+   */
+  {
+    codigo: "EOS_ACCION_VENTA_NO_ENCONTRADA",
+    mensaje: (d) =>
+      `No encontré ninguna venta tuya de los últimos siete días que coincida con "${d}". ` +
+      "Si es más vieja, anulala desde Negocio > Ventas.",
+  },
+  {
+    codigo: "EOS_VENTA_CON_FACTURA",
+    mensaje: () =>
+      "Esa venta ya tiene factura emitida, así que no la puedo anular desde acá: ante la SET " +
+      "el hecho existe y se cancela con una nota de crédito. Escribime si querés que te " +
+      "explique cómo, o hacelo desde Negocio > Ventas.",
+  },
+  {
+    codigo: "EOS_ANULACION_MOTIVO_REQUERIDO",
+    mensaje: () => "Para anular una venta necesito saber por qué, aunque sea con una palabra.",
+  },
   {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>

@@ -52,7 +52,7 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "pasame un cuadro de ventas" | campo `documento` | **Ejecuta** (Excel, PDF, Word) |
 | "María me pagó la factura", "me dio 25 mil" | `REGISTRAR_COBRO` | **Ejecuta desde hoy** (v151) |
 | "le pagué al proveedor de balanceado" | `REGISTRAR_PAGO_COMPRA` | **Ejecuta desde hoy** (v151) |
-| **"anulá esa venta"** | — | **NO EXISTE.** `eos_erp_anular_venta` está en la base y sin verbo |
+| "anulá esa venta", "la última estaba mal" | `ANULAR_VENTA` | **Ejecuta desde hoy** (v161). Resuelve cuál por monto, producto o cliente; sin referencia, la más reciente de 7 días. La respuesta dice qué anuló |
 | **"corregí la venta de ayer: eran 3, no 30"** | — | **NO EXISTE.** `eos_erp_editar_venta` está en la base y sin verbo |
 | "Pedro está interesado, unos 5 millones" | `REGISTRAR_OPORTUNIDAD` | **Ejecuta desde hoy** (v154) |
 | **"tomé la decisión de subir el precio"** | — | **NO EXISTE.** `eos_decisions` se llena desde n8n |

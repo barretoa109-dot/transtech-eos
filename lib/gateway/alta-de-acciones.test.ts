@@ -194,40 +194,12 @@ test("el ejecutor acepta exactamente las acciones que el modelo puede pedir", ()
 // ============================================================
 // 9º lugar: qué se le dice a la persona cuando salió bien
 // ============================================================
-
-test("cada acción con efecto tiene su frase, y ninguna cae en la genérica", () => {
-  /*
-   * "La acción quedó completada" es correcto y no sirve. Después de registrar
-   * una venta, la persona necesita leer que la venta está —y dónde—, que es
-   * lo que le permite darse cuenta AHÍ de que se cargó el producto
-   * equivocado, en vez de descubrirlo a fin de mes.
-   */
-  const codigo = nodoDelWorker("05 INT Respuesta");
-
-  /*
-   * Todo lo que `fraseDeAccion` nombra, en cualquiera de sus formas: una
-   * acción por línea, o dos compartiendo una rama con `||`. Se mira el CUERPO
-   * de la función y no el archivo entero, para que nombrar una acción en un
-   * comentario de otro lado no la dé por cubierta.
-   */
-  const desde = codigo.indexOf("function fraseDeAccion");
-  const cuerpo = codigo.slice(desde, codigo.indexOf("\n}", desde));
-
-  const conFrasePropia = new Set(
-    [...cuerpo.matchAll(/accion === '([A-Z_]{4,})'/g)].map((m) => m[1]),
-  );
-
-  const bloque = codigo.match(/const doneText = \{([\s\S]*?)\n\};/);
-  assert.ok(bloque, "no se encontró doneText en el nodo 05 INT del worker");
-
-  const enDoneText = new Set(
-    [...bloque[1].replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/^\s*([A-Z_]{4,}):/gm)].map((m) => m[1]),
-  );
-
-  for (const accion of accionesConEfecto()) {
-    assert.ok(
-      conFrasePropia.has(accion) || enDoneText.has(accion),
-      `${accion} no tiene qué contestar cuando sale bien: cae en "La acción quedó completada"`,
-    );
-  }
-});
+//
+// Lo cubre `frases-worker.test.ts`, y mejor que un control de texto: ejecuta
+// `fraseDeAccion` —el mismo despacho que usa producción— y exige que toda
+// acción con efecto durable tenga frase propia o esté declarada como
+// genérica, con su motivo escrito.
+//
+// No se duplica acá. Una segunda prueba más débil sobre lo mismo no agrega
+// cobertura y sí agrega un lugar donde el día de mañana los dos controles
+// digan cosas distintas.
