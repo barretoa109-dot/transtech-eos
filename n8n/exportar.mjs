@@ -21,9 +21,19 @@ const RAIZ = path.resolve(
   "..",
 );
 
+/*
+ * Los flujos que el repositorio espeja.
+ *
+ * `briefing` entró el 11 de septiembre de 2026, cuando se lo parcheó por
+ * primera vez desde acá: hasta entonces se lo tocaba a mano en n8n y su copia
+ * del repo era de agosto. Un archivo que dice ser el espejo de algo y no lo es
+ * miente más de lo que ayuda — el primero que lo lea para generar un parche
+ * anclado va a anclarlo contra texto que ya no existe.
+ */
 const FLUJOS = {
   gateway: { id: "JRgzUkoHBKgGpyPA", archivo: "eos-conversational-gateway-rc1.json" },
   worker: { id: "iUMdg9fhAg54irmy", archivo: "eos-background-worker-rc1.json" },
+  briefing: { id: "bFY6PPhJyTPJ4X2P", archivo: "eos-briefing-personalizado-diario-v5.json" },
 };
 
 function env() {
