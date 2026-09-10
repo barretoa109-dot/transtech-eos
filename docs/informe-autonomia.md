@@ -253,7 +253,7 @@ cuentas de QA que hoy no existen.
 | | |
 |---|---|
 | Acciones que EOS puede ejecutar | **26** (eran 20) |
-| Migraciones | 243 |
+| Migraciones | 244 |
 | Pruebas | 1308, en verde |
 | Candados de CI | 8, todos bloqueantes, en verde |
 | `tsc --noEmit` | limpio |
