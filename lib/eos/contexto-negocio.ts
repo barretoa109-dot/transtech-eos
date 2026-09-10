@@ -54,6 +54,18 @@ export type ContextoNegocio = {
     por_pagar_monedas?: MontoPorMoneda[];
     bajo_minimo?: Array<{ nombre: string; stock: number }>;
     mas_vendidos?: string[];
+    /*
+     * El catálogo, que hasta la v158 el modelo no veía.
+     *
+     * El prompt le pide que no adivine nombres y que pregunte cuál es cuando
+     * hay varios parecidos. Sin esta lista, esa regla le pedía razonar sobre
+     * algo que nunca había visto: escribía un nombre parecido pero no el
+     * guardado —y la venta moría al resolverlo— o preguntaba cuál de todos
+     * cuando había uno solo.
+     */
+    catalogo?: Array<{ nombre: string; precio?: number; sin_costo?: boolean }>;
+    /** Cuántos hay en total. La lista viene recortada a 40; ver la v158. */
+    catalogo_total?: number;
   };
   crm?: {
     oportunidades_abiertas?: { cantidad: number; por_moneda?: MontoPorMoneda[] };
@@ -90,6 +102,64 @@ function montos(filas: unknown): string | null {
   if (conPlata.length === 0) return null;
 
   return conPlata.map((f) => formatearMonto(f.valor, f.moneda)).join(" y ");
+}
+
+/**
+ * El catálogo, escrito para que el modelo use el nombre EXACTO.
+ *
+ * ============================================================
+ * POR QUÉ EL NOMBRE VA COMPLETO Y SIN ABREVIAR
+ * ============================================================
+ *
+ * Todo lo que el modelo escriba distinto lo tiene que adivinar el resolver
+ * del otro lado, y adivinar es de donde salen las ventas perdidas. Con la
+ * lista adelante puede copiar el nombre tal cual está guardado y la
+ * resolución deja de ser una apuesta.
+ *
+ * ============================================================
+ * "SIN COSTO" NO ES UN DETALLE
+ * ============================================================
+ *
+ * Es la diferencia entre que EOS calcule un margen que no puede calcular y
+ * que pida el costo una vez. Marcarlo acá cuesta cuatro caracteres por
+ * producto y evita la respuesta más molesta que puede dar un asistente: un
+ * número inventado con cara de exacto.
+ *
+ * ============================================================
+ * Y SE DICE CUÁNTOS QUEDARON AFUERA
+ * ============================================================
+ *
+ * La lista viene recortada a 40. Un modelo que cree estar viendo el catálogo
+ * entero cuando ve la mitad afirma que un producto no existe — y eso es peor
+ * que no haberle mostrado nada.
+ */
+export type ProductoDelCatalogo = { nombre: string; precio?: number; sin_costo?: boolean };
+
+export function textoCatalogo(catalogo: unknown, total?: number): string {
+  const items = lista<ProductoDelCatalogo>(catalogo).filter(
+    (p) => typeof p?.nombre === "string" && p.nombre.trim() !== "",
+  );
+  if (items.length === 0) return "";
+
+  const lineas = items.map((p) => {
+    const precio = Number(p.precio ?? 0);
+    const detalle = precio > 0 ? ` — ${formatearMonto(precio, "PYG")}` : "";
+    // "sin costo" y no "costo: null": el modelo lee castellano, no esquemas.
+    return `  ${p.nombre}${detalle}${p.sin_costo ? " (sin costo cargado)" : ""}`;
+  });
+
+  const faltan = Number(total ?? 0) - items.length;
+
+  const pie =
+    faltan > 0
+      ? `\n  …y ${faltan} más que no entran acá: si te nombran uno que no está en esta lista, puede existir igual.`
+      : "";
+
+  return (
+    "Su catálogo (usá estos nombres EXACTOS al registrar una venta o una compra):\n" +
+    lineas.join("\n") +
+    pie
+  );
 }
 
 /*
@@ -180,6 +250,11 @@ export function textoContexto(contexto: ContextoNegocio | null | undefined): str
       const items = bajoMinimo.map((p) => `${p.nombre} (${p.stock})`);
       partes.push(`Por faltar: ${items.join(", ")}.`);
     }
+
+    // Vacío cuando no hay catálogo: un renglón en blanco en el prompt no
+    // dice nada y se paga igual.
+    const catalogo = textoCatalogo(erp.catalogo, erp.catalogo_total);
+    if (catalogo) partes.push(catalogo);
   }
 
   const crm = contexto.crm;

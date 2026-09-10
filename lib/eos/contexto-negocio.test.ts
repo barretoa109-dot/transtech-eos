@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { textoContexto, type ContextoNegocio } from "./contexto-negocio.ts";
+import { textoCatalogo, textoContexto, type ContextoNegocio } from "./contexto-negocio.ts";
 
 test("sin datos no se manda ninguna sección", () => {
   assert.equal(textoContexto(null), "");
@@ -249,4 +249,77 @@ test("sin movimientos personales no se inventa el bloque", () => {
   });
 
   assert.doesNotMatch(texto, /VOS, personal/);
+});
+
+// ============================================================
+// El catálogo que el modelo no veía
+// ============================================================
+//
+// El prompt le pide que no adivine nombres y que pregunte cuál es cuando hay
+// varios parecidos. Hasta la v158 le pedía razonar sobre una lista que nunca
+// había visto: de todo el negocio, el contexto llevaba tres nombres.
+
+test("el catálogo se escribe con el nombre exacto y el precio", () => {
+  const texto = textoCatalogo([
+    { nombre: "Conjunto verde oliva de Zivah talle S", precio: 185000 },
+    { nombre: "Blush rhode", precio: 230000 },
+  ]);
+
+  assert.match(texto, /nombres EXACTOS/);
+  assert.ok(texto.includes("Conjunto verde oliva de Zivah talle S"));
+  assert.match(texto, /₲\s?185\.000/);
+});
+
+test("un producto sin costo se marca, para que EOS no invente el margen", () => {
+  const texto = textoCatalogo([{ nombre: "Campera de lino", precio: 250000, sin_costo: true }]);
+
+  assert.match(texto, /sin costo cargado/);
+});
+
+test("un producto con costo NO lleva la marca", () => {
+  const texto = textoCatalogo([{ nombre: "Blush rhode", precio: 230000, sin_costo: false }]);
+
+  assert.ok(!texto.includes("sin costo"));
+});
+
+test("cuando la lista viene recortada, se dice cuántos faltan", () => {
+  // Un modelo que cree ver el catálogo entero afirma que un producto no
+  // existe. Es peor que no mostrarle nada.
+  const texto = textoCatalogo([{ nombre: "Uno", precio: 1000 }], 41);
+
+  assert.match(texto, /40 más/);
+  assert.match(texto, /puede existir igual/);
+});
+
+test("sin recorte no se agrega el pie", () => {
+  const texto = textoCatalogo([{ nombre: "Uno", precio: 1000 }], 1);
+
+  assert.ok(!texto.includes("más que no entran"));
+});
+
+test("sin catálogo no se escribe nada: un renglón vacío se paga igual", () => {
+  assert.equal(textoCatalogo([], 0), "");
+  assert.equal(textoCatalogo(undefined), "");
+  assert.equal(textoCatalogo("catálogo"), "");
+  assert.equal(textoCatalogo([{ nombre: "  " }]), "");
+});
+
+test("un producto sin precio se nombra igual: el nombre es lo que hace falta", () => {
+  const texto = textoCatalogo([{ nombre: "Asesoría" }]);
+
+  assert.ok(texto.includes("Asesoría"));
+  assert.ok(!texto.includes("—"));
+});
+
+test("el catálogo entra en el contexto del negocio", () => {
+  const texto = textoContexto({
+    erp: {
+      ventas_mes: { cantidad: 2, por_moneda: [{ moneda: "PYG", total: 370000 }] },
+      catalogo: [{ nombre: "Conjunto verde oliva M", precio: 185000 }],
+      catalogo_total: 15,
+    },
+  });
+
+  assert.ok(texto.includes("Conjunto verde oliva M"));
+  assert.match(texto, /14 más/);
 });

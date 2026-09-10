@@ -63,8 +63,21 @@ export type HistorialItem = {
   content?: unknown;
 };
 
-/** El contexto del negocio se recorta: entra en CADA llamada a OpenAI. */
-export const TOPE_CONTEXTO = 2000;
+/**
+ * El contexto del negocio se recorta: entra en CADA llamada a OpenAI.
+ *
+ * Seis mil y no dos mil, que es lo que decía hasta la v158. Los dos mil
+ * alcanzaban cuando el contexto eran cuatro renglones de cifras; con el
+ * catálogo adentro —cuarenta productos con su precio— se pasa, y el recorte
+ * caía JUSTO ahí: el modelo recibía media lista de productos y ninguna señal
+ * de que estaba cortada, así que podía afirmar que un producto no existe
+ * porque no llegó a leerlo.
+ *
+ * Seis mil es el mismo número que usa el nodo `01 GW Preparar Entrada` de
+ * n8n. Que los dos caminos recorten distinto es cómo se termina teniendo dos
+ * respuestas distintas para el mismo mensaje según qué bandera esté prendida.
+ */
+export const TOPE_CONTEXTO = 6000;
 
 /** Solo los últimos diez turnos, igual que n8n. */
 export const TURNOS_DE_HISTORIAL = 10;
