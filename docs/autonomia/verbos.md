@@ -54,7 +54,7 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "le pagué al proveedor de balanceado" | `REGISTRAR_PAGO_COMPRA` | **Ejecuta desde hoy** (v151) |
 | **"anulá esa venta"** | — | **NO EXISTE.** `eos_erp_anular_venta` está en la base y sin verbo |
 | **"corregí la venta de ayer: eran 3, no 30"** | — | **NO EXISTE.** `eos_erp_editar_venta` está en la base y sin verbo |
-| **"anotá una oportunidad con Pedro por 5 millones"** | — | **NO EXISTE.** El CRM solo se carga por pantalla |
+| "Pedro está interesado, unos 5 millones" | `REGISTRAR_OPORTUNIDAD` | **Ejecuta desde hoy** (v154) |
 | **"tomé la decisión de subir el precio"** | — | **NO EXISTE.** `eos_decisions` se llena desde n8n |
 
 ## PERSONAL
@@ -69,7 +69,8 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "pagué la cuota de Ueno" | `REGISTRAR_PAGO_DEUDA` | **Ejecuta** |
 | "quiero juntar 30 millones para diciembre" | `CREAR_OBJETIVO` | **Ejecuta desde hoy** |
 | "tengo 3 millones en Ueno", "no me queda nada en el banco" | `DECLARAR_SALDO` | **Ejecuta desde hoy** (v149) |
-| **"mi tarjeta cierra el 20 y vence el 5"** | — | **NO EXISTE.** Nuevo desde la v146 |
+| "mi tarjeta cierra el 20 y vence el 5" | `REGISTRAR_TARJETA` | **Ejecuta desde hoy** (v153) |
+| "compré la heladera en 6 cuotas de 500 mil" | `REGISTRAR_COMPRA_TARJETA` | **Ejecuta desde hoy** (v153) |
 | "ese gasto de nafta era 80 mil, no 800 mil" | `CORREGIR_MOVIMIENTO` | **Ejecuta desde hoy** (v148) |
 | **"borrá ese movimiento"** | — | **NO EXISTE** |
 | **"saqué 2 millones del negocio para mí"** | — | **NO EXISTE.** Es el movimiento de dos lados |
@@ -123,10 +124,30 @@ del error con el locale del servidor —"60,000." en vez de "60.000"— y los
 códigos nuevos se llamaban `EOS_COBRANZA_*`, fuera del barrido de la prueba
 que exige traducción para todo `EOS_ACCION_*`. El prefijo no era decorativo.
 
-**4. Cargar una tarjeta.** Vertical nueva; hoy solo se carga por pantalla.
+**4. ~~Cargar una tarjeta~~ — HECHO (v153).** En dos verbos: el alta con su
+resumen mensual, y la compra en cuotas.
 
-**5. Oportunidades del CRM.** El embudo está construido y probado, y se llena
-a mano.
+La regla que los sostiene: **comprar con tarjeta no es un gasto del mes**. La
+compra escribe solo en `eos_finanzas_tarjeta_compras`, que no toca la línea de
+tiempo del panel; lo que la toca son los vencimientos que `obligacionesDe`
+deriva de las cuotas. Hay una comprobación explícita de que no se escribió
+ningún movimiento financiero.
+
+Cuando solo dan el total, la cuota se divide y se DICE que es estimada: con
+intereses la real es más alta, y una cuota estimada se ve idéntica a una
+declarada.
+
+**5. ~~Oportunidades del CRM~~ — HECHO (v154).** Crea o avanza sola.
+
+Y una lección que se pagó el mismo día: la primera versión, con UNA sola
+oportunidad abierta del contacto, se pegaba a ella aunque el título no tuviera
+nada que ver — y le dejaba el título viejo, así que la confirmación decía el
+nombre de la otra y el negocio nuevo nunca entraba. Lo encontró su propia
+prueba.
+
+Lo que distingue mover de anotar es la ETAPA: "le mandé la propuesta a Pedro"
+dice a dónde va y es un avance; "Pedro está interesado en el mantenimiento" no
+dice etapa y es un negocio nuevo. Con dos abiertas y solo una etapa, no elige.
 
 **6. Anular y corregir en el negocio.** Queda `eos_erp_anular_venta` y
 `eos_erp_editar_venta`. Es el grupo más delicado: un `anular` por chat sobre la

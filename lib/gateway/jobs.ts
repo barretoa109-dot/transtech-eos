@@ -78,6 +78,7 @@ export const RUTAS: Record<string, string> = {
   REGISTRAR_PAGO_COMPRA: "eos-worker-rc1-internal",
   REGISTRAR_TARJETA: "eos-worker-rc1-internal",
   REGISTRAR_COMPRA_TARJETA: "eos-worker-rc1-internal",
+  REGISTRAR_OPORTUNIDAD: "eos-worker-rc1-internal",
 };
 
 export type Job = {

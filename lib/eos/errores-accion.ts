@@ -364,6 +364,22 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ACCION_TARJETA_CUOTAS_IRREALES",
     mensaje: (d) => `${d} cuotas no me cierra. ¿Cuántas son?`,
   },
+  /*
+   * Los del embudo.
+   *
+   * "¿Cuál?" existe porque la primera versión adivinaba: con una sola
+   * oportunidad abierta se pegaba a ella aunque el título no tuviera nada que
+   * ver, y encima le dejaba el título viejo — así que la confirmación decía el
+   * nombre de la otra y el negocio nuevo nunca entraba.
+   */
+  {
+    codigo: "EOS_ACCION_OPORTUNIDAD_SIN_TITULO",
+    mensaje: () => "Decime de qué es la oportunidad, aunque sea en tres palabras.",
+  },
+  {
+    codigo: "EOS_ACCION_OPORTUNIDAD_CUAL",
+    mensaje: (d) => `Tiene más de un negocio abierto: ${d}. ¿Cuál se movió?`,
+  },
   {
     codigo: "EOS_ACCION_DEUDA_SIN_SALDO",
     mensaje: (d) =>

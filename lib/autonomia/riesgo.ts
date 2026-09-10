@@ -360,6 +360,22 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+
+  /*
+   * Una oportunidad del embudo: 2 puntos, como una tarea.
+   *
+   * No mueve plata ni stock — es una fila que la persona puede borrar de una
+   * pantalla. Lo único que toca es la previsión del embudo, y para eso el
+   * riesgo real no es el presupuesto sino inventar el monto: por eso el
+   * prompt prohíbe inventarlo y la función acepta que entre en cero.
+   */
+  REGISTRAR_OPORTUNIDAD: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /**
