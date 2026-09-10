@@ -53,7 +53,7 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "María me pagó la factura", "me dio 25 mil" | `REGISTRAR_COBRO` | **Ejecuta desde hoy** (v151) |
 | "le pagué al proveedor de balanceado" | `REGISTRAR_PAGO_COMPRA` | **Ejecuta desde hoy** (v151) |
 | "anulá esa venta", "la última estaba mal" | `ANULAR_VENTA` | **Ejecuta desde hoy** (v161). Resuelve cuál por monto, producto o cliente; sin referencia, la más reciente de 7 días. La respuesta dice qué anuló |
-| **"corregí la venta de ayer: eran 3, no 30"** | — | **NO EXISTE.** `eos_erp_editar_venta` está en la base y sin verbo |
+| "corregí la venta: eran 3, no 30" | `CORREGIR_VENTA` | **Ejecuta desde hoy** (v162). Toca un renglón y deja el resto; con varios sin decir cuál, los lista. La respuesta dice el antes y el después |
 | "Pedro está interesado, unos 5 millones" | `REGISTRAR_OPORTUNIDAD` | **Ejecuta desde hoy** (v154) |
 | **"tomé la decisión de subir el precio"** | — | **NO EXISTE.** `eos_decisions` se llena desde n8n |
 
@@ -149,10 +149,32 @@ Lo que distingue mover de anotar es la ETAPA: "le mandé la propuesta a Pedro"
 dice a dónde va y es un avance; "Pedro está interesado en el mantenimiento" no
 dice etapa y es un negocio nuevo. Con dos abiertas y solo una etapa, no elige.
 
-**6. Anular y corregir en el negocio.** Queda `eos_erp_anular_venta` y
-`eos_erp_editar_venta`. Es el grupo más delicado: un `anular` por chat sobre la
-venta equivocada es caro, y merece confirmación explícita aunque el resto se
-auto-apruebe.
+**6. ~~Anular y corregir en el negocio~~ — HECHO (v161 y v162).** El grupo más
+delicado, y el que se abrió solo: el 9 de septiembre una usuaria cargó por chat
+una venta de dos unidades del mismo talle cuando eran una S y una M, y tuvo que
+ir a la pantalla a deshacerla a mano.
+
+Esta nota decía que merecían "confirmación explícita aunque el resto se
+auto-apruebe". Se implementaron **sin** esa excepción, y conviene decir por qué:
+el usuario pidió auto-aprobar todo lo que venga del chat en esos términos —ver
+`lib/autonomia/riesgo.ts`— y una aprobación que se pide siempre deja de leerse
+a la tercera vez. La seguridad se puso en otro lado, que además funciona cuando
+la persona no lee:
+
+  · sólo miran los últimos 7 días;
+  · si dijeron una referencia que no coincide con nada, se niegan — no caen a
+    "la última";
+  · corregir toca UN renglón y con varios sin decir cuál los lista;
+  · y la respuesta dice SIEMPRE qué tocó: *"Anulé la venta del 09/09: 2
+    Conjunto verde oliva talle S, ₲ 370.000"*, *"Corregí Conjunto verde oliva
+    M: de 30 a 3. La venta quedó en ₲ 555.000, antes ₲ 5.550.000"*, y "era la
+    más reciente de N que coincidían" cuando eligió.
+
+Eso último es lo que reemplaza a la confirmación previa: se ve el error
+DESPUÉS, en el mismo mensaje, y con el dato para deshacerlo.
+
+Las dos heredan gratis las protecciones de `eos_erp_anular_venta`, factura
+electrónica incluida: una venta ya facturada no se toca desde el chat.
 
 ---
 

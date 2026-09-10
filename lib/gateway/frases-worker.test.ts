@@ -458,3 +458,53 @@ test("el stock sólo se menciona si de verdad volvió alguno", () => {
 
   assert.ok(!/stock/i.test(texto ?? ""));
 });
+
+// ---------------------------------------------------------------------------
+// Corregir una venta: el antes y el después ES la seguridad
+// ---------------------------------------------------------------------------
+//
+// EOS elige cuál venta y cuál renglón. "Listo, corregido" no permite ver que
+// corrigió el número equivocado; "de 30 a 3" sí, y en el momento.
+
+test("la corrección de cantidad dice de cuánto a cuánto", () => {
+  const texto = frase("CORREGIR_VENTA", res({
+    antes: { producto: "Conjunto verde oliva M", cantidad: 30, precio_unitario: 185000 },
+    despues: { producto: "Conjunto verde oliva M", cantidad: 3, precio_unitario: 185000 },
+    total_anterior: 5550000,
+    total: 555000,
+    candidatos: 1,
+  }));
+
+  assert.match(texto ?? "", /de 30 a 3/);
+  assert.match(texto ?? "", /555\.000/);
+  assert.match(texto ?? "", /5\.550\.000/, "sin el total anterior no se ve la magnitud del arreglo");
+});
+
+test("la corrección de precio se dice como plata, no como número pelado", () => {
+  const texto = frase("CORREGIR_VENTA", res({
+    antes: { producto: "Blush rhode", cantidad: 1, precio_unitario: 230000 },
+    despues: { producto: "Blush rhode", cantidad: 1, precio_unitario: 200000 },
+    total_anterior: 230000,
+    total: 200000,
+    candidatos: 1,
+  }));
+
+  assert.match(texto ?? "", /₲ 230\.000 a ₲ 200\.000/);
+});
+
+test("si eligió entre varias ventas, lo dice", () => {
+  const texto = frase("CORREGIR_VENTA", res({
+    antes: { producto: "X", cantidad: 1, precio_unitario: 100 },
+    despues: { producto: "X", cantidad: 2, precio_unitario: 100 },
+    total_anterior: 100, total: 200, candidatos: 3,
+  }));
+
+  assert.match(texto ?? "", /m[áa]s reciente de 3/i);
+});
+
+test("un reintento no cuenta como una segunda corrección", () => {
+  const texto = frase("CORREGIR_VENTA", res({ ya_estaba: true }));
+
+  assert.match(texto ?? "", /ya estaba hecha/i);
+  assert.ok(!/Corregí/.test(texto ?? ""), "diría que corrigió algo por segunda vez");
+});

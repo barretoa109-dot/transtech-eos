@@ -406,6 +406,28 @@ const REGLAS: Regla[] = [
    * persona: es la SET. Una venta facturada no se deshace borrando una fila,
    * y decirlo así evita que alguien reintente diez veces.
    */
+  /*
+   * Las tres de CORREGIR_VENTA (v162).
+   *
+   * La de cuál renglón LISTA los productos de la venta, porque la lista es
+   * la pregunta: "¿cuál de los productos?" sin los nombres no le sirve a
+   * nadie que no tenga la pantalla abierta.
+   */
+  {
+    codigo: "EOS_ACCION_CORRECCION_CUAL_ITEM",
+    mensaje: (d) =>
+      `Esa venta tiene varios productos: ${d}. Decime cuál corrijo y con qué número.`,
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_ITEM_AJENO",
+    mensaje: (d) =>
+      `"${d}" no está en esa venta, así que capaz estamos hablando de otra. ` +
+      "Decime el monto o el día de la que querés corregir.",
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_MONTO_INVALIDO",
+    mensaje: () => "Ese número no me cierra: la cantidad tiene que ser mayor que cero.",
+  },
   {
     codigo: "EOS_ACCION_VENTA_NO_ENCONTRADA",
     mensaje: (d) =>
