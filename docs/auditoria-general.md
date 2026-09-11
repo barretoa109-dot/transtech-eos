@@ -177,6 +177,14 @@ pruebas propias, y ahí está su riesgo.
 - **Los aprendizajes de plomería ya no ocupan el prompt.**
 - **Las frases del worker tienen pruebas**, después de que "Cerró 1 facturas"
   llegara a producción.
+- **La huella del Worker Gate tiene pruebas.** Es lo único que impide que una
+  venta se cargue dos veces, y no tenía ninguna: vivía en un archivo que
+  importa `next/server`, donde ninguna prueba de `lib/` puede entrar. Se mudó a
+  `lib/autonomia/huella.ts` —mudó, no copió— y el handler la importa de ahí.
+
+  Escribirla encontró que `estable` aplastaba una fecha a `{}`, así que dos
+  fechas distintas daban la misma huella. Hoy no es alcanzable, pero era una
+  bomba con la mecha puesta en una función exportada.
 
 ---
 
@@ -185,8 +193,9 @@ pruebas propias, y ahí está su riesgo.
 1. **Que la gente cargue su plata.** Es el cuello de botella de todo Personal.
    El Centro de atención y `DECLARAR_SALDO` están; falta que la pantalla los
    muestre y que alguien mire si funciona.
-2. **Probar la puerta de autonomía y la auditoría.** Son las dos piezas de
-   seguridad y no tienen una sola prueba propia.
+2. **Probar la auditoría encadenada.** Sigue sin una sola prueba propia. La
+   puerta de autonomía ya tiene la suya donde más dolía —ver abajo—, pero la
+   decisión de nivel y el presupuesto diario tampoco están probados.
 3. **Leer el Business Twin.** Está lleno y nadie lo abre.
 4. **Que el motor de aprendizaje aprenda de la plata**, no de la bitácora.
 5. **P9**, el recorrido de punta a punta con cuentas de QA que hoy no existen.
