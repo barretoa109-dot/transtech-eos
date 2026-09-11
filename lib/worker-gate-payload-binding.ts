@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
+import { mismoPayload } from "./autonomia/huella.ts";
+
 import { adminSinTipos } from "./supabase/sin-tipos.ts";
 
 const POLICY_VERSION = "eos-worker-gate-v2";
@@ -25,22 +27,6 @@ function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function stable(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stable);
-  if (!value || typeof value !== "object") return value;
-
-  return Object.keys(value as Record<string, unknown>)
-    .sort()
-    .reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = stable((value as Record<string, unknown>)[key]);
-      return acc;
-    }, {});
-}
-
-function samePayload(left: unknown, right: unknown) {
-  return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
 }
 
 function authorized(request: Request) {
@@ -214,7 +200,7 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
     return block(`La orden está en estado no ejecutable: ${command.estado}.`);
   }
 
-  if (!samePayload(command.payload, payload)) {
+  if (!mismoPayload(command.payload, payload)) {
     return block(
       "El payload presentado al Gate no coincide exactamente con el payload de la orden ejecutable.",
     );
@@ -271,7 +257,7 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
     return block("La aprobación ya venció.");
   }
 
-  if (!samePayload(approval.payload_snapshot, command.payload)) {
+  if (!mismoPayload(approval.payload_snapshot, command.payload)) {
     return block(
       "El contenido de la orden ejecutable no coincide exactamente con el payload aprobado por el usuario.",
     );

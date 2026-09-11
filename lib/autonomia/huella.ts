@@ -81,3 +81,28 @@ export function estable(value: unknown): unknown {
 export function huella(value: Record<string, unknown>): string {
   return createHash("sha256").update(JSON.stringify(estable(value))).digest("hex");
 }
+
+/**
+ * Dos payloads son el mismo pedido.
+ *
+ * ============================================================
+ * HABÍA DOS COPIAS DE LA MISMA REGLA
+ * ============================================================
+ *
+ * Vivía en `lib/worker-gate-payload-binding.ts`, en una copia literal de la
+ * canonicalización de acá arriba.
+ *
+ * Las dos deciden lo mismo —si dos pedidos son el mismo— y tienen que
+ * coincidir exactamente, siempre. El día que una se arregle y la otra no, el
+ * gate guardaría la huella con un criterio y compararía con otro: los
+ * reintentos legítimos empezarían a rebotar con
+ * `EOS_COMMAND_PAYLOAD_MISMATCH` sin que nada más falle y sin que nadie sepa
+ * por qué.
+ *
+ * Es la misma clase de duplicación que este proyecto ya pagó con las tres
+ * listas del gateway. Ahora las dos salen de acá — que además es el único de
+ * los archivos donde pueden entrar las pruebas.
+ */
+export function mismoPayload(left: unknown, right: unknown): boolean {
+  return JSON.stringify(estable(left)) === JSON.stringify(estable(right));
+}

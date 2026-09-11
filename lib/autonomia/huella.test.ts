@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { estable, huella } from "./huella.ts";
+import { estable, huella, mismoPayload } from "./huella.ts";
 
 /**
  * Lo que se prueba acá es una sola cosa: que una venta no se cargue dos veces.
@@ -159,4 +159,57 @@ test("la huella de una orden conocida no cambia entre versiones", () => {
     huella(orden),
     "3266493efc4a7a20520eca6595ae6402b009d60fdc0b5cd9a3f300a8b0d9892b",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Y la otra mitad del mismo mecanismo: comparar dos payloads
+// ---------------------------------------------------------------------------
+
+test("un reintento con las claves en otro orden SÍ es el mismo pedido", () => {
+  /*
+   * `mismoPayload` es lo que compara el payload que llega al Gate contra el
+   * que quedó guardado en la orden. Si dice que no coinciden, el Gate
+   * responde EOS_COMMAND_PAYLOAD_MISMATCH y la acción no se ejecuta nunca.
+   *
+   * Un reintento legítimo con las claves al revés tiene que pasar.
+   */
+  assert.ok(
+    mismoPayload(
+      { accion: "REGISTRAR_VENTA", datos: { contacto: "María", items: [] } },
+      { datos: { items: [], contacto: "María" }, accion: "REGISTRAR_VENTA" },
+    ),
+  );
+});
+
+test("un payload con un monto cambiado NO es el mismo pedido", () => {
+  // Es la otra mitad: si dejara pasar esto, alguien podría presentarle al Gate
+  // una orden aprobada por 30.000 y ejecutarla por 3.000.000.
+  assert.equal(
+    mismoPayload(
+      { datos: { monto: 30000 } },
+      { datos: { monto: 3000000 } },
+    ),
+    false,
+  );
+});
+
+test("un payload con un campo de más NO es el mismo pedido", () => {
+  assert.equal(
+    mismoPayload({ datos: { monto: 30000 } }, { datos: { monto: 30000, forzar: true } }),
+    false,
+  );
+});
+
+test("mismoPayload y huella no pueden discrepar", () => {
+  /*
+   * Las dos salen de la misma canonicalización, y esto lo deja escrito como
+   * prueba: si dos payloads son "el mismo pedido", su huella tiene que ser la
+   * misma. Eran dos copias distintas hasta hoy; el día que alguien vuelva a
+   * separarlas, esto falla.
+   */
+  const a = { accion: "REGISTRAR_VENTA", datos: { b: 1, a: [{ y: 2, x: 1 }] } };
+  const b = { datos: { a: [{ x: 1, y: 2 }], b: 1 }, accion: "REGISTRAR_VENTA" };
+
+  assert.ok(mismoPayload(a, b));
+  assert.equal(huella(a), huella(b));
 });
