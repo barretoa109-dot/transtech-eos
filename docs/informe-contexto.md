@@ -130,11 +130,17 @@ posición, en ese orden a propósito.
 forma de que pregunte "¿cuánto vendí en agosto?" — eso son los *tools*
 deterministas, y dependen de sacar el gateway de n8n.
 
-**El tope no está medido.** Con 8 cuentas, 5 tarjetas, 8 deudas y 5 objetivos
-el bloque puede pasar los 800 caracteres. Nadie con esa carga lo probó todavía.
+**~~El tope no está medido.~~ Medido.** Con la peor carga realista —8 cuentas,
+5 tarjetas, 8 deudas y 5 objetivos— el contexto llega a 1.286 caracteres, muy
+dentro de lo sano. El que pesa es el **prompt**: 22.941 caracteres, dieciocho
+veces más, y creció 42% en dos días. `scripts/medir-contexto.mts` lo desglosa.
 
-**La memoria no se auditó.** Este informe cubre el contexto de negocio y la
-posición. Lo que `textoMemoria` arma —memorias, objetivos, tareas— entra en el
-mismo campo y no se midió acá.
+**~~La memoria no se auditó.~~ Cerrado**, y con hallazgo: para un usuario real
+el bloque ENTERO de memoria eran tres preguntas suyas devueltas como hechos.
+Está en `docs/auditoria-general.md`.
 
-**El briefing sigue sin Personal**, que era otro punto del encargo.
+**~~El briefing sigue sin Personal.~~ Hecho**, y era peor de lo que decía esta
+línea: el briefing no sabía una sola cifra de plata, ni del negocio ni de la
+persona. Ahora lleva el mes por ámbito, lo declarado con su fecha, las deudas
+con su cuota y las tarjetas con su vencimiento. Lo que todavía no se puede
+juzgar es el **texto** que escriba el modelo: eso se ve cuando corra el cron.

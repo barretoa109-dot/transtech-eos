@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { textoMemoria, esUnaPregunta, TOPES } from "./memoria-contexto.ts";
+import { textoMemoria, esUnaPregunta, hablaDeLaMaquina, TOPES } from "./memoria-contexto.ts";
 
 function memoria(p: Partial<Parameters<typeof textoMemoria>[0]["memorias"] extends (infer T)[] | null | undefined ? T : never> = {}) {
   return {
@@ -377,6 +377,70 @@ test("con todas las memorias descartadas no queda un encabezado vacío", () => {
   // nada, y concluye que la persona no le contó nunca nada.
   const texto = textoMemoria({
     memorias: [{ titulo: "x", contenido: "¿qué recordás de mí?", importancia: 5 }],
+  });
+
+  assert.equal(texto, "");
+});
+
+// ---------------------------------------------------------------------------
+// Un aprendizaje sobre la máquina no es un aprendizaje sobre la persona
+// ---------------------------------------------------------------------------
+
+test("los aprendizajes que hablan de la plomería no llegan al modelo", () => {
+  /*
+   * Casos reales de producción, 10 de septiembre de 2026. Los tres de mayor
+   * confianza que sobrevivían al filtro de categoría eran estos, y el bloque
+   * se los mostraba al modelo bajo el rótulo "lo que con esta persona
+   * funcionó antes".
+   */
+  const texto = textoMemoria({
+    aprendizajes: [
+      {
+        recomendacion:
+          "En pruebas QA, validar explícitamente la referencia de conversación antes de intentar GUARDAR_MEMORIA.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "contexto",
+      },
+      {
+        recomendacion: "Mantener CREAR_TAREA como ruta preferente para flujos similares en v66.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "general",
+      },
+      {
+        recomendacion:
+          "Cuando vende a crédito a clientes nuevos, cobra en promedio a los 40 días: conviene pedir seña.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "objetivo",
+      },
+    ],
+  });
+
+  assert.doesNotMatch(texto, /GUARDAR_MEMORIA/);
+  assert.doesNotMatch(texto, /CREAR_TAREA/);
+  assert.match(texto, /pedir seña/, "se llevó puesto el que SÍ era sobre el negocio");
+});
+
+test("un aprendizaje sobre plata no se confunde con uno sobre la máquina", () => {
+  // El modo de fallar tiene que ser el seguro: descartar de más, nunca de
+  // menos. Estos cuatro son sobre la persona y tienen que pasar.
+  for (const bueno of [
+    "Cuando el mes arranca con el alquiler pagado, llega holgado a fin de mes.",
+    "Sus mejores márgenes están en los conjuntos, no en los jeans.",
+    "Suele subestimar los gastos de la primera semana del mes.",
+    "Las ventas a crédito a clientes conocidos se cobran solas; las de nuevos, no.",
+  ]) {
+    assert.equal(hablaDeLaMaquina(bueno), false, `descartó uno bueno: "${bueno}"`);
+  }
+});
+
+test("con todos los aprendizajes descartados no queda un encabezado suelto", () => {
+  const texto = textoMemoria({
+    aprendizajes: [
+      { recomendacion: "Revisar el payload del worker", confianza: 0.9, evidence_count: 9 },
+    ],
   });
 
   assert.equal(texto, "");

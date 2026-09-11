@@ -210,6 +210,52 @@ export type AprendizajeUtil = {
  */
 const CATEGORIA_INTERNA = "ejecucion";
 
+/**
+ * Un aprendizaje que habla de la máquina no es un aprendizaje sobre la persona.
+ *
+ * ============================================================
+ * LA CATEGORÍA NO ALCANZABA
+ * ============================================================
+ *
+ * El filtro de `CATEGORIA_INTERNA` saca los 170 de `ejecucion`. El 10 de
+ * septiembre de 2026 se miraron los 36 que quedaban —los de mayor confianza,
+ * los que de verdad llegan al modelo— y son estos:
+ *
+ *   - "En pruebas QA, validar explícitamente la referencia de conversación
+ *      antes de intentar GUARDAR_MEMORIA"
+ *   - "Mantener CREAR_TAREA como ruta preferente para flujos similares en v66"
+ *   - "Agregar validación previa de referencias de conversación antes de
+ *      invocar GUARDAR_MEMORIA en QA"
+ *
+ * Los 206 aprendizajes de producción son sobre EOS. **Ni uno solo es sobre el
+ * negocio o la plata de una persona.** El motor de aprendizaje aprende de la
+ * bitácora de acciones, así que aprende del sistema.
+ *
+ * Y el bloque se los presenta al modelo bajo el rótulo "lo que con esta
+ * persona funcionó antes", gastando tres renglones de cada mensaje en
+ * decirle cómo correr pruebas de QA.
+ *
+ * ============================================================
+ * POR QUÉ UNA LISTA DE PALABRAS Y NO ALGO MÁS FINO
+ * ============================================================
+ *
+ * No hay señal estructural: los 206 vienen de la misma fuente
+ * (`n8n-ai-v7`) y se reparten en cinco categorías sin que ninguna separe lo
+ * de la máquina de lo del negocio.
+ *
+ * Así que se mira lo único que distingue de verdad: si NOMBRA la máquina. El
+ * modo de fallar es el seguro — descarta un aprendizaje que mencione
+ * "GUARDAR_MEMORIA" o "workflow", y un aprendizaje sobre el negocio de alguien
+ * no los menciona. Si el bloque queda vacío no aparece, que es exactamente lo
+ * que corresponde mientras el motor no produzca nada sobre la persona.
+ */
+const PALABRAS_DE_LA_MAQUINA =
+  /\b(qa|gateway|workflow|worker|endpoint|payload|prompt|token|api|sintétic|sintetic|ejecuci[oó]n del|v\d{2,}|GUARDAR_MEMORIA|CREAR_TAREA|CREAR_CONTACTO|CREAR_OBJETIVO|GENERAR_EXCEL|GENERAR_PDF|GENERAR_WORD|REGISTRAR_[A-Z_]+|VER_[A-Z_]+|referencia de conversaci[oó]n|referencias de conversaci[oó]n)\b/i;
+
+export function hablaDeLaMaquina(texto: string): boolean {
+  return PALABRAS_DE_LA_MAQUINA.test(texto);
+}
+
 export const TOPES = {
   memorias: 8,
   objetivos: 5,
@@ -337,6 +383,7 @@ export function textoMemoria(datos: {
       .filter((a) => (a.estado ?? "activo") === "activo")
       .filter((a) => (a.recomendacion ?? "").trim())
       .filter((a) => (a.categoria ?? "").trim().toLowerCase() !== CATEGORIA_INTERNA)
+      .filter((a) => !hablaDeLaMaquina(a.recomendacion ?? ""))
       .filter((a) => (a.confianza ?? 0) >= TOPES.confianzaMinima)
       .filter((a) => (a.evidence_count ?? 0) >= TOPES.evidenciaMinima)
       .sort((a, b) => (b.confianza ?? 0) - (a.confianza ?? 0)),
