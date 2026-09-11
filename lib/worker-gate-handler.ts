@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 
 import { adminSinTipos, type ClienteSinTipos } from "./supabase/sin-tipos.ts";
@@ -7,6 +6,7 @@ import { SYSTEM_RISK } from "./autonomia/riesgo.ts";
 
 // Reexportado para que quien ya lo importaba de acá siga funcionando.
 export { ACCIONES_CON_RIESGO } from "./autonomia/riesgo.ts";
+import { huella } from "./autonomia/huella.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,23 +92,19 @@ function isUuid(value: unknown): value is string {
   );
 }
 
-function stable(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stable);
-  if (!value || typeof value !== "object") return value;
-
-  return Object.keys(value as Record<string, unknown>)
-    .sort()
-    .reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = stable((value as Record<string, unknown>)[key]);
-      return acc;
-    }, {});
-}
-
-function fingerprint(value: Record<string, unknown>) {
-  return createHash("sha256")
-    .update(JSON.stringify(stable(value)))
-    .digest("hex");
-}
+/*
+ * La huella se mudó a `lib/autonomia/huella.ts` el 10 de septiembre de 2026.
+ *
+ * Este archivo importa `next/server`, así que ninguna prueba de `lib/` podía
+ * importarlo — y la huella es lo único que impide que una venta se cargue dos
+ * veces. Era la función más peligrosa del sistema sin una sola prueba.
+ *
+ * Mudarla, y no copiarla: probar una copia es peor que no probar nada, porque
+ * da la tranquilidad sin la garantía. Acá queda solo el uso.
+ *
+ * Es el mismo movimiento que hizo `SYSTEM_RISK` el día anterior, por el mismo
+ * motivo. Ver el encabezado de `riesgo.ts`.
+ */
 
 const AUTONOMY_TIME_ZONE = "America/Asuncion";
 
@@ -753,7 +749,7 @@ export async function POST(request: Request) {
           status: "pending",
           reason,
           payload_snapshot: payload,
-          payload_fingerprint: fingerprint(payload),
+          payload_fingerprint: huella(payload),
           expires_at: expiresAt,
         })
         .select(
