@@ -15,6 +15,18 @@ export type Contacto = {
   telefono: string | null;
   es_cliente: boolean;
   es_proveedor: boolean;
+  /*
+   * Los seis que `GET /api/erp/contactos` devuelve desde siempre y este tipo
+   * no nombraba. Como el tipo no los tenía, la pantalla no los podía mostrar
+   * ni editar, y el PATCH que sí sabe escribirlos quedaba sin nadie que se
+   * lo pidiera. Opcionales para no romper a quien arma un Contacto a mano.
+   */
+  tipo?: "persona" | "empresa" | null;
+  documento?: string | null;
+  email?: string | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  notas?: string | null;
 };
 
 export type Producto = {
