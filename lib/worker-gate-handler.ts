@@ -7,6 +7,11 @@ import { SYSTEM_RISK } from "./autonomia/riesgo.ts";
 // Reexportado para que quien ya lo importaba de acá siga funcionando.
 export { ACCIONES_CON_RIESGO } from "./autonomia/riesgo.ts";
 import { huella } from "./autonomia/huella.ts";
+import {
+  PERFIL_POR_DEFECTO,
+  decidirAutonomia,
+  inicioVentanaDiaria,
+} from "./autonomia/decision.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,59 +21,10 @@ const POLICY_VERSION = "eos-worker-gate-v2";
 
 
 /*
- * El perfil de quien todavía no tiene fila propia.
- *
- * Tiene que decir lo mismo que el default de la columna en la base
- * (v101, y ahora v127). Cuando dijeron cosas distintas, cinco de los seis
- * usuarios de producción corrieron catorce días en nivel 1 —que ni ejecuta
- * ni pregunta— mientras el chat les decía que sí. Si cambia uno, cambia el
- * otro.
- *
- * Los dos techos diarios subieron el 6 de septiembre de 2026. Estaban en 5
- * acciones y 10 puntos desde la v12, cuando lo más caro que se podía pedir
- * era crear un objetivo. Una venta vale 6 puntos: con presupuesto 10, la
- * PRIMERA venta del día pasaba y la segunda daba `block` —ni siquiera
- * `approval`, así que no quedaba nada que aprobar—. Desde el chat eso se ve
- * como que EOS no registra nada en el ERP, y así se reportó.
- *
- * Los números salen de un día cargado de uso conversacional —unas quince
- * ventas, tres contactos, dos ajustes de stock: 111 puntos en 20 acciones— y
- * se duplican. El techo sigue existiendo para frenar a un modelo trabado en
- * un bucle, que es para lo que sirve; dejó de frenar a alguien trabajando.
- *
- * ------------------------------------------------------------
- * EL NIVEL POR DEFECTO PASA DE 2 A 3, Y ESA ES LA DECISIÓN GRANDE
- * ------------------------------------------------------------
- *
- * En la escalera de abajo, el nivel 2 significa `approval`: la acción no se
- * ejecuta y queda esperando que la persona vaya a `/eos/autonomy` a aprobarla.
- * Como era el default, TODA acción que no fuera una de las tres del negocio
- * —guardar una memoria, crear una tarea, armar un Excel— terminaba ahí.
- *
- * En la práctica eso significa que no pasa nada. Nadie interrumpe una
- * conversación para ir a otra pantalla a autorizar que se guarde una nota, y
- * el resultado es un chat que promete y no cumple. Se reportó dos veces desde
- * el uso real, con estas palabras: "EOS no recuerda las cosas" y "cuando se le
- * pide por el chat que anote algo en el ERP y CRM no lo hace".
- *
- * El nivel 3 ejecuta, y lo que protege deja de ser una pregunta por acción
- * para ser el techo diario de acá arriba: 40 acciones y 240 puntos. Eso frena
- * a un modelo trabado en un bucle, que es el riesgo real, sin frenar a alguien
- * trabajando.
- *
- * Queda escrito qué se pierde: si el modelo entiende mal algo, ahora lo hace
- * en vez de preguntar. Es exactamente lo que el usuario pidió para las tres
- * acciones del negocio el 3 de septiembre —las más caras de equivocar— y no
- * tiene sentido ser más estricto con guardar una nota que con registrar una
- * venta.
+ * El perfil por defecto, la escalera y el presupuesto diario se mudaron a
+ * `lib/autonomia/decision.ts` el 12 de septiembre de 2026, con sus
+ * comentarios y con pruebas que hasta ese día no tenían.
  */
-const DEFAULT_PROFILE = {
-  default_level: 3,
-  max_auto_actions_per_day: 40,
-  max_daily_risk_points: 240,
-  approval_ttl_minutes: 60,
-  enabled: true,
-};
 
 function noStoreHeaders() {
   return {
@@ -106,22 +62,6 @@ function isUuid(value: unknown): value is string {
  * motivo. Ver el encabezado de `riesgo.ts`.
  */
 
-const AUTONOMY_TIME_ZONE = "America/Asuncion";
-
-function dateInTimeZone(value: string, timeZone = AUTONOMY_TIME_ZONE) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(value));
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function recentAutonomyWindowStart() {
-  return new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
-}
 async function logEvent(
   admin: ClienteSinTipos,
   params: {
@@ -411,7 +351,7 @@ export async function POST(request: Request) {
         .select("event_type,detail,created_at")
         .eq("usuario_id", usuarioId)
         .eq("event_type", "auto_allowed")
-        .gte("created_at", recentAutonomyWindowStart()),
+        .gte("created_at", inicioVentanaDiaria(new Date())),
       admin
         .from("eos_master_context_v8")
         .select("id,version,necesita_actualizacion,vigente_hasta,updated_at")
@@ -439,7 +379,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const profile = { ...DEFAULT_PROFILE, ...(profileResult.data || {}) };
+    const profile = { ...PERFIL_POR_DEFECTO, ...(profileResult.data || {}) };
 
     /*
      * Y si no tenía fila, se la crea con lo que se acaba de usar.
@@ -457,7 +397,7 @@ export async function POST(request: Request) {
       const { error: altaError } = await admin
         .from("eos_autonomy_profiles_v12")
         .upsert(
-          { usuario_id: usuarioId, ...DEFAULT_PROFILE },
+          { usuario_id: usuarioId, ...PERFIL_POR_DEFECTO },
           // `ignoreDuplicates` lo vuelve un `on conflict do nothing`: si entre
           // la lectura y esta escritura otra evaluación ya creó la fila —o el
           // usuario ya había elegido su nivel—, no se pisa nada.
@@ -555,57 +495,29 @@ export async function POST(request: Request) {
     }
 
     /*
-     * Una regla apagada no existe; no es una regla que diga "nunca".
-     *
-     * Antes, `enabled: false` bajaba el nivel a 0, que en la escalera de abajo
-     * significa `recommend`: la acción no se ejecuta y el usuario recibe "la
-     * política permite únicamente recomendar esta acción", una frase con la
-     * que no puede hacer nada.
-     *
-     * Eso costó caro y se encontró usando el producto. La cuenta del plan
-     * Business tenía tres reglas apagadas —GUARDAR_MEMORIA entre ellas— y por
-     * eso EOS no guardó una sola memoria desde el 18 de agosto. Cuando el
-     * usuario preguntó "¿en serio no recordás nada de mi negocio?", la
-     * respuesta era correcta: no había nada guardado, porque cada intento
-     * terminaba en `recommend`.
-     *
-     * Y nadie lo eligió: **ninguna ruta ni pantalla del producto escribe en
-     * `eos_autonomy_rules_v12`.** Esas filas son restos de pruebas, y no hay
-     * forma de apagarlas desde la aplicación. Un interruptor que solo se puede
-     * prender desde afuera no puede ser el que decide si EOS recuerda.
-     *
-     * Ahora una regla apagada se ignora ENTERA —nivel, tope diario y riesgo—
-     * y manda el perfil. Si algún día hace falta "nunca hagas esta acción",
-     * eso es un `block` con su propio motivo, no un booleano que produce el
-     * fallo más silencioso posible.
+     * La escalera y el presupuesto diario viven en `lib/autonomia/decision.ts`
+     * desde el 12 de septiembre de 2026, con sus pruebas —la regla apagada que
+     * dejó a EOS sin memoria incluida—. Acá queda lo que no se puede probar sin
+     * base: leer, arriba, y escribir lo que se decidió, abajo.
      */
-    const reglaVigente = rule?.enabled === false ? null : rule;
-
-    const configuredLevel = Number(
-      reglaVigente?.autonomy_level ??
-        systemRisk.defaultLevelOverride ??
-        profile.default_level,
-    );
-    const effectiveLevel = Math.min(configuredLevel, systemRisk.maxLevel);
-    const riskTier = Math.max(systemRisk.tier, Number(reglaVigente?.risk_tier ?? 0));
-    const riskPoints = Math.max(systemRisk.points, Number(reglaVigente?.risk_points ?? 0));
-    const autonomyDay = dateInTimeZone(new Date().toISOString());
-    const autoEvents = (
-      (dailyEventsResult.data || []) as { created_at: string; detail: unknown }[]
-    ).filter((event) => dateInTimeZone(event.created_at) === autonomyDay);
-    const autoCount = autoEvents.length;
-    const usedRisk = autoEvents.reduce((total: number, event) => {
-      const detail = safeObject(event.detail);
-      const points = Number(detail.risk_points || 0);
-      return total + (Number.isFinite(points) ? points : 0);
-    }, 0);
-    const actionLimit =
-      reglaVigente?.max_auto_per_day === null || reglaVigente?.max_auto_per_day === undefined
-        ? Number(profile.max_auto_actions_per_day)
-        : Math.min(
-            Number(profile.max_auto_actions_per_day),
-            Number(reglaVigente.max_auto_per_day),
-          );
+    const {
+      decision,
+      reason,
+      configuredLevel,
+      effectiveLevel,
+      riskTier,
+      riskPoints,
+      autoCount,
+      actionLimit,
+      usedRisk,
+      riskLimit,
+    } = decidirAutonomia({
+      perfil: profile,
+      regla: rule,
+      riesgo: systemRisk,
+      eventosAutomaticos: dailyEventsResult.data || [],
+      ahora: new Date(),
+    });
 
     const existingApproval = approvalResult.data;
 
@@ -691,38 +603,6 @@ export async function POST(request: Request) {
         },
         { headers: noStoreHeaders() },
       );
-    }
-
-    let decision: "recommend" | "prepare" | "approval" | "allow" | "block";
-    let reason = "";
-
-    if (!profile.enabled) {
-      decision = "recommend";
-      reason = "La autonomía está desactivada para este usuario.";
-    } else if (effectiveLevel <= 0) {
-      decision = "recommend";
-      reason = "La política permite únicamente recomendar esta acción.";
-    } else if (effectiveLevel === 1) {
-      decision = "prepare";
-      reason = "EOS puede preparar la acción, pero no ejecutar el efecto secundario.";
-    } else if (
-      effectiveLevel === 2 ||
-      (riskTier >= 2 && systemRisk.forceApproval !== false)
-    ) {
-      decision = "approval";
-      reason =
-        riskTier >= 2 && systemRisk.forceApproval !== false
-          ? "El riesgo mínimo de sistema exige aprobación explícita."
-          : "La configuración del usuario exige aprobación explícita.";
-    } else if (autoCount >= actionLimit) {
-      decision = "block";
-      reason = "Se alcanzó el límite diario de acciones automáticas.";
-    } else if (usedRisk + riskPoints > Number(profile.max_daily_risk_points)) {
-      decision = "block";
-      reason = "La acción superaría el presupuesto diario de riesgo automático.";
-    } else {
-      decision = "allow";
-      reason = "La acción está dentro del nivel, riesgo y límites permitidos.";
     }
 
     if (decision === "approval") {
@@ -834,7 +714,7 @@ export async function POST(request: Request) {
         daily_auto_count: autoCount,
         daily_auto_limit: actionLimit,
         daily_risk_used: usedRisk,
-        daily_risk_limit: Number(profile.max_daily_risk_points),
+        daily_risk_limit: riskLimit,
         command_binding_verified: decision === "allow" ? Boolean(command) : false,
       },
     });
@@ -859,7 +739,7 @@ export async function POST(request: Request) {
           auto_count: autoCount,
           auto_limit: actionLimit,
           risk_used: usedRisk,
-          risk_limit: Number(profile.max_daily_risk_points),
+          risk_limit: riskLimit,
         },
         policy_version: POLICY_VERSION,
       },
