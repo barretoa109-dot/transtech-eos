@@ -40,7 +40,16 @@ export type EventoAuditoria =
   | "stock_ajustado"
   | "producto_modificado"
   | "comprobante_emitido"
-  | "costo_corregido";
+  | "costo_corregido"
+  /*
+   * Lo que EOS ejecutó desde el chat y no es una operación del ERP (v163).
+   *
+   * Nadie lo escribe desde TypeScript: lo asienta el trigger
+   * `eos_auditoria_orden_del_chat_v163` cuando una orden del chat llega a su
+   * estado final. Está en el tipo porque `/api/auditoria` lo devuelve, y quien
+   * lea la bitácora tiene que poder nombrarlo.
+   */
+  | "accion_ejecutada";
 
 export type OrigenAuditoria = "correo" | "documento" | "chat" | "panel" | "sistema";
 
