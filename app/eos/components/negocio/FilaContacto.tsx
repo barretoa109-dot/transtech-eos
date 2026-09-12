@@ -118,6 +118,26 @@ function Editar({
   const [telefono, setTelefono] = useState(contacto.telefono ?? "");
   const [esCliente, setEsCliente] = useState(contacto.es_cliente);
   const [esProveedor, setEsProveedor] = useState(contacto.es_proveedor);
+
+  /*
+   * Todo lo que la ruta acepta, editable.
+   *
+   * El formulario tenía cinco campos de los doce que
+   * `PATCH /api/erp/contactos/[id]` sabe escribir. Los que faltaban no son
+   * detalles: el email es a donde va la factura electrónica, la dirección y
+   * la ciudad salen impresas en el comprobante, y "empresa o persona"
+   * decide cómo se lo trata ante la SET. Sin ellos, un contacto cargado a
+   * medias se completaba borrándolo y creándolo de nuevo, perdiendo su
+   * historial de ventas y compras.
+   */
+  const [tipo, setTipo] = useState<"persona" | "empresa">(
+    contacto.tipo === "empresa" ? "empresa" : "persona",
+  );
+  const [email, setEmail] = useState(contacto.email ?? "");
+  const [documento, setDocumento] = useState(contacto.documento ?? "");
+  const [direccion, setDireccion] = useState(contacto.direccion ?? "");
+  const [ciudad, setCiudad] = useState(contacto.ciudad ?? "");
+  const [notas, setNotas] = useState(contacto.notas ?? "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -145,6 +165,12 @@ function Editar({
           telefono: telefono.trim(),
           es_cliente: esCliente,
           es_proveedor: esProveedor,
+          tipo,
+          documento: documento.trim(),
+          email: email.trim(),
+          direccion: direccion.trim(),
+          ciudad: ciudad.trim(),
+          notas: notas.trim(),
         }),
       });
 
@@ -192,7 +218,70 @@ function Editar({
           placeholder="Teléfono"
           onChange={(e) => setTelefono(e.target.value)}
         />
+
+        <input
+          className="neg-input"
+          type="email"
+          value={email}
+          maxLength={180}
+          placeholder="Email (para la factura)"
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        {/*
+          Documento aparte del RUC: una persona sin RUC igual tiene cédula, y
+          es con lo que se la identifica en una venta a consumidor final.
+        */}
+        <input
+          className="neg-input neg-cantidad"
+          value={documento}
+          maxLength={40}
+          placeholder="Cédula u otro documento"
+          onChange={(e) => setDocumento(e.target.value)}
+        />
+
+        <input
+          className="neg-input"
+          value={direccion}
+          maxLength={200}
+          placeholder="Dirección"
+          onChange={(e) => setDireccion(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          value={ciudad}
+          maxLength={80}
+          placeholder="Ciudad"
+          onChange={(e) => setCiudad(e.target.value)}
+        />
       </div>
+
+      <div className="chip-row">
+        <button
+          type="button"
+          className={`chip${tipo === "persona" ? " active" : ""}`}
+          onClick={() => setTipo("persona")}
+        >
+          Persona
+        </button>
+        <button
+          type="button"
+          className={`chip${tipo === "empresa" ? " active" : ""}`}
+          onClick={() => setTipo("empresa")}
+        >
+          Empresa
+        </button>
+      </div>
+
+      <textarea
+        className="neg-input"
+        rows={2}
+        value={notas}
+        maxLength={2000}
+        placeholder="Notas: cómo prefiere que le avisen, qué suele pedir…"
+        onChange={(e) => setNotas(e.target.value)}
+      />
 
       <div className="chip-row">
         <button

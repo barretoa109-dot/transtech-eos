@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import FallaDeCarga from "./FallaDeCarga";
-import { CalendarClock, Heart } from "lucide-react";
+import Confirmar from "./negocio/Confirmar";
+import { CalendarClock, Heart, Pencil } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
 
@@ -15,9 +16,21 @@ import { nombreDeMoneda } from "@/lib/finanzas/monedas";
  * moneda" empieza por acá — es la parte del dinero que ya tiene dueño antes
  * de que entre.
  *
- * Es de solo lectura a propósito. La doctrina dice que EOS trabaja y el
- * usuario observa: las deudas se declaran conversando, que es donde EOS puede
- * repreguntar lo que falta, no en un formulario de doce campos.
+ * Fue de solo lectura a propósito hasta el 12 de septiembre de 2026. La
+ * doctrina dice que EOS trabaja y el usuario observa: las deudas se declaran
+ * conversando, que es donde EOS puede repreguntar lo que falta.
+ *
+ * Eso sigue siendo el camino principal —REGISTRAR_DEUDA y REGISTRAR_PAGO_DEUDA
+ * desde el chat— pero dejó de ser el ÚNICO. Una usuaria lo pidió sin vueltas:
+ * todo lo que se carga tiene que poder corregirse y borrarse desde la
+ * pantalla. Un saldo mal entendido que sólo se arregla volviendo a hablar con
+ * EOS obliga a adivinar la frase exacta que lo corrige; y una deuda cargada
+ * dos veces no tenía NINGUNA forma de desaparecer, porque la API de borrar
+ * existía y ninguna pantalla la llamaba.
+ *
+ * No es un formulario de doce campos: se corrigen los cinco que cambian con
+ * el tiempo —saldo, cuota, día, cuotas pagadas y estado—. El acreedor y el
+ * tipo no se tocan acá: si están mal, es otra deuda.
  *
  * Dos cosas que el panel nunca hace:
  *
@@ -75,12 +88,39 @@ export default function FinanzasDeudas() {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
 
+  /** Qué deuda está abierta para corregir. Una sola por vez. */
+  const [editando, setEditando] = useState<string | null>(null);
+  const [fallo, setFallo] = useState("");
+
+  /*
+   * Recargar sube un contador en vez de llamar a una función desde el efecto.
+   * Así el estado se escribe siempre DESPUÉS de la respuesta, nunca en el
+   * cuerpo del efecto, que es lo que la regla de hooks del proyecto prohíbe
+   * y lo que ya marcó en otra pantalla.
+   */
+  const [version, setVersion] = useState(0);
+  const recargar = () => setVersion((v) => v + 1);
+
   useEffect(() => {
     fetch("/api/finanzas/deudas", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
       .then(setData)
       .catch(() => setError(true));
-  }, []);
+  }, [version]);
+
+  async function borrar(d: Deuda) {
+    setFallo("");
+
+    const res = await fetch(`/api/finanzas/deudas/${d.id}`, { method: "DELETE" });
+
+    if (!res.ok) {
+      const datos = await res.json().catch(() => null);
+      setFallo(datos?.error || "No pudimos borrarla.");
+      return;
+    }
+
+    recargar();
+  }
 
   if (error) return <FallaDeCarga que="tus deudas" />;
 
@@ -141,6 +181,8 @@ export default function FinanzasDeudas() {
         )}
       </div>
 
+      {fallo && <p className="anular-error" role="alert">{fallo}</p>}
+
       <div className="deuda-lista">
         {vivas.map((d) => {
           const quedan = restantes(d);
@@ -181,6 +223,41 @@ export default function FinanzasDeudas() {
                 Según lo que declaraste el {formatearFecha(d.saldo_declarado_el)}
                 {d.vence_el ? ` · vence el ${formatearFecha(d.vence_el)}` : ""}
               </div>
+
+              {editando === d.id ? (
+                <EditarDeuda
+                  deuda={d}
+                  onCerrar={() => setEditando(null)}
+                  onListo={() => {
+                    setEditando(null);
+                    recargar();
+                  }}
+                />
+              ) : (
+                <div className="chip-row" style={{ marginTop: 8 }}>
+                  <button type="button" className="chip" onClick={() => setEditando(d.id)}>
+                    <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                    Corregir
+                  </button>
+
+                  {/*
+                    Borrar dice lo que borra. Una deuda borrada deja de restar del
+                    disponible real y de aparecer en el plan de pagos: si en
+                    realidad se pagó, lo correcto es marcarla saldada y no
+                    borrarla, porque así queda el historial.
+                  */}
+                  <Confirmar
+                    etiqueta="Borrar"
+                    peligro
+                    consecuencia={
+                      `La deuda con ${d.acreedor} desaparece del todo: deja de restar de tu disponible ` +
+                      "y sale del plan de pagos. Si ya la pagaste, mejor corregila y marcala como saldada."
+                    }
+                    confirmar="Sí, borrarla"
+                    onConfirmar={() => void borrar(d)}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
@@ -215,4 +292,142 @@ function formatearFecha(iso: string): string {
   const [anio, mes, dia] = iso.slice(0, 10).split("-").map(Number);
   if (!anio || !mes || !dia || mes < 1 || mes > 12) return iso;
   return `${dia} de ${MESES[mes - 1]}`;
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Corregir lo que cambia de una deuda con el tiempo.
+ *
+ * La ruta mezcla lo que se manda con lo que la deuda ya tenía y valida el
+ * resultado entero con `validarDeuda`, así que acá se manda sólo lo que se
+ * edita. Si el saldo cambia, el servidor le pone la fecha de hoy a
+ * "según lo que declaraste el…": un saldo corregido es un saldo declarado hoy.
+ */
+function EditarDeuda({
+  deuda,
+  onCerrar,
+  onListo,
+}: {
+  deuda: Deuda;
+  onCerrar: () => void;
+  onListo: () => void;
+}) {
+  const [saldo, setSaldo] = useState(String(deuda.saldo_declarado));
+  const [cuotaMonto, setCuotaMonto] = useState(deuda.cuota_monto === null ? "" : String(deuda.cuota_monto));
+  const [cuotaDia, setCuotaDia] = useState(deuda.cuota_dia === null ? "" : String(deuda.cuota_dia));
+  const [cuotasTotales, setCuotasTotales] = useState(
+    deuda.cuotas_totales === null ? "" : String(deuda.cuotas_totales),
+  );
+  const [cuotasPagadas, setCuotasPagadas] = useState(String(deuda.cuotas_pagadas ?? 0));
+  const [estado, setEstado] = useState<Deuda["estado"]>(deuda.estado);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function guardar() {
+    setGuardando(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/finanzas/deudas/${deuda.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          saldo_declarado: Number(saldo),
+          // Vacío es "no tiene cuota", que es distinto de cero. La ruta exige
+          // monto y día juntos o ninguno de los dos, y lo dice si falta uno.
+          cuota_monto: cuotaMonto.trim() === "" ? null : Number(cuotaMonto),
+          cuota_dia: cuotaDia.trim() === "" ? null : Number(cuotaDia),
+          cuotas_totales: cuotasTotales.trim() === "" ? null : Number(cuotasTotales),
+          cuotas_pagadas: Number(cuotasPagadas) || 0,
+          estado,
+        }),
+      });
+
+      const datos = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(datos?.error || "No se pudo guardar.");
+
+      onListo();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="fila-editor">
+      <div className="fila-editor-campos">
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={saldo}
+          autoFocus
+          placeholder="Saldo"
+          title="Cuánto debés hoy"
+          onChange={(e) => setSaldo(e.target.value)}
+        />
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={cuotaMonto}
+          placeholder="Cuota"
+          title="De cuánto es la cuota. Vacío si no tiene."
+          onChange={(e) => setCuotaMonto(e.target.value)}
+        />
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={1}
+          max={31}
+          value={cuotaDia}
+          placeholder="Día"
+          title="Qué día del mes se paga"
+          onChange={(e) => setCuotaDia(e.target.value)}
+        />
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={cuotasPagadas}
+          placeholder="Pagadas"
+          title="Cuántas cuotas ya pagaste"
+          onChange={(e) => setCuotasPagadas(e.target.value)}
+        />
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={cuotasTotales}
+          placeholder="De cuántas"
+          title="Cuántas cuotas son en total. Vacío si no sabés."
+          onChange={(e) => setCuotasTotales(e.target.value)}
+        />
+        <select
+          className="neg-input neg-cantidad"
+          value={estado}
+          aria-label="Estado de la deuda"
+          onChange={(e) => setEstado(e.target.value as Deuda["estado"])}
+        >
+          <option value="al_dia">Al día</option>
+          <option value="atrasada">Atrasada</option>
+          <option value="en_negociacion">En negociación</option>
+          <option value="saldada">Saldada</option>
+        </select>
+      </div>
+
+      {error && <p className="anular-error" role="alert">{error}</p>}
+
+      <div className="anular-acciones">
+        <button type="button" className="chip active" disabled={guardando} onClick={() => void guardar()}>
+          {guardando ? "Guardando…" : "Guardar"}
+        </button>
+        <button type="button" className="chip" disabled={guardando} onClick={onCerrar}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
 }
