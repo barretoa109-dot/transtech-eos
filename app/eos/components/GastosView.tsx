@@ -6,6 +6,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Lock,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -151,6 +152,9 @@ export default function GastosView() {
   const [nuncaCargo, setNuncaCargo] = useState(true);
   const [error, setError] = useState("");
 
+  /** Qué fila está abierta para editar. Una sola por vez. */
+  const [editando, setEditando] = useState<string | null>(null);
+
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [entendido, setEntendido] = useState("");
@@ -241,6 +245,45 @@ export default function GastosView() {
     }
 
     await cargar();
+  }
+
+  /**
+   * Editar un movimiento entero, no sólo su categoría.
+   *
+   * ============================================================
+   * LO QUE LA PANTALLA NO DEJABA HACER
+   * ============================================================
+   *
+   * `PATCH /api/finanzas/diario/[id]` acepta tipo, monto, descripción,
+   * fecha, moneda y categoría desde siempre. De todo eso, esta pantalla
+   * exponía UNA: el desplegable de categoría. Lo demás sólo se podía
+   * arreglar borrando la fila y volviéndola a cargar.
+   *
+   * Una usuaria lo dijo así: "no puede modificar nada". Tenía razón —y el
+   * agujero no estaba en el servidor, que sabía hacerlo, sino en que nadie
+   * se lo pedía.
+   *
+   * El monto es el campo que más se corrige, porque es el que EOS entiende
+   * mal cuando el número se dicta: 800.000 donde se dijo 80.000. Desde el
+   * chat eso ya se arregla con CORREGIR_MOVIMIENTO (v148); desde acá, hasta
+   * hoy, no.
+   */
+  async function guardarEdicion(m: Movimiento, cambios: Record<string, unknown>) {
+    const respuesta = await fetch(`/api/finanzas/diario/${m.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cambios),
+    });
+
+    if (!respuesta.ok) {
+      const datos = await respuesta.json().catch(() => null);
+      setError(datos?.error || "No pudimos guardar el cambio.");
+      return false;
+    }
+
+    setEditando(null);
+    await cargar();
+    return true;
   }
 
   async function borrar(m: Movimiento) {
@@ -580,14 +623,31 @@ export default function GastosView() {
                   </span>
 
                   {m.editable ? (
-                    <button
-                      type="button"
-                      className="chip"
-                      aria-label={`Borrar ${m.descripcion}`}
-                      onClick={() => void borrar(m)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <>
+                      {/*
+                        Editar va ANTES de borrar, y no es orden alfabético:
+                        hasta hoy borrar era la única forma de arreglar un
+                        monto mal anotado, y quien aprendió ese camino lo
+                        sigue usando si el otro no está primero.
+                      */}
+                      <button
+                        type="button"
+                        className="chip"
+                        aria-label={`Editar ${m.descripcion}`}
+                        onClick={() => setEditando(editando === m.id ? null : m.id)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="chip"
+                        aria-label={`Borrar ${m.descripcion}`}
+                        onClick={() => void borrar(m)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </>
                   ) : (
                     /*
                       No se puede borrar desde acá y se dice por qué. Un botón que
@@ -598,12 +658,150 @@ export default function GastosView() {
                       <Lock size={12} /> {m.origen === "erp" ? "Negocio" : "Buzón"}
                     </span>
                   )}
+
+                  {editando === m.id && (
+                    <EditarMovimiento
+                      movimiento={m}
+                      onCancelar={() => setEditando(null)}
+                      onGuardar={(cambios) => guardarEdicion(m, cambios)}
+                    />
+                  )}
                 </div>
               ))
             )}
             </div>
         </>
       )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * Corregir un movimiento sin borrarlo y volverlo a cargar.
+ *
+ * ============================================================
+ * POR QUÉ ES UN FORMULARIO Y NO CAMPOS SUELTOS EN LA FILA
+ * ============================================================
+ *
+ * El desplegable de categoría guarda al soltar, y está bien: elegir de una
+ * lista no tiene estados intermedios. Un monto sí los tiene — "8", "80",
+ * "800" son todos válidos mientras se escribe— y guardar en cada tecla
+ * dejaría en la base tres versiones falsas antes de la buena.
+ *
+ * Así que el monto, la descripción y la fecha se editan juntos y se guardan
+ * cuando la persona lo dice.
+ *
+ * ============================================================
+ * EL SIGNO NO SE EDITA ACÁ
+ * ============================================================
+ *
+ * Una devolución es un gasto de monto NEGATIVO (v141), y así es como resta
+ * sola en las veintitrés consultas que suman gastos. Si este formulario
+ * dejara escribir el monto con signo, cualquiera podría convertir un gasto en
+ * una devolución sin querer.
+ *
+ * Se edita el valor ABSOLUTO y se le devuelve el signo que la fila ya tenía.
+ * Cambiar de gasto a ingreso es otra cosa —y para eso está el desplegable de
+ * tipo, que sí es explícito—.
+ */
+function EditarMovimiento({
+  movimiento,
+  onCancelar,
+  onGuardar,
+}: {
+  movimiento: Movimiento;
+  onCancelar: () => void;
+  onGuardar: (cambios: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [monto, setMonto] = useState(String(Math.abs(movimiento.monto)));
+  const [descripcion, setDescripcion] = useState(movimiento.descripcion);
+  const [fecha, setFecha] = useState(movimiento.fecha.slice(0, 10));
+  const [tipo, setTipo] = useState<"ingreso" | "gasto">(movimiento.tipo);
+  const [guardando, setGuardando] = useState(false);
+
+  /** Era una devolución: el monto guardado es negativo y así tiene que seguir. */
+  const esDevolucion = movimiento.monto < 0;
+
+  async function guardar() {
+    const valor = Number(monto);
+
+    if (!Number.isFinite(valor) || valor <= 0) return;
+
+    setGuardando(true);
+
+    await onGuardar({
+      tipo,
+      monto: esDevolucion ? -Math.abs(valor) : Math.abs(valor),
+      descripcion: descripcion.trim(),
+      fecha,
+    });
+
+    setGuardando(false);
+  }
+
+  return (
+    <div className="fila-editor">
+      <div className="fila-editor-campos">
+        <input
+          className="neg-input"
+          value={descripcion}
+          maxLength={200}
+          autoFocus
+          placeholder="En qué fue"
+          onChange={(e) => setDescripcion(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={monto}
+          placeholder="Monto"
+          title="El monto, sin signo: el signo lo pone el tipo"
+          onChange={(e) => setMonto(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          type="date"
+          value={fecha}
+          title="Cuándo pasó"
+          onChange={(e) => setFecha(e.target.value)}
+        />
+
+        {/*
+          El tipo se puede cambiar, y hace falta: "cobré" e "invertí" se
+          parecen lo suficiente como para que EOS equivoque el signo, y un
+          gasto contado como ingreso mueve el disponible al doble para el lado
+          que no es.
+
+          Una devolución no aparece: no es un tipo, es un gasto negativo, y
+          convertirla desde acá sería cambiar dos cosas con un solo clic.
+        */}
+        {!esDevolucion && (
+          <select
+            className="neg-input neg-cantidad"
+            value={tipo}
+            aria-label="Tipo de movimiento"
+            onChange={(e) => setTipo(e.target.value as "ingreso" | "gasto")}
+          >
+            <option value="gasto">Gasto</option>
+            <option value="ingreso">Ingreso</option>
+          </select>
+        )}
+      </div>
+
+      {/* La misma clase que usa el editor de productos: dos botones en fila. */}
+      <div className="anular-acciones">
+        <button type="button" className="chip active" disabled={guardando} onClick={() => void guardar()}>
+          {guardando ? "Guardando…" : "Guardar"}
+        </button>
+        <button type="button" className="chip" onClick={onCancelar}>
+          Cancelar
+        </button>
       </div>
     </div>
   );
