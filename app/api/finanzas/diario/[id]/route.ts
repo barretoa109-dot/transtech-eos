@@ -86,11 +86,46 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
   if (cuerpo?.monto !== undefined) {
     const monto = Number(cuerpo.monto);
+
+    /*
+     * UNA DEVOLUCIÓN ES UN MONTO NEGATIVO, Y NO SE PODÍA CORREGIR
+     *
+     * Desde la v141, una devolución se guarda como un gasto de monto
+     * NEGATIVO: así resta sola en las veintitrés consultas que suman gastos,
+     * sin que ninguna tenga que conocer el caso.
+     *
+     * Esta comprobación exigía `monto > 0` para todos, así que la única fila
+     * que el sistema crea en negativo era la única que después no se podía
+     * corregir: escribir 200.000 la volvía un gasto, y escribir -200.000
+     * daba "el monto tiene que ser mayor a cero". Sin salida.
+     *
+     * La regla que sí corresponde: el signo no se puede CAMBIAR desde acá.
+     * Una devolución sigue siendo devolución y un gasto sigue siendo gasto;
+     * lo que se corrige es cuánto. Convertir una cosa en la otra es otra
+     * operación y no puede pasar por escribir un guion sin querer.
+     */
+    const eraDevolucion = Number(puerta.movimiento.monto ?? 0) < 0;
+
     // Cero no: un movimiento de cero no es un movimiento. Si se cargó de más,
     // se borra.
-    if (!Number.isFinite(monto) || monto <= 0) {
-      return respuesta("El monto tiene que ser mayor a cero.", 400);
+    if (!Number.isFinite(monto) || monto === 0) {
+      return respuesta("El monto tiene que ser distinto de cero.", 400);
     }
+
+    if (eraDevolucion && monto > 0) {
+      return respuesta(
+        "Eso es una devolución: el monto va en negativo. Si querés convertirla en un gasto, borrala y anotá el gasto.",
+        400,
+      );
+    }
+
+    if (!eraDevolucion && monto < 0) {
+      return respuesta(
+        "El monto tiene que ser mayor a cero. Para anotar una devolución, decímelo por el chat.",
+        400,
+      );
+    }
+
     cambios.monto = monto;
   }
 
