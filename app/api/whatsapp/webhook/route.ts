@@ -26,6 +26,8 @@ type MensajeEntrante = {
   document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
 };
 
+type ContactoEntrante = { wa_id?: string; profile?: { name?: string } };
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const modo = url.searchParams.get("hub.mode");
@@ -48,7 +50,13 @@ export async function POST(req: Request) {
     return new Response("Firma inválida", { status: 401 });
   }
 
-  let payload: { entry?: Array<{ changes?: Array<{ value?: { messages?: MensajeEntrante[] } }> }> };
+  let payload: {
+    entry?: Array<{
+      changes?: Array<{
+        value?: { messages?: MensajeEntrante[]; contacts?: ContactoEntrante[] };
+      }>;
+    }>;
+  };
   try {
     payload = JSON.parse(cuerpoCrudo);
   } catch {
@@ -58,15 +66,24 @@ export async function POST(req: Request) {
   }
 
   const admin = adminSinTipos();
-  const mensajes = (payload.entry ?? []).flatMap((entrada) =>
-    (entrada.changes ?? []).flatMap((cambio) => cambio.value?.messages ?? []),
-  );
+  const cambios = (payload.entry ?? []).flatMap((entrada) => entrada.changes ?? []);
 
-  for (const mensaje of mensajes) {
-    try {
-      await procesarUnMensaje(admin, mensaje);
-    } catch (error) {
-      console.error("WhatsApp: error procesando un mensaje entrante:", error);
+  for (const cambio of cambios) {
+    // El nombre de perfil viaja junto a `messages`, no adentro: hace falta
+    // para el alta nueva (`altaPorWhatsapp`), que todavía no tiene ningún
+    // `usuarios.nombre` de dónde sacarlo.
+    const nombresPorTelefono = new Map(
+      (cambio.value?.contacts ?? [])
+        .filter((c): c is ContactoEntrante & { wa_id: string } => Boolean(c.wa_id))
+        .map((c) => [c.wa_id, c.profile?.name?.trim() || ""]),
+    );
+
+    for (const mensaje of cambio.value?.messages ?? []) {
+      try {
+        await procesarUnMensaje(admin, mensaje, nombresPorTelefono.get(mensaje.from || "") || "");
+      } catch (error) {
+        console.error("WhatsApp: error procesando un mensaje entrante:", error);
+      }
     }
   }
 
@@ -75,7 +92,11 @@ export async function POST(req: Request) {
   return new Response("OK", { status: 200 });
 }
 
-async function procesarUnMensaje(admin: ReturnType<typeof adminSinTipos>, mensaje: MensajeEntrante) {
+async function procesarUnMensaje(
+  admin: ReturnType<typeof adminSinTipos>,
+  mensaje: MensajeEntrante,
+  nombrePerfil: string,
+) {
   const desde = String(mensaje.from || "").trim();
   if (!desde) return;
 
@@ -92,29 +113,49 @@ async function procesarUnMensaje(admin: ReturnType<typeof adminSinTipos>, mensaj
   }
 
   if (!vinculo) {
-    await intentarVincular(admin, desde, mensaje.type === "text" ? mensaje.text?.body || "" : "");
+    await atenderNumeroSinVinculo(admin, desde, mensaje, nombrePerfil);
     return;
   }
 
   await atenderMensajeVinculado(admin, vinculo, mensaje, desde);
 }
 
-async function intentarVincular(
+/**
+ * Un número que todavía no tiene cuenta de EOS asociada.
+ *
+ * Dos caminos, y se distinguen por la FORMA del texto, no por su contenido:
+ * un mensaje de texto que son exactamente 6 dígitos y nada más es, con
+ * certeza razonable, un código pedido desde el perfil de una cuenta que ya
+ * existe. Cualquier otra cosa —"Hola", una foto, un audio— es alguien nuevo
+ * que le está hablando a EOS por primera vez, y se le da de alta ahí mismo:
+ * el número de WhatsApp, que Meta ya verificó del lado de la persona, es
+ * identidad suficiente para arrancar.
+ */
+async function atenderNumeroSinVinculo(
   admin: ReturnType<typeof adminSinTipos>,
   desde: string,
-  textoRecibido: string,
+  mensaje: MensajeEntrante,
+  nombrePerfil: string,
 ) {
+  const textoRecibido = mensaje.type === "text" ? String(mensaje.text?.body || "").trim() : "";
   const codigo = textoRecibido.replace(/\D/g, "");
 
-  if (codigo.length !== 6) {
-    await enviarTexto(
-      desde,
-      "Este número de WhatsApp todavía no está vinculado a ninguna cuenta de EOS. " +
-        'Entrá a la app, andá a tu perfil, tocá "Conectar WhatsApp" y mandame el código de 6 dígitos que te va a mostrar.',
-    );
+  if (codigo.length === 6 && codigo === textoRecibido) {
+    await confirmarCodigo(admin, desde, codigo);
     return;
   }
 
+  const vinculo = await altaPorWhatsapp(admin, desde, nombrePerfil);
+
+  if (!vinculo) {
+    await enviarTexto(desde, "No pude crear tu cuenta en este momento. Probá nuevamente en unos minutos.");
+    return;
+  }
+
+  await atenderMensajeVinculado(admin, vinculo, mensaje, desde);
+}
+
+async function confirmarCodigo(admin: ReturnType<typeof adminSinTipos>, desde: string, codigo: string) {
   const { data: pendiente, error: buscarError } = await admin
     .from("eos_whatsapp_vinculos_v162")
     .select("usuario_id, codigo_expira_at")
@@ -156,6 +197,55 @@ async function intentarVincular(
     desde,
     "¡Listo! Tu WhatsApp quedó vinculado a tu cuenta de EOS. Ya podés escribirme por acá igual que en la app.",
   );
+}
+
+/**
+ * Cuenta nueva, creada desde WhatsApp, sin pasar por la web.
+ *
+ * `auth.admin.createUser` con `phone` (no `email`) hace que el trigger
+ * `on_auth_user_created` (`handle_new_user()`, ver
+ * `supabase/migrations/20260904000000_eos_onboarding_al_nacer_v114.sql`) cree
+ * solo, en la misma operación, la fila de `usuarios` (plan `free`, el nombre
+ * de perfil de WhatsApp si vino) y la de `eos_onboarding` en paso
+ * `bienvenida` — el mismo arranque que tiene cualquier alta por la web. No
+ * hace falta repetir nada de eso acá.
+ */
+async function altaPorWhatsapp(
+  admin: ReturnType<typeof adminSinTipos>,
+  desde: string,
+  nombrePerfil: string,
+): Promise<{ usuario_id: string; conversacion_id: string | null } | null> {
+  const { data: alta, error: crearError } = await admin.auth.admin.createUser({
+    phone: desde,
+    phone_confirm: true,
+    user_metadata: {
+      whatsapp: desde,
+      ...(nombrePerfil ? { nombre: nombrePerfil.slice(0, 160) } : {}),
+    },
+  });
+
+  if (crearError || !alta?.user) {
+    console.error("WhatsApp: no se pudo crear la cuenta nueva:", crearError);
+    return null;
+  }
+
+  const usuarioId = alta.user.id;
+
+  const { error: vinculoError } = await admin.from("eos_whatsapp_vinculos_v162").insert([
+    { usuario_id: usuarioId, telefono: desde, verificado_at: new Date().toISOString() },
+  ]);
+
+  if (vinculoError) {
+    // La cuenta ya quedó creada (huérfana, sin teléfono vinculado). No se
+    // reintenta el insert acá: mejor pedirle a la persona que reintente y que
+    // el siguiente mensaje encuentre TODO en un estado limpio, a dejarla
+    // hablando con una cuenta a la que el próximo mensaje de este número no
+    // va a volver a encontrar.
+    console.error("WhatsApp: cuenta creada pero no se pudo vincular el número:", vinculoError);
+    return null;
+  }
+
+  return { usuario_id: usuarioId, conversacion_id: null };
 }
 
 async function atenderMensajeVinculado(
