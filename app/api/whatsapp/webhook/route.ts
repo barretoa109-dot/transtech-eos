@@ -1,5 +1,6 @@
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { procesarMensajeEOS, MAX_MESSAGE_LENGTH, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
+import { atenderOnboardingPorChat } from "@/lib/eos/onboarding-chat";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
@@ -306,6 +307,42 @@ async function atenderMensajeVinculado(
       .from("eos_whatsapp_vinculos_v162")
       .update({ conversacion_id: conversacionId })
       .eq("usuario_id", usuarioId);
+  }
+
+  /*
+   * Mientras la conversación fundacional no haya terminado, el mensaje no
+   * pasa por el motor de chat: lo atiende `atenderOnboardingPorChat`, que
+   * pregunta lo que falta y guarda cada respuesta en las mismas tablas que
+   * usa la pantalla web (`eos_finanzas_cuentas`, `_fijos`, `_deudas`). No
+   * consume cupo de mensajes, igual que llenar el formulario de la web
+   * tampoco lo consume.
+   */
+  const respuestaOnboarding = await atenderOnboardingPorChat(admin, usuarioId, mensajeTexto);
+
+  if (respuestaOnboarding !== null) {
+    const { error: guardarOnboardingError } = await admin.from("mensajes").insert([
+      {
+        conversacion_id: conversacionId,
+        usuario_id: usuarioId,
+        rol: "usuario",
+        texto: mensajeTexto || "[adjunto]",
+        origen: "whatsapp",
+      },
+      {
+        conversacion_id: conversacionId,
+        usuario_id: usuarioId,
+        rol: "eos",
+        texto: respuestaOnboarding,
+        origen: "whatsapp",
+      },
+    ]);
+
+    if (guardarOnboardingError) {
+      console.error("WhatsApp: no se pudo guardar el historial del onboarding:", guardarOnboardingError);
+    }
+
+    await enviarTexto(desde, respuestaOnboarding);
+    return;
   }
 
   const { data: historialFilas } = await admin
