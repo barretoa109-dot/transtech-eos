@@ -11,6 +11,7 @@ import MisModulos from "./MisModulos";
 import MisTarjetas from "./MisTarjetas";
 import MiEmpresa from "./MiEmpresa";
 import Cajas from "./negocio/Cajas";
+import VincularWhatsApp from "./VincularWhatsApp";
 
 type ProfileViewProps = {
   nombre: string;
@@ -144,6 +145,10 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
         {/* La caja va pegada al equipo: las dos responden a "cómo está armado
             mi negocio", y es donde alguien la va a buscar. */}
         <Cajas />
+
+        {/* Junto a los módulos: es otra forma de "cómo está armado mi EOS",
+            no un dato de la cuenta en sí. */}
+        <VincularWhatsApp />
 
         <MisModulos />
 
