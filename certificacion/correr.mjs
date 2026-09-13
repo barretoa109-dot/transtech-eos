@@ -42,6 +42,7 @@ import { caso as anulacion } from "./casos/09-anulacion.mjs";
 import { caso as cuenta } from "./casos/10-cuenta.mjs";
 import { caso as reversion } from "./casos/11-reversion.mjs";
 import { caso as aislamiento } from "./casos/12-aislamiento.mjs";
+import { caso as auditoria } from "./casos/13-auditoria.mjs";
 
 const CASOS = [
   registro,
@@ -56,6 +57,7 @@ const CASOS = [
   cuenta,
   reversion,
   aislamiento,
+  auditoria,
 ];
 
 const VERDE = "\x1b[32m";

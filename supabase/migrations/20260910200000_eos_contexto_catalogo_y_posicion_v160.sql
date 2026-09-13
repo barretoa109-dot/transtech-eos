@@ -37,6 +37,28 @@
 -- POSICIÓN. En ese orden a propósito: al revés se tira el catálogo, que es
 -- exactamente lo que ya pasó una vez hoy.
 --
+-- ============================================================
+-- UNA CORRECCIÓN SOBRE LA EVIDENCIA QUE SE CITÓ
+-- ============================================================
+--
+-- La cabecera de la v158/v159 cita una conversación contra producción donde
+-- EOS decía "voy a consultar tus saldos" y no consultaba nada. La conclusión
+-- era correcta —la función NO devolvía la posición, comprobado llamándola
+-- para tres usuarios reales— pero esa conversación NO servía como prueba: la
+-- sonda que la produjo mandaba `contexto_negocio` vacío, así que el modelo no
+-- tenía nada que ver por otro motivo.
+--
+-- Se corrigió la sonda (`scripts/sonda-chat.mts`, que ahora arma el mismo
+-- contexto que `app/api/eos/route.ts`) y con ella la respuesta es:
+--
+--   > ¿cuánta plata tengo en mis cuentas y cuándo vence mi tarjeta?
+--   Tenés ₲ 3.000.000 declarados en tu cuenta ZZ Ueno, al 10/09.
+--   Tu tarjeta ZZ Visa vence el día 5 de cada mes.
+--
+-- Queda escrito porque una prueba que no reproduce lo que hace la aplicación
+-- da respuestas con cara de resultado, y esta casi hace dar por cierta una
+-- conclusión falsa sobre producción.
+--
 -- El porqué de cada bloque está en su migración: el catálogo en la v158, la
 -- posición en la v159.
 

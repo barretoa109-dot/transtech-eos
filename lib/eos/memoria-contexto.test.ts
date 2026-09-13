@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { textoMemoria, TOPES } from "./memoria-contexto.ts";
+import { textoMemoria, esUnaPregunta, hablaDeLaMaquina, TOPES } from "./memoria-contexto.ts";
 
 function memoria(p: Partial<Parameters<typeof textoMemoria>[0]["memorias"] extends (infer T)[] | null | undefined ? T : never> = {}) {
   return {
@@ -310,4 +310,138 @@ test("con objetivos de un solo lado no aparece ningún rótulo de más", () => {
 
   assert.match(texto, /Lo que se propuso:/);
   assert.doesNotMatch(texto, /para su negocio/);
+});
+
+// ---------------------------------------------------------------------------
+// Una pregunta no es un hecho
+// ---------------------------------------------------------------------------
+
+test("las preguntas del usuario no vuelven como si fueran datos suyos", () => {
+  /*
+   * Caso real de producción, 10 de septiembre de 2026. El bloque ENTERO de
+   * memoria de un usuario eran sus propias preguntas:
+   *
+   *   - Que recordas de mi negocio?
+   *   - que recordas sobre mi?
+   *   - Recuerdas mis negocios?
+   *
+   * Devueltas bajo el rótulo "lo que te contó y quedó guardado", que el modelo
+   * lee como hechos sobre esa persona.
+   */
+  const texto = textoMemoria({
+    memorias: [
+      { titulo: "Dato importante", contenido: "Que recordas de mi negocio?", importancia: 5 },
+      { titulo: "Dato importante", contenido: "que recordas sobre mi?", importancia: 5 },
+      { titulo: "Dato importante", contenido: "Recuerdas mis negocios?", importancia: 5 },
+      { titulo: "Negocio", contenido: "El usuario tiene una tienda de ropa.", importancia: 5 },
+    ],
+  });
+
+  assert.doesNotMatch(texto, /recordas/i);
+  assert.doesNotMatch(texto, /Recuerdas/i);
+  assert.match(texto, /tienda de ropa/);
+});
+
+test("sin signo de pregunta igual se reconocen las formas interrogativas", () => {
+  // Dictando por voz y escribiendo rápido nadie pone el signo.
+  for (const q of [
+    "que recordas sobre mi",
+    "Cuanto vendi este mes",
+    "como voy con el ahorro",
+    "donde anote la compra",
+    "te acordas de lo que te dije",
+  ]) {
+    assert.ok(esUnaPregunta(q), `no reconoció "${q}" como pregunta`);
+  }
+});
+
+test("una afirmación que empieza parecido NO se descarta", () => {
+  /*
+   * La regla mira el arranque, así que hay que comprobar que no se lleve
+   * puesto un dato bueno. "Cuando cobro" es interrogativo; "Cuando cobro el
+   * sueldo aparto el 20%" es un hecho — y por eso la regla solo actúa con el
+   * signo o con la forma interrogativa al principio de todo.
+   */
+  for (const dato of [
+    "El usuario tiene una tienda de ropa.",
+    "Quiere comprar un terreno en Luque para diciembre.",
+    "Margen del conjunto azul: 27,13% sobre venta.",
+    "Negocio porcino: lote actual de 6 chanchos.",
+  ]) {
+    assert.equal(esUnaPregunta(dato), false, `descartó un dato bueno: "${dato}"`);
+  }
+});
+
+test("con todas las memorias descartadas no queda un encabezado vacío", () => {
+  // Sería peor que no mandar nada: el modelo lee "lo que te contó:" y abajo
+  // nada, y concluye que la persona no le contó nunca nada.
+  const texto = textoMemoria({
+    memorias: [{ titulo: "x", contenido: "¿qué recordás de mí?", importancia: 5 }],
+  });
+
+  assert.equal(texto, "");
+});
+
+// ---------------------------------------------------------------------------
+// Un aprendizaje sobre la máquina no es un aprendizaje sobre la persona
+// ---------------------------------------------------------------------------
+
+test("los aprendizajes que hablan de la plomería no llegan al modelo", () => {
+  /*
+   * Casos reales de producción, 10 de septiembre de 2026. Los tres de mayor
+   * confianza que sobrevivían al filtro de categoría eran estos, y el bloque
+   * se los mostraba al modelo bajo el rótulo "lo que con esta persona
+   * funcionó antes".
+   */
+  const texto = textoMemoria({
+    aprendizajes: [
+      {
+        recomendacion:
+          "En pruebas QA, validar explícitamente la referencia de conversación antes de intentar GUARDAR_MEMORIA.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "contexto",
+      },
+      {
+        recomendacion: "Mantener CREAR_TAREA como ruta preferente para flujos similares en v66.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "general",
+      },
+      {
+        recomendacion:
+          "Cuando vende a crédito a clientes nuevos, cobra en promedio a los 40 días: conviene pedir seña.",
+        confianza: 0.7,
+        evidence_count: 3,
+        categoria: "objetivo",
+      },
+    ],
+  });
+
+  assert.doesNotMatch(texto, /GUARDAR_MEMORIA/);
+  assert.doesNotMatch(texto, /CREAR_TAREA/);
+  assert.match(texto, /pedir seña/, "se llevó puesto el que SÍ era sobre el negocio");
+});
+
+test("un aprendizaje sobre plata no se confunde con uno sobre la máquina", () => {
+  // El modo de fallar tiene que ser el seguro: descartar de más, nunca de
+  // menos. Estos cuatro son sobre la persona y tienen que pasar.
+  for (const bueno of [
+    "Cuando el mes arranca con el alquiler pagado, llega holgado a fin de mes.",
+    "Sus mejores márgenes están en los conjuntos, no en los jeans.",
+    "Suele subestimar los gastos de la primera semana del mes.",
+    "Las ventas a crédito a clientes conocidos se cobran solas; las de nuevos, no.",
+  ]) {
+    assert.equal(hablaDeLaMaquina(bueno), false, `descartó uno bueno: "${bueno}"`);
+  }
+});
+
+test("con todos los aprendizajes descartados no queda un encabezado suelto", () => {
+  const texto = textoMemoria({
+    aprendizajes: [
+      { recomendacion: "Revisar el payload del worker", confianza: 0.9, evidence_count: 9 },
+    ],
+  });
+
+  assert.equal(texto, "");
 });

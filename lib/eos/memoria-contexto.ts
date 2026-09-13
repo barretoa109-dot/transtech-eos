@@ -34,6 +34,65 @@
  * base; lo que entra es lo que cambia una respuesta.
  */
 
+/**
+ * Una pregunta no es un hecho, y no puede volver como si lo fuera.
+ *
+ * ============================================================
+ * LO QUE SE VIO EN PRODUCCIÓN
+ * ============================================================
+ *
+ * El 10 de septiembre de 2026 se miró qué recibía el modelo de las memorias de
+ * cada usuario real. Para uno de ellos, el bloque ENTERO era esto:
+ *
+ *     Lo que te contó y quedó guardado:
+ *       - quiero que vos me lo generes para que yo lo descargue
+ *       - Que recordas de mi negocio?
+ *       - que recordas sobre mi?
+ *       - Recuerdas mis negocios?
+ *
+ * Tres de las cuatro son preguntas que esa persona le hizo a EOS, guardadas
+ * como si fueran datos sobre ella y devueltas en cada mensaje bajo el rótulo
+ * "lo que te contó". El modelo las lee como hechos.
+ *
+ * Y la ironía completa el cuadro: preguntó tres veces qué recordaba de ella,
+ * y lo único que EOS recordaba eran esas tres preguntas.
+ *
+ * ============================================================
+ * POR QUÉ ESTA REGLA Y NO UNA MÁS AMPLIA
+ * ============================================================
+ *
+ * Se podría filtrar también lo que suena a pedido —"quiero que vos me lo
+ * generes"— pero ahí la frontera se vuelve borrosa y una regla borrosa termina
+ * descartando memorias buenas. "Quiero comprar un terreno en Luque" es un
+ * pedido en la forma y un dato en el fondo.
+ *
+ * Una pregunta, en cambio, nunca es un hecho sobre nadie. Es la única regla de
+ * este archivo que puede aplicarse sin mirar el contenido.
+ *
+ * El origen se corrigió aparte, en el prompt: que GUARDAR_MEMORIA deje de
+ * dispararse cuando lo que corresponde es ejecutar un verbo. Esto es la red
+ * para lo que ya está guardado, que sigue viajando en cada mensaje.
+ */
+export function esUnaPregunta(texto: string): boolean {
+  const limpio = texto.trim();
+  if (limpio === "") return false;
+
+  // Con signo de cierre alcanza, lleve o no el de apertura: nadie escribe una
+  // afirmación terminada en "?".
+  if (limpio.endsWith("?")) return true;
+
+  /*
+   * Sin signo, se mira cómo empieza. Es lo que pasa al dictar por voz y al
+   * escribir rápido en un chat, que es de donde viene casi todo esto.
+   *
+   * Solo formas interrogativas inequívocas, sin acento obligatorio porque
+   * nadie lo pone: "que recordas sobre mi" entró así, tal cual.
+   */
+  return /^(qu[eé]|c[oó]mo|cu[aá]l|cu[aá]nto|cu[aá]ndo|d[oó]nde|por qu[eé]|para qu[eé]|qui[eé]n|recuerdas|record[aá]s|te acord[aá]s|sab[eé]s si)\b/i.test(
+    limpio,
+  );
+}
+
 /** Recortar sin cortar una palabra al medio ni dejar el corte invisible. */
 function recortar(texto: string, tope: number): string {
   const limpio = texto.replace(/\s+/g, " ").trim();
@@ -151,6 +210,52 @@ export type AprendizajeUtil = {
  */
 const CATEGORIA_INTERNA = "ejecucion";
 
+/**
+ * Un aprendizaje que habla de la máquina no es un aprendizaje sobre la persona.
+ *
+ * ============================================================
+ * LA CATEGORÍA NO ALCANZABA
+ * ============================================================
+ *
+ * El filtro de `CATEGORIA_INTERNA` saca los 170 de `ejecucion`. El 10 de
+ * septiembre de 2026 se miraron los 36 que quedaban —los de mayor confianza,
+ * los que de verdad llegan al modelo— y son estos:
+ *
+ *   - "En pruebas QA, validar explícitamente la referencia de conversación
+ *      antes de intentar GUARDAR_MEMORIA"
+ *   - "Mantener CREAR_TAREA como ruta preferente para flujos similares en v66"
+ *   - "Agregar validación previa de referencias de conversación antes de
+ *      invocar GUARDAR_MEMORIA en QA"
+ *
+ * Los 206 aprendizajes de producción son sobre EOS. **Ni uno solo es sobre el
+ * negocio o la plata de una persona.** El motor de aprendizaje aprende de la
+ * bitácora de acciones, así que aprende del sistema.
+ *
+ * Y el bloque se los presenta al modelo bajo el rótulo "lo que con esta
+ * persona funcionó antes", gastando tres renglones de cada mensaje en
+ * decirle cómo correr pruebas de QA.
+ *
+ * ============================================================
+ * POR QUÉ UNA LISTA DE PALABRAS Y NO ALGO MÁS FINO
+ * ============================================================
+ *
+ * No hay señal estructural: los 206 vienen de la misma fuente
+ * (`n8n-ai-v7`) y se reparten en cinco categorías sin que ninguna separe lo
+ * de la máquina de lo del negocio.
+ *
+ * Así que se mira lo único que distingue de verdad: si NOMBRA la máquina. El
+ * modo de fallar es el seguro — descarta un aprendizaje que mencione
+ * "GUARDAR_MEMORIA" o "workflow", y un aprendizaje sobre el negocio de alguien
+ * no los menciona. Si el bloque queda vacío no aparece, que es exactamente lo
+ * que corresponde mientras el motor no produzca nada sobre la persona.
+ */
+const PALABRAS_DE_LA_MAQUINA =
+  /\b(qa|gateway|workflow|worker|endpoint|payload|prompt|token|api|sintétic|sintetic|ejecuci[oó]n del|v\d{2,}|GUARDAR_MEMORIA|CREAR_TAREA|CREAR_CONTACTO|CREAR_OBJETIVO|GENERAR_EXCEL|GENERAR_PDF|GENERAR_WORD|REGISTRAR_[A-Z_]+|VER_[A-Z_]+|referencia de conversaci[oó]n|referencias de conversaci[oó]n)\b/i;
+
+export function hablaDeLaMaquina(texto: string): boolean {
+  return PALABRAS_DE_LA_MAQUINA.test(texto);
+}
+
 export const TOPES = {
   memorias: 8,
   objetivos: 5,
@@ -187,6 +292,7 @@ export function textoMemoria(datos: {
     (datos.memorias ?? [])
       .filter((m) => (m.estado ?? "activo") === "activo")
       .filter((m) => (m.contenido ?? "").trim() || (m.titulo ?? "").trim())
+      .filter((m) => !esUnaPregunta((m.contenido ?? "").trim() || (m.titulo ?? "").trim()))
       .sort((a, b) => (b.importancia ?? 0) - (a.importancia ?? 0)),
     (m) => `${m.contenido ?? ""} ${m.titulo ?? ""}`,
   ).slice(0, TOPES.memorias);
@@ -277,6 +383,7 @@ export function textoMemoria(datos: {
       .filter((a) => (a.estado ?? "activo") === "activo")
       .filter((a) => (a.recomendacion ?? "").trim())
       .filter((a) => (a.categoria ?? "").trim().toLowerCase() !== CATEGORIA_INTERNA)
+      .filter((a) => !hablaDeLaMaquina(a.recomendacion ?? ""))
       .filter((a) => (a.confianza ?? 0) >= TOPES.confianzaMinima)
       .filter((a) => (a.evidence_count ?? 0) >= TOPES.evidenciaMinima)
       .sort((a, b) => (b.confianza ?? 0) - (a.confianza ?? 0)),
