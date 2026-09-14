@@ -146,16 +146,22 @@ export function textoPorDefecto(adjuntos: Adjunto[]): string {
 
   if (adjuntos.length === 1) {
     const uno = adjuntos[0];
-    const que = uno.tipo.startsWith("image/") ? "esta imagen" : "este archivo";
+    const que = uno.tipo.startsWith("image/")
+      ? "esta imagen"
+      : uno.tipo.startsWith("audio/")
+        ? "este audio"
+        : "este archivo";
     return `Analizá ${que}: ${uno.nombre}`;
   }
 
-  // "estas imágenes" y "estos archivos": el género lo decide el sustantivo, y
-  // una frase mal concordada en el campo de texto de alguien la escribió el
-  // producto, no la persona.
+  // "estas imágenes", "estos audios" y "estos archivos": el género lo decide
+  // el sustantivo, y una frase mal concordada en el campo de texto de
+  // alguien la escribió el producto, no la persona.
   const todasImagenes = adjuntos.every((a) => a.tipo.startsWith("image/"));
+  const todosAudios = adjuntos.every((a) => a.tipo.startsWith("audio/"));
 
-  return todasImagenes
-    ? `Analizá estas ${adjuntos.length} imágenes`
-    : `Analizá estos ${adjuntos.length} archivos`;
+  if (todasImagenes) return `Analizá estas ${adjuntos.length} imágenes`;
+  if (todosAudios) return `Analizá estos ${adjuntos.length} audios`;
+
+  return `Analizá estos ${adjuntos.length} archivos`;
 }
