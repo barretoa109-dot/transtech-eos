@@ -2,12 +2,8 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
-import { normalizarDocumento } from "@/lib/documentos/especificacion";
-import { crearExcelDocumento } from "@/lib/documentos/excel";
-import { crearPdfDocumento } from "@/lib/documentos/pdf";
-import { crearWordDocumento } from "@/lib/documentos/word";
-import { esFormato, nombreDeArchivo, FORMATOS } from "@/lib/documentos/guardar";
-import { avisoDeCifras, cifrasContradictorias, verificarArchivo } from "@/lib/documentos/verificar";
+import { FORMATOS } from "@/lib/documentos/guardar";
+import { renderizarDocumento } from "@/lib/documentos/renderizar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,83 +59,19 @@ export async function GET(request: Request, contexto: { params: Promise<{ id: st
 
   const fila = data as { titulo: string; especificacion: unknown; formato: string };
 
-  // Si no se pide formato, sale en el que se pidió originalmente.
-  const formato = esFormato(pedido) ? pedido : esFormato(fila.formato) ? fila.formato : "excel";
+  const renderizado = await renderizarDocumento(fila.especificacion, fila.formato, pedido);
 
-  // Se vuelve a normalizar aunque ya se haya guardado normalizado: la fila es
-  // un jsonb y nada impide que mañana alguien la edite desde el panel de la
-  // base. El renderizador nunca debería ver algo que no pasó por esta puerta.
-  const resultado = normalizarDocumento(fila.especificacion);
-
-  if (!resultado.ok) {
-    console.error(`Documentos: la descripción guardada de ${id} ya no es válida:`, resultado.motivo);
-    return NextResponse.json(
-      { error: "Este documento quedó dañado y hay que volver a pedirlo." },
-      { status: 422, headers: noStore() },
-    );
+  if (!renderizado.ok) {
+    console.error(`Documentos: no se pudo entregar ${id} (${renderizado.status}):`, renderizado.error);
+    return NextResponse.json({ error: renderizado.error }, { status: renderizado.status, headers: noStore() });
   }
 
-  /*
-   * Antes de dibujarlo: que los números no se contradigan entre sí.
-   *
-   * Quien describe el documento es un modelo de lenguaje, y puede escribir
-   * doce filas correctas y un total redondeado de memoria. El renderizador lo
-   * imprimiría fielmente y el usuario recibiría una planilla que se contradice
-   * sola — que además va a descubrir recién cuando la muestre.
-   *
-   * Se mira acá, antes de gastar el renderizado, y se frena: la lista dice que
-   * ningún archivo con cifras contradictorias debe descargarse.
-   */
-  const problemas = cifrasContradictorias(resultado.documento);
-
-  if (problemas.length > 0) {
-    console.error(
-      `Documentos: ${id} tiene ${problemas.length} total(es) que no cuadran:`,
-      problemas.map((p) => `${p.tabla}/${p.columna} dice ${p.declarado} y suma ${p.suma}`).join("; "),
-    );
-
-    return NextResponse.json(
-      { error: avisoDeCifras(problemas) },
-      { status: 422, headers: noStore() },
-    );
-  }
-
-  let cuerpo: Buffer;
-  try {
-    cuerpo =
-      formato === "excel"
-        ? Buffer.from(await crearExcelDocumento(resultado.documento))
-        : formato === "pdf"
-          ? await crearPdfDocumento(resultado.documento)
-          : await crearWordDocumento(resultado.documento);
-  } catch (fallo) {
-    console.error(`Documentos: falló la generación del ${formato}:`, fallo);
-    return NextResponse.json(
-      { error: "No pudimos generar el archivo." },
-      { status: 500, headers: noStore() },
-    );
-  }
-
-  // Ninguna de las tres bibliotecas lanza un error cuando entrega de menos: un
-  // archivo vacío o cortado sale con 200 y su Content-Type, y del otro lado es
-  // "EOS me mandó algo que no abre". Antes de entregarlo se mira que sea lo que
-  // dice ser.
-  const integridad = verificarArchivo(formato, cuerpo);
-
-  if (!integridad.ok) {
-    console.error(`Documentos: el ${formato} de ${id} no se entrega — ${integridad.motivo}`);
-    return NextResponse.json(
-      { error: "El archivo salió dañado. Volvé a pedirlo." },
-      { status: 500, headers: noStore() },
-    );
-  }
-
-  const nombre = nombreDeArchivo(resultado.documento.titulo, formato);
+  const { cuerpo, nombre } = renderizado;
 
   return new Response(new Uint8Array(cuerpo), {
     status: 200,
     headers: {
-      "Content-Type": FORMATOS[formato].tipo,
+      "Content-Type": FORMATOS[renderizado.formato].tipo,
       "Content-Length": String(cuerpo.length),
       // `filename*` con UTF-8 para que los acentos no lleguen rotos al disco.
       "Content-Disposition": `attachment; filename="${asciiPlano(nombre)}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,

@@ -2,8 +2,9 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { procesarMensajeEOS, MAX_MESSAGE_LENGTH, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
 import { atenderOnboardingPorChat } from "@/lib/eos/onboarding-chat";
 import { textoPorDefecto } from "@/lib/eos/adjuntos";
+import { renderizarDocumento } from "@/lib/documentos/renderizar";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
-import { enviarTexto } from "@/lib/whatsapp/enviar";
+import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
 
@@ -441,10 +442,18 @@ async function atenderMensajeVinculado(
       : "EOS tuvo un problema respondiendo tu mensaje. Probá nuevamente.";
 
   const archivoUrl = typeof respuesta.archivo_url === "string" ? respuesta.archivo_url : "";
+  const archivoNombre = typeof respuesta.archivo_nombre === "string" ? respuesta.archivo_nombre : "";
 
-  const textoParaWhatsapp = archivoUrl
-    ? `${respuestaTexto}\n\nTu archivo está listo — todavía no puedo mandarlo por WhatsApp, pero lo tenés esperando en la app de EOS.`
-    : respuestaTexto;
+  // La URL de un documento generado por EOS tiene esta forma exacta
+  // (`guardarDocumento`, en lib/documentos/guardar.ts). Cualquier otro link
+  // —uno que el modelo haya escrito suelto en la respuesta— no es nuestro y
+  // no se puede resubir: se deja como texto, que WhatsApp muestra clickeable.
+  const idDocumento = archivoUrl.match(/^\/api\/documentos\/([0-9a-f-]{36})\?formato=([a-z]+)$/i);
+
+  const textoParaWhatsapp =
+    archivoUrl && !idDocumento && archivoUrl.startsWith("http")
+      ? `${respuestaTexto}\n\n${archivoUrl}`
+      : respuestaTexto;
 
   const { error: guardarError } = await admin.from("mensajes").insert([
     {
@@ -470,4 +479,60 @@ async function atenderMensajeVinculado(
   }
 
   await enviarTexto(desde, textoParaWhatsapp);
+
+  if (idDocumento) {
+    const enviado = await mandarDocumentoGenerado(
+      admin,
+      usuarioId,
+      idDocumento[1],
+      idDocumento[2],
+      archivoNombre,
+      desde,
+    );
+
+    if (!enviado) {
+      await enviarTexto(
+        desde,
+        "Tu archivo quedó listo, pero no lo pude mandar por acá — lo tenés esperando en la app de EOS.",
+      );
+    }
+  }
+}
+
+/**
+ * Manda por WhatsApp un documento que EOS ya generó y guardó.
+ *
+ * Lee la fila directo de la base (con `usuario_id` en el filtro, como exige
+ * cualquier consulta con el cliente de servicio) y la dibuja con
+ * `renderizarDocumento` —el mismo camino que usa la descarga desde la
+ * web—, así las reglas de validación no se duplican en un segundo lugar.
+ */
+async function mandarDocumentoGenerado(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  documentoId: string,
+  formatoPedido: string,
+  nombreSugerido: string,
+  desde: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("eos_documentos_generados")
+    .select("especificacion, formato")
+    .eq("id", documentoId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("WhatsApp: no se encontró el documento a mandar:", error);
+    return false;
+  }
+
+  const renderizado = await renderizarDocumento(data.especificacion, data.formato, formatoPedido);
+
+  if (!renderizado.ok) {
+    console.error("WhatsApp: no se pudo renderizar el documento:", renderizado.error);
+    return false;
+  }
+
+  return enviarDocumento(desde, renderizado.cuerpo, nombreSugerido || renderizado.nombre, renderizado.tipo);
 }
