@@ -1,6 +1,7 @@
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { procesarMensajeEOS, MAX_MESSAGE_LENGTH, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
 import { atenderOnboardingPorChat } from "@/lib/eos/onboarding-chat";
+import { textoPorDefecto } from "@/lib/eos/adjuntos";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
@@ -329,6 +330,16 @@ async function atenderMensajeVinculado(
   }
 
   if (!mensajeTexto && archivos.length === 0) return;
+
+  /*
+   * Una imagen sin texto llega con `mensajeTexto` vacío, y el gateway exige
+   * un mensaje no vacío —revienta con "mensaje es obligatorio" si no lo
+   * tiene—. La web nunca lo pisó porque ya arma este mismo texto por
+   * defecto antes de mandar (`lib/eos/adjuntos.ts`); acá faltaba.
+   */
+  if (!mensajeTexto && archivos.length > 0) {
+    mensajeTexto = textoPorDefecto(archivos);
+  }
 
   if (mensajeTexto.length > MAX_MESSAGE_LENGTH) {
     mensajeTexto = mensajeTexto.slice(0, MAX_MESSAGE_LENGTH);
