@@ -121,16 +121,59 @@ async function procesarUnMensaje(
   await atenderMensajeVinculado(admin, vinculo, mensaje, desde);
 }
 
+function sinAcentos(texto: string): string {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+const RESPUESTAS_EMPEZAR = [
+  "si",
+  "sí",
+  "dale",
+  "ok",
+  "okay",
+  "listo",
+  "va",
+  "quiero empezar",
+  "empecemos",
+  "arranquemos",
+  "soy nuevo",
+  "soy nueva",
+  "cuenta nueva",
+  "nueva cuenta",
+  "no tengo cuenta",
+];
+
+function quiereEmpezarDeCero(texto: string): boolean {
+  const plano = sinAcentos(texto.trim());
+  if (!plano) return false;
+  return RESPUESTAS_EMPEZAR.some((r) => plano === sinAcentos(r));
+}
+
+const TEXTO_NUMERO_SIN_VINCULO = [
+  "¡Hola! Soy EOS 👋 Este número todavía no está conectado a ninguna cuenta.",
+  "",
+  'Si ya usás EOS en la web, entrá a tu perfil, tocá "Conectar WhatsApp" y mandame el código de 6 dígitos que te va a mostrar — así seguís con la misma cuenta, no una nueva.',
+  "",
+  'Si es tu primera vez, contestame "quiero empezar" y arrancamos.',
+].join("\n");
+
 /**
  * Un número que todavía no tiene cuenta de EOS asociada.
  *
- * Dos caminos, y se distinguen por la FORMA del texto, no por su contenido:
- * un mensaje de texto que son exactamente 6 dígitos y nada más es, con
- * certeza razonable, un código pedido desde el perfil de una cuenta que ya
- * existe. Cualquier otra cosa —"Hola", una foto, un audio— es alguien nuevo
- * que le está hablando a EOS por primera vez, y se le da de alta ahí mismo:
- * el número de WhatsApp, que Meta ya verificó del lado de la persona, es
- * identidad suficiente para arrancar.
+ * No se asume nada: sin una de estas dos señales explícitas, no se crea
+ * ninguna cuenta y no se guarda nada. La primera versión de esto creaba una
+ * cuenta con el primer mensaje que llegara —"Hola" incluido—, y a alguien que
+ * ya tenía cuenta en la web eso le abría una segunda, vacía, sin que lo
+ * hubiera pedido. Ahora hace falta una de dos:
+ *
+ *   1. Un texto de exactamente 6 dígitos: probablemente el código pedido
+ *      desde el perfil de una cuenta que YA existe.
+ *   2. Una respuesta afirmativa a la pregunta de abajo ("quiero empezar",
+ *      "dale", "sí"): recién ahí se entiende que la persona no tiene cuenta y
+ *      quiere una.
+ *
+ * Cualquier otra cosa —"Hola", una pregunta, una foto— recibe la misma
+ * pregunta de siempre y no deja rastro en la base.
  */
 async function atenderNumeroSinVinculo(
   admin: ReturnType<typeof adminSinTipos>,
@@ -143,6 +186,11 @@ async function atenderNumeroSinVinculo(
 
   if (codigo.length === 6 && codigo === textoRecibido) {
     await confirmarCodigo(admin, desde, codigo);
+    return;
+  }
+
+  if (!quiereEmpezarDeCero(textoRecibido)) {
+    await enviarTexto(desde, TEXTO_NUMERO_SIN_VINCULO);
     return;
   }
 
