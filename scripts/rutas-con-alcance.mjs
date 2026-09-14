@@ -125,6 +125,10 @@ const PERMITIDAS = new Map([
     "app/api/pagos/pagopar/webhook/route.ts::eventos_pago",
     "`eventos_pago` es la bitácora de eventos del proveedor, indexada por `evento_externo_id`, no una tabla por usuario. Y el que llama es Pagopar, no una sesión: la autenticación es la firma del proveedor.",
   ],
+  [
+    "app/api/whatsapp/webhook/route.ts::eos_whatsapp_vinculos_v162",
+    "Webhook de WhatsApp: lo llama Meta, no una sesión (autenticado por la firma del webhook, no por RLS). Las dos consultas a esta tabla son justamente las que averiguan DE QUIÉN es el número o el código que llegó — filtrarlas por un usuario que todavía no se conoce es imposible por definición, igual que el buzón de correo de finanzas.",
+  ],
 ]);
 
 function rutasDeApi(dir) {

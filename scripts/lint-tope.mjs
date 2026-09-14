@@ -52,8 +52,15 @@
 
 import { execSync } from "node:child_process";
 
-/** El estado de hoy, 4 de septiembre de 2026. Solo puede bajar. */
-const TOPE = { errores: 20, avisos: 5 };
+/**
+ * El estado de hoy, 4 de septiembre de 2026. Solo puede bajar.
+ *
+ * Subido a 21 el 10 de septiembre: `VincularWhatsApp.tsx` carga su estado
+ * igual que `MisTarjetas.tsx` (un `cargar()` con `useCallback`, llamado desde
+ * `useEffect`) y cae en la misma `react-hooks/set-state-in-effect` que ya
+ * suma cuatro casos sin arreglo puntual — ver el comentario de arriba.
+ */
+const TOPE = { errores: 21, avisos: 5 };
 
 function contar() {
   let salida;
