@@ -27,6 +27,8 @@ type MensajeEntrante = {
   text?: { body?: string };
   image?: { id?: string; mime_type?: string; caption?: string };
   document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
+  // Un audio no trae pie de foto: WhatsApp no lo ofrece para notas de voz.
+  audio?: { id?: string; mime_type?: string };
 };
 
 type ContactoEntrante = { wa_id?: string; profile?: { name?: string } };
@@ -312,9 +314,12 @@ async function atenderMensajeVinculado(
 
   if (mensaje.type === "text") {
     mensajeTexto = String(mensaje.text?.body || "").trim();
-  } else if (mensaje.type === "image" || mensaje.type === "document") {
-    const media = mensaje.type === "image" ? mensaje.image : mensaje.document;
-    mensajeTexto = String(media?.caption || "").trim();
+  } else if (mensaje.type === "image" || mensaje.type === "document" || mensaje.type === "audio") {
+    const media =
+      mensaje.type === "image" ? mensaje.image : mensaje.type === "document" ? mensaje.document : mensaje.audio;
+
+    // El audio no trae pie de foto: WhatsApp no lo ofrece para notas de voz.
+    mensajeTexto = mensaje.type === "audio" ? "" : String((media as { caption?: string })?.caption || "").trim();
 
     if (media?.id) {
       const archivo = await descargarMedia(
@@ -326,7 +331,10 @@ async function atenderMensajeVinculado(
       if (archivo) archivos = [archivo];
     }
   } else {
-    await enviarTexto(desde, "Por ahora puedo leer texto, imágenes y documentos. Probá mandarlo de otra forma.");
+    await enviarTexto(
+      desde,
+      "Por ahora puedo leer texto, imágenes, documentos y audios. Probá mandarlo de otra forma.",
+    );
     return;
   }
 

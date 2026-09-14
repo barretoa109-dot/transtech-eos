@@ -51,6 +51,7 @@ import {
 } from "@/lib/eos/acciones-chat";
 import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
 import { limpiarSeleccion } from "@/lib/eos/cita";
+import { transcribirAudio } from "@/lib/eos/transcribir-audio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -282,7 +283,7 @@ function planEfectivo(usuario: UsuarioEOS | null): string {
 }
 
 function tipoArchivoPermitido(tipo: string): boolean {
-  return tipo.startsWith("image/") || ALLOWED_FILE_TYPES.has(tipo);
+  return tipo.startsWith("image/") || tipo.startsWith("audio/") || ALLOWED_FILE_TYPES.has(tipo);
 }
 
 function obtenerExtension(nombre: string): string {
@@ -746,6 +747,31 @@ export async function procesarMensajeEOS(
       if (analisis.length > 0) {
         const bloque = analisis.join("\n\n");
         mensajeConAnalisis = mensaje ? `${mensaje}\n\n${bloque}` : bloque;
+      }
+    }
+
+    /*
+     * Los audios, transcriptos antes de que el mensaje llegue al modelo.
+     *
+     * El gateway no sabe leer bytes de audio —ni por WhatsApp ni por la
+     * web—, así que sin esto un audio adjunto viajaba y no pasaba nada. Va
+     * en paralelo con el resto por el mismo motivo que los documentos: es
+     * una llamada de red, y sumarla en serie sería sumar su espera a la del
+     * mensaje entero.
+     */
+    const audios = archivos.filter((a) => a.tipo.startsWith("audio/"));
+
+    if (audios.length > 0) {
+      const transcripciones = (await Promise.all(audios.map((a) => transcribirAudio(a)))).filter(
+        (texto): texto is string => Boolean(texto),
+      );
+
+      if (transcripciones.length > 0) {
+        const bloque = transcripciones
+          .map((texto, i) => (transcripciones.length > 1 ? `[Audio ${i + 1}]: ${texto}` : `[Audio]: ${texto}`))
+          .join("\n\n");
+
+        mensajeConAnalisis = mensajeConAnalisis ? `${mensajeConAnalisis}\n\n${bloque}` : bloque;
       }
     }
 
