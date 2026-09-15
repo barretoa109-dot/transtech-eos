@@ -139,7 +139,27 @@ const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "emisor", etiqueta: "Facturación", detalle: "Datos del emisor" },
 ];
 
-export default function NegocioView() {
+/*
+ * Once pestañas en una sola grilla se leen como el menú de veinte que este
+ * archivo dice evitar (ver el comentario de arriba). Agruparlas no cambia
+ * ninguna pestaña, ni el estado, ni qué pantalla se renderiza con cada
+ * `clave` — solo cómo se presenta la misma lista: en qué orden se hace cada
+ * pregunta del negocio, no en el orden en que las funciones se agregaron.
+ */
+const GRUPOS_NAV: { etiqueta: string; claves: Pestania[] }[] = [
+  { etiqueta: "Operar", claves: ["ventas", "compras", "cartera"] },
+  { etiqueta: "Catálogo", claves: ["productos", "inventario"] },
+  { etiqueta: "Relaciones", claves: ["clientes", "embudo"] },
+  { etiqueta: "Analizar", claves: ["pronostico", "resultado", "rentabilidad"] },
+  { etiqueta: "Configurar", claves: ["emisor"] },
+];
+
+type NegocioViewProps = {
+  /** Abre el chat completo — ver la misma nota en GastosView. */
+  onOpenChat?: () => void;
+};
+
+export default function NegocioView({ onOpenChat }: NegocioViewProps) {
   const [pestania, setPestania] = useState<Pestania>("ventas");
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -272,12 +292,19 @@ export default function NegocioView() {
   return (
     <div className="view" id="view-negocio">
       <div className="page page-in">
-        <div className="page-header">
-          <div className="page-eyebrow">Negocio</div>
-          <div className="page-title">Tu ERP y tu CRM</div>
-          <div className="page-sub">
-            Operaciones, inventario y relaciones comerciales en un solo lugar.
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div className="page-header">
+            <div className="page-eyebrow">Negocio</div>
+            <div className="page-title">Tu ERP y tu CRM</div>
+            <div className="page-sub">
+              Operaciones, inventario y relaciones comerciales en un solo lugar.
+            </div>
           </div>
+          {onOpenChat && (
+            <button type="button" className="ghost-btn" onClick={onOpenChat} style={{ flexShrink: 0 }}>
+              Preguntale a EOS
+            </button>
+          )}
         </div>
 
         {!cargando && !error && !sinErp && (
@@ -317,20 +344,35 @@ export default function NegocioView() {
           </div>
         )}
 
-        <nav className="neg-nav" aria-label="Áreas del negocio">
-          {PESTANIAS.filter((p) => !sinErp || p.clave === "clientes" || p.clave === "embudo").map((p) => (
-            <button
-              key={p.clave}
-              type="button"
-              className={`neg-nav-item ${pestania === p.clave ? "active" : ""}`}
-              onClick={() => setPestania(p.clave)}
-              aria-current={pestania === p.clave ? "page" : undefined}
-            >
-              <span>{p.etiqueta}</span>
-              <small>{p.detalle}</small>
-            </button>
-          ))}
-        </nav>
+        <div className="neg-nav-groups" role="navigation" aria-label="Áreas del negocio">
+          {GRUPOS_NAV.map((grupo) => {
+            const disponibles = grupo.claves
+              .map((clave) => PESTANIAS.find((p) => p.clave === clave)!)
+              .filter((p) => !sinErp || p.clave === "clientes" || p.clave === "embudo");
+
+            if (disponibles.length === 0) return null;
+
+            return (
+              <div className="neg-nav-group" key={grupo.etiqueta}>
+                <div className="neg-nav-group-label">{grupo.etiqueta}</div>
+                <div className="neg-nav">
+                  {disponibles.map((p) => (
+                    <button
+                      key={p.clave}
+                      type="button"
+                      className={`neg-nav-item ${pestania === p.clave ? "active" : ""}`}
+                      onClick={() => setPestania(p.clave)}
+                      aria-current={pestania === p.clave ? "page" : undefined}
+                    >
+                      <span>{p.etiqueta}</span>
+                      <small>{p.detalle}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {sinErp && !cargando && (
           <div className="neg-module-note">

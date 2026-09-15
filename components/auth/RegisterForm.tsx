@@ -133,6 +133,11 @@ export default function RegisterForm({ onLogin }: Props) {
           throw profileError;
         }
 
+        // Sin esperar respuesta: si falla, no hay nada que el usuario deba
+        // ver ni reintentar acá — es un correo de cortesía, no un paso del
+        // registro.
+        fetch("/api/auth/bienvenida", { method: "POST" }).catch(() => {});
+
         window.location.assign("/eos/onboarding");
         return;
       }

@@ -106,24 +106,75 @@ const COPY: Record<Estado, { titulo: string; sub: string }> = {
   accion: { titulo: "FINANZAS — NECESITA UNA DECISIÓN", sub: "Hay algo que requiere que decidas vos." },
 };
 
-export default function FinanzasPanel() {
+type FinanzasPanelProps = {
+  /**
+   * Avisa si la Constitución Financiera ya está configurada, apenas se sabe.
+   *
+   * Varias tarjetas hermanas (Trayectoria, Calendario, Deudas, Objetivos,
+   * Fondo, Plan de deudas) se callan solas —`return null`— cuando no hay
+   * nada que mostrar, a propósito: así una cuenta nueva no ve cajas vacías
+   * dentro de cada pestaña. El problema es que en "Lo que viene", "Lo que
+   * debo" y "Lo que quiero" TODAS las tarjetas de esa pestaña se callan a la
+   * vez sin la Constitución, y la pestaña entera queda en blanco — peor que
+   * una caja vacía, porque no dice nada en absoluto. `GastosView` usa este
+   * aviso para mostrar ahí un único mensaje compartido en vez de que cada
+   * pestaña lo repita.
+   */
+  onConfiguradoChange?: (configurado: boolean) => void;
+};
+
+export default function FinanzasPanel({ onConfiguradoChange }: FinanzasPanelProps = {}) {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
+  /*
+   * Un 403 acá no es una falla de lectura: es `exigirModulo("dashboard")`
+   * diciendo que el Panel financiero todavía no está contratado. Antes las
+   * dos cosas caían en el mismo `catch` y mostraban "no pudimos leer tus
+   * finanzas, volvé a entrar en un rato" — un mensaje que promete que
+   * reintentar sirve, cuando reintentar JAMÁS va a andar hasta que se active
+   * el módulo. Confundir un candado con un error deja a cualquier cuenta sin
+   * ese módulo pensando que EOS está roto, para siempre.
+   */
+  const [sinModulo, setSinModulo] = useState(false);
   const [detalles, setDetalles] = useState(false);
   const [configurando, setConfigurando] = useState(false);
   /** Qué cifra está abierta mostrando de dónde sale. */
   const [abierta, setAbierta] = useState<ClaveCifra | null>(null);
 
   const cargar = useCallback(() => {
+    // Nada de estado se toca antes del `fetch`: las tres banderas
+    // (`error`, `sinModulo`, `data`) se resuelven juntas, dentro de la
+    // cadena de promesas, para que una recarga limpie de verdad el estado
+    // de la anterior en vez de sumarse a él.
     return fetch("/api/finanzas/estado", { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
-      .then((payload) => setData(payload))
-      .catch(() => setError(true));
+      .then((res) => {
+        if (res.status === 403) {
+          setSinModulo(true);
+          setError(false);
+          return null;
+        }
+        if (!res.ok) return Promise.reject(new Error("fallo"));
+        return res.json();
+      })
+      .then((payload) => {
+        if (!payload) return;
+        setSinModulo(false);
+        setError(false);
+        setData(payload);
+      })
+      .catch(() => {
+        setSinModulo(false);
+        setError(true);
+      });
   }, []);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    if (data) onConfiguradoChange?.(data.configurado === true);
+  }, [data, onConfiguradoChange]);
 
   if (configurando) {
     return (
@@ -134,6 +185,24 @@ export default function FinanzasPanel() {
         }}
         onCancelar={data?.configurado ? () => setConfigurando(false) : undefined}
       />
+    );
+  }
+
+  if (sinModulo) {
+    return (
+      <div className="card fin-card">
+        <div className="fin-head">
+          <span className="fin-badge fin-badge-neutral">FINANZAS</span>
+        </div>
+        <div className="card-title">Todavía no tenés el Panel financiero</div>
+        <p className="prose">
+          Con él, EOS te dice si estás bien, de dónde sale tu disponible real y qué se viene —todo
+          calculado sobre lo que ya vas anotando.
+        </p>
+        <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+          Ver cómo sumarlo
+        </a>
+      </div>
     );
   }
 

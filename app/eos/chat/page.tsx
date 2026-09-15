@@ -385,8 +385,8 @@ export default function EOSPage() {
           />
         )}
 
-        {vista === "negocio" && usuarioCargado && <NegocioView />}
-        {vista === "gastos" && usuarioCargado && <GastosView />}
+        {vista === "negocio" && usuarioCargado && <NegocioView onOpenChat={() => setVista("chat")} />}
+        {vista === "gastos" && usuarioCargado && <GastosView onOpenChat={() => setVista("chat")} />}
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}
 

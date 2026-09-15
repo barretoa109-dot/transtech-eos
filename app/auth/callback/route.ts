@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { destinoSeguro } from "@/lib/auth/destino";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { enviarBienvenida } from "@/lib/email/transaccionales";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -68,6 +70,17 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   const destino = onboarding ? "/eos/onboarding" : next;
+
+  // La fila de onboarding sin completar es la misma señal de "cuenta recién
+  // nacida" que decide el destino de arriba: si está, es la primera vez que
+  // esta cuenta confirma su sesión. Va en `after()` para no demorar el
+  // redirect, y `enviarBienvenida` es su propia idempotencia (no manda dos
+  // veces aunque esto se vuelva a disparar).
+  if (onboarding) {
+    after(async () => {
+      await enviarBienvenida(adminSinTipos(), user.id);
+    });
+  }
 
   return NextResponse.redirect(new URL(destino, requestUrl.origin));
 }

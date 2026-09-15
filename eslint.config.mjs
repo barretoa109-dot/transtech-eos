@@ -29,6 +29,22 @@ const eslintConfig = defineConfig([
     // Los scripts que arman la presentación y el video. Están fuera del
     // repositorio (`.gitignore`) y no son código de EOS.
     ".video-build/**",
+
+    /*
+     * Worktrees de Claude Code, y scratch de sesiones de trabajo.
+     *
+     * `.claude/worktrees/**` son checkouts completos y separados que arma el
+     * propio Claude Code para trabajar aislado — el lint del repo principal
+     * no tiene por qué juzgar una copia de otra rama. `tmp/**` y
+     * `output/**` son scratch de sesión (reproducciones, exportaciones),
+     * igual que `docs/reviews/evidence/**`: evidencia de una revisión
+     * puntual, no código que EOS sirva. Ninguno de los tres se toca acá; solo
+     * se excluye de un chequeo pensado para código fuente.
+     */
+    ".claude/worktrees/**",
+    "tmp/**",
+    "output/**",
+    "docs/reviews/evidence/**",
   ]),
 ]);
 
