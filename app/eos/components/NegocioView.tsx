@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeDollarSign, Check, Package, Pencil, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, Check, MoreHorizontal, Package, Pencil, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { useEscape } from "./useEscape";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
@@ -500,6 +501,17 @@ function Ventas({
    */
   const [verAnuladas, setVerAnuladas] = useState(false);
 
+  /*
+   * Cada fila de venta llegó a tener cinco acciones a la vez: corregir el
+   * costo, corregir la venta, cobrar, facturar y anular. Cobrar y Anular son
+   * las que alguien busca en el 90% de las filas; Corregir costo y Corregir
+   * son para cuando algo se cargó mal, que no es lo normal. Se esconden
+   * detrás de "Más" en vez de sacarlas — la función sigue entera, a un clic
+   * de distancia en vez de compitiendo por atención en cada fila.
+   */
+  const [masAbiertoId, setMasAbiertoId] = useState<string | null>(null);
+  useEscape(masAbiertoId !== null, () => setMasAbiertoId(null));
+
   const anuladas = useMemo(() => ventas.filter((v) => v.estado === "anulada"), [ventas]);
 
   const ventasVisibles = useMemo(
@@ -912,30 +924,45 @@ function Ventas({
                     </span>
                   ) : (
                     <>
-                      {/*
-                        Corregir el costo se ofrece en la venta y no sólo en el
-                        producto, porque el costo de una venta ya hecha quedó
-                        congelado: arreglar la ficha no arregla el margen de lo
-                        que ya se vendió.
-                      */}
-                      <CorregirCosto
-                        modo="venta"
-                        documentoId={v.id}
-                        moneda={v.moneda}
-                        items={v.items ?? []}
-                        onCorregido={onCambio}
-                      />
-
-                      {/*
-                        Cantidad, precio, producto — lo que "Corregir costo"
-                        no toca. Si la venta tiene una factura activa, el
-                        servidor lo rechaza con el mismo mensaje que ya usa
-                        Anular: no hace falta duplicar ese chequeo acá.
-                      */}
-                      <button type="button" className="chip" onClick={() => editar(v)}>
-                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-                        Corregir
+                      <button
+                        type="button"
+                        className="chip"
+                        aria-expanded={masAbiertoId === v.id}
+                        aria-label="Más acciones"
+                        onClick={() => setMasAbiertoId((actual) => (actual === v.id ? null : v.id))}
+                      >
+                        <MoreHorizontal size={13} />
                       </button>
+
+                      {masAbiertoId === v.id && (
+                        <>
+                          {/*
+                            Corregir el costo se ofrece en la venta y no sólo
+                            en el producto, porque el costo de una venta ya
+                            hecha quedó congelado: arreglar la ficha no
+                            arregla el margen de lo que ya se vendió.
+                          */}
+                          <CorregirCosto
+                            modo="venta"
+                            documentoId={v.id}
+                            moneda={v.moneda}
+                            items={v.items ?? []}
+                            onCorregido={onCambio}
+                          />
+
+                          {/*
+                            Cantidad, precio, producto — lo que "Corregir
+                            costo" no toca. Si la venta tiene una factura
+                            activa, el servidor lo rechaza con el mismo
+                            mensaje que ya usa Anular: no hace falta duplicar
+                            ese chequeo acá.
+                          */}
+                          <button type="button" className="chip" onClick={() => editar(v)}>
+                            <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                            Corregir
+                          </button>
+                        </>
+                      )}
 
                       {v.movimiento_id ? (
                         <span className="neg-estado is-ok">

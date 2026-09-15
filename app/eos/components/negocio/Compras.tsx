@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
 import CorregirCosto from "./CorregirCosto";
-import { AlertCircle, Check, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
+import { AlertCircle, Check, MoreHorizontal, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
@@ -65,6 +65,11 @@ export default function Compras({
 
   /* Lo anulado sale de la lista. Ver el comentario en el título de la tarjeta. */
   const [verAnuladas, setVerAnuladas] = useState(false);
+
+  /* Corregir costo y Corregir son para cuando algo se cargó mal, no lo
+     normal en cada fila — ver el mismo criterio en NegocioView > Ventas. */
+  const [masAbiertoId, setMasAbiertoId] = useState<string | null>(null);
+  useEscape(masAbiertoId !== null, () => setMasAbiertoId(null));
 
   const anuladas = useMemo(() => compras.filter((c) => c.estado === "anulada"), [compras]);
 
@@ -652,26 +657,41 @@ export default function Compras({
                     </span>
                   ) : (
                     <>
-                      {/*
-                        Corregir se ofrece acá porque la compra es donde entra el
-                        costo: un número mal tipeado se vuelve el costo del
-                        producto, el margen de todo lo que se venda después y un
-                        gasto del panel. Antes la única salida era anular la
-                        compra entera y volver a cargarla.
-                      */}
-                      <CorregirCosto
-                        modo="compra"
-                        documentoId={c.id}
-                        moneda={c.moneda}
-                        items={c.items ?? []}
-                        onCorregido={cargar}
-                      />
-
-                      {/* Cantidad, costo, producto — lo que Corregir costo no toca. */}
-                      <button type="button" className="chip" onClick={() => editar(c)}>
-                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-                        Corregir
+                      <button
+                        type="button"
+                        className="chip"
+                        aria-expanded={masAbiertoId === c.id}
+                        aria-label="Más acciones"
+                        onClick={() => setMasAbiertoId((actual) => (actual === c.id ? null : c.id))}
+                      >
+                        <MoreHorizontal size={13} />
                       </button>
+
+                      {masAbiertoId === c.id && (
+                        <>
+                          {/*
+                            Corregir se ofrece acá porque la compra es donde
+                            entra el costo: un número mal tipeado se vuelve
+                            el costo del producto, el margen de todo lo que
+                            se venda después y un gasto del panel. Antes la
+                            única salida era anular la compra entera y
+                            volver a cargarla.
+                          */}
+                          <CorregirCosto
+                            modo="compra"
+                            documentoId={c.id}
+                            moneda={c.moneda}
+                            items={c.items ?? []}
+                            onCorregido={cargar}
+                          />
+
+                          {/* Cantidad, costo, producto — lo que Corregir costo no toca. */}
+                          <button type="button" className="chip" onClick={() => editar(c)}>
+                            <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                            Corregir
+                          </button>
+                        </>
+                      )}
 
                       {c.movimiento_id ? (
                         <span className="neg-estado is-ok">
