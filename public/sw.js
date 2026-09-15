@@ -1,4 +1,4 @@
-const CACHE_NAME = "transtech-eos-v1";
+const CACHE_NAME = "transtech-eos-v2";
 const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/transtech-logo.png"
