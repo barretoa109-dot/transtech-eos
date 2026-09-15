@@ -6,6 +6,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Lock,
+  MessageCircle,
   Pencil,
   Plus,
   RefreshCw,
@@ -143,7 +144,33 @@ function dia(iso: string): string {
   return `${numero}/${mes}`;
 }
 
-export default function GastosView() {
+/**
+ * Lo que "Lo que viene", "Lo que debo" y "Lo que quiero" muestran mientras
+ * no haya Constitución Financiera — en vez de la pestaña completamente en
+ * blanco que dejaban sus tarjetas, todas calladas a la vez.
+ */
+function AvisoSinConfigurar({ texto }: { texto: string }) {
+  return (
+    <div className="card">
+      <div className="card-title">Todavía no hay nada que mostrar acá</div>
+      <p className="prose">{texto}</p>
+      <p className="prose" style={{ marginTop: 8 }}>
+        Contale a EOS tu situación con una frase, o configurá tus finanzas arriba en{" "}
+        <strong>¿Cómo estoy?</strong>
+      </p>
+    </div>
+  );
+}
+
+type GastosViewProps = {
+  /** Abre el chat completo. Sin esto, lo único que se puede hacer acá es
+      anotar una línea o tocar los datos ya cargados — para preguntar algo
+      ("¿cuánto gasté en comida este mes?") no había ningún camino visible
+      de vuelta al chat. */
+  onOpenChat?: () => void;
+};
+
+export default function GastosView({ onOpenChat }: GastosViewProps) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState<Total[]>([]);
   const [ventana, setVentana] = useState<"semana" | "mes" | "trimestre">("mes");
@@ -154,6 +181,14 @@ export default function GastosView() {
 
   /** Qué fila está abierta para editar. Una sola por vez. */
   const [editando, setEditando] = useState<string | null>(null);
+
+  /**
+   * Si la Constitución Financiera ya está configurada. `null` mientras no se
+   * sabe todavía (recién montó). La usan "Lo que viene", "Lo que debo" y
+   * "Lo que quiero" para no quedar completamente en blanco — ver el
+   * comentario en `FinanzasPanel`.
+   */
+  const [finanzasConfigurada, setFinanzasConfigurada] = useState<boolean | null>(null);
 
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -326,13 +361,21 @@ export default function GastosView() {
           lo que alguien necesita saber antes de anotar su sueldo acá y quedarse
           con la duda de si le acaba de ensuciar el resultado del mes.
         */}
-        <div className="page-header">
-          <div className="page-eyebrow">Personal</div>
-          <div className="page-title">Tu plata, aparte de la del negocio</div>
-          <div className="page-sub">
-            Lo que cobrás y lo que gastás vos. Nada de lo que anotes acá entra en las cuentas de
-            Negocio, ni al revés.
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div className="page-header">
+            <div className="page-eyebrow">Personal</div>
+            <div className="page-title">Tu plata, aparte de la del negocio</div>
+            <div className="page-sub">
+              Lo que cobrás y lo que gastás vos. Nada de lo que anotes acá entra en las cuentas de
+              Negocio, ni al revés.
+            </div>
           </div>
+          {onOpenChat && (
+            <button type="button" className="ghost-btn" onClick={onOpenChat} style={{ flexShrink: 0 }}>
+              <MessageCircle size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
+              Preguntale a EOS
+            </button>
+          )}
         </div>
 
         {/*
@@ -348,7 +391,7 @@ export default function GastosView() {
           series recurrentes que detectó y la conciliación. Todo eso también
           estaba fuera de esta sección.
         */}
-        <FinanzasPanel />
+        <FinanzasPanel onConfiguradoChange={setFinanzasConfigurada} />
 
         <div className="card">
         <div className="neg-section-heading">
@@ -501,6 +544,9 @@ export default function GastosView() {
       */}
       {subarea === "viene" && (
         <>
+          {finanzasConfigurada === false && (
+            <AvisoSinConfigurar texto="Para proyectar lo que se viene, EOS necesita un punto de partida: cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
+          )}
           <FinanzasTrayectoria />
           <FinanzasCalendario moneda={monedaPrincipal} />
         </>
@@ -527,6 +573,9 @@ export default function GastosView() {
       */}
       {subarea === "debo" && (
         <>
+          {finanzasConfigurada === false && (
+            <AvisoSinConfigurar texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago." />
+          )}
           <FinanzasDeudas />
           <FinanzasPlanDeudas moneda={monedaPrincipal} />
           <FinanzasTarjetas moneda={monedaPrincipal} />
@@ -540,6 +589,9 @@ export default function GastosView() {
       */}
       {subarea === "quiero" && (
         <>
+          {finanzasConfigurada === false && (
+            <AvisoSinConfigurar texto="Decile a EOS para qué estás juntando —un fondo, un viaje, lo que sea— y con cuánto contás, y te dice el aporte por mes y si vas al ritmo." />
+          )}
           <FinanzasFondo moneda={monedaPrincipal} />
           <FinanzasObjetivos moneda={monedaPrincipal} />
         </>
