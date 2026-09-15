@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import {
   describirErrorBancard,
   formatearMontoBancard,
@@ -6,6 +7,7 @@ import {
   tokenCharge,
   tokenListarTarjetas,
 } from "@/lib/bancard";
+import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
 
 export type ResultadoCobro =
   | { tipo: "pagado"; solicitudId: string; plan: string; diasAcreditados: number | null; renovacion: boolean }
@@ -257,6 +259,20 @@ export async function ejecutarCobroBancard({
           ? operacion.response_description
           : "La tarjeta rechazó el pago.",
     };
+  }
+
+  // `idempotent` en `false` es la señal de que ESTA llamada fue la que
+  // recién acreditó el plan (no una notificación repetida de Bancard sobre
+  // el mismo cobro, que la propia RPC ya resuelve sin volver a acreditar).
+  if (confirmado?.idempotent === false) {
+    after(async () => {
+      await enviarConfirmacionPlan(admin, {
+        usuarioId,
+        planCodigo: confirmado?.plan_codigo ?? plan,
+        referencia: cobro.solicitud_id!,
+        renovacion: Boolean(confirmado?.same_plan_renewal),
+      });
+    });
   }
 
   return {

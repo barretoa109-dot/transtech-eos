@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import {
   getPagoparKeys,
   tokenWebhook,
 } from "@/lib/pagopar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
+import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -331,6 +332,18 @@ export async function POST(request: Request) {
       if (solicitudUpdateError) {
         throw solicitudUpdateError;
       }
+
+      // Llegar hasta acá con `solicitud.estado !== "pagado"` (el guard de
+      // arriba) es justo la señal de que esta solicitud recién pasó a
+      // pagada — no un reintento del mismo webhook. `after()` para no
+      // demorar la respuesta a Pagopar.
+      after(async () => {
+        await enviarConfirmacionPlan(admin, {
+          usuarioId: solicitud.usuario_id,
+          planCodigo: solicitud.plan_codigo,
+          referencia: solicitud.id,
+        });
+      });
 
       const {
         error: historialError,

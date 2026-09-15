@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -179,6 +180,30 @@ export async function POST(request: Request) {
         { error: "No se pudo confirmar el procesamiento del pago." },
         { status: 500 },
       );
+    }
+
+    const solicitudProcesadaId = resultado.solicitud_id || solicitudId;
+
+    // Recién pasó a pagada por esta llamada (no un reintento sobre algo ya
+    // procesado): confirmar por email. `idempotent` es la misma señal que ya
+    // usa la respuesta de abajo para `renovacion_mismo_plan`/`dias_acreditados`.
+    if (resultado.status === "pagado" && resultado.idempotent !== true) {
+      after(async () => {
+        const { data: solicitudPagada } = (await admin
+          .from("solicitudes_pago")
+          .select("usuario_id")
+          .eq("id", solicitudProcesadaId)
+          .maybeSingle()) as { data: { usuario_id: string } | null };
+
+        if (solicitudPagada?.usuario_id && resultado.plan_codigo) {
+          await enviarConfirmacionPlan(admin, {
+            usuarioId: solicitudPagada.usuario_id,
+            planCodigo: resultado.plan_codigo,
+            referencia: solicitudProcesadaId,
+            renovacion: resultado.same_plan_renewal === true,
+          });
+        }
+      });
     }
 
     return NextResponse.json({
