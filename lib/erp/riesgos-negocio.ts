@@ -67,6 +67,11 @@ export type VentaACobrar = {
   fecha: string;
   total: number;
   moneda: string | null;
+  /**
+   * Cuándo vence, si se pactó plazo (v168). Null cuando no se pactó, que no
+   * es lo mismo que vencido — mismo criterio que `lib/erp/cartera.ts`.
+   */
+  vence_el?: string | null;
 };
 
 export type RiesgoNegocio =
@@ -93,13 +98,16 @@ export type RiesgoNegocio =
     };
 
 /**
- * A partir de cuántos días una venta a crédito sin cobrar es una noticia.
+ * A partir de cuántos días una venta a crédito sin cobrar es una noticia,
+ * CUANDO NO SE PACTÓ UN VENCIMIENTO.
  *
- * Treinta, que es el plazo comercial habitual en Paraguay. No sale de una
- * fecha de vencimiento porque todavía no existe: la cuenta corriente con
- * vencimientos es la fase 5 del ERP. Hasta entonces, el aviso dice
- * exactamente lo que sabe —"hace más de treinta días"— y no inventa una mora
- * que nadie pactó.
+ * Treinta, el plazo comercial habitual en Paraguay. Desde la v168 existe
+ * `vence_el` en `eos_erp_ventas` y se usa cuando está cargado —ver más abajo,
+ * `estaDemorada()`—; este número queda como el criterio de respaldo para las
+ * ventas que no lo tienen, que hoy siguen siendo casi todas: cargar el
+ * vencimiento es opcional, y una venta vieja nunca lo va a tener hacia atrás.
+ * No inventa una mora que nadie pactó: sigue diciendo "hace más de treinta
+ * días desde la venta", no "vencida".
  */
 const DIAS_DEMORA = 30;
 
@@ -152,7 +160,21 @@ export function detectarRiesgosNegocio(datos: {
   // Por moneda y sin convertir, como todo lo demás: sumar guaraníes con
   // dólares daría un total que no existe en ninguna de las dos.
   const limite = datos.diasDemora ?? DIAS_DEMORA;
-  const demoradas = datos.ventasACobrar.filter((v) => diasEntre(v.fecha, datos.hoy) >= limite);
+
+  /*
+   * Con vencimiento pactado (v168), demorada es la que ya venció —cero
+   * invención, mismo criterio que `lib/erp/cartera.ts` (`tramoDe`)—. Sin
+   * vencimiento, sigue el respaldo de siempre: más de `limite` días desde la
+   * venta. Las dos reglas conviven porque hoy conviven las dos clases de
+   * venta: la que cargó un plazo y la que no.
+   */
+  const diasDeAtraso = (v: VentaACobrar): number =>
+    v.vence_el ? diasEntre(v.vence_el, datos.hoy) : diasEntre(v.fecha, datos.hoy);
+
+  const estaDemorada = (v: VentaACobrar): boolean =>
+    v.vence_el ? diasDeAtraso(v) > 0 : diasDeAtraso(v) >= limite;
+
+  const demoradas = datos.ventasACobrar.filter(estaDemorada);
 
   const porMoneda = new Map<string, VentaACobrar[]>();
   for (const venta of demoradas) {
@@ -171,7 +193,7 @@ export function detectarRiesgosNegocio(datos: {
       moneda,
       total: ventas.reduce((t, v) => t + Number(v.total ?? 0), 0),
       cantidad: ventas.length,
-      dias_de_la_mas_vieja: Math.max(...ventas.map((v) => diasEntre(v.fecha, datos.hoy))),
+      dias_de_la_mas_vieja: Math.max(...ventas.map(diasDeAtraso)),
     });
   }
 
@@ -223,11 +245,14 @@ export function redactarRiesgoNegocio(
     return riesgo.gastos.map((g) => redactarGastoAnormal(g, formatear)).join(" ");
   }
 
+  // "Con atraso" y no "más de 30 días": desde la v168 algunas llegan acá por
+  // vencimiento real, no por el plazo de respaldo, y ese número ya no es
+  // siempre 30. `dias_de_la_mas_vieja` es exacto en los dos casos.
   const cuantas =
     riesgo.cantidad === 1 ? "Una venta a crédito lleva" : `${riesgo.cantidad} ventas a crédito llevan`;
 
   return (
-    `${cuantas} más de 30 días sin cobrarse, por ${formatear(riesgo.total, riesgo.moneda)}. ` +
+    `${cuantas} atraso sin cobrarse, por ${formatear(riesgo.total, riesgo.moneda)}. ` +
     `La más vieja, ${riesgo.dias_de_la_mas_vieja} días.`
   );
 }

@@ -74,6 +74,8 @@ type Venta = {
   condicion: string;
   estado: string;
   movimiento_id: string | null;
+  /** Solo tiene sentido a crédito (v168). Null: sin plazo pactado. */
+  vence_el: string | null;
   contacto: { id: string; nombre: string } | null;
   items: VentaItem[];
 };
@@ -421,6 +423,8 @@ function Ventas({
   const [abierto, setAbierto] = useState(false);
   const [contactoId, setContactoId] = useState("");
   const [condicion, setCondicion] = useState<"contado" | "credito">("contado");
+  /** Opcional (v168): sin ella, la venta queda como siempre — a crédito y sin plazo. */
+  const [venceEl, setVenceEl] = useState("");
   const [lineas, setLineas] = useState<LineaEnEdicion[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -527,6 +531,7 @@ function Ventas({
   function cerrarFormulario() {
     setLineas([]);
     setContactoId("");
+    setVenceEl("");
     setEditandoId(null);
     setMotivoEdicion("");
     setAbierto(false);
@@ -596,7 +601,13 @@ function Ventas({
         : await fetch("/api/erp/ventas", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contacto_id: contactoId || null, condicion, moneda, items }),
+            body: JSON.stringify({
+              contacto_id: contactoId || null,
+              condicion,
+              moneda,
+              items,
+              vence_el: condicion === "credito" && venceEl ? venceEl : null,
+            }),
           });
 
       const resultado = await respuesta.json().catch(() => null);
@@ -676,6 +687,28 @@ function Ventas({
                 <option value="credito">Crédito</option>
               </select>
             </div>
+
+            {/*
+              Solo para ventas nuevas: "editar" anula y vuelve a registrar
+              (v116) por otro camino que todavía no manda vence_el, así que
+              mostrarlo ahí prometería algo que no se guarda.
+            */}
+            {condicion === "credito" && !editandoId && (
+              <div className="field-row">
+                <span className="field-label">
+                  Vence el
+                  <span className="field-hint">
+                    Opcional. Sin fecha, el aviso de cobro demorado usa 30 días desde hoy
+                  </span>
+                </span>
+                <input
+                  type="date"
+                  className="neg-input"
+                  value={venceEl}
+                  onChange={(e) => setVenceEl(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="neg-catalogo">
               {productos.map((p) => (
@@ -877,6 +910,7 @@ function Ventas({
                     <small>
                       {v.fecha} · {v.contacto?.nombre ?? "Consumidor final"} ·{" "}
                       {v.condicion === "credito" ? "a crédito" : "contado"}
+                      {v.condicion === "credito" && v.vence_el ? ` · vence ${v.vence_el}` : ""}
                     </small>
                   </div>
 
