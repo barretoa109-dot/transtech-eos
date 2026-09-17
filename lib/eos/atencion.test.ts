@@ -28,6 +28,7 @@ function alDia(extra: Partial<Entradas> = {}): Entradas {
     tarjetas: [{ nombre: "Visa", cierra: 20, vence: 5, resumenAl: dia(5) }],
     deudasSinCuota: [],
     oportunidadesSinMonto: 0,
+    oportunidadesEstancadas: null,
     porCobrarViejo: null,
     ...extra,
   };
@@ -206,6 +207,26 @@ test("el resumen de la tarjeta aguanta más que un saldo, pero no para siempre",
     }),
   );
   assert.ok(pasado.find((x) => x.clave === "resumenes-viejos"));
+});
+
+test("una oportunidad estancada se menciona con sus días sin actividad", () => {
+  const pendientes = armarAtencion(
+    alDia({ oportunidadesEstancadas: { cantidad: 3, masDiasSinActividad: 20 } }),
+  );
+
+  const p = pendientes.find((x) => x.clave === "oportunidades-estancadas");
+  assert.ok(p);
+  assert.match(p.titulo, /3 oportunidades estancadas/);
+  assert.match(p.porque, /20 días/);
+  assert.equal(p.donde, "CRM > Oportunidades");
+});
+
+test("sin oportunidades estancadas no hay pendiente", () => {
+  const pendientes = armarAtencion(
+    alDia({ oportunidadesEstancadas: { cantidad: 0, masDiasSinActividad: 0 } }),
+  );
+
+  assert.equal(pendientes.find((x) => x.clave === "oportunidades-estancadas"), undefined);
 });
 
 test("una cartera vieja se menciona con su antigüedad", () => {

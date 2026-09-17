@@ -84,6 +84,15 @@ export type Entradas = {
   /** Oportunidades abiertas sin monto: el embudo no puede prever nada. */
   oportunidadesSinMonto?: number;
 
+  /**
+   * Oportunidades abiertas sin actividad hace más de 14 días.
+   *
+   * El cálculo de "estancada" es el mismo que ya usa y prueba
+   * `lib/kpi/definiciones/crm.ts` (`OPORTUNIDADES_ESTANCADAS`): no se
+   * reimplementa acá, solo se resume para el titular.
+   */
+  oportunidadesEstancadas?: { cantidad: number; masDiasSinActividad: number } | null;
+
   /** Ventas a crédito vencidas hace rato, si el negocio lleva cartera. */
   porCobrarViejo?: { cuantas: number; masViejaEnDias: number } | null;
 };
@@ -240,7 +249,7 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       clase: "dato",
       titulo: `${sinMonto} ${plural(sinMonto, "oportunidad sin monto", "oportunidades sin monto")}`,
       porque: "El embudo no puede prever cuánto podrías facturar con lo que tenés abierto.",
-      donde: "Negocio > Oportunidades",
+      donde: "CRM > Oportunidades",
       cuantos: sinMonto,
     });
   }
@@ -280,6 +289,18 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       porque: `Ya cerró otro ciclo desde entonces, así que el que tengo de ${resumenViejo.map((t) => t.nombre).slice(0, 2).join(", ")} corresponde a un período que ya pasó.`,
       donde: "el chat: pasame el resumen de este mes",
       cuantos: resumenViejo.length,
+    });
+  }
+
+  const estancadas = e.oportunidadesEstancadas;
+  if (estancadas && estancadas.cantidad > 0) {
+    pendientes.push({
+      clave: "oportunidades-estancadas",
+      clase: "envejecido",
+      titulo: `${estancadas.cantidad} ${plural(estancadas.cantidad, "oportunidad estancada", "oportunidades estancadas")}`,
+      porque: `La más vieja lleva ${estancadas.masDiasSinActividad} días sin novedad. Sin que alguien insista, se enfrían: es una venta que puede estar perdiéndose sin que nadie se entere.`,
+      donde: "CRM > Oportunidades",
+      cuantos: estancadas.cantidad,
     });
   }
 
