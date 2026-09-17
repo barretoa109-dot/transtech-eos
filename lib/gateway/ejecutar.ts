@@ -133,7 +133,7 @@ const HECHO: Record<string, string> = {
   GUARDAR_MEMORIA: "Guardé esa información en la memoria empresarial.",
   REGISTRAR_VENTA: "La venta quedó registrada. La ves en Negocio > Ventas.",
   AJUSTAR_STOCK: "Ajusté el stock. Lo ves en Negocio > Productos.",
-  CREAR_CONTACTO: "El contacto quedó guardado. Lo ves en Negocio > Contactos.",
+  CREAR_CONTACTO: "El contacto quedó guardado. Lo ves en CRM > Contactos.",
   CORREGIR_MOVIMIENTO: "Lo corregí.",
   DECLARAR_SALDO: "Anoté el saldo.",
   REGISTRAR_COBRO: "Registré el cobro.",

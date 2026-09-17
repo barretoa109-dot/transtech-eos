@@ -12,6 +12,7 @@ import ChatView from "../components/ChatView";
 import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
 import NegocioView from "../components/NegocioView";
+import CRMView from "../components/CRMView";
 import GastosView from "../components/GastosView";
 import ProfileView from "../components/ProfileView";
 import DecisionsView from "../components/DecisionsView";
@@ -73,6 +74,7 @@ const VISTAS_VALIDAS: VistaEOS[] = [
   "learnings",
   "dashboard",
   "negocio",
+  "crm",
   "gastos",
   "perfil",
 ];
@@ -366,7 +368,7 @@ export default function EOSPage() {
           />
         )}
 
-        {["dashboard", "negocio", "gastos", "decisions", "learnings"].includes(vista) &&
+        {["dashboard", "negocio", "crm", "gastos", "decisions", "learnings"].includes(vista) &&
           !usuarioCargado && (
             <div className="neg-loading" role="status">
               <span /> Cargando…
@@ -385,7 +387,10 @@ export default function EOSPage() {
           />
         )}
 
-        {vista === "negocio" && usuarioCargado && <NegocioView onOpenChat={() => setVista("chat")} />}
+        {vista === "negocio" && usuarioCargado && (
+          <NegocioView onOpenChat={() => setVista("chat")} onOpenCRM={() => setVista("crm")} />
+        )}
+        {vista === "crm" && usuarioCargado && <CRMView onOpenChat={() => setVista("chat")} />}
         {vista === "gastos" && usuarioCargado && <GastosView onOpenChat={() => setVista("chat")} />}
 
         {vista === "decisions" && usuarioCargado && <DecisionsView />}

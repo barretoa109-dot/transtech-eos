@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeDollarSign, Check, MoreHorizontal, Package, Pencil, Plus, ShoppingCart, TrendingUp, Undo2, Users } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, Check, Handshake, MoreHorizontal, Package, Pencil, Plus, ShoppingCart, Undo2 } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { useEscape } from "./useEscape";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
-import Embudo from "./negocio/Embudo";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
 import Pronostico from "./negocio/Pronostico";
@@ -20,24 +19,27 @@ import Anular from "./negocio/Anular";
 import FilaProducto from "./negocio/FilaProducto";
 import CorregirCosto from "./negocio/CorregirCosto";
 import ImportarProductos from "./negocio/ImportarProductos";
-import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto, Producto } from "./negocio/tipos";
 
 /**
- * El negocio adentro de EOS.
+ * El ERP de EOS.
  *
  * ============================================================
- * POR QUÉ TRES PESTAÑAS Y NO UN MENÚ DE VEINTE
+ * ACÁ YA NO VIVE EL CRM
  * ============================================================
  *
- * Un ERP de manual tiene módulos, submódulos y una pantalla de configuración
- * antes de poder cargar el primer producto. La persona para la que esto se
- * construyó —el que hoy anota las ventas en un cuaderno— abandona ahí mismo.
+ * Hasta esta reorganización, esta misma pantalla se llamaba "Tu ERP y tu
+ * CRM" y tenía Contactos y el embudo de oportunidades como dos pestañas más,
+ * bajo un grupo "Relaciones". Eso mezclaba dos productos que la base y el
+ * motor de indicadores ya trataban por separado (`eos_erp_*` vs `eos_crm_*`,
+ * familias de KPI separadas, y hasta el módulo que se factura es distinto)
+ * en una sola pantalla y un solo título confuso. El CRM ahora es su propia
+ * sección (`CRMView.tsx`, accesible con `onOpenCRM`); acá quedan solo las
+ * operaciones del negocio: vender, comprar, cobrar, pagar, el catálogo y el
+ * stock.
  *
- * Entonces son tres cosas, en el orden en que se necesitan: a quién le vendo,
- * qué vendo, y qué vendí. Todo lo demás —oportunidades, compras, actividades—
- * ya existe en la base y va a ir apareciendo, pero no puede estar en el camino
- * del primer día.
+ * `contactos` se sigue trayendo acá porque Ventas y Compras necesitan elegir
+ * un cliente o proveedor — es dato compartido, no CRM en esta pantalla.
  *
  * ============================================================
  * EL TOTAL SE CALCULA ACÁ Y TAMBIÉN EN LA BASE
@@ -113,17 +115,15 @@ type Pestania =
   | "rentabilidad"
   | "productos"
   | "inventario"
-  | "clientes"
-  | "embudo"
   | "emisor";
 
 /*
  * El orden es el del día de trabajo, no el del organigrama: primero lo que
- * entra, después lo que sale, después el catálogo y la gente, y al final lo
- * que se mira de vez en cuando.
+ * entra, después lo que sale, después el catálogo, y al final lo que se mira
+ * de vez en cuando.
  *
  * Las tres primeras viven en este archivo porque comparten el estado de la
- * carga; las tres últimas son pantallas propias en `./negocio`, que es lo que
+ * carga; las demás son pantallas propias en `./negocio`, que es lo que
  * mantiene este archivo legible.
  */
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
@@ -135,22 +135,17 @@ const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
   { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
   { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
   { clave: "inventario", etiqueta: "Inventario", detalle: "Valor, rotación y stock quieto" },
-  { clave: "clientes", etiqueta: "Contactos", detalle: "Clientes y proveedores" },
-  { clave: "embudo", etiqueta: "CRM", detalle: "Oportunidades y tareas" },
   { clave: "emisor", etiqueta: "Facturación", detalle: "Datos del emisor" },
 ];
 
 /*
- * Once pestañas en una sola grilla se leen como el menú de veinte que este
- * archivo dice evitar (ver el comentario de arriba). Agruparlas no cambia
- * ninguna pestaña, ni el estado, ni qué pantalla se renderiza con cada
- * `clave` — solo cómo se presenta la misma lista: en qué orden se hace cada
- * pregunta del negocio, no en el orden en que las funciones se agregaron.
+ * Ocho pestañas en una sola grilla ya se leen como un menú largo. Agruparlas
+ * no cambia ninguna pestaña, ni el estado, ni qué pantalla se renderiza con
+ * cada `clave` — solo cómo se presenta la misma lista.
  */
 const GRUPOS_NAV: { etiqueta: string; claves: Pestania[] }[] = [
   { etiqueta: "Operar", claves: ["ventas", "compras", "cartera"] },
   { etiqueta: "Catálogo", claves: ["productos", "inventario"] },
-  { etiqueta: "Relaciones", claves: ["clientes", "embudo"] },
   { etiqueta: "Analizar", claves: ["pronostico", "resultado", "rentabilidad"] },
   { etiqueta: "Configurar", claves: ["emisor"] },
 ];
@@ -158,15 +153,16 @@ const GRUPOS_NAV: { etiqueta: string; claves: Pestania[] }[] = [
 type NegocioViewProps = {
   /** Abre el chat completo — ver la misma nota en GastosView. */
   onOpenChat?: () => void;
+  /** Lleva a la sección de CRM — ver el comentario de cabecera del archivo. */
+  onOpenCRM?: () => void;
 };
 
-export default function NegocioView({ onOpenChat }: NegocioViewProps) {
+export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps) {
   const [pestania, setPestania] = useState<Pestania>("ventas");
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
-  const [sinErp, setSinErp] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
 
@@ -213,23 +209,14 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
         // 403 es "no contrataste el módulo", y eso no es un error: es una
         // invitación. Mostrar "algo salió mal" ahí sería mentirle al usuario
         // sobre por qué no ve nada.
-        if (respuestas.every((r) => r.status === 403)) {
+        //
+        // Esta pantalla ya es ERP puro (ver el comentario de cabecera): sin
+        // productos o sin ventas es directamente "sin ERP", sin un estado
+        // intermedio para cuando solo tiene CRM — ese caso ahora vive en
+        // `CRMView.tsx`, que tiene su propia puerta.
+        const sinErp = respuestas[1].status === 403 || respuestas[2].status === 403;
+        if (sinErp) {
           setSinModulo(true);
-          return;
-        }
-
-        const erpNoActivo = respuestas[1].status === 403 || respuestas[2].status === 403;
-        if (erpNoActivo) {
-          const contactosData = respuestas[0].ok
-            ? await respuestas[0].json().catch(() => null)
-            : null;
-          setContactos(contactosData?.contactos ?? []);
-          setProductos([]);
-          setVentas([]);
-          setSinModulo(false);
-          setSinErp(true);
-          setError("");
-          setPestania("embudo");
           return;
         }
 
@@ -242,7 +229,6 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
         );
 
         setSinModulo(false);
-        setSinErp(false);
         setError("");
         setContactos(contactosData?.contactos ?? []);
         setProductos(productosData?.productos ?? []);
@@ -269,9 +255,9 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
         <div className="page page-in">
           <div className="page-header">
             <div className="page-eyebrow">Negocio</div>
-            <div className="page-title">Tu ERP y tu CRM, adentro de EOS</div>
+            <div className="page-title">Tu ERP, adentro de EOS</div>
             <div className="page-sub">
-              Clientes, productos y ventas conectados a tu panel financiero.
+              Ventas, compras, inventario y facturación conectados a tu panel financiero.
             </div>
           </div>
 
@@ -296,9 +282,9 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="page-header">
             <div className="page-eyebrow">Negocio</div>
-            <div className="page-title">Tu ERP y tu CRM</div>
+            <div className="page-title">Tu ERP</div>
             <div className="page-sub">
-              Operaciones, inventario y relaciones comerciales en un solo lugar.
+              Ventas, compras, inventario y facturación en un solo lugar.
             </div>
           </div>
           {onOpenChat && (
@@ -308,7 +294,7 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
           )}
         </div>
 
-        {!cargando && !error && !sinErp && (
+        {!cargando && !error && (
           <div className="neg-resumen" aria-label="Resumen operativo del negocio">
             <button type="button" className="neg-resumen-card" onClick={() => setPestania("ventas")}>
               <ShoppingCart size={17} />
@@ -324,18 +310,14 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
                 {resumen.bajoMinimo ? `${resumen.bajoMinimo} con stock bajo` : "Stock controlado"}
               </small>
             </button>
-            <button type="button" className="neg-resumen-card" onClick={() => setPestania("clientes")}>
-              <Users size={17} />
-              <span>Contactos</span>
-              <strong>{resumen.contactos}</strong>
-              <small>Clientes y proveedores</small>
-            </button>
-            <button type="button" className="neg-resumen-card is-primary" onClick={() => setPestania("embudo")}>
-              <TrendingUp size={17} />
-              <span>CRM</span>
-              <strong>Ver embudo</strong>
-              <small>Oportunidades y seguimiento</small>
-            </button>
+            {onOpenCRM && (
+              <button type="button" className="neg-resumen-card is-primary" onClick={onOpenCRM}>
+                <Handshake size={17} />
+                <span>CRM</span>
+                <strong>{resumen.contactos} contactos</strong>
+                <small>Oportunidades y seguimiento</small>
+              </button>
+            )}
             <button type="button" className="neg-resumen-card" onClick={() => setPestania("rentabilidad")}>
               <BadgeDollarSign size={17} />
               <span>Rentabilidad</span>
@@ -347,11 +329,7 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
 
         <div className="neg-nav-groups" role="navigation" aria-label="Áreas del negocio">
           {GRUPOS_NAV.map((grupo) => {
-            const disponibles = grupo.claves
-              .map((clave) => PESTANIAS.find((p) => p.clave === clave)!)
-              .filter((p) => !sinErp || p.clave === "clientes" || p.clave === "embudo");
-
-            if (disponibles.length === 0) return null;
+            const disponibles = grupo.claves.map((clave) => PESTANIAS.find((p) => p.clave === clave)!);
 
             return (
               <div className="neg-nav-group" key={grupo.etiqueta}>
@@ -374,16 +352,6 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
             );
           })}
         </div>
-
-        {sinErp && !cargando && (
-          <div className="neg-module-note">
-            <div>
-              <strong>Tu CRM está activo</strong>
-              <p>Podés gestionar contactos, oportunidades y seguimientos. Activá ERP cuando quieras sumar productos, ventas y compras.</p>
-            </div>
-            <a className="chip" href="/planes">Ver ERP</a>
-          </div>
-        )}
 
         {error && (
           <div className="neg-load-error" role="alert">
@@ -425,12 +393,8 @@ export default function NegocioView({ onOpenChat }: NegocioViewProps) {
           <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (
           <Productos productos={productos} onCambio={() => void cargar()} />
-        ) : pestania === "embudo" ? (
-          <Embudo contactos={contactos} />
-        ) : pestania === "emisor" ? (
-          <Emisor />
         ) : (
-          <Clientes contactos={contactos} onCambio={() => void cargar()} />
+          <Emisor />
         )}
       </div>
     </div>
@@ -1236,115 +1200,6 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
           <div className="neg-lista">
             {productos.map((p) => (
               <FilaProducto key={p.id} producto={p} onCambio={onCambio} />
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-/* ============================================================
-   CLIENTES
-   ============================================================ */
-
-function Clientes({ contactos, onCambio }: { contactos: Contacto[]; onCambio: () => void }) {
-  const [nombre, setNombre] = useState("");
-  const [ruc, setRuc] = useState("");
-  const [rucDv, setRucDv] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState("");
-
-  async function guardar() {
-    if (!nombre.trim() || guardando) return;
-
-    setGuardando(true);
-    setError("");
-
-    try {
-      const respuesta = await fetch("/api/erp/contactos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre,
-          ruc: ruc || null,
-          ruc_dv: rucDv === "" ? undefined : Number(rucDv),
-          telefono: telefono || null,
-        }),
-      });
-
-      const resultado = await respuesta.json().catch(() => null);
-      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo guardar.");
-
-      setNombre("");
-      setRuc("");
-      setRucDv("");
-      setTelefono("");
-      onCambio();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="card">
-        <div className="card-title">Nuevo cliente</div>
-        <div className="card-sub">
-          El RUC se valida al guardarlo: un dígito mal no se descubre hasta que la factura se
-          rechaza, y para entonces el cliente ya se llevó el comprobante.
-        </div>
-
-        <div className="neg-form">
-          <input
-            className="neg-input"
-            placeholder="Nombre o razón social"
-            value={nombre}
-            maxLength={160}
-            onChange={(e) => setNombre(e.target.value)}
-          />
-          <input
-            className="neg-input"
-            placeholder="RUC (opcional)"
-            inputMode="numeric"
-            value={ruc}
-            onChange={(e) => setRuc(e.target.value.replace(/[^\d]/g, ""))}
-          />
-          <input
-            className="neg-input neg-cantidad"
-            placeholder="DV"
-            inputMode="numeric"
-            maxLength={1}
-            value={rucDv}
-            onChange={(e) => setRucDv(e.target.value.replace(/[^\d]/g, ""))}
-          />
-          <input
-            className="neg-input"
-            placeholder="Teléfono"
-            value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
-          />
-        </div>
-
-        {error && <p className="neg-error" role="alert">{error}</p>}
-
-        <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>
-          {guardando ? "Guardando…" : "Agregar"}
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Tu gente</div>
-
-        {contactos.length === 0 ? (
-          <p className="empty-note">Todavía no cargaste clientes.</p>
-        ) : (
-          <div className="neg-lista">
-            {contactos.map((c) => (
-              <FilaContacto key={c.id} contacto={c} onCambio={onCambio} />
             ))}
           </div>
         )}
