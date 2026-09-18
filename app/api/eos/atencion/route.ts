@@ -80,7 +80,11 @@ export async function GET() {
       .from("eos_action_approvals_v12")
       .select("id", { count: "exact", head: true })
       .eq("usuario_id", user.id)
-      .eq("estado", "pendiente"),
+      // Columna `status` y valor `pending` (no `estado`/`pendiente`): con los
+      // nombres en español la consulta fallaba y el conteo era siempre 0. Una
+      // vencida ya no se puede aprobar, así que no cuenta.
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString()),
     db
       .from("eos_action_commands")
       // La columna es `error_message`: con el nombre en español la consulta
@@ -152,7 +156,7 @@ export async function GET() {
   ]);
 
   // Una consulta que falla no puede parecer "no hay nada": queda en el log.
-  for (const [nombre, r] of Object.entries({ fallidas, decisiones })) {
+  for (const [nombre, r] of Object.entries({ aprobaciones, fallidas, decisiones })) {
     if (r.error) console.error(`Atención: falló la consulta de ${nombre}:`, r.error.message);
   }
 
