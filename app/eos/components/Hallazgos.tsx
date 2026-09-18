@@ -83,7 +83,7 @@ export default function Hallazgos() {
             <span>/100</span>
           </div>
           <div className="score-lado">
-            <div className="score-titulo">EOS Business Score</div>
+            <div className="score-titulo">Salud financiera del negocio</div>
             <div className="score-dims">
               {datos.score.dimensiones
                 .filter((d) => d.puntaje !== null)

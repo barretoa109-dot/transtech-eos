@@ -7,6 +7,7 @@ import {
   type GastoHistorico,
   type ProductoStock,
   type RiesgoNegocio,
+  type SalidaDeStock,
   type VentaACobrar,
 } from "./riesgos-negocio.ts";
 import { type ClienteSinTipos } from "../supabase/sin-tipos.ts";
@@ -86,7 +87,7 @@ export async function avisarRiesgosNegocio(
     resumen.evaluados += 1;
 
     try {
-      const [productos, ventas, gastos, fijos, previos] = await Promise.all([
+      const [productos, ventas, gastos, fijos, previos, salidas] = await Promise.all([
         admin
           .from("eos_erp_productos")
           .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
@@ -122,6 +123,15 @@ export async function avisarRiesgosNegocio(
           .eq("ambito", "negocio")
           .eq("activo", true),
         admin.from("eos_negocio_avisos").select("tipo,clave").eq("usuario_id", uid),
+        // Las salidas del último mes: el ritmo con que se proyecta cuándo se
+        // agota cada producto (`lib/erp/agotamiento.ts`).
+        admin
+          .from("eos_erp_movimientos_stock")
+          .select("producto_id,fecha,cantidad")
+          .eq("usuario_id", uid)
+          .eq("tipo", "salida")
+          .gte("fecha", sumarDias(hoy, -30))
+          .limit(5000),
       ]);
 
       if (previos.error) {
@@ -137,6 +147,11 @@ export async function avisarRiesgosNegocio(
 
       const riesgos = detectarRiesgosNegocio({
         hoy,
+        salidasStock: ((salidas.data ?? []) as SalidaDeStock[]).map((s) => ({
+          producto_id: s.producto_id,
+          fecha: s.fecha,
+          cantidad: Number(s.cantidad ?? 0),
+        })),
         productos: ((productos.data ?? []) as ProductoStock[]).map((p) => ({
           ...p,
           stock_actual: Number(p.stock_actual ?? 0),
