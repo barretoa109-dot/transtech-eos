@@ -1,4 +1,4 @@
--- v175: el aviso proactivo de "se te acaba el stock" (proyección por ritmo de ventas).
+-- v176: el aviso proactivo de "se te acaba el stock" (proyección por ritmo de ventas).
 --
 -- `lib/erp/agotamiento.ts` proyecta cuándo se agota un producto según sus
 -- salidas de los últimos 30 días, y `detectarRiesgosNegocio` lo devuelve como
