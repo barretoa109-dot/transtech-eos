@@ -86,6 +86,10 @@ const BASE = path.join(RAIZ, "app", "api");
  */
 const PERMITIDAS = new Map([
   [
+    "app/api/internal/action-effects/v1/route.ts::eos_action_commands",
+    "Lo llama el worker de n8n con su Bearer, no una persona con sesión. Lee UNA fila por su clave primaria (`command_id`) para repetir el motivo de negocio de una orden ya cerrada cuando n8n reintenta; no hay lista ni dueño que filtrar, y la misma ruta ya ejecuta esa orden por ese id.",
+  ],
+  [
     "app/api/admin/pagos/listar/route.ts::solicitudes_pago",
     "El panel de administración: existe para ver las solicitudes de TODOS, que es su función. La puerta es `ADMIN_EMAILS`, verificada en la misma ruta y antes de consultar.",
   ],
