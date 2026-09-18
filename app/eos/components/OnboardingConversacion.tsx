@@ -296,6 +296,29 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
     }
   }
 
+  /**
+   * Salir del cuestionario sin contestarlo.
+   *
+   * Las cuentas que retienen (2026-09-18) usan EOS para cargar ventas y compras de
+   * un negocio hablando, no las finanzas personales: obligar a pasar por seis
+   * pantallas de plata personal antes del chat es la manera más segura de que
+   * alguien no llegue nunca al chat. Queda completado para que el login no lo
+   * vuelva a mostrar.
+   */
+  async function saltarAlChat() {
+    setError("");
+    setGuardando(true);
+
+    try {
+      await marcarPaso("completado");
+      onListo?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pudimos guardar el cambio.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   function retroceder() {
     const indice = ORDEN.indexOf(paso);
     if (indice > 0) setPaso(ORDEN[indice - 1]);
@@ -342,6 +365,10 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
           <div className="fin-setup-ayuda">
             Son unos minutos. Podés dejarlo por la mitad y seguir después: cada respuesta queda
             guardada.
+          </div>
+          <div className="fin-setup-ayuda">
+            ¿Lo tuyo es un negocio? Podés saltearlo: contale a EOS una venta o un producto y lo
+            anota.
           </div>
         </>
       )}
@@ -626,7 +653,9 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
             Atrás
           </button>
         ) : (
-          <span />
+          <button type="button" className="fin-toggle" onClick={() => void saltarAlChat()} disabled={guardando}>
+            Prefiero empezar hablando con EOS
+          </button>
         )}
 
         <button type="button" className="reco-btn" onClick={() => void avanzar()} disabled={guardando}>
