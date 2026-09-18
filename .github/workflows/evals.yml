@@ -87,3 +87,9 @@ jobs:
       # del negocio pasa a incluir el sueldo de la persona. Los dos números
       # quedan mal y los dos siguen pareciendo números.
       - run: npm run ambito
+
+      # Que ninguna función SECURITY DEFINER nueva nazca abierta a anon. Todo objeto
+      # nuevo recibe EXECUTE para PUBLIC y para anon por separado (default
+      # privileges de la v0): hacen falta los dos revokes, y con uno solo la función
+      # queda expuesta en /rest/v1/rpc sin que nada falle. Probado en rojo.
+      - run: npm run grants
