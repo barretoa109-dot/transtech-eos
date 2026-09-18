@@ -124,6 +124,8 @@ export const ACCIONES_INTERNAS = new Set([
   "REGISTRAR_OPORTUNIDAD",
   "ANULAR_VENTA",
   "CORREGIR_VENTA",
+  "ANULAR_COMPRA",
+  "CORREGIR_COMPRA",
 ]);
 
 /** Qué se le dice a la persona cuando la acción salió bien. */

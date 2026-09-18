@@ -88,6 +88,9 @@ export const RUTAS: Record<string, string> = {
    */
   ANULAR_VENTA: "eos-worker-rc1-internal",
   CORREGIR_VENTA: "eos-worker-rc1-internal",
+  // Las simétricas de compra (v170): mismo camino interno.
+  ANULAR_COMPRA: "eos-worker-rc1-internal",
+  CORREGIR_COMPRA: "eos-worker-rc1-internal",
 };
 
 export type Job = {
