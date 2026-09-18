@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { errorDeAccion, errorDeLaBase } from "@/lib/eos/errores-accion";
+import { CODIGOS_DE_NEGOCIO, errorDeAccion, errorDeLaBase } from "@/lib/eos/errores-accion";
 
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
@@ -267,6 +267,39 @@ export async function POST(request: Request) {
         const cuerpoMapeado = (await mapped.clone().json().catch(() => null)) as
           | { code?: unknown; error?: unknown }
           | null;
+
+        /*
+         * El reintento de n8n no le tapa el motivo a la persona.
+         *
+         * El nodo que llama acá reintenta ante cualquier respuesta que no sea
+         * 2xx. El primer intento devuelve el 422 con la explicación y cierra la
+         * orden en `error`; el segundo la encuentra cerrada y contestaba
+         * "la orden no pudo ejecutarse de forma segura", que era lo único que
+         * llegaba al chat. Se vio el 18 de septiembre de 2026 al probar
+         * ANULAR_COMPRA, y pasaba con todos los verbos.
+         *
+         * Si la orden ya está cerrada con un motivo de negocio, se lo repite:
+         * es la misma respuesta que ya se dio, no una nueva.
+         */
+        if (cuerpoMapeado?.code === "EOS_INTERNAL_EFFECT_COMMAND_NOT_EXECUTABLE") {
+          const { data: cerrada } = await admin
+            .from("eos_action_commands")
+            .select("estado, error_code, error_message")
+            .eq("id", commandId)
+            .maybeSingle();
+
+          if (
+            cerrada?.estado === "error" &&
+            typeof cerrada.error_message === "string" &&
+            cerrada.error_message &&
+            CODIGOS_DE_NEGOCIO.includes(String(cerrada.error_code))
+          ) {
+            return respond(
+              { ok: false, code: cerrada.error_code, error: cerrada.error_message },
+              422,
+            );
+          }
+        }
 
         await cerrarConMotivo(
           admin,
