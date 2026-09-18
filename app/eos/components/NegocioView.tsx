@@ -6,6 +6,7 @@ import { formatearMonto } from "@/lib/finanzas/formato";
 import { useEscape } from "./useEscape";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
+import { pendientes, vigentes } from "@/lib/erp/pendientes";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
@@ -169,11 +170,11 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
   const [cargando, setCargando] = useState(true);
 
   const resumen = useMemo(() => {
-    const porCobrar = ventas.filter((venta) => !venta.movimiento_id);
+    const porCobrar = pendientes(ventas);
     const bajoMinimo = productos.filter((producto) => producto.bajo_minimo);
 
     return {
-      ventas: ventas.length,
+      ventas: vigentes(ventas).length,
       porCobrar: porCobrar.length,
       productos: productos.length,
       bajoMinimo: bajoMinimo.length,

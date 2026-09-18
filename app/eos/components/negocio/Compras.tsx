@@ -8,6 +8,7 @@ import { AlertCircle, Check, MoreHorizontal, PackagePlus, Pencil, Plus, ReceiptT
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
+import { pendientes, vigentes } from "@/lib/erp/pendientes";
 import type { Compra, Contacto, CompraItem, Producto } from "./tipos";
 import { useEscape } from "../useEscape";
 
@@ -153,12 +154,18 @@ export default function Compras({
     );
   }, [busqueda, productos]);
   const resumen = useMemo(() => {
-    const pendientes = compras.filter((c) => !c.movimiento_id);
-    const monedas = new Set(compras.map((c) => c.moneda));
+    const vivas = vigentes(compras);
+    const porPagar = pendientes(vivas);
+    const monedas = new Set(porPagar.map((c) => c.moneda));
     const montoPendiente = monedas.size <= 1
-      ? pendientes.reduce((suma, c) => suma + Number(c.total || 0), 0)
+      ? porPagar.reduce((suma, c) => suma + Number(c.total || 0), 0)
       : null;
-    return { pendientes: pendientes.length, montoPendiente, moneda: compras[0]?.moneda ?? "PYG" };
+    return {
+      registradas: vivas.length,
+      pendientes: porPagar.length,
+      montoPendiente,
+      moneda: porPagar[0]?.moneda ?? vivas[0]?.moneda ?? "PYG",
+    };
   }, [compras]);
 
   // La moneda sale de los productos que están EN esta compra, no del primero
@@ -416,7 +423,7 @@ export default function Compras({
 
         {!cargando && compras.length > 0 && (
           <div className="neg-metricas" aria-label="Resumen de compras">
-            <div className="neg-metrica"><span>Compras registradas</span><strong>{compras.length}</strong></div>
+            <div className="neg-metrica"><span>Compras registradas</span><strong>{resumen.registradas}</strong></div>
             <div className="neg-metrica"><span>Pagos pendientes</span><strong>{resumen.pendientes}</strong></div>
             <div className="neg-metrica"><span>Saldo pendiente</span><strong>{resumen.montoPendiente === null ? "Varias monedas" : formatearMonto(resumen.montoPendiente, resumen.moneda)}</strong></div>
           </div>
