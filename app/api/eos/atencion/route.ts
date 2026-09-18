@@ -10,6 +10,7 @@ import {
   type Entradas,
 } from "@/lib/eos/atencion";
 import { DIAS_ESTANCADA, ultimaActividadDe } from "@/lib/kpi/definiciones/crm";
+import { contarClientesEsperando, type ClientesEsperando } from "@/lib/whatsapp-crm/pendientes";
 
 export const dynamic = "force-dynamic";
 
@@ -267,7 +268,49 @@ export async function GET() {
         : null,
   };
 
-  const pendientes = armarAtencion(entradas);
+  /*
+   * Clientes de WhatsApp esperando respuesta (v177).
+   *
+   * Aparte del `Promise.all` de arriba a propósito: si la migración todavía no
+   * está aplicada estas tablas no existen, y un error acá no puede tumbar el
+   * resto del panel. Sin el dato, simplemente no hay ese pendiente.
+   */
+  let clientesEsperando: ClientesEsperando | null = null;
+
+  try {
+    const desde = new Date(Date.now() - 14 * 86_400_000).toISOString();
+
+    const [eventos, envios] = await Promise.all([
+      db
+        .from("eos_wa_eventos")
+        .select("contacto_id,creado_en")
+        .eq("usuario_id", user.id)
+        .eq("evento", "requiere_atencion_humana")
+        .gte("creado_en", desde)
+        .limit(TOPE),
+      // Solo lo que efectivamente salió: un envío bloqueado no le contestó a nadie.
+      db
+        .from("eos_wa_mensajes")
+        .select("contacto_id,ocurrio_en")
+        .eq("usuario_id", user.id)
+        .eq("direccion", "saliente")
+        .in("estado", ["en_cola", "enviado", "entregado", "leido"])
+        .gte("ocurrio_en", desde)
+        .limit(500),
+    ]);
+
+    if (!eventos.error && !envios.error) {
+      clientesEsperando = contarClientesEsperando(
+        (eventos.data ?? []) as { contacto_id: string | null; creado_en: string }[],
+        (envios.data ?? []) as { contacto_id: string | null; ocurrio_en: string }[],
+        new Date().toISOString(),
+      );
+    }
+  } catch (error) {
+    console.error("Atención: no se pudieron leer los clientes de WhatsApp:", error);
+  }
+
+  const pendientes = armarAtencion({ ...entradas, clientesEsperando });
 
   return NextResponse.json(
     {
