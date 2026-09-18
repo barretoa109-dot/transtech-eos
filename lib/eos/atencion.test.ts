@@ -346,3 +346,29 @@ test("sin decisiones vencidas no se inventa el pendiente", () => {
 
   assert.ok(!pendientes.some((x) => x.clave === "decisiones-sin-resultado"));
 });
+
+test("un cliente de WhatsApp esperando respuesta es una DECISIÓN, y entra al titular", () => {
+  const pendientes = armarAtencion(alDia({ clientesEsperando: { cantidad: 2, masHoras: 5 } }));
+
+  const p = pendientes.find((x) => x.clave === "clientes-esperando");
+  assert.ok(p);
+  assert.equal(p.clase, "decision");
+  assert.match(p.titulo, /2 clientes de WhatsApp esperan tu respuesta/);
+  assert.match(p.porque, /5 h/);
+  assert.equal(p.donde, "CRM > Conversaciones");
+  assert.equal(titularDeAtencion(pendientes), "1 decisión.");
+});
+
+test("un solo cliente esperando se dice en singular", () => {
+  const p = armarAtencion(alDia({ clientesEsperando: { cantidad: 1, masHoras: 1 } })).find(
+    (x) => x.clave === "clientes-esperando",
+  );
+  assert.match(p!.titulo, /^1 cliente de WhatsApp espera tu respuesta$/);
+});
+
+test("sin clientes esperando no hay pendiente", () => {
+  for (const v of [null, undefined, { cantidad: 0, masHoras: 0 }]) {
+    const pendientes = armarAtencion(alDia({ clientesEsperando: v }));
+    assert.equal(pendientes.find((x) => x.clave === "clientes-esperando"), undefined);
+  }
+});

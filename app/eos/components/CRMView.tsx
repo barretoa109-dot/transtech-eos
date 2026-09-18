@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Handshake, TrendingUp, Users } from "lucide-react";
+import { Handshake, MessageCircle, TrendingUp, Users } from "lucide-react";
+import ConversacionesWA from "./ConversacionesWA";
 import Embudo from "./negocio/Embudo";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto } from "./negocio/tipos";
@@ -39,11 +40,12 @@ import type { Contacto } from "./negocio/tipos";
  * encargo pide evitar.
  */
 
-type Pestania = "oportunidades" | "contactos";
+type Pestania = "oportunidades" | "contactos" | "conversaciones";
 
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string; icono: typeof TrendingUp }[] = [
   { clave: "oportunidades", etiqueta: "Oportunidades", detalle: "Pipeline y seguimiento", icono: TrendingUp },
   { clave: "contactos", etiqueta: "Contactos", detalle: "Clientes y proveedores", icono: Users },
+  { clave: "conversaciones", etiqueta: "Conversaciones", detalle: "WhatsApp con tus clientes", icono: MessageCircle },
 ];
 
 type CRMViewProps = {
@@ -196,6 +198,8 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
           <p className="empty-note">Cargando tu CRM…</p>
         ) : error ? null : pestania === "oportunidades" ? (
           <Embudo contactos={contactos} />
+        ) : pestania === "conversaciones" ? (
+          <ConversacionesWA />
         ) : (
           <Contactos contactos={contactos} onCambio={() => void cargar()} />
         )}

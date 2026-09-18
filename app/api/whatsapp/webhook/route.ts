@@ -7,6 +7,7 @@ import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
+import { atenderCanalEmpresa, buscarCanalEmpresa, type ValorWebhook } from "@/lib/whatsapp-crm/entrante";
 
 /**
  * WhatsApp como segundo canal de EOS.
@@ -58,7 +59,12 @@ export async function POST(req: Request) {
   let payload: {
     entry?: Array<{
       changes?: Array<{
-        value?: { messages?: MensajeEntrante[]; contacts?: ContactoEntrante[] };
+        value?: {
+          messages?: MensajeEntrante[];
+          contacts?: ContactoEntrante[];
+          metadata?: { phone_number_id?: string };
+          statuses?: ValorWebhook["statuses"];
+        };
       }>;
     }>;
   };
@@ -73,7 +79,36 @@ export async function POST(req: Request) {
   const admin = adminSinTipos();
   const cambios = (payload.entry ?? []).flatMap((entrada) => entrada.changes ?? []);
 
+  // Si algo del canal de una empresa falla, se contesta con error para que Meta
+  // reintente: registrar el mensaje es idempotente por su id, así que repetir
+  // no duplica nada, y no reintentar perdería la conversación del cliente.
+  let fallaDeCanalEmpresa = false;
+
   for (const cambio of cambios) {
+    /*
+     * ¿Es el WhatsApp de una EMPRESA y no el de EOS?
+     *
+     * Todos los números de la plataforma le pegan a esta misma URL. Sin este
+     * desvío, un cliente que le escribe a una empresa caería más abajo como
+     * "número sin vincular" y se lo trataría como alguien que quiere abrir una
+     * cuenta de EOS. Ver `lib/whatsapp-crm/entrante.ts`.
+     */
+    let canalEmpresa;
+    try {
+      canalEmpresa = await buscarCanalEmpresa(admin, cambio.value?.metadata?.phone_number_id);
+    } catch (error) {
+      // No se puede decir "no es de una empresa" si no se pudo leer: seguir
+      // mandaría el mensaje del cliente al camino equivocado.
+      console.error("WhatsApp: no se pudo resolver el canal de empresa:", error);
+      return new Response("Error", { status: 500 });
+    }
+
+    if (canalEmpresa) {
+      const resumen = await atenderCanalEmpresa(admin, canalEmpresa, cambio.value as ValorWebhook);
+      if (resumen.errores > 0) fallaDeCanalEmpresa = true;
+      continue;
+    }
+
     // El nombre de perfil viaja junto a `messages`, no adentro: hace falta
     // para el alta nueva (`altaPorWhatsapp`), que todavía no tiene ningún
     // `usuarios.nombre` de dónde sacarlo.
@@ -92,8 +127,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // `value.statuses` (confirmaciones de entrega) no se procesa: no son
-  // mensajes de una persona, y no vienen en `messages`.
+  if (fallaDeCanalEmpresa) return new Response("Error", { status: 500 });
+
+  // `value.statuses` (confirmaciones de entrega) del canal de EOS no se
+  // procesa: no son mensajes de una persona, y no vienen en `messages`. Las del
+  // canal de una empresa sí, arriba: actualizan el estado de cada mensaje.
   return new Response("OK", { status: 200 });
 }
 

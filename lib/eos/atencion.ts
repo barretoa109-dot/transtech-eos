@@ -94,6 +94,12 @@ export type Entradas = {
   oportunidadesEstancadas?: { cantidad: number; masDiasSinActividad: number } | null;
 
   /**
+   * Clientes de WhatsApp que pidieron una persona o confirmaron una compra y a
+   * quienes la empresa todavía no contestó. Ver `lib/whatsapp-crm/pendientes.ts`.
+   */
+  clientesEsperando?: { cantidad: number; masHoras: number } | null;
+
+  /**
    * Decisiones activas cuyo resultado nunca se registró y ya es hora de
    * mirarlas: pasó su fecha de revisión, o llevan más de
    * `DIAS_PARA_EVALUAR_DECISION` sin ella.
@@ -175,6 +181,23 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       porque: "Hasta que las apruebes no se ejecutan, y lo que pediste no queda hecho.",
       donde: "Autonomía",
       cuantos: aprobaciones,
+    });
+  }
+
+  /*
+   * Clientes de WhatsApp que pidieron una persona o confirmaron una compra, y a
+   * quienes nadie contestó. EOS no puede seguir esa conversación ni registrar
+   * esa venta sin la persona: bloquea algo, así que es una decisión.
+   */
+  const esperando = e.clientesEsperando;
+  if (esperando && esperando.cantidad > 0) {
+    pendientes.push({
+      clave: "clientes-esperando",
+      clase: "decision",
+      titulo: `${esperando.cantidad} ${plural(esperando.cantidad, "cliente de WhatsApp espera", "clientes de WhatsApp esperan")} tu respuesta`,
+      porque: `Pidieron hablar con una persona o confirmaron una compra, y el más antiguo lleva ${esperando.masHoras} h sin respuesta. Hasta que lo mires no puedo seguir la conversación ni registrar esa venta.`,
+      donde: "CRM > Conversaciones",
+      cuantos: esperando.cantidad,
     });
   }
 
