@@ -7,7 +7,9 @@ import {
   type GastoHistorico,
 } from "./gasto-anormal.ts";
 
-export type { FijoDeclarado, GastoHistorico };
+import { proyectarAgotamiento, type SalidaDeStock } from "./agotamiento.ts";
+
+export type { FijoDeclarado, GastoHistorico, SalidaDeStock };
 
 /**
  * Los riesgos que no son de la caja, sino del negocio.
@@ -82,6 +84,15 @@ export type RiesgoNegocio =
       productos: { nombre: string; stock: number; minimo: number }[];
     }
   | {
+      /**
+       * Lo que todavía no está bajo el mínimo pero, al ritmo de las últimas
+       * semanas, se acaba pronto. Ver `lib/erp/agotamiento.ts`.
+       */
+      tipo: "stock_por_agotarse";
+      clave: string;
+      productos: { nombre: string; stock: number; dias: number }[];
+    }
+  | {
       tipo: "cobros_demorados";
       clave: string;
       moneda: string;
@@ -126,6 +137,8 @@ export function detectarRiesgosNegocio(datos: {
   /** Opcionales: sin ellos, el aviso de gasto anormal simplemente no existe. */
   gastos?: GastoHistorico[];
   fijos?: FijoDeclarado[];
+  /** Las salidas del kardex de los últimos 30 días. Sin ellas no hay proyección. */
+  salidasStock?: SalidaDeStock[];
 }): RiesgoNegocio[] {
   const riesgos: RiesgoNegocio[] = [];
 
@@ -151,6 +164,31 @@ export function detectarRiesgosNegocio(datos: {
         nombre: p.nombre,
         stock: p.stock_actual,
         minimo: p.stock_minimo,
+      })),
+    });
+  }
+
+  // ---------- Stock por agotarse ----------
+  //
+  // Solo con salidas reales del kardex. Sin ellas, o con muy pocas, no hay
+  // ritmo y no se inventa uno: ver `lib/erp/agotamiento.ts`.
+  const porAgotarse = proyectarAgotamiento({
+    hoy: datos.hoy,
+    productos: datos.productos,
+    salidas: datos.salidasStock ?? [],
+  });
+
+  if (porAgotarse.length > 0) {
+    riesgos.push({
+      tipo: "stock_por_agotarse",
+      clave: porAgotarse
+        .map((p) => p.id)
+        .sort()
+        .join(","),
+      productos: porAgotarse.slice(0, MAX_PRODUCTOS).map((p) => ({
+        nombre: p.nombre,
+        stock: p.stock,
+        dias: p.dias_restantes,
       })),
     });
   }
@@ -237,6 +275,27 @@ export function redactarRiesgoNegocio(
     return riesgo.productos.length === 1
       ? `Te estás quedando sin ${lista}.`
       : `Te estás quedando sin: ${lista}.`;
+  }
+
+  if (riesgo.tipo === "stock_por_agotarse") {
+    const dias = (n: number) => (n === 1 ? "1 día" : `${n} días`);
+
+    if (riesgo.productos.length === 1) {
+      const p = riesgo.productos[0];
+      return (
+        `${p.nombre} tiene ${p.stock} unidades y, al ritmo de tus ventas de las últimas semanas, ` +
+        `se agotaría en unos ${dias(p.dias)}. Decime y te dejo la reposición como tarea.`
+      );
+    }
+
+    const lista = riesgo.productos
+      .map((p) => `${p.nombre} (${p.stock}, unos ${dias(p.dias)})`)
+      .join(", ");
+
+    return (
+      `Al ritmo de tus ventas de las últimas semanas, se te podrían acabar pronto: ${lista}. ` +
+      "Decime y te dejo la reposición como tarea."
+    );
   }
 
   if (riesgo.tipo === "gasto_anormal") {

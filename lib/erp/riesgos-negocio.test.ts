@@ -311,3 +311,75 @@ test("dos gastos raros del mismo mes son UN aviso, no dos", () => {
   assert.equal(anormal[0].tipo === "gasto_anormal" && anormal[0].gastos.length, 1);
   assert.equal(anormal[0].clave, "raro-1");
 });
+
+// ============================================================
+// Stock por agotarse: el ritmo, no solo el mínimo
+// ============================================================
+
+test("con salidas reales avisa del que se agota antes de bajar del mínimo", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [producto({ id: "harina", nombre: "Harina", stock_actual: 8, stock_minimo: 2 })],
+    ventasACobrar: [],
+    salidasStock: Array.from({ length: 6 }, (_, i) => ({
+      producto_id: "harina",
+      fecha: `2026-08-${String(30 - i).padStart(2, "0")}`,
+      cantidad: 5,
+    })),
+  });
+
+  assert.equal(riesgos.length, 1);
+  assert.equal(riesgos[0].tipo, "stock_por_agotarse");
+
+  const texto = redactarRiesgoNegocio(riesgos[0], formatearMonto);
+  assert.match(texto, /Harina tiene 8 unidades/);
+  assert.match(texto, /unos 8 días/);
+  assert.match(texto, /reposición como tarea/);
+});
+
+test("sin salidas no inventa un ritmo: no hay aviso de agotamiento", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [producto({ id: "harina", stock_actual: 8, stock_minimo: 2 })],
+    ventasACobrar: [],
+  });
+
+  assert.deepEqual(riesgos, []);
+});
+
+test("el bajo el mínimo sale como inventario_bajo y NO también como agotamiento", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [producto({ id: "harina", stock_actual: 2, stock_minimo: 3 })],
+    ventasACobrar: [],
+    salidasStock: Array.from({ length: 6 }, (_, i) => ({
+      producto_id: "harina",
+      fecha: `2026-08-${String(30 - i).padStart(2, "0")}`,
+      cantidad: 5,
+    })),
+  });
+
+  assert.deepEqual(
+    riesgos.map((r) => r.tipo),
+    ["inventario_bajo"],
+  );
+});
+
+test("la clave del agotamiento cambia si cambia qué productos se acaban", () => {
+  const con = (ids: string[]) =>
+    detectarRiesgosNegocio({
+      hoy: HOY,
+      productos: ids.map((id) => producto({ id, stock_actual: 8, stock_minimo: 2 })),
+      ventasACobrar: [],
+      salidasStock: ids.flatMap((id) =>
+        Array.from({ length: 6 }, (_, i) => ({
+          producto_id: id,
+          fecha: `2026-08-${String(30 - i).padStart(2, "0")}`,
+          cantidad: 5,
+        })),
+      ),
+    })[0];
+
+  assert.notEqual(con(["a"]).clave, con(["a", "b"]).clave);
+  assert.equal(con(["b", "a"]).clave, con(["a", "b"]).clave);
+});

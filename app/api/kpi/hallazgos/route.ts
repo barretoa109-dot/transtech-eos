@@ -19,6 +19,7 @@ import {
   type FijoDeclarado,
   type GastoHistorico,
   type ProductoStock,
+  type SalidaDeStock,
   type VentaACobrar,
 } from "@/lib/erp/riesgos-negocio";
 
@@ -185,8 +186,23 @@ export async function GET() {
         .eq("activo", true),
     ]);
 
+    // Las salidas del último mes: de ahí sale el ritmo con que se proyecta
+    // cuándo se agota cada producto (`lib/erp/agotamiento.ts`).
+    const salidasRiesgo = await admin
+      .from("eos_erp_movimientos_stock")
+      .select("producto_id,fecha,cantidad")
+      .eq("usuario_id", user.id)
+      .eq("tipo", "salida")
+      .gte("fecha", restarDias(hoy, 30))
+      .limit(5000);
+
     const riesgos = detectarRiesgosNegocio({
       hoy,
+      salidasStock: ((salidasRiesgo.data ?? []) as SalidaDeStock[]).map((s) => ({
+        producto_id: s.producto_id,
+        fecha: s.fecha,
+        cantidad: Number(s.cantidad ?? 0),
+      })),
       productos: ((productosRiesgo.data ?? []) as ProductoStock[]).map((p) => ({
         ...p,
         stock_actual: Number(p.stock_actual ?? 0),
