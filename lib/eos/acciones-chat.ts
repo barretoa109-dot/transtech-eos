@@ -253,3 +253,82 @@ export function corregirAfirmacionFallida(
 
   return `${AVISO_INTENTADO_Y_FALLIDO}\n\n${respuesta}`;
 }
+
+export const AVISO_SOLO_MEMORIA =
+  "⚠️ **Lo dejé solo como una nota en mi memoria.** No quedó cargado en " +
+  "Negocio: no aparece en tus productos, costos ni compras, y no cuenta para " +
+  "márgenes ni stock. Para cargarlo de verdad, decime cada producto con su " +
+  "precio de venta (y su costo, si lo tenés).\n\nEsto es lo que te había contestado:";
+
+/** Datos que tienen su propio lugar en Negocio: catálogo, costos, compras, stock. */
+const DATO_DE_NEGOCIO = new RegExp(
+  ANTES +
+    "(producto|productos|costo|costos|precio|precios|cat[aá]logo|inventario|" +
+    "stock|compra|compras|gasto|gastos|mercader[ií]a|insumo|insumos)" +
+    DESPUES,
+  "i",
+);
+
+/** Pedirle que recuerde algo es un pedido de memoria: ahí guardar una nota es lo correcto. */
+const PIDE_RECORDAR = new RegExp(
+  ANTES + "(acord[aá]te|record[aá]|recuerd[aá]|ten[eé]\s+en\s+cuenta|ten[eé]\s+presente)" + DESPUES,
+  "i",
+);
+
+/**
+ * La tercera forma de "dijo que lo hizo y no lo hizo": la única acción fue
+ * guardar una nota.
+ *
+ * ============================================================
+ * LO QUE PASÓ
+ * ============================================================
+ *
+ * Un usuario le dictó su negocio —productos, costos, compras— y quiso que
+ * quedara cargado. El modelo mandó GUARDAR_MEMORIA, que acepta cualquier
+ * texto y nunca falla, y contestó como si estuviera hecho. Al día siguiente el
+ * catálogo estaba vacío y la persona creyó que EOS le había borrado los datos.
+ * No se borró nada: nunca se cargó.
+ *
+ * Los otros dos guardas no lo ven. `corregirAfirmacionSinAccion` exige cero
+ * acciones y acá hubo una; `corregirAfirmacionFallida` exige un fallo y acá la
+ * acción salió bien — solo que era la equivocada.
+ *
+ * El prompt ya prohíbe usar la memoria para un costo o un precio, y el modelo
+ * lo hizo igual. Un prompt es una súplica; esto es lo que el servidor sabe.
+ *
+ * ============================================================
+ * CUÁNDO SE DISPARA (todas, para no corregir de más)
+ * ============================================================
+ *
+ *   1. la única acción con efecto fue GUARDAR_MEMORIA, y salió bien;
+ *   2. el usuario pidió cargar algo y habló de productos, costos, compras…;
+ *   3. no le pidió "acordate de…": eso SÍ es una nota;
+ *   4. la respuesta afirma haberlo hecho.
+ *
+ * Con "acordate que mi proveedor es Pedro", guardar una nota es exactamente lo
+ * que se pidió y no se agrega nada.
+ */
+export function corregirAfirmacionSoloMemoria(
+  respuesta: string,
+  acciones: AccionEOS[],
+  mensajeUsuario: string,
+  verificaciones: VerificacionDeAccion[],
+): string {
+  const tipos = acciones
+    .map((accion) => String(accion?.tipo || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  if (!tipos.includes("GUARDAR_MEMORIA")) return respuesta;
+  if (tipos.some((tipo) => tipo !== "GUARDAR_MEMORIA" && tipo !== "RESPONDER")) return respuesta;
+
+  // Si la nota ni siquiera se guardó, de eso avisa `corregirAfirmacionFallida`.
+  if (!huboEfecto(verificaciones)) return respuesta;
+
+  if (!PIDE_ESCRIBIR.test(mensajeUsuario)) return respuesta;
+  if (!DATO_DE_NEGOCIO.test(mensajeUsuario)) return respuesta;
+  if (PIDE_RECORDAR.test(mensajeUsuario)) return respuesta;
+  if (!AFIRMA_HABERLO_HECHO.test(respuesta)) return respuesta;
+  if (respuesta.includes(AVISO_SOLO_MEMORIA)) return respuesta;
+
+  return `${AVISO_SOLO_MEMORIA}\n\n${respuesta}`;
+}

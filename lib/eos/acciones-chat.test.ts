@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   avisoDeVerificacion,
+  AVISO_SOLO_MEMORIA,
   corregirAfirmacionFallida,
+  corregirAfirmacionSoloMemoria,
   corregirAfirmacionSinAccion,
   dejaEfectoDurable,
 } from "./acciones-chat.ts";
@@ -308,4 +310,99 @@ test("las de solo lectura no dejan efecto y no se verifican", () => {
   for (const tipo of ["RESPONDER", "VER_DASHBOARD", "VER_BRIEFING"]) {
     assert.ok(!dejaEfectoDurable([{ tipo }]), `${tipo} no deja nada escrito`);
   }
+});
+
+// ============================================================
+// Cargó una nota en vez de cargar el negocio
+// ============================================================
+//
+// GUARDAR_MEMORIA nunca falla, así que "el usuario pidió cargar sus productos
+// y costos" terminaba en una nota y una respuesta que sonaba a hecho.
+
+function soloMemoria(respuesta: string, mensaje: string, tipos: string[] = ["GUARDAR_MEMORIA"]) {
+  const acciones = tipos.map((tipo) => ({ tipo }));
+  const verificaciones = verificarAcciones(
+    acciones,
+    leerEvidencia({ ok: true, acciones_ejecutadas: tipos }),
+    false,
+  );
+
+  return corregirAfirmacionSoloMemoria(respuesta, acciones, mensaje, verificaciones);
+}
+
+test("cargar productos y costos que terminó en una nota lo dice claro", () => {
+  const salida = soloMemoria(
+    "Listo, ya cargué tus productos y sus costos.",
+    "cargá mis productos: lechones a 500.000 de costo y balanceado a 68.000",
+  );
+
+  assert.ok(salida.startsWith(AVISO_SOLO_MEMORIA));
+  assert.ok(salida.endsWith("Listo, ya cargué tus productos y sus costos."));
+});
+
+test("pedirle que se acuerde de algo SÍ es una nota: no se corrige", () => {
+  const respuesta = "Listo, lo anoté.";
+
+  assert.equal(
+    soloMemoria(respuesta, "acordate que el costo del flete subió este mes"),
+    respuesta,
+  );
+});
+
+test("si además hubo una acción del negocio, no se toca", () => {
+  const respuesta = "Listo, registré la compra.";
+
+  assert.equal(
+    soloMemoria(respuesta, "registrá la compra de balanceado", ["REGISTRAR_COMPRA", "GUARDAR_MEMORIA"]),
+    respuesta,
+  );
+});
+
+test("si la respuesta no afirma haberlo hecho, no se agrega nada", () => {
+  const respuesta = "¿A cuánto vendés cada lechón?";
+
+  assert.equal(soloMemoria(respuesta, "cargá mis productos y costos"), respuesta);
+});
+
+test("si la nota falló, de eso avisa el otro guarda y este no duplica", () => {
+  const acciones = [{ tipo: "GUARDAR_MEMORIA" }];
+  const verificaciones = verificarAcciones(
+    acciones,
+    leerEvidencia({ ok: false, errores: [{ accion: "GUARDAR_MEMORIA", error: "x" }] }),
+    false,
+  );
+  const respuesta = "Listo, ya cargué tus productos.";
+
+  assert.equal(
+    corregirAfirmacionSoloMemoria(respuesta, acciones, "cargá mis productos", verificaciones),
+    respuesta,
+  );
+});
+
+test("un mensaje que no habla de datos del negocio no se corrige", () => {
+  const respuesta = "Listo, ya lo guardé.";
+
+  assert.equal(soloMemoria(respuesta, "guardá que prefiero que me escriban por la mañana"), respuesta);
+});
+
+test("no se duplica la advertencia", () => {
+  const una = soloMemoria("Listo, ya cargué los productos.", "cargá mis productos");
+  assert.ok(una.startsWith(AVISO_SOLO_MEMORIA), "la primera pasada tiene que agregarla");
+  const dos = corregirAfirmacionSoloMemoria(
+    una,
+    [{ tipo: "GUARDAR_MEMORIA" }],
+    "cargá mis productos",
+    verificarAcciones([{ tipo: "GUARDAR_MEMORIA" }], leerEvidencia({ ok: true, acciones_ejecutadas: ["GUARDAR_MEMORIA"] }), false),
+  );
+
+  assert.equal(una, dos);
+});
+
+test("el guarda de 'solo memoria' está conectado al flujo real del chat", async () => {
+  const { readFileSync } = await import("node:fs");
+  const flujo = readFileSync(new URL("./procesar-mensaje.ts", import.meta.url), "utf8");
+
+  // Un guarda que nadie llama no protege a nadie: pasó con el aviso de
+  // aprobación, que existió meses sin estar conectado a la ruta.
+  assert.match(flujo, /resultado\.respuesta = corregirAfirmacionSoloMemoria\(/);
 });
