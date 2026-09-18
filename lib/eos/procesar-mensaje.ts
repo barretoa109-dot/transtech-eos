@@ -48,6 +48,7 @@ import {
   avisoDeVerificacion,
   corregirAfirmacionFallida,
   corregirAfirmacionSinAccion,
+  corregirAfirmacionSoloMemoria,
 } from "@/lib/eos/acciones-chat";
 import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
 import { limpiarSeleccion } from "@/lib/eos/cita";
@@ -1098,6 +1099,18 @@ export async function procesarMensajeEOS(
     // Si el texto habla en pasado y ninguna acción quedó escrita, se corrige
     // antes que nada: el resto del mensaje se lee después de la advertencia.
     resultado.respuesta = corregirAfirmacionFallida(resultado.respuesta, verificaciones);
+
+    /*
+     * La tercera forma: la única acción fue GUARDAR_MEMORIA, que nunca falla, y
+     * el usuario había pedido cargar productos, costos o compras. La nota
+     * quedó; el catálogo no. Ver `corregirAfirmacionSoloMemoria`.
+     */
+    resultado.respuesta = corregirAfirmacionSoloMemoria(
+      resultado.respuesta,
+      resultado.acciones,
+      mensaje,
+      verificaciones,
+    );
 
     resultado.respuesta = avisoDeVerificacion(
       resultado.respuesta,

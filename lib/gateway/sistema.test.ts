@@ -101,8 +101,10 @@ test("el prompt NO manda a cargar el producto antes de vender", () => {
   // Desde la v156 el sistema crea el producto con el precio que la persona
   // acaba de decir y registra la venta en el mismo paso. Pedirle que lo
   // cargue primero es mandarla a otra pantalla para algo que EOS hace solo.
-  assert.match(PROMPT_SISTEMA, /mandá la acción IGUAL, con\s+el nombre como te lo dijeron/);
-  assert.match(PROMPT_SISTEMA, /No le pidas a la\s+persona que lo cargue primero/);
+  // Vale para la venta y la compra; AJUSTAR_STOCK y ACTUALIZAR_PRODUCTO no crean
+  // nada y tienen su propia regla (ver los tests del final).
+  assert.match(PROMPT_SISTEMA, /mandá la acción IGUAL cuando\s+es REGISTRAR_VENTA/);
+  assert.match(PROMPT_SISTEMA, /No le\s+pidas a la persona que lo cargue primero/);
 });
 
 test("el prompt prohíbe inventar el dígito verificador de un RUC", () => {
@@ -408,4 +410,23 @@ test("el prompt explica para qué SÍ es la memoria", () => {
   // La regla en negativo sola convertiría GUARDAR_MEMORIA en una acción que el
   // modelo no usa nunca, y hay cosas que de verdad no tienen otro lugar.
   assert.match(PROMPT_SISTEMA, /Es para lo que NO tiene otro lugar/);
+});
+
+/*
+ * Cargar el negocio por chat no puede terminar en una nota ni en una orden que
+ * falla. El 2026-09-18 el modelo mandó AJUSTAR_STOCK sobre "lechones", que no
+ * estaba en el catálogo: esa acción no crea productos y falló siempre. La regla
+ * "si no está, mandá la acción igual" era solo para ventas y compras.
+ */
+test("AJUSTAR_STOCK y ACTUALIZAR_PRODUCTO se declaran solo para productos que ya existen", () => {
+  assert.match(
+    PROMPT_SISTEMA,
+    /AJUSTAR_STOCK y ACTUALIZAR_PRODUCTO son DISTINTAS: solo funcionan con un\s+producto que YA está en el catálogo/,
+  );
+  assert.match(PROMPT_SISTEMA, /es REGISTRAR_VENTA \(con el precio[\s\S]{0,200}o REGISTRAR_COMPRA/);
+});
+
+test("una lista con un producto sin precio no se reemplaza por memoria", () => {
+  assert.match(PROMPT_SISTEMA, /mandá igual los que sí lo tienen y pedí, por nombre, el precio/);
+  assert.match(PROMPT_SISTEMA, /nunca la reemplaces por\s+GUARDAR_MEMORIA/);
 });
