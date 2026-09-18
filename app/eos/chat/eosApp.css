@@ -2883,7 +2883,7 @@
 .eos-app .fin-setup-error {
   margin-top: 12px;
   padding: 10px 13px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--red);
   border-radius: 11px;
   background: var(--red-light);
   color: var(--red);
@@ -4572,7 +4572,7 @@
   margin-bottom: 10px;
 }
 .eos-app .neg-metrica.is-good strong,
-.eos-app .is-positive { color: #15803d; }
+.eos-app .is-positive { color: var(--green-texto); }
 .eos-app .neg-metrica.is-danger strong,
 .eos-app .is-negative { color: var(--red); }
 .eos-app .neg-growth-alert {

@@ -28,6 +28,7 @@ function alDia(extra: Partial<Entradas> = {}): Entradas {
     tarjetas: [{ nombre: "Visa", cierra: 20, vence: 5, resumenAl: dia(5) }],
     deudasSinCuota: [],
     oportunidadesSinMonto: 0,
+    oportunidadesEstancadas: null,
     porCobrarViejo: null,
     ...extra,
   };
@@ -208,6 +209,26 @@ test("el resumen de la tarjeta aguanta más que un saldo, pero no para siempre",
   assert.ok(pasado.find((x) => x.clave === "resumenes-viejos"));
 });
 
+test("una oportunidad estancada se menciona con sus días sin actividad", () => {
+  const pendientes = armarAtencion(
+    alDia({ oportunidadesEstancadas: { cantidad: 3, masDiasSinActividad: 20 } }),
+  );
+
+  const p = pendientes.find((x) => x.clave === "oportunidades-estancadas");
+  assert.ok(p);
+  assert.match(p.titulo, /3 oportunidades estancadas/);
+  assert.match(p.porque, /20 días/);
+  assert.equal(p.donde, "CRM > Oportunidades");
+});
+
+test("sin oportunidades estancadas no hay pendiente", () => {
+  const pendientes = armarAtencion(
+    alDia({ oportunidadesEstancadas: { cantidad: 0, masDiasSinActividad: 0 } }),
+  );
+
+  assert.equal(pendientes.find((x) => x.clave === "oportunidades-estancadas"), undefined);
+});
+
 test("una cartera vieja se menciona con su antigüedad", () => {
   const pendientes = armarAtencion(
     alDia({ porCobrarViejo: { cuantas: 4, masViejaEnDias: 62 } }),
@@ -298,4 +319,30 @@ test("sin datos de nada, no inventa pendientes", () => {
     pendientes.map((p) => p.clave),
     ["sin-cuentas"],
   );
+});
+
+test("una decisión sin resultado aparece como envejecida y dice qué se destraba", () => {
+  const pendientes = armarAtencion({
+    hoy: HOY,
+    cuentas: [{ nombre: "C", saldo: 1, al: HOY }],
+    decisionesSinResultado: { cantidad: 2, masDias: 20 },
+  });
+
+  const p = pendientes.find((x) => x.clave === "decisiones-sin-resultado");
+  assert.ok(p, "no apareció");
+  assert.equal(p.clase, "envejecido");
+  assert.match(p.titulo, /^2 decisiones sin resultado$/);
+  assert.match(p.porque, /20 días/);
+  // No bloquea nada: no puede volver el titular distinto de "Nada."
+  assert.equal(titularDeAtencion(pendientes), "Nada.");
+});
+
+test("sin decisiones vencidas no se inventa el pendiente", () => {
+  const pendientes = armarAtencion({
+    hoy: HOY,
+    cuentas: [{ nombre: "C", saldo: 1, al: HOY }],
+    decisionesSinResultado: null,
+  });
+
+  assert.ok(!pendientes.some((x) => x.clave === "decisiones-sin-resultado"));
 });

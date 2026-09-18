@@ -37,6 +37,7 @@ type Uso = {
 export default function ProfileView({ nombre, email, usuarioId, conversaciones }: ProfileViewProps) {
   const [copiado, setCopiado] = useState(false);
   const [uso, setUso] = useState<Uso | null>(null);
+  const [numeroEOS, setNumeroEOS] = useState<string | null>(null);
 
   useEffect(() => {
     let activo = true;
@@ -48,6 +49,17 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
       })
       .catch(() => {
         /* la tarjeta de uso simplemente no se muestra */
+      });
+
+    // Mismo endpoint que ya consulta `VincularWhatsApp`: el número de EOS es
+    // un solo dato (`WHATSAPP_DISPLAY_NUMBER`) y no se duplica en otro lado.
+    fetch("/api/whatsapp/vincular", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (activo && payload?.numero_whatsapp_eos) setNumeroEOS(payload.numero_whatsapp_eos);
+      })
+      .catch(() => {
+        /* sin esto, el field-row del número simplemente no se muestra */
       });
 
     return () => {
@@ -115,6 +127,24 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             <span className="field-label">Correo</span>
             <span className="field-value">{email || "—"}</span>
           </div>
+
+          {numeroEOS && (
+            <div className="field-row">
+              <span className="field-label">
+                WhatsApp de EOS
+                <span className="field-hint">Para escribirle a EOS desde WhatsApp</span>
+              </span>
+              <a
+                href={`https://wa.me/${numeroEOS.replace(/[^\d]/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="field-value"
+                style={{ color: "var(--blue)", textDecoration: "none" }}
+              >
+                {numeroEOS}
+              </a>
+            </div>
+          )}
 
           <div className="field-row">
             <span className="field-label">ID de usuario</span>

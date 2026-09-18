@@ -84,6 +84,22 @@ export type Entradas = {
   /** Oportunidades abiertas sin monto: el embudo no puede prever nada. */
   oportunidadesSinMonto?: number;
 
+  /**
+   * Oportunidades abiertas sin actividad hace más de 14 días.
+   *
+   * El cálculo de "estancada" es el mismo que ya usa y prueba
+   * `lib/kpi/definiciones/crm.ts` (`OPORTUNIDADES_ESTANCADAS`): no se
+   * reimplementa acá, solo se resume para el titular.
+   */
+  oportunidadesEstancadas?: { cantidad: number; masDiasSinActividad: number } | null;
+
+  /**
+   * Decisiones activas cuyo resultado nunca se registró y ya es hora de
+   * mirarlas: pasó su fecha de revisión, o llevan más de
+   * `DIAS_PARA_EVALUAR_DECISION` sin ella.
+   */
+  decisionesSinResultado?: { cantidad: number; masDias: number } | null;
+
   /** Ventas a crédito vencidas hace rato, si el negocio lleva cartera. */
   porCobrarViejo?: { cuantas: number; masViejaEnDias: number } | null;
 };
@@ -107,6 +123,16 @@ export const DIAS_PARA_REFRESCAR_SALDO = 30;
  * ya pagó (o no).
  */
 export const DIAS_PARA_REFRESCAR_RESUMEN = 45;
+
+/**
+ * Cuánto se espera para preguntar cómo salió una decisión que no tiene fecha de
+ * revisión. Casi ninguna la tiene (0 de 15 el 2026-09-18: la captura desde el
+ * chat no la pone), así que sin un plazo por defecto ninguna se evaluaría nunca.
+ *
+ * Dos semanas alcanzan para que una decisión de precio, gasto o cobranza haya
+ * tenido efecto visible, y no son tantas como para que se olvide qué se decidió.
+ */
+export const DIAS_PARA_EVALUAR_DECISION = 14;
 
 /** Cuántos días de atraso hacen que una venta a crédito valga la pena mencionarla. */
 export const DIAS_DE_CARTERA_VIEJA = 30;
@@ -240,7 +266,7 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       clase: "dato",
       titulo: `${sinMonto} ${plural(sinMonto, "oportunidad sin monto", "oportunidades sin monto")}`,
       porque: "El embudo no puede prever cuánto podrías facturar con lo que tenés abierto.",
-      donde: "Negocio > Oportunidades",
+      donde: "CRM > Oportunidades",
       cuantos: sinMonto,
     });
   }
@@ -280,6 +306,30 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       porque: `Ya cerró otro ciclo desde entonces, así que el que tengo de ${resumenViejo.map((t) => t.nombre).slice(0, 2).join(", ")} corresponde a un período que ya pasó.`,
       donde: "el chat: pasame el resumen de este mes",
       cuantos: resumenViejo.length,
+    });
+  }
+
+  const estancadas = e.oportunidadesEstancadas;
+  if (estancadas && estancadas.cantidad > 0) {
+    pendientes.push({
+      clave: "oportunidades-estancadas",
+      clase: "envejecido",
+      titulo: `${estancadas.cantidad} ${plural(estancadas.cantidad, "oportunidad estancada", "oportunidades estancadas")}`,
+      porque: `La más vieja lleva ${estancadas.masDiasSinActividad} días sin novedad. Sin que alguien insista, se enfrían: es una venta que puede estar perdiéndose sin que nadie se entere.`,
+      donde: "CRM > Oportunidades",
+      cuantos: estancadas.cantidad,
+    });
+  }
+
+  const sinResultado = e.decisionesSinResultado;
+  if (sinResultado && sinResultado.cantidad > 0) {
+    pendientes.push({
+      clave: "decisiones-sin-resultado",
+      clase: "envejecido",
+      titulo: `${sinResultado.cantidad} ${plural(sinResultado.cantidad, "decisión sin resultado", "decisiones sin resultado")}`,
+      porque: `La más vieja es de hace ${sinResultado.masDias} días y todavía no sé cómo salió. Sin eso no puedo aprender qué te funciona y qué no.`,
+      donde: "Decisiones",
+      cuantos: sinResultado.cantidad,
     });
   }
 

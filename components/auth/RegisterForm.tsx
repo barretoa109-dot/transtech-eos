@@ -56,8 +56,8 @@ export default function RegisterForm({ onLogin }: Props) {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("La contraseña debe tener al menos 6 caracteres.");
+    if (password.length < 8) {
+      setErrorMessage("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
 
@@ -202,7 +202,7 @@ export default function RegisterForm({ onLogin }: Props) {
         <CampoContrasena
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={8}
           aria-label="Contraseña"
           className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-white outline-none transition focus:border-[#2f72d6] focus:bg-white/[0.05]"
           placeholder="Contraseña"

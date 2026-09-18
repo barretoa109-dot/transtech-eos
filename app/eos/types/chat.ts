@@ -50,6 +50,7 @@ export type VistaEOS =
   | "learnings"
   | "dashboard"
   | "negocio"
+  | "crm"
   | "gastos"
   | "perfil";
 

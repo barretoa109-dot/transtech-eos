@@ -323,6 +323,35 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
   },
 
   /*
+   * Deshacer y corregir una COMPRA (v170): las simétricas de las dos de venta.
+   *
+   * Cuestan lo mismo que REGISTRAR_COMPRA y que sus pares de venta —tier 3, 6
+   * puntos— por la misma razón: anular devuelve el stock, restaura el costo
+   * anterior del producto y borra el gasto del panel; corregir es anular y
+   * volver a registrar en una sola transacción. Una compra equivocada ensucia
+   * inventario y finanzas igual que una venta equivocada.
+   *
+   * Y se hacen seguras por lo mismo: sólo miran los últimos siete días, la
+   * respuesta dice SIEMPRE qué anuló o qué corrigió, y un reintento no
+   * repite nada (marca durable por comando).
+   */
+  ANULAR_COMPRA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  CORREGIR_COMPRA: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  /*
    * Declarar el saldo de una cuenta cuesta 1 punto, el mínimo, y tiene que
    * costarlo.
    *

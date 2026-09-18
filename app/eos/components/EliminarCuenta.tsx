@@ -40,7 +40,7 @@ export default function EliminarCuenta() {
         */}
         <a
           href="/api/cuenta/exportar"
-          style={{ color: "var(--muted, #64748b)", fontSize: 13, textDecoration: "underline" }}
+          style={{ color: "var(--muted)", fontSize: 13, textDecoration: "underline" }}
         >
           Descargar mis datos
         </a>
@@ -50,7 +50,7 @@ export default function EliminarCuenta() {
           style={{
             background: "none",
             border: "none",
-            color: "var(--muted, #64748b)",
+            color: "var(--muted)",
             fontSize: 13,
             textDecoration: "underline",
             cursor: "pointer",
@@ -90,8 +90,8 @@ export default function EliminarCuenta() {
   }
 
   return (
-    <div className="card" style={{ marginTop: 22, borderColor: "var(--amber, #f59e0b)" }}>
-      <div className="card-title" style={{ color: "var(--amber, #f59e0b)" }}>
+    <div className="card" style={{ marginTop: 22, borderColor: "var(--amber)" }}>
+      <div className="card-title" style={{ color: "var(--amber)" }}>
         <AlertTriangle size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
         Eliminar mi cuenta
       </div>
@@ -127,7 +127,7 @@ export default function EliminarCuenta() {
       />
 
       {error && (
-        <p className="prose" style={{ marginTop: 10, color: "var(--amber, #f59e0b)" }}>
+        <p className="prose" style={{ marginTop: 10, color: "var(--amber)" }}>
           {error}
         </p>
       )}

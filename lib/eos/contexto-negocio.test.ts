@@ -282,6 +282,20 @@ test("un producto con costo NO lleva la marca", () => {
   assert.ok(!texto.includes("sin costo"));
 });
 
+test("un producto con control de stock dice cuántos quedan", () => {
+  // El caso real: una usuaria con 3 unidades cargadas en la App le preguntó a
+  // EOS cuántas tenía y no supo, porque el catálogo nunca llevaba stock.
+  const texto = textoCatalogo([{ nombre: "Conjunto blanco", precio: 140000, stock: 3 }]);
+
+  assert.match(texto, /quedan 3/);
+});
+
+test("un producto sin control de stock no inventa una cantidad", () => {
+  const texto = textoCatalogo([{ nombre: "Asesoría", precio: 100000, stock: null }]);
+
+  assert.ok(!texto.includes("quedan"));
+});
+
 test("cuando la lista viene recortada, se dice cuántos faltan", () => {
   // Un modelo que cree ver el catálogo entero afirma que un producto no
   // existe. Es peor que no mostrarle nada.

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextResponse, after } from "next/server";
 import {
   getPagoparKeys,
@@ -112,7 +113,13 @@ export async function POST(request: Request) {
       resultado.hash_pedido,
     );
 
-    if (tokenEsperado !== resultado.token) {
+    // Tiempo constante: el token protege una URL pública que activa planes.
+    const esperadoBuf = Buffer.from(String(tokenEsperado));
+    const recibidoBuf = Buffer.from(String(resultado.token));
+    if (
+      esperadoBuf.length !== recibidoBuf.length ||
+      !timingSafeEqual(esperadoBuf, recibidoBuf)
+    ) {
       return NextResponse.json(
         {
           error:

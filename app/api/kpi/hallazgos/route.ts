@@ -13,6 +13,14 @@ import { avisoDeCobertura } from "@/lib/kpi/score";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { hoyEnParaguay } from "@/lib/fecha";
 import type { PuntoHistoria } from "@/lib/kpi/historia";
+import {
+  detectarRiesgosNegocio,
+  redactarRiesgoNegocio,
+  type FijoDeclarado,
+  type GastoHistorico,
+  type ProductoStock,
+  type VentaACobrar,
+} from "@/lib/erp/riesgos-negocio";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +141,77 @@ export async function GET() {
    */
   const score = scorePrincipal(resultados, CON_UMBRALES);
 
+  /*
+   * Los riesgos operativos (stock bajo, cobros demorados, gasto anormal).
+   *
+   * Hasta acá `lib/erp/riesgos-negocio.ts` solo alimentaba el aviso por
+   * correo de `lib/erp/avisar-negocio.ts` — nunca aparecía en el Dashboard,
+   * que es donde alguien realmente entra a mirar "cómo viene el negocio".
+   *
+   * Se reutiliza la función pura tal cual (no se reimplementa la regla), con
+   * las MISMAS consultas que ya usa el cron: no se puede armar esto desde
+   * `hechos` porque el gasto anormal necesita 400 días de historial y
+   * `hechos` solo trae el período actual y el anterior.
+   */
+  let riesgosNegocio: { tipo: string; texto: string }[] = [];
+
+  if (erp.permitido) {
+    const [productosRiesgo, ventasRiesgo, gastosRiesgo, fijosRiesgo] = await Promise.all([
+      admin
+        .from("eos_erp_productos")
+        .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
+        .eq("usuario_id", user.id)
+        .eq("activo", true)
+        .eq("controla_stock", true),
+      admin
+        .from("eos_erp_ventas")
+        .select("id,fecha,total,moneda,vence_el")
+        .eq("usuario_id", user.id)
+        .is("movimiento_id", null)
+        .not("estado", "in", '("anulada","cobrada")'),
+      admin
+        .from("eos_movimientos_financieros")
+        .select("id,fecha,monto,moneda,categoria,descripcion,recurrente")
+        .eq("usuario_id", user.id)
+        .eq("ambito", "negocio")
+        .eq("tipo", "gasto")
+        .gte("fecha", restarDias(hoy, 400))
+        .order("fecha", { ascending: true }),
+      admin
+        .from("eos_finanzas_fijos")
+        .select("descripcion")
+        .eq("usuario_id", user.id)
+        .eq("ambito", "negocio")
+        .eq("activo", true),
+    ]);
+
+    const riesgos = detectarRiesgosNegocio({
+      hoy,
+      productos: ((productosRiesgo.data ?? []) as ProductoStock[]).map((p) => ({
+        ...p,
+        stock_actual: Number(p.stock_actual ?? 0),
+        stock_minimo: Number(p.stock_minimo ?? 0),
+      })),
+      ventasACobrar: ((ventasRiesgo.data ?? []) as VentaACobrar[]).map((v) => ({
+        ...v,
+        total: Number(v.total ?? 0),
+      })),
+      gastos: ((gastosRiesgo.data ?? []) as GastoHistorico[]).map((g) => ({
+        ...g,
+        monto: Number(g.monto ?? 0),
+      })),
+      fijos: ((fijosRiesgo.data ?? []) as FijoDeclarado[]).map((f) => ({
+        categoria: null,
+        descripcion: f.descripcion ?? null,
+      })),
+    });
+
+    riesgosNegocio = riesgos.map((r) => ({
+      tipo: r.tipo,
+      texto: redactarRiesgoNegocio(r, formatearMonto),
+    }));
+  }
+
   return NextResponse.json(
     {
       hallazgos: anomalias,
@@ -141,6 +220,7 @@ export async function GET() {
       con_historia: series.size > 0,
       score,
       aviso_score: score ? avisoDeCobertura(score) : null,
+      riesgos_negocio: riesgosNegocio,
     },
     { headers: noStore() },
   );

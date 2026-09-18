@@ -445,6 +445,36 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ANULACION_MOTIVO_REQUERIDO",
     mensaje: () => "Para anular una venta necesito saber por qué, aunque sea con una palabra.",
   },
+  /*
+   * Las de ANULAR_COMPRA y CORREGIR_COMPRA (v170).
+   *
+   * Códigos propios y no los de venta: el mensaje nombra "compra" y "concepto",
+   * y `errorDeAccion` busca por texto, así que compartir código obligaría a
+   * decir "venta" al hablar de una compra. Una compra puede tener conceptos que
+   * no están en el catálogo (combustible, un flete), por eso se pregunta por
+   * "concepto" y no por "producto".
+   */
+  {
+    codigo: "EOS_ACCION_COMPRA_NO_ENCONTRADA",
+    mensaje: (d) =>
+      `No encontré ninguna compra tuya de los últimos siete días que coincida con "${d}". ` +
+      "Si es más vieja, anulala desde Negocio > Compras.",
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_COMPRA_CUAL_ITEM",
+    mensaje: (d) =>
+      `Esa compra tiene varios conceptos: ${d}. Decime cuál corrijo y con qué número.`,
+  },
+  {
+    codigo: "EOS_ACCION_CORRECCION_COMPRA_ITEM_AJENO",
+    mensaje: (d) =>
+      `"${d}" no está en esa compra, así que capaz estamos hablando de otra. ` +
+      "Decime el monto, el proveedor o el día de la que querés corregir.",
+  },
+  {
+    codigo: "EOS_ACCION_COMPRA_SIN_ITEMS",
+    mensaje: () => "Esa compra no tiene renglones para corregir. Anulala y volvé a cargarla.",
+  },
   {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>

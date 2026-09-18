@@ -94,9 +94,11 @@ export async function avisarRiesgosNegocio(
           .eq("activo", true)
           .eq("controla_stock", true),
         // A crédito y sin movimiento financiero: es plata que le deben.
+        // `vence_el` desde la v168: cuando está cargado, manda sobre el
+        // plazo de respaldo de 30 días (ver `lib/erp/riesgos-negocio.ts`).
         admin
           .from("eos_erp_ventas")
-          .select("id,fecha,total,moneda")
+          .select("id,fecha,total,moneda,vence_el")
           .eq("usuario_id", uid)
           .is("movimiento_id", null)
           .not("estado", "in", '("anulada","cobrada")'),

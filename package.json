@@ -15,7 +15,9 @@
     "migraciones": "node scripts/migraciones-sanas.mjs",
     "tema": "node scripts/tema-oscuro-sano.mjs",
     "rutas": "node scripts/rutas-con-alcance.mjs",
-    "ambito": "node scripts/ambito-declarado.mjs"
+    "ambito": "node scripts/ambito-declarado.mjs",
+    "grants": "node scripts/grants-sanos.mjs",
+    "columnas": "node scripts/columnas-existen.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

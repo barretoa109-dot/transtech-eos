@@ -3,7 +3,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { hoyEnParaguay } from "@/lib/fecha";
-import { armarAtencion, titularDeAtencion, type Entradas } from "@/lib/eos/atencion";
+import {
+  armarAtencion,
+  DIAS_PARA_EVALUAR_DECISION,
+  titularDeAtencion,
+  type Entradas,
+} from "@/lib/eos/atencion";
+import { DIAS_ESTANCADA, ultimaActividadDe } from "@/lib/kpi/definiciones/crm";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +39,7 @@ export const dynamic = "force-dynamic";
  * por parámetro, a propósito.
  */
 
-/** Ocho consultas es el techo: esto se abre al entrar, no cada vez que se habla. */
+/** Nueve consultas es el techo: esto se abre al entrar, no cada vez que se habla. */
 const TOPE = 50;
 
 export async function GET() {
@@ -66,18 +72,29 @@ export async function GET() {
     tarjetas,
     deudas,
     oportunidades,
+    actividades,
     porCobrar,
+    decisiones,
   ] = await Promise.all([
     db
       .from("eos_action_approvals_v12")
       .select("id", { count: "exact", head: true })
       .eq("usuario_id", user.id)
-      .eq("estado", "pendiente"),
+      // Columna `status` y valor `pending` (no `estado`/`pendiente`): con los
+      // nombres en español la consulta fallaba y el conteo era siempre 0. Una
+      // vencida ya no se puede aprobar, así que no cuenta.
+      .eq("status", "pending")
+      .gt("expires_at", new Date().toISOString()),
     db
       .from("eos_action_commands")
-      .select("accion,error_mensaje")
+      // La columna es `error_message`: con el nombre en español la consulta
+      // fallaba y el `?? []` de abajo lo escondía, así que las órdenes fallidas
+      // nunca llegaban a este centro. Solo los últimos 7 días: un error de hace
+      // un mes ya no es algo que mirar.
+      .select("accion,error_message")
       .eq("usuario_id", user.id)
       .eq("estado", "error")
+      .gte("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString())
       .order("created_at", { ascending: false })
       .limit(10),
     db
@@ -108,10 +125,19 @@ export async function GET() {
       .limit(TOPE),
     db
       .from("eos_crm_oportunidades")
-      .select("monto,etapa")
+      .select("id,monto,etapa,creado_en")
       .eq("usuario_id", user.id)
       .not("etapa", "in", "(ganada,perdida)")
       .limit(TOPE),
+    // Para saber cuáles de esas oportunidades están estancadas: mismo
+    // criterio que `lib/kpi/definiciones/crm.ts` (OPORTUNIDADES_ESTANCADAS).
+    db
+      .from("eos_crm_actividades")
+      .select("oportunidad_id,hecha,fecha")
+      .eq("usuario_id", user.id)
+      .eq("hecha", true)
+      .not("oportunidad_id", "is", null)
+      .limit(TOPE * 4),
     db
       .from("eos_erp_ventas")
       .select("fecha,estado,movimiento_id")
@@ -120,7 +146,19 @@ export async function GET() {
       .not("estado", "in", "(anulada,cobrada)")
       .order("fecha")
       .limit(TOPE),
+    db
+      .from("eos_decisions")
+      .select("fecha_decision,fecha_revision")
+      .eq("usuario_id", user.id)
+      .eq("estado", "activa")
+      .eq("resultado_estado", "pendiente")
+      .limit(TOPE),
   ]);
+
+  // Una consulta que falla no puede parecer "no hay nada": queda en el log.
+  for (const [nombre, r] of Object.entries({ aprobaciones, fallidas, decisiones })) {
+    if (r.error) console.error(`Atención: falló la consulta de ${nombre}:`, r.error.message);
+  }
 
   const filasProductos = (productos.data ?? []) as { costo: number | null }[];
 
@@ -133,11 +171,44 @@ export async function GET() {
 
   const filasVentas = (porCobrar.data ?? []) as { fecha: string }[];
 
+  const filasOportunidades = (oportunidades.data ?? []) as {
+    id: string;
+    monto: number | null;
+    creado_en: string;
+  }[];
+
+  const filasActividades = (actividades.data ?? []) as {
+    oportunidad_id: string | null;
+    hecha: boolean;
+    fecha: string;
+  }[];
+
+  /*
+   * Mismo criterio que `OPORTUNIDADES_ESTANCADAS`
+   * (`lib/kpi/definiciones/crm.ts`): sin actividad hecha desde su creación,
+   * o desde la última, hace más de `DIAS_ESTANCADA` días.
+   */
+  const diasSinActividad = filasOportunidades.map((o) => {
+    const ultima = ultimaActividadDe(o.id, filasActividades) ?? o.creado_en;
+    return diasDesde(ultima, hoy);
+  });
+  const estancadas = diasSinActividad.filter((dias) => dias > DIAS_ESTANCADA);
+
+  // Días desde que se decidió, de las que ya es hora de evaluar: pasó su fecha de
+  // revisión, o no tiene ninguna y lleva más del plazo por defecto.
+  const decisionesVencidas = ((decisiones.data ?? []) as { fecha_decision: string | null; fecha_revision: string | null }[])
+    .filter((d) =>
+      d.fecha_revision
+        ? d.fecha_revision.slice(0, 10) <= hoy
+        : d.fecha_decision !== null && diasDesde(d.fecha_decision, hoy) > DIAS_PARA_EVALUAR_DECISION,
+    )
+    .map((d) => diasDesde(d.fecha_decision ?? d.fecha_revision ?? hoy, hoy));
+
   const entradas: Entradas = {
     hoy,
     aprobacionesPendientes: aprobaciones.count ?? 0,
-    accionesFallidas: ((fallidas.data ?? []) as { accion: string; error_mensaje: string | null }[]).map(
-      (f) => ({ accion: f.accion, motivo: f.error_mensaje }),
+    accionesFallidas: ((fallidas.data ?? []) as { accion: string; error_message: string | null }[]).map(
+      (f) => ({ accion: f.accion, motivo: f.error_message }),
     ),
     productosSinCosto: filasProductos.filter((p) => p.costo === null || Number(p.costo) === 0).length,
     productosTotales: filasProductos.length,
@@ -174,9 +245,17 @@ export async function GET() {
           Number(d.saldo_declarado ?? 0) > 0,
       )
       .map((d) => ({ acreedor: d.acreedor })),
-    oportunidadesSinMonto: ((oportunidades.data ?? []) as { monto: number | null }[]).filter(
+    oportunidadesSinMonto: filasOportunidades.filter(
       (o) => o.monto === null || Number(o.monto) === 0,
     ).length,
+    oportunidadesEstancadas:
+      estancadas.length > 0
+        ? { cantidad: estancadas.length, masDiasSinActividad: Math.max(...estancadas) }
+        : null,
+    decisionesSinResultado:
+      decisionesVencidas.length > 0
+        ? { cantidad: decisionesVencidas.length, masDias: Math.max(...decisionesVencidas) }
+        : null,
     porCobrarViejo:
       filasVentas.length > 0
         ? {

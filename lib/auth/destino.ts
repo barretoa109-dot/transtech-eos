@@ -69,3 +69,20 @@ export function destinoPedido(): string {
     window.location.origin,
   );
 }
+
+/**
+ * A dónde va quien acaba de iniciar sesión con contraseña.
+ *
+ * Quien dejó el onboarding a la mitad vuelve a él: la propia pantalla le
+ * promete "podés dejarlo por la mitad y seguir después", y sin esto nadie
+ * cumple esa promesa — el 2026-09-18 solo 1 de 7 cuentas reales lo había
+ * terminado, y una quedó en la bienvenida sin mandar ni un mensaje.
+ *
+ * Solo cuando no se pidió un destino: quien venía a pagar va a pagar.
+ */
+export function destinoTrasLogin(pedido: string, onboardingPendiente: boolean): string {
+  if (onboardingPendiente && pedido === DESTINO_AUTH_POR_DEFECTO) {
+    return "/eos/onboarding";
+  }
+  return pedido;
+}

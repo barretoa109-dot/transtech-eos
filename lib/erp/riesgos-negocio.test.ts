@@ -179,6 +179,64 @@ test("cada moneda tiene su propio aviso: no se suman", () => {
 });
 
 // ============================================================
+// Con vencimiento real (v168): se usa ESE, no el plazo de respaldo
+// ============================================================
+
+test("con vencimiento pactado, vencida es la que YA venció, no la de 30 días", () => {
+  // Vendida hace 5 días, pero con 20 días de plazo: todavía no debería avisar
+  // aunque una venta sin vencimiento de la misma antigüedad tampoco avisaría.
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [venta({ id: "v", fecha: "2026-08-26", vence_el: "2026-09-15" })],
+  });
+
+  assert.deepEqual(riesgos, []);
+});
+
+test("con vencimiento pactado, vencida apenas pasa un día del plazo — no espera 30", () => {
+  // Vendida hace apenas 3 días: el respaldo de 30 nunca la marcaría. Pero
+  // pactaron que vencía ayer, así que HOY sí es noticia.
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [venta({ id: "v", fecha: "2026-08-28", vence_el: "2026-08-30" })],
+  });
+
+  assert.equal(riesgos.length, 1);
+  const cobros = riesgos[0];
+  if (cobros.tipo !== "cobros_demorados") return assert.fail("tipo equivocado");
+  assert.equal(cobros.dias_de_la_mas_vieja, 1);
+});
+
+test("sin vencimiento pactado, sigue el respaldo de 30 días de siempre", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [venta({ id: "v", fecha: "2026-07-01", vence_el: null })],
+  });
+
+  assert.equal(riesgos.length, 1);
+});
+
+test("una venta vencida y otra sin vencimiento reciente se combinan bien", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [
+      venta({ id: "vencida", fecha: "2026-08-20", vence_el: "2026-08-25", total: 200_000 }),
+      venta({ id: "reciente", fecha: "2026-08-29", total: 300_000 }), // sin vence_el, hace 2 días: no cuenta
+    ],
+  });
+
+  assert.equal(riesgos.length, 1);
+  const cobros = riesgos[0];
+  if (cobros.tipo !== "cobros_demorados") return assert.fail("tipo equivocado");
+  assert.equal(cobros.cantidad, 1);
+  assert.equal(cobros.total, 200_000);
+});
+
+// ============================================================
 // El texto tiene que servir para actuar
 // ============================================================
 

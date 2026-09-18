@@ -59,6 +59,10 @@ const VARIABLES_OPCIONALES = [
   // de n8n vive en el código: si n8n cambia de dirección haría falta un
   // deploy en vez de cambiar una variable.
   "N8N_EOS_WEBHOOK_URL",
+  // Sin tarifa, uso_mensual guarda los tokens pero el costo en USD queda en
+  // cero: no se puede saber cuánto cuesta cada cliente.
+  "EOS_USD_POR_MTOK_ENTRADA",
+  "EOS_USD_POR_MTOK_SALIDA",
 ] as const;
 
 async function aislar(nombre: string, fn: () => Promise<Chequeo>): Promise<Chequeo> {

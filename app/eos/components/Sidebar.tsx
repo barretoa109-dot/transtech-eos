@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, FileText, Lightbulb, Plus, ScrollText, Store, Wallet, PanelLeftClose } from "lucide-react";
+import { BarChart3, FileText, Handshake, Lightbulb, Plus, ScrollText, Store, Wallet, PanelLeftClose } from "lucide-react";
 
 type Conversacion = {
   id: string;
@@ -9,7 +9,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "gastos" | "perfil";
+type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "crm" | "gastos" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -30,6 +30,15 @@ const NAV_ITEMS: { vista: Vista; label: string; icon: React.ReactNode }[] = [
   { vista: "briefing", label: "Briefing", icon: <FileText size={16} /> },
   { vista: "dashboard", label: "Dashboard", icon: <BarChart3 size={16} /> },
   { vista: "negocio", label: "Negocio", icon: <Store size={16} /> },
+  /*
+   * CRM va justo después de Negocio, no adentro: hasta esta reorganización
+   * Contactos y el embudo de oportunidades eran dos pestañas más de
+   * "Negocio" (título literal "Tu ERP y tu CRM"). Se separó la pantalla
+   * porque a nivel de base y de facturación (es un anexo propio, "crm",
+   * desde el 25 de agosto) ya eran dos cosas distintas — la UI era lo único
+   * que las mezclaba. Ver el comentario de cabecera de `CRMView.tsx`.
+   */
+  { vista: "crm", label: "CRM", icon: <Handshake size={16} /> },
   /*
    * Personal va después de Negocio y no adentro a propósito.
    *

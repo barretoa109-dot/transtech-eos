@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("eos_erp_ventas")
     .select(
-      "id,fecha,moneda,subtotal,iva_total,total,condicion,estado,movimiento_id,notas,creado_en," +
+      "id,fecha,moneda,subtotal,iva_total,total,condicion,estado,movimiento_id,vence_el,notas,creado_en," +
         "contacto:eos_crm_contactos(id,nombre,ruc,ruc_dv)," +
         "items:eos_erp_venta_items(id,producto_id,descripcion,cantidad,precio_unitario,iva,total,orden," +
         "costo_unitario)",
@@ -111,6 +111,14 @@ export async function POST(request: Request) {
 
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
+  // Opcional (v168): la RPC ya lo ignora al contado, pero no vale la pena
+  // mandarle a la base algo que un `cuerpo.vence_el` mal formado podría
+  // convertir en un error de casteo en vez de un 400 legible.
+  const venceEl =
+    cuerpo.condicion === "credito" && /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.vence_el ?? ""))
+      ? String(cuerpo.vence_el)
+      : null;
+
   const { data, error } = await adminSinTipos().rpc("eos_erp_registrar_venta", {
     p_usuario_id: puerta.usuarioId,
     p_items: items,
@@ -122,6 +130,7 @@ export async function POST(request: Request) {
     // panel. A crédito, no — anotarla mostraría plata que nadie puede gastar.
     p_cobrada: cuerpo.condicion === "credito" ? false : cuerpo.cobrada !== false,
     p_notas: String(cuerpo.notas ?? "").trim().slice(0, 2000) || null,
+    p_vence_el: venceEl,
   });
 
   if (error) {

@@ -122,7 +122,7 @@ function revisar(rutaRelativa, { conBloques }) {
       if (enTokens || enOscuro) return;
     }
 
-    const m = linea.match(/^\s*(background|background-color|color|border-color|fill|stroke)\s*:\s*(.+);\s*$/);
+    const m = linea.match(/^\s*(background|background-color|color|border|border-color|fill|stroke)\s*:\s*(.+);\s*$/);
     if (!m) return;
 
     const [, propiedad, valor] = m;

@@ -171,7 +171,17 @@ function montos(filas: unknown): string | null {
  * entero cuando ve la mitad afirma que un producto no existe — y eso es peor
  * que no haberle mostrado nada.
  */
-export type ProductoDelCatalogo = { nombre: string; precio?: number; sin_costo?: boolean };
+export type ProductoDelCatalogo = {
+  nombre: string;
+  precio?: number;
+  sin_costo?: boolean;
+  /*
+   * Solo viene para el producto que CONTROLA stock (v166). El que no lo
+   * controla no tiene una cantidad de la que EOS pueda estar seguro, y
+   * afirmar un número inventado ahí es peor que no decir nada.
+   */
+  stock?: number | null;
+};
 
 export function textoCatalogo(catalogo: unknown, total?: number): string {
   const items = lista<ProductoDelCatalogo>(catalogo).filter(
@@ -182,8 +192,9 @@ export function textoCatalogo(catalogo: unknown, total?: number): string {
   const lineas = items.map((p) => {
     const precio = Number(p.precio ?? 0);
     const detalle = precio > 0 ? ` — ${formatearMonto(precio, "PYG")}` : "";
+    const stock = typeof p.stock === "number" ? ` (quedan ${p.stock})` : "";
     // "sin costo" y no "costo: null": el modelo lee castellano, no esquemas.
-    return `  ${p.nombre}${detalle}${p.sin_costo ? " (sin costo cargado)" : ""}`;
+    return `  ${p.nombre}${detalle}${stock}${p.sin_costo ? " (sin costo cargado)" : ""}`;
   });
 
   const faltan = Number(total ?? 0) - items.length;

@@ -150,11 +150,11 @@ export default function DecisionsView() {
         </div>
 
         <div className="chip-row">
-          <button type="button" className="chip" onClick={() => void load()} disabled={loading} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <button type="button" className="chip" onClick={() => void load()} disabled={loading}>
             <RefreshCw size={12} className={loading ? "spin" : ""} />
             Actualizar
           </button>
-          <button type="button" className="chip" onClick={() => setShowForm((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <button type="button" className="chip" onClick={() => setShowForm((v) => !v)}>
             <Plus size={12} />
             Nueva decisión
           </button>

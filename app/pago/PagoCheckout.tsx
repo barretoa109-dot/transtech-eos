@@ -334,7 +334,7 @@ export default function PagoCheckout() {
           </section>
         ) : error && !plan ? (
           <section className="state-card">
-            <strong>No pudimos abrir el checkout</strong>
+            <strong>No pudimos abrir el pago</strong>
             <p>{error}</p>
           </section>
         ) : !pedido ? (

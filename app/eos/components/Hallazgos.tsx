@@ -19,6 +19,8 @@ import type { BusinessScore } from "@/lib/kpi/score";
 
 type Causa = { moneda: string; cambio: number; producto: string | null; cliente: string | null };
 
+type RiesgoNegocio = { tipo: string; texto: string };
+
 type Respuesta = {
   hallazgos: Anomalia[];
   causas: Causa[];
@@ -26,6 +28,7 @@ type Respuesta = {
   con_historia: boolean;
   score: BusinessScore | null;
   aviso_score: string | null;
+  riesgos_negocio: RiesgoNegocio[];
 };
 
 const ICONO: Record<Severidad, typeof AlertTriangle> = {
@@ -65,7 +68,8 @@ export default function Hallazgos() {
 
   const hayCausa = datos.causas.some((c) => c.producto || c.cliente);
   const hayScore = datos.score?.puntaje !== null && datos.score !== null;
-  if (datos.hallazgos.length === 0 && !hayCausa && !hayScore) return null;
+  const riesgos = datos.riesgos_negocio ?? [];
+  if (datos.hallazgos.length === 0 && !hayCausa && !hayScore && riesgos.length === 0) return null;
 
   return (
     <section className="card">
@@ -145,6 +149,27 @@ export default function Hallazgos() {
             <Lightbulb size={12} /> Es el reparto del cambio, no su causa. EOS no sabe por qué se
             movieron.
           </p>
+        </div>
+      )}
+
+      {/*
+        Antes esto solo se mandaba por correo (lib/erp/avisar-negocio.ts):
+        acá es el mismo cálculo, mostrado donde alguien realmente entra a
+        mirar cómo viene el negocio.
+      */}
+      {riesgos.length > 0 && (
+        <div className="hallazgo-causas">
+          <div className="hallazgo-causas-titulo">Riesgos operativos</div>
+          <ul className="hallazgo-lista">
+            {riesgos.map((r) => (
+              <li key={r.tipo} className="hallazgo is-atencion">
+                <AlertTriangle className="hallazgo-icono" size={16} />
+                <div>
+                  <span className="hallazgo-evidencia">{r.texto}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

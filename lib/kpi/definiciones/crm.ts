@@ -94,8 +94,15 @@ function diasEntre(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
 
-/** La fecha del último contacto real (actividad marcada hecha), o null si nunca hubo una. */
-function ultimaActividadDe(oportunidadId: string, actividades: ActividadHecho[]): string | null {
+/**
+ * La fecha del último contacto real (actividad marcada hecha), o null si
+ * nunca hubo una.
+ *
+ * Exportada para que `lib/eos/atencion.ts` pueda avisar de una oportunidad
+ * estancada con el mismo criterio que ya calcula y prueba este archivo, en
+ * vez de reimplementar la misma regla una tercera vez.
+ */
+export function ultimaActividadDe(oportunidadId: string, actividades: ActividadHecho[]): string | null {
   const hechas = actividades.filter((a) => a.oportunidad_id === oportunidadId && a.hecha);
   if (hechas.length === 0) return null;
   return hechas.reduce((max, a) => (a.fecha > max ? a.fecha : max), hechas[0].fecha);
@@ -106,7 +113,7 @@ function ultimaActividadDe(oportunidadId: string, actividades: ActividadHecho[])
  * noticia. Es el mismo umbral del ejemplo del punto 7 del pedido original:
  * "Gs. 73.000.000 en oportunidades sin actividad durante más de 14 días."
  */
-const DIAS_ESTANCADA = 14;
+export const DIAS_ESTANCADA = 14;
 
 /**
  * Foto de hoy, no suma del período: por eso usa `periodo.hasta` como "hoy" —
