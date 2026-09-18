@@ -90,10 +90,10 @@ test("'lo voy a pensar' crea un seguimiento futuro", () => {
   assert.equal(accionSugerida(i), "crear_seguimiento");
 });
 
-test("confirmar la compra pide la oportunidad ganada, no cierra una venta sola", () => {
+test("confirmar la compra prepara la venta para autorizar, no la cierra sola", () => {
   const i = clasificarIntencion("Dale, confirmo. Ya hice la transferencia");
   assert.equal(i, "confirma_compra");
-  assert.equal(accionSugerida(i), "crear_oportunidad_ganada");
+  assert.equal(accionSugerida(i), "preparar_venta");
 });
 
 test("cuando un mensaje dice dos cosas gana la más costosa de ignorar", () => {

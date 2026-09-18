@@ -41,7 +41,7 @@ export type Intencion =
 export type AccionSugerida =
   | "registrar_baja"
   | "avisar_al_dueno"
-  | "crear_oportunidad_ganada"
+  | "preparar_venta"
   | "crear_seguimiento"
   | "crear_oportunidad"
   | "ninguna";
@@ -174,10 +174,11 @@ export function clasificarIntencion(texto: string | null | undefined): Intencion
 /**
  * Qué se hace con esa intención.
  *
- * `confirma_compra` NO cierra una venta sola: crea la oportunidad como ganada
- * en el CRM para que la persona la vea, pero la venta —que mueve inventario y
- * plata— la registra una acción de EOS con su propia autorización. Una
- * conversación de WhatsApp no es un comprobante.
+ * `confirma_compra` NO cierra una venta sola: deja la oportunidad en
+ * negociación y prepara la venta para que el dueño la autorice. La venta mueve
+ * inventario y plata, y la registra una acción de EOS con su propia
+ * autorización: una conversación de WhatsApp no es un comprobante. La
+ * oportunidad pasa a ganada cuando la venta existe (`eos_crm_embudo_desde_ventas`).
  */
 export function accionSugerida(intencion: Intencion): AccionSugerida {
   switch (intencion) {
@@ -186,7 +187,7 @@ export function accionSugerida(intencion: Intencion): AccionSugerida {
     case "pide_persona":
       return "avisar_al_dueno";
     case "confirma_compra":
-      return "crear_oportunidad_ganada";
+      return "preparar_venta";
     case "lo_pensara":
       return "crear_seguimiento";
     case "consulta_precio":
