@@ -200,6 +200,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
      y cambiar sin una migración. */
   chequeos.push(...(await chequeosOperativos()));
   chequeos.push(await chequeoEmbudo());
+  chequeos.push(await chequeoChatReal());
 
   const fallos = chequeos.filter((c) => !c.ok);
 
@@ -255,6 +256,118 @@ async function chequeoEmbudo(): Promise<Chequeo> {
     return { nombre, ok: true, detalle: resumirEmbudo((data ?? []) as FilaEmbudo[]) };
   } catch (error) {
     // Informativo: que no se pueda calcular no es una falla que alarme a nadie.
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
+}
+
+export type SolicitudChat = {
+  usuario_id: string;
+  status: string;
+  release_reason: string | null;
+  expires_at: string | null;
+};
+
+/** Cuántas solicitudes sin respuesta, y qué proporción, hacen que esto despierte a alguien. */
+export const CHAT_MIN_FALLAS = 3;
+export const CHAT_MIN_PROPORCION = 0.15;
+
+/**
+ * ¿Se le está cayendo el chat a la gente?
+ *
+ * Cada mensaje reserva cuota (`eos_message_usage_v40`) y la consume al
+ * responder o la libera si falla. Una solicitud SIN RESPUESTA es una que se
+ * liberó (n8n vacío, error del modelo, corte de red) o una reservada cuyo plazo
+ * venció sin terminar: la persona escribió y no le contestamos.
+ *
+ * Solo cuentas REALES. El 2026-09-18 las 54 solicitudes vencidas del mes y las
+ * 5 colgadas de ese día eran todas de la cuenta de certificación de Bancard: sin
+ * este filtro la alarma sonaría por trabajo de prueba y se aprendería a ignorarla.
+ *
+ * Alarma si hay al menos `CHAT_MIN_FALLAS` sin respuesta Y son al menos el
+ * `CHAT_MIN_PROPORCION` (15 %) del total. Calibrado con 30 días reales: el único
+ * incidente (2026-09-16, 6 sin respuesta de 30 = 20 %, respuestas vacías de n8n)
+ * tiene que alarmar, y con 15 % los otros 19 días con tráfico dan cero falsas
+ * alarmas. Con 25 % ese incidente pasaba sin que nadie lo viera. Con este volumen (decenas por día) una falla
+ * suelta no es una señal, y un porcentaje solo se dispara con dos mensajes.
+ */
+export function evaluarChat(
+  solicitudes: SolicitudChat[],
+  reales: Set<string>,
+  ahora: number = Date.now(),
+): { ok: boolean; detalle: string } {
+  const propias = solicitudes.filter((x) => reales.has(x.usuario_id));
+
+  let respondidas = 0;
+  const motivos = new Map<string, number>();
+
+  for (const x of propias) {
+    if (x.status === "consumed") {
+      respondidas++;
+    } else if (x.status === "released") {
+      const motivo = x.release_reason || "sin motivo";
+      motivos.set(motivo, (motivos.get(motivo) ?? 0) + 1);
+    } else if (
+      x.status === "reserved" &&
+      x.expires_at !== null &&
+      Date.parse(x.expires_at) < ahora
+    ) {
+      motivos.set("nunca terminó", (motivos.get("nunca terminó") ?? 0) + 1);
+    }
+    // "reserved" con plazo vigente: todavía está en curso, no cuenta para ningún lado.
+  }
+
+  const sinRespuesta = [...motivos.values()].reduce((t, n) => t + n, 0);
+  const total = respondidas + sinRespuesta;
+
+  if (total === 0) return { ok: true, detalle: "sin mensajes de cuentas reales en 24 h" };
+
+  const proporcion = sinRespuesta / total;
+  const lista = [...motivos.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([m, n]) => `${m}: ${n}`)
+    .join(", ");
+
+  const detalle =
+    `${total} ${total === 1 ? "solicitud" : "solicitudes"} de cuentas reales en 24 h · ` +
+    `${respondidas} respondidas · ${sinRespuesta} sin respuesta` +
+    (sinRespuesta > 0 ? ` (${lista})` : "");
+
+  return {
+    ok: !(sinRespuesta >= CHAT_MIN_FALLAS && proporcion >= CHAT_MIN_PROPORCION),
+    detalle,
+  };
+}
+
+async function chequeoChatReal(): Promise<Chequeo> {
+  const nombre = "Chat de cuentas reales (24 h)";
+
+  try {
+    const admin = adminSinTipos();
+    const desde = new Date(Date.now() - 24 * 3_600_000).toISOString();
+
+    const [solicitudes, cuentas] = await Promise.all([
+      admin
+        .from("eos_message_usage_v40")
+        .select("usuario_id,status,release_reason,expires_at")
+        .gte("reserved_at", desde)
+        .limit(5000),
+      admin.from("eos_cuentas_v172").select("usuario_id").eq("tipo", "real").limit(5000),
+    ]);
+
+    if (solicitudes.error) throw new Error(solicitudes.error.message);
+    if (cuentas.error) throw new Error(cuentas.error.message);
+
+    const reales = new Set(((cuentas.data ?? []) as { usuario_id: string }[]).map((c) => c.usuario_id));
+    const { ok, detalle } = evaluarChat((solicitudes.data ?? []) as SolicitudChat[], reales);
+
+    return { nombre, ok, detalle };
+  } catch (error) {
+    // No poder medirlo es un problema de esta vigilancia, no un chat caído:
+    // se informa, pero no dispara la alarma de "algo está roto".
     return {
       nombre,
       ok: true,
