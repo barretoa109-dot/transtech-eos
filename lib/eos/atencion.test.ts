@@ -320,3 +320,29 @@ test("sin datos de nada, no inventa pendientes", () => {
     ["sin-cuentas"],
   );
 });
+
+test("una decisión sin resultado aparece como envejecida y dice qué se destraba", () => {
+  const pendientes = armarAtencion({
+    hoy: HOY,
+    cuentas: [{ nombre: "C", saldo: 1, al: HOY }],
+    decisionesSinResultado: { cantidad: 2, masDias: 20 },
+  });
+
+  const p = pendientes.find((x) => x.clave === "decisiones-sin-resultado");
+  assert.ok(p, "no apareció");
+  assert.equal(p.clase, "envejecido");
+  assert.match(p.titulo, /^2 decisiones sin resultado$/);
+  assert.match(p.porque, /20 días/);
+  // No bloquea nada: no puede volver el titular distinto de "Nada."
+  assert.equal(titularDeAtencion(pendientes), "Nada.");
+});
+
+test("sin decisiones vencidas no se inventa el pendiente", () => {
+  const pendientes = armarAtencion({
+    hoy: HOY,
+    cuentas: [{ nombre: "C", saldo: 1, al: HOY }],
+    decisionesSinResultado: null,
+  });
+
+  assert.ok(!pendientes.some((x) => x.clave === "decisiones-sin-resultado"));
+});

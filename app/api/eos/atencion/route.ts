@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { hoyEnParaguay } from "@/lib/fecha";
-import { armarAtencion, titularDeAtencion, type Entradas } from "@/lib/eos/atencion";
+import {
+  armarAtencion,
+  DIAS_PARA_EVALUAR_DECISION,
+  titularDeAtencion,
+  type Entradas,
+} from "@/lib/eos/atencion";
 import { DIAS_ESTANCADA, ultimaActividadDe } from "@/lib/kpi/definiciones/crm";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +74,7 @@ export async function GET() {
     oportunidades,
     actividades,
     porCobrar,
+    decisiones,
   ] = await Promise.all([
     db
       .from("eos_action_approvals_v12")
@@ -77,9 +83,14 @@ export async function GET() {
       .eq("estado", "pendiente"),
     db
       .from("eos_action_commands")
-      .select("accion,error_mensaje")
+      // La columna es `error_message`: con el nombre en español la consulta
+      // fallaba y el `?? []` de abajo lo escondía, así que las órdenes fallidas
+      // nunca llegaban a este centro. Solo los últimos 7 días: un error de hace
+      // un mes ya no es algo que mirar.
+      .select("accion,error_message")
       .eq("usuario_id", user.id)
       .eq("estado", "error")
+      .gte("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString())
       .order("created_at", { ascending: false })
       .limit(10),
     db
@@ -131,7 +142,19 @@ export async function GET() {
       .not("estado", "in", "(anulada,cobrada)")
       .order("fecha")
       .limit(TOPE),
+    db
+      .from("eos_decisions")
+      .select("fecha_decision,fecha_revision")
+      .eq("usuario_id", user.id)
+      .eq("estado", "activa")
+      .eq("resultado_estado", "pendiente")
+      .limit(TOPE),
   ]);
+
+  // Una consulta que falla no puede parecer "no hay nada": queda en el log.
+  for (const [nombre, r] of Object.entries({ fallidas, decisiones })) {
+    if (r.error) console.error(`Atención: falló la consulta de ${nombre}:`, r.error.message);
+  }
 
   const filasProductos = (productos.data ?? []) as { costo: number | null }[];
 
@@ -167,11 +190,21 @@ export async function GET() {
   });
   const estancadas = diasSinActividad.filter((dias) => dias > DIAS_ESTANCADA);
 
+  // Días desde que se decidió, de las que ya es hora de evaluar: pasó su fecha de
+  // revisión, o no tiene ninguna y lleva más del plazo por defecto.
+  const decisionesVencidas = ((decisiones.data ?? []) as { fecha_decision: string | null; fecha_revision: string | null }[])
+    .filter((d) =>
+      d.fecha_revision
+        ? d.fecha_revision.slice(0, 10) <= hoy
+        : d.fecha_decision !== null && diasDesde(d.fecha_decision, hoy) > DIAS_PARA_EVALUAR_DECISION,
+    )
+    .map((d) => diasDesde(d.fecha_decision ?? d.fecha_revision ?? hoy, hoy));
+
   const entradas: Entradas = {
     hoy,
     aprobacionesPendientes: aprobaciones.count ?? 0,
-    accionesFallidas: ((fallidas.data ?? []) as { accion: string; error_mensaje: string | null }[]).map(
-      (f) => ({ accion: f.accion, motivo: f.error_mensaje }),
+    accionesFallidas: ((fallidas.data ?? []) as { accion: string; error_message: string | null }[]).map(
+      (f) => ({ accion: f.accion, motivo: f.error_message }),
     ),
     productosSinCosto: filasProductos.filter((p) => p.costo === null || Number(p.costo) === 0).length,
     productosTotales: filasProductos.length,
@@ -214,6 +247,10 @@ export async function GET() {
     oportunidadesEstancadas:
       estancadas.length > 0
         ? { cantidad: estancadas.length, masDiasSinActividad: Math.max(...estancadas) }
+        : null,
+    decisionesSinResultado:
+      decisionesVencidas.length > 0
+        ? { cantidad: decisionesVencidas.length, masDias: Math.max(...decisionesVencidas) }
         : null,
     porCobrarViejo:
       filasVentas.length > 0

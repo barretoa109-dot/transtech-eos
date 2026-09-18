@@ -93,6 +93,13 @@ export type Entradas = {
    */
   oportunidadesEstancadas?: { cantidad: number; masDiasSinActividad: number } | null;
 
+  /**
+   * Decisiones activas cuyo resultado nunca se registró y ya es hora de
+   * mirarlas: pasó su fecha de revisión, o llevan más de
+   * `DIAS_PARA_EVALUAR_DECISION` sin ella.
+   */
+  decisionesSinResultado?: { cantidad: number; masDias: number } | null;
+
   /** Ventas a crédito vencidas hace rato, si el negocio lleva cartera. */
   porCobrarViejo?: { cuantas: number; masViejaEnDias: number } | null;
 };
@@ -116,6 +123,16 @@ export const DIAS_PARA_REFRESCAR_SALDO = 30;
  * ya pagó (o no).
  */
 export const DIAS_PARA_REFRESCAR_RESUMEN = 45;
+
+/**
+ * Cuánto se espera para preguntar cómo salió una decisión que no tiene fecha de
+ * revisión. Casi ninguna la tiene (0 de 15 el 2026-09-18: la captura desde el
+ * chat no la pone), así que sin un plazo por defecto ninguna se evaluaría nunca.
+ *
+ * Dos semanas alcanzan para que una decisión de precio, gasto o cobranza haya
+ * tenido efecto visible, y no son tantas como para que se olvide qué se decidió.
+ */
+export const DIAS_PARA_EVALUAR_DECISION = 14;
 
 /** Cuántos días de atraso hacen que una venta a crédito valga la pena mencionarla. */
 export const DIAS_DE_CARTERA_VIEJA = 30;
@@ -301,6 +318,18 @@ export function armarAtencion(e: Entradas): Pendiente[] {
       porque: `La más vieja lleva ${estancadas.masDiasSinActividad} días sin novedad. Sin que alguien insista, se enfrían: es una venta que puede estar perdiéndose sin que nadie se entere.`,
       donde: "CRM > Oportunidades",
       cuantos: estancadas.cantidad,
+    });
+  }
+
+  const sinResultado = e.decisionesSinResultado;
+  if (sinResultado && sinResultado.cantidad > 0) {
+    pendientes.push({
+      clave: "decisiones-sin-resultado",
+      clase: "envejecido",
+      titulo: `${sinResultado.cantidad} ${plural(sinResultado.cantidad, "decisión sin resultado", "decisiones sin resultado")}`,
+      porque: `La más vieja es de hace ${sinResultado.masDias} días y todavía no sé cómo salió. Sin eso no puedo aprender qué te funciona y qué no.`,
+      donde: "Decisiones",
+      cuantos: sinResultado.cantidad,
     });
   }
 
