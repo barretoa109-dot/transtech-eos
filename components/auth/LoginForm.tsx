@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { destinoPedido } from "@/lib/auth/destino";
+import { destinoPedido, destinoTrasLogin } from "@/lib/auth/destino";
 import CampoContrasena from "./CampoContrasena";
 import {
   NOMBRE_PROVEEDOR,
@@ -90,7 +90,17 @@ export default function LoginForm({
      * de una renovación caída viene a pagar: dejarlo en el chat es hacerle
      * buscar de nuevo la pantalla que le habíamos puesto en la mano.
      */
-    router.replace(destinoPedido());
+    const { data: sesion } = await supabase.auth.getUser();
+    const { data: onboarding } = sesion.user
+      ? await supabase
+          .from("eos_onboarding")
+          .select("completado_en")
+          .eq("usuario_id", sesion.user.id)
+          .is("completado_en", null)
+          .maybeSingle()
+      : { data: null };
+
+    router.replace(destinoTrasLogin(destinoPedido(), Boolean(onboarding)));
     router.refresh();
   }
 

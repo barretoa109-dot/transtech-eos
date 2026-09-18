@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { destinoSeguro } from "./destino.ts";
+import { destinoSeguro, destinoTrasLogin } from "./destino.ts";
 
 const ORIGEN = "https://transtech.com.py";
 
@@ -48,4 +48,16 @@ test("sin destino, al chat", () => {
 
 test("una ruta rota no rompe el login", () => {
   assert.equal(destinoSeguro("/%%%", ORIGEN), "/eos/chat");
+});
+
+test("con el onboarding a la mitad y sin destino pedido, vuelve al onboarding", () => {
+  assert.equal(destinoTrasLogin("/eos/chat", true), "/eos/onboarding");
+});
+
+test("con el onboarding a la mitad pero viniendo a pagar, va a pagar", () => {
+  assert.equal(destinoTrasLogin("/pago/tarjeta?plan=pro", true), "/pago/tarjeta?plan=pro");
+});
+
+test("con el onboarding terminado, el destino no cambia", () => {
+  assert.equal(destinoTrasLogin("/eos/chat", false), "/eos/chat");
 });
