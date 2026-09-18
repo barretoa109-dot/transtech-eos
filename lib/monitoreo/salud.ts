@@ -199,6 +199,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
      se deciden acá y no en la base, porque acá se pueden explicar en castellano
      y cambiar sin una migración. */
   chequeos.push(...(await chequeosOperativos()));
+  chequeos.push(await chequeoEmbudo());
 
   const fallos = chequeos.filter((c) => !c.ok);
 
@@ -208,6 +209,58 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
     chequeos,
     fallos,
   };
+}
+
+export type FilaEmbudo = {
+  acciones_ok: number;
+  activado_v1: boolean;
+  primer_pago: string | null;
+  ultimo_mensaje: string | null;
+};
+
+/**
+ * El embudo de las cuentas REALES en una línea.
+ *
+ * Solo cuentas reales (`eos_cuentas_v172`): las de QA, certificación y las
+ * huérfanas inflaban cada conteo de esta pantalla. "Activada" es la hipótesis
+ * v1 de la migración v173 (acción exitosa + memoria + dos días de uso), no una
+ * verdad: se muestra para poder mirarla, no para decidir con ella.
+ */
+export function resumirEmbudo(filas: FilaEmbudo[], ahora: number = Date.now()): string {
+  const activas7d = filas.filter(
+    (f) => f.ultimo_mensaje !== null && ahora - Date.parse(f.ultimo_mensaje) <= 7 * 86_400_000,
+  ).length;
+  const conAccion = filas.filter((f) => f.acciones_ok > 0).length;
+  const activadas = filas.filter((f) => f.activado_v1).length;
+  const pagaron = filas.filter((f) => f.primer_pago !== null).length;
+
+  return (
+    `${filas.length} cuentas reales · ${activas7d} activas en 7 días · ` +
+    `${conAccion} con una acción exitosa · ${activadas} activadas · ${pagaron} con un pago`
+  );
+}
+
+async function chequeoEmbudo(): Promise<Chequeo> {
+  const nombre = "Embudo de cuentas reales (informativo)";
+
+  try {
+    const { data, error } = await adminSinTipos()
+      .from("eos_analitica_usuario_v172")
+      .select("acciones_ok,activado_v1,primer_pago,ultimo_mensaje")
+      .eq("tipo", "real")
+      .limit(5000);
+
+    if (error) throw new Error(error.message);
+
+    return { nombre, ok: true, detalle: resumirEmbudo((data ?? []) as FilaEmbudo[]) };
+  } catch (error) {
+    // Informativo: que no se pueda calcular no es una falla que alarme a nadie.
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
 }
 
 type Operativa = {
