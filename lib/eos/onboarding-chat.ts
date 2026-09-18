@@ -222,7 +222,76 @@ async function avanzar(admin: ClienteSinTipos, usuarioId: string, siguiente: Pas
   if (error) console.error("Onboarding por chat: no se pudo avanzar de paso:", error);
 }
 
+/**
+ * Qué hacer con el PRIMER mensaje de una cuenta que todavía no empezó.
+ *
+ * Hasta el 2026-09-18 toda cuenta nueva pasaba por cinco preguntas sobre su plata
+ * personal (cuentas, ingresos, gastos fijos, deudas, preocupaciones) ANTES de
+ * poder hacer nada. Los datos de las cuentas reales dicen otra cosa: las dos que
+ * de verdad retienen usan EOS para cargar ventas, productos y compras de un
+ * negocio por chat, ninguna usó las finanzas personales, y una cuenta dada de
+ * alta por WhatsApp se quedó en la bienvenida sin escribir un solo mensaje.
+ *
+ *   * `plata`  — pidió ordenar su plata personal: se hace el cuestionario de siempre.
+ *   * `saludo` — solo saludó: se le muestra cómo empezar (una venta, hablando).
+ *   * `directo` — ya dijo algo: se lo atiende con el chat normal, sin ceremonia,
+ *     que es precisamente lo que quería.
+ *
+ * En los dos últimos el onboarding queda completado: lo que falta de la persona
+ * se va aprendiendo conversando, no en un formulario previo.
+ */
+export type RumboDeBienvenida = "plata" | "saludo" | "directo";
+
+const PALABRAS_DE_SALUDO = new Set([
+  "hola", "holi", "hey", "buenas", "buen", "buenos", "dia", "dias", "tarde", "tardes",
+  "noche", "noches", "que", "tal", "como", "estas", "va", "eos", "empezar", "empecemos",
+  "comenzar", "comencemos", "start", "inicio", "quiero",
+]);
+
+const PIDE_ORDENAR_PLATA =
+  /\b(mi plata|mis finanzas|mi dinero|mis deudas|mis gastos|ordenar mi|ordename|ordenar mis)\b/;
+
+export function decidirBienvenida(texto: string): RumboDeBienvenida {
+  const plano = sinAcentos(texto)
+    .replace(/[¡!¿?.,;:"«»()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (PIDE_ORDENAR_PLATA.test(plano)) return "plata";
+
+  const palabras = plano.split(" ").filter(Boolean);
+  if (palabras.length === 0) return "saludo";
+  if (palabras.length <= 5 && palabras.every((p) => PALABRAS_DE_SALUDO.has(p))) return "saludo";
+
+  return "directo";
+}
+
+async function completar(admin: ClienteSinTipos, usuarioId: string) {
+  const { error } = await admin
+    .from("eos_onboarding")
+    .update({
+      paso: "completado",
+      completado_en: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("usuario_id", usuarioId);
+
+  if (error) console.error("Onboarding por chat: no se pudo completar:", error);
+}
+
 const TEXTOS: Record<string, string> = {
+  primerValor: [
+    "¡Hola! Soy EOS. Te ayudo a llevar tu negocio hablando, sin planillas.",
+    "",
+    "Probemos con lo primero: contame algo que vendiste o compraste, tal cual lo dirías vos. Por ejemplo:",
+    "• «Vendí 2 remeras a 80 mil cada una»",
+    "• «Compré 10 cajas de gaseosa a 120 mil»",
+    "",
+    "Yo lo anoto y te digo cómo quedan tu stock y tu caja.",
+    "",
+    "Si además querés que ordene tu plata personal (cuentas, deudas, gastos fijos), escribime «mi plata» cuando quieras.",
+  ].join("\n"),
+
   bienvenida: [
     "¡Hola! Soy EOS. Antes de arrancar te voy a hacer algunas preguntas sobre tu plata — dónde la tenés, qué entra, qué sale y a quién le debés.",
     "Es una sola vez: cuando terminemos no vas a tener que contarme esto de nuevo. Si algo no aplica, escribime \"no\" y seguimos.",
@@ -276,9 +345,21 @@ export async function atenderOnboardingPorChat(
   const hoy = hoyEnParaguay();
 
   switch (paso) {
-    case "bienvenida":
-      await avanzar(admin, usuarioId, "cuentas");
-      return TEXTOS.bienvenida;
+    case "bienvenida": {
+      const rumbo = decidirBienvenida(mensajeTexto);
+
+      if (rumbo === "plata") {
+        await avanzar(admin, usuarioId, "cuentas");
+        return TEXTOS.bienvenida;
+      }
+
+      await completar(admin, usuarioId);
+
+      // Si ya dijo algo, el chat de siempre lo atiende (devolver null es "seguí
+      // con el motor"): repetirle una bienvenida encima de lo que pidió es lo
+      // que hace que alguien cierre WhatsApp.
+      return rumbo === "saludo" ? TEXTOS.primerValor : null;
+    }
 
     case "cuentas":
       if (!quiereSaltear(mensajeTexto)) await guardarCuentas(admin, usuarioId, mensajeTexto);
