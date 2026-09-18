@@ -79,3 +79,48 @@ grant select on table public.eos_daily_briefing_context_v5 to service_role;
 
 comment on view public.eos_daily_briefing_context_v5 is
   'Entrada del briefing diario de n8n: solo cuentas reales y activas (v174). La definición completa está en eos_daily_briefing_context_todos_v174; modificar ESA, no esta.';
+
+-- ============================================================
+-- LO MISMO PARA EL WORKFLOW DE APRENDIZAJE
+-- ============================================================
+--
+-- "Aprendizaje de resultados v7" también es programado, también llama a
+-- OpenAI por cada fila de su vista (`eos_learning_context_v7`) y tenía el
+-- mismo problema: 8 de las 14 filas eran cuentas que no son clientes (medido
+-- el 2026-09-18), y el 32 % de los aprendizajes guardados eran de cuentas de
+-- certificación e internas. Mismo envoltorio, mismo criterio de actividad.
+
+alter view public.eos_learning_context_v7
+  rename to eos_learning_context_todos_v174;
+
+create view public.eos_learning_context_v7
+with (security_invoker = true) as
+select c.*
+from public.eos_learning_context_todos_v174 c
+where exists (
+    select 1
+    from public.eos_cuentas_v172 t
+    where t.usuario_id = c.usuario_id
+      and t.tipo = 'real'
+  )
+  and (
+    exists (
+      select 1
+      from public.mensajes m
+      where m.usuario_id = c.usuario_id
+        and m.rol = 'usuario'
+        and m.created_at > now() - interval '30 days'
+    )
+    or exists (
+      select 1
+      from public.usuarios u
+      where u.id = c.usuario_id
+        and u.created_at > now() - interval '14 days'
+    )
+  );
+
+revoke all on table public.eos_learning_context_v7 from public, anon, authenticated;
+grant select on table public.eos_learning_context_v7 to service_role;
+
+comment on view public.eos_learning_context_v7 is
+  'Entrada del aprendizaje de resultados de n8n: solo cuentas reales y activas (v174). La definición completa está en eos_learning_context_todos_v174; modificar ESA, no esta.';
