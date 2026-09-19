@@ -151,7 +151,7 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
             <button type="button" className="neg-resumen-card is-primary" onClick={() => setPestania("oportunidades")}>
               <Handshake size={17} />
               <span>Oportunidades</span>
-              <strong>Ver pipeline</strong>
+              <strong>Ver embudo</strong>
               <small>Seguimiento y avance</small>
             </button>
             <button type="button" className="neg-resumen-card" onClick={() => setPestania("contactos")}>
