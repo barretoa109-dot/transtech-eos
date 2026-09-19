@@ -43,7 +43,7 @@ import type { Contacto } from "./negocio/tipos";
 type Pestania = "oportunidades" | "contactos" | "conversaciones";
 
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string; icono: typeof TrendingUp }[] = [
-  { clave: "oportunidades", etiqueta: "Oportunidades", detalle: "Pipeline y seguimiento", icono: TrendingUp },
+  { clave: "oportunidades", etiqueta: "Oportunidades", detalle: "Embudo y seguimiento", icono: TrendingUp },
   { clave: "contactos", etiqueta: "Contactos", detalle: "Clientes y proveedores", icono: Users },
   { clave: "conversaciones", etiqueta: "Conversaciones", detalle: "WhatsApp con tus clientes", icono: MessageCircle },
 ];
