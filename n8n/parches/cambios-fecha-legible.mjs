@@ -35,7 +35,7 @@ const HELPER = [
   "",
   "function fechaLarga(iso, respaldo) {",
   "  const texto = typeof iso === 'string' ? iso : '';",
-  "  const m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);",
+  "  const m = texto.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})/);",
   "",
   "  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) {",
   "    return respaldo !== undefined ? respaldo : String(iso || '');",
