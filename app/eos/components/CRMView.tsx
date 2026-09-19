@@ -43,7 +43,7 @@ import type { Contacto } from "./negocio/tipos";
 type Pestania = "oportunidades" | "contactos" | "conversaciones";
 
 const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string; icono: typeof TrendingUp }[] = [
-  { clave: "oportunidades", etiqueta: "Oportunidades", detalle: "Pipeline y seguimiento", icono: TrendingUp },
+  { clave: "oportunidades", etiqueta: "Oportunidades", detalle: "Embudo y seguimiento", icono: TrendingUp },
   { clave: "contactos", etiqueta: "Contactos", detalle: "Clientes y proveedores", icono: Users },
   { clave: "conversaciones", etiqueta: "Conversaciones", detalle: "WhatsApp con tus clientes", icono: MessageCircle },
 ];
@@ -151,7 +151,7 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
             <button type="button" className="neg-resumen-card is-primary" onClick={() => setPestania("oportunidades")}>
               <Handshake size={17} />
               <span>Oportunidades</span>
-              <strong>Ver pipeline</strong>
+              <strong>Ver embudo</strong>
               <small>Seguimiento y avance</small>
             </button>
             <button type="button" className="neg-resumen-card" onClick={() => setPestania("contactos")}>

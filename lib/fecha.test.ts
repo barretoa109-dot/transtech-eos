@@ -28,3 +28,23 @@ test("sumarDias cruza el fin de año hacia atrás", () => {
 test("sumarDias respeta el 29 de febrero de un bisiesto", () => {
   assert.equal(sumarDias("2028-02-28", 1), "2028-02-29");
 });
+
+import { esFechaISOValida } from "./fecha.ts";
+
+test("esFechaISOValida acepta fechas reales, incluido el 29 de febrero bisiesto", () => {
+  for (const f of ["2026-09-18", "2028-02-29", "2026-12-31", "2026-01-01"]) {
+    assert.equal(esFechaISOValida(f), true, f);
+  }
+});
+
+test("esFechaISOValida rechaza días que no existen, aunque tengan el formato", () => {
+  for (const f of ["2026-13-45", "2026-02-31", "2027-02-29", "2026-00-10", "2026-04-31"]) {
+    assert.equal(esFechaISOValida(f), false, f);
+  }
+});
+
+test("esFechaISOValida rechaza lo que no es una fecha ISO", () => {
+  for (const f of ["", "18/09/2026", "2026-9-8", "2026-09-18T10:00:00Z", null, undefined, 20260918, {}]) {
+    assert.equal(esFechaISOValida(f), false, String(f));
+  }
+});

@@ -8,6 +8,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { empresaDe } from "@/lib/empresa/acceso";
+import { esFechaISOValida } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,19 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const motivo = String(cuerpo?.motivo ?? "").trim().slice(0, 500) || "Editada";
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo?.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
+  /*
+   * Vencimiento (v178). Opcional: sin fecha, la venta conserva el que ya tenía
+   * — corregir una cantidad no puede borrar un plazo pactado.
+   *
+   * Una fecha que no existe se rechaza acá con un 400 y no se ignora en
+   * silencio: quien la escribió cree que quedó guardada.
+   */
+  const venceEnBruto = cuerpo?.vence_el;
+  if (venceEnBruto !== undefined && venceEnBruto !== null && venceEnBruto !== "" && !esFechaISOValida(venceEnBruto)) {
+    return respuesta("La fecha de vencimiento no es válida.", 400);
+  }
+  const venceEl = cuerpo?.condicion === "credito" && esFechaISOValida(venceEnBruto) ? venceEnBruto : null;
+
   const admin = adminSinTipos();
 
   const { data: antes } = await admin
@@ -83,6 +97,10 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     p_cobrada: cuerpo?.condicion === "credito" ? false : cuerpo?.cobrada !== false,
     p_notas: String(cuerpo?.notas ?? "").trim().slice(0, 2000) || null,
     p_motivo: motivo,
+    // Solo cuando hay una fecha nueva: sin ella el parámetro no viaja y la
+    // función conserva el vencimiento original. Así esto también funciona si el
+    // código sale antes que la v178 (la firma vieja no tiene `p_vence_el`).
+    ...(venceEl ? { p_vence_el: venceEl } : {}),
   });
 
   if (error) {
