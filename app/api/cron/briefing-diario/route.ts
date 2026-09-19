@@ -5,6 +5,7 @@ import { Resend } from "resend";
 
 import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
+import { avisarUsoAlto } from "@/lib/monitoreo/uso-alto";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
@@ -103,6 +104,18 @@ export async function GET(request: Request) {
       if (!reporte.sano) await enviarAlerta(reporte, base);
     } catch (error) {
       console.error("Briefing: falló el chequeo de salud posterior:", error);
+    }
+  });
+
+  // Aviso INTERNO de uso alto: cuentas sin tope de mensajes que llegaron a 400 en
+  // el mes. Nunca le llega a la persona y no corta nada; es para que decidan
+  // quienes administran EOS. Va acá, antes de cualquier salida temprana, por lo
+  // mismo que el chequeo de salud. Cada cuenta se avisa una vez por mes.
+  after(async () => {
+    try {
+      await avisarUsoAlto(baseUrlApp());
+    } catch (error) {
+      console.error("Briefing: falló el aviso de uso alto:", error);
     }
   });
 
