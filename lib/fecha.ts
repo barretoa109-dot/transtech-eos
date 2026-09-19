@@ -33,3 +33,18 @@ export function sumarDias(iso: string, dias: number): string {
   const base = Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
   return new Date(base + dias * 86_400_000).toISOString().slice(0, 10);
 }
+
+/**
+ * ¿Es una fecha `AAAA-MM-DD` que existe de verdad?
+ *
+ * El patrón `\d{4}-\d{2}-\d{2}` deja pasar "2026-13-45" y "2026-02-31", y esos
+ * llegan a Postgres como un error de casteo: un 500 con cara de falla del
+ * servidor por lo que fue un dato mal tipeado. Se comprueba yendo y volviendo
+ * por una fecha real: si al reconstruirla no da lo mismo, el día no existía.
+ */
+export function esFechaISOValida(valor: unknown): valor is string {
+  if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+
+  const t = Date.parse(`${valor}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === valor;
+}

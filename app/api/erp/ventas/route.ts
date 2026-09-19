@@ -9,6 +9,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { esFechaISOValida } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
@@ -114,10 +115,17 @@ export async function POST(request: Request) {
   // Opcional (v168): la RPC ya lo ignora al contado, pero no vale la pena
   // mandarle a la base algo que un `cuerpo.vence_el` mal formado podría
   // convertir en un error de casteo en vez de un 400 legible.
-  const venceEl =
-    cuerpo.condicion === "credito" && /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.vence_el ?? ""))
-      ? String(cuerpo.vence_el)
-      : null;
+  // Un día que no existe ("2026-02-31") pasa el patrón y explota en Postgres
+  // como un 500: se rechaza acá, con un mensaje que se entiende.
+  const venceEnBruto = cuerpo.vence_el;
+  if (venceEnBruto !== undefined && venceEnBruto !== null && venceEnBruto !== "" && !esFechaISOValida(venceEnBruto)) {
+    return NextResponse.json(
+      { error: "La fecha de vencimiento no es válida." },
+      { status: 400, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
+  }
+
+  const venceEl = cuerpo.condicion === "credito" && esFechaISOValida(venceEnBruto) ? venceEnBruto : null;
 
   const { data, error } = await adminSinTipos().rpc("eos_erp_registrar_venta", {
     p_usuario_id: puerta.usuarioId,

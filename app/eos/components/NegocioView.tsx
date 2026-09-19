@@ -554,6 +554,9 @@ function Ventas({
     );
     setContactoId(venta.contacto?.id ?? "");
     setCondicion(venta.condicion === "credito" ? "credito" : "contado");
+    // El vencimiento que ya tenía (v178): sin precargarlo, el campo aparecería
+    // vacío y parecería que la venta no lo tiene.
+    setVenceEl(venta.vence_el ?? "");
     setEditandoId(venta.id);
     setMotivoEdicion("");
     setError("");
@@ -597,6 +600,7 @@ function Ventas({
               moneda,
               items,
               motivo: motivoEdicion.trim(),
+              vence_el: condicion === "credito" && venceEl ? venceEl : null,
             }),
           })
         : await fetch("/api/erp/ventas", {
@@ -690,16 +694,18 @@ function Ventas({
             </div>
 
             {/*
-              Solo para ventas nuevas: "editar" anula y vuelve a registrar
-              (v116) por otro camino que todavía no manda vence_el, así que
-              mostrarlo ahí prometería algo que no se guarda.
+              También al corregir (v178): "corregir" anula y vuelve a registrar
+              por dentro, y desde la v178 conserva el vencimiento que ya tenía o
+              toma el nuevo. Antes se ocultaba acá porque no se guardaba.
             */}
-            {condicion === "credito" && !editandoId && (
+            {condicion === "credito" && (
               <div className="field-row">
                 <span className="field-label">
                   Vence el
                   <span className="field-hint">
-                    Opcional. Sin fecha, el aviso de cobro demorado usa 30 días desde hoy
+                    {editandoId
+                      ? "Si lo dejás como está, se conserva. Para quitarlo, anulá la venta y cargala de nuevo"
+                      : "Opcional. Sin fecha, el aviso de cobro demorado usa 30 días desde hoy"}
                   </span>
                 </span>
                 <input
