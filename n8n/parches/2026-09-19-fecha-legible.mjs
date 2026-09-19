@@ -26,7 +26,6 @@ const RAIZ = path.resolve(
   "..",
 );
 
-const GATEWAY = "JRgzUkoHBKgGpyPA";
 const WORKER = "iUMdg9fhAg54irmy";
 
 function env() {
@@ -55,14 +54,6 @@ async function traer(id, intentos = 6) {
     }
   }
   return null;
-}
-
-function cambiar(texto, viejo, nuevo, donde) {
-  const partes = texto.split(viejo);
-  if (partes.length !== 2) {
-    throw new Error(`[${donde}] el texto aparece ${partes.length - 1} veces, no 1. No se escribió nada.`);
-  }
-  return partes.join(nuevo);
 }
 
 function nodo(flujo, prefijo) {

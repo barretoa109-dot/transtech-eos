@@ -358,7 +358,7 @@ test("una corrección dice qué tocó y qué había antes", () => {
     }),
   );
 
-  assert.match(t ?? "", /Corregí nafta del 2026-09-08/);
+  assert.match(t ?? "", /Corregí nafta del 8 de septiembre/);
   assert.match(t ?? "", /de ₲ 800\.000 a ₲ 80\.000/);
 });
 
@@ -412,7 +412,7 @@ test("la anulación dice QUÉ anuló: fecha, productos y total", () => {
     candidatos: 1,
   }));
 
-  assert.match(texto ?? "", /2026-09-09/);
+  assert.match(texto ?? "", /9 de septiembre/);
   assert.match(texto ?? "", /Conjunto verde oliva talle S/);
   assert.match(texto ?? "", /370\.000/);
 });
