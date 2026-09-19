@@ -2,7 +2,7 @@
 --
 -- Se corre DESPUÉS de la migración, en una transacción con rollback:
 --
---     cat supabase/migrations/20260918180000_eos_editar_venta_conserva_vence_el_v178.sql \
+--     cat supabase/migrations/20260919000000_eos_editar_venta_conserva_vence_el_v178.sql \
 --         supabase/pruebas/venta_vence_el_e2e.sql > /tmp/e2e178.sql
 --     npx supabase db query --linked -f /tmp/e2e178.sql
 
