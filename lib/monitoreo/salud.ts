@@ -20,6 +20,7 @@
  */
 
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
+import { UMBRAL_USO_ALTO, cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
 
 export type Chequeo = {
   nombre: string;
@@ -201,6 +202,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
   chequeos.push(...(await chequeosOperativos()));
   chequeos.push(await chequeoEmbudo());
   chequeos.push(await chequeoChatReal());
+  chequeos.push(await chequeoUsoAlto());
 
   const fallos = chequeos.filter((c) => !c.ok);
 
@@ -340,6 +342,35 @@ export function evaluarChat(
     ok: !(sinRespuesta >= CHAT_MIN_FALLAS && proporcion >= CHAT_MIN_PROPORCION),
     detalle,
   };
+}
+
+/**
+ * Informativo, nunca "roto": que una cuenta sin tope pase de 400 mensajes
+ * es una decisión comercial por tomar, no una falla del sistema, y tumbar la
+ * salud (que consulta un monitor externo) por eso lo haría parpadear. El aviso
+ * por correo sale aparte, una vez por cuenta y por mes (ver `uso-alto.ts`).
+ */
+async function chequeoUsoAlto(): Promise<Chequeo> {
+  const nombre = `Cuentas sin tope sobre ${UMBRAL_USO_ALTO} mensajes (informativo)`;
+
+  try {
+    const cuentas = await cuentasConUsoAlto(false);
+
+    return {
+      nombre,
+      ok: true,
+      detalle:
+        cuentas.length === 0
+          ? "ninguna este mes"
+          : cuentas.map(describirCuenta).join(" | "),
+    };
+  } catch (error) {
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
 }
 
 async function chequeoChatReal(): Promise<Chequeo> {
