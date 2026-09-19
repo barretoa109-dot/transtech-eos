@@ -1,31 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, CheckCheck, Clock, MessageCircle, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Clock, MessageCircle, Settings, ShieldAlert } from "lucide-react";
 import type { Conversacion, MensajeVisible } from "@/lib/whatsapp-crm/conversaciones";
+import AjustesCanalWA, { type CanalWA } from "./AjustesCanalWA";
+import ConectarWhatsApp from "./ConectarWhatsApp";
+import ResponderWA from "./ResponderWA";
+import type { PlantillaWA } from "./PlantillasWA";
 
 /**
  * Las conversaciones de WhatsApp de la empresa con sus clientes.
  *
  * De dónde sale todo: `GET /api/crm/whatsapp`, que lee `eos_wa_mensajes`,
  * `eos_wa_consentimientos` y `eos_wa_eventos` con la sesión de la persona (la
- * RLS decide qué ve). Nada de esto es un dato de muestra: sin canal conectado o
- * sin mensajes, la pantalla lo dice y explica qué falta.
+ * RLS decide qué ve). Nada de esto es un dato de muestra.
  *
- * Qué NO hace, a propósito: enviar. Hace falta el token de Meta de la empresa
- * (ver `docs/whatsapp-crm.md`) y un botón que no envía nada es peor que ningún
- * botón. Cuando el canal pueda enviar, acá va la caja de respuesta.
+ * Desde acá se hace todo el ciclo del canal:
+ *   · sin canal → el formulario para conectarlo (`ConectarWhatsApp`);
+ *   · con canal → sus ajustes y plantillas (`AjustesCanalWA`) y las conversaciones;
+ *   · en cada conversación → la caja para contestar (`ResponderWA`), que solo aparece
+ *     si el canal puede enviar y el cliente no pidió la baja.
  */
 
-type Canal = {
-  nombre: string | null;
-  telefono: string | null;
-  estado: string;
-  respuesta_automatica: boolean;
-  puede_enviar: boolean;
-};
+type Canal = CanalWA;
 
-type Respuesta = { disponible: boolean; canal: Canal | null; conversaciones: Conversacion[] };
+type Respuesta = {
+  disponible: boolean;
+  canal: Canal | null;
+  plantillas?: PlantillaWA[];
+  conversaciones: Conversacion[];
+};
 
 const INTENCIONES: Record<string, string> = {
   consulta_precio: "Consultó el precio",
@@ -75,6 +79,7 @@ export default function ConversacionesWA() {
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [ajustes, setAjustes] = useState(false);
 
   const cargar = useCallback(() => {
     return fetch("/api/crm/whatsapp", { cache: "no-store" })
@@ -115,25 +120,25 @@ export default function ConversacionesWA() {
     );
   }
 
-  if (!datos || !datos.disponible || !datos.canal) {
+  // La función todavía no está disponible en esta cuenta (migración sin aplicar).
+  if (!datos || !datos.disponible) {
     return (
       <div className="card">
-        <div className="card-title">Todavía no conectaste el WhatsApp de tu empresa</div>
+        <div className="card-title">El WhatsApp de la empresa todavía no está disponible</div>
         <p className="prose">
-          Este es el WhatsApp con el que tus <strong>clientes</strong> te escriben, distinto del que
-          usás para hablar con EOS. Cuando esté conectado, cada mensaje se asocia al cliente correcto,
-          se actualiza su última interacción y EOS te avisa cuando alguien necesita que le contestes
-          vos.
-        </p>
-        <p className="prose">
-          Para conectarlo hace falta una cuenta de WhatsApp Business de tu empresa y su acceso de
-          Meta. Escribile a soporte para coordinarlo.
+          Estamos terminando de habilitarlo. En cuanto esté, vas a poder conectar tu número desde acá.
         </p>
       </div>
     );
   }
 
+  // Sin canal conectado: el formulario para conectarlo.
+  if (!datos.canal) {
+    return <ConectarWhatsApp onConectado={() => void cargar()} />;
+  }
+
   const { canal, conversaciones } = datos;
+  const plantillas = datos.plantillas ?? [];
   const esperando = conversaciones.filter((c) => c.esperando).length;
   const seleccionada = conversaciones.find((c) => c.clave === abierta) ?? null;
 
@@ -156,12 +161,18 @@ export default function ConversacionesWA() {
             {esperando} {esperando === 1 ? "cliente espera" : "clientes esperan"} tu respuesta
           </span>
         )}
+        <button type="button" className="ghost-btn" onClick={() => setAjustes((a) => !a)} aria-expanded={ajustes}>
+          <Settings size={14} /> {ajustes ? "Cerrar ajustes" : "Ajustes"}
+        </button>
       </div>
+
+      {ajustes && <AjustesCanalWA canal={canal} plantillas={plantillas} onCambio={() => void cargar()} />}
 
       {!canal.puede_enviar && (
         <p className="prose" style={{ color: "var(--muted)", fontSize: 13 }}>
-          Por ahora EOS <strong>registra</strong> lo que tus clientes escriben, arma su historial y te
-          avisa; para contestar desde acá falta conectar el acceso de envío de tu WhatsApp Business.
+          {canal.estado === "pausado"
+            ? "El canal está pausado: EOS sigue registrando lo que tus clientes escriben, pero no sale ningún mensaje."
+            : "Falta el acceso de envío de tu WhatsApp Business: EOS registra lo que tus clientes escriben, pero no puede contestar. Volvé a conectar el canal desde Ajustes."}
         </p>
       )}
 
@@ -265,6 +276,26 @@ export default function ConversacionesWA() {
                   );
                 })}
               </div>
+
+              {/* Contestar: solo con un canal que puede enviar, un cliente con ficha y sin baja.
+                  Las demás reglas (ventana de 24 horas, límites) las aplica el servidor y
+                  vuelven con su motivo. */}
+              {canal.puede_enviar && (
+                <ResponderWA
+                  key={seleccionada.clave}
+                  contactoId={seleccionada.contacto_id ?? ""}
+                  nombre={seleccionada.nombre}
+                  plantillas={plantillas}
+                  bloqueado={
+                    !seleccionada.contacto_id
+                      ? "Este número todavía no tiene ficha de cliente: no se le puede escribir desde acá."
+                      : seleccionada.consentimiento === "revocado"
+                        ? "Este cliente pidió no recibir más mensajes. Respetarlo protege la calidad del número de tu empresa."
+                        : undefined
+                  }
+                  onEnviado={() => void cargar()}
+                />
+              )}
             </div>
           )}
         </div>
