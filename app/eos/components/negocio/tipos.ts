@@ -93,6 +93,8 @@ export type Compra = {
   estado: string;
   numero_comprobante: string | null;
   movimiento_id: string | null;
+  /** Cuándo hay que pagarle al proveedor (v180). Solo las compras a crédito lo llevan. */
+  vence_el?: string | null;
   contacto: { id: string; nombre: string } | null;
   items: CompraItem[];
 };

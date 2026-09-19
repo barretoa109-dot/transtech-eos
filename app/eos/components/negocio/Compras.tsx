@@ -96,6 +96,8 @@ export default function Compras({
   const [fecha, setFecha] = useState("");
   const [notas, setNotas] = useState("");
   const [condicion, setCondicion] = useState<"contado" | "credito">("contado");
+  /** Opcional (v180): cuándo hay que pagarle al proveedor. Solo a crédito. */
+  const [venceEl, setVenceEl] = useState("");
   const [lineas, setLineas] = useState<LineaEnEdicion[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -266,6 +268,7 @@ export default function Compras({
     setNotas("");
     setContactoId("");
     setCondicion("contado");
+    setVenceEl("");
     setEditandoId(null);
     setMotivoEdicion("");
     setError("");
@@ -286,6 +289,9 @@ export default function Compras({
     );
     setContactoId(compra.contacto?.id ?? "");
     setCondicion(compra.condicion === "credito" ? "credito" : "contado");
+    // El vencimiento que ya tenía: sin precargarlo, el campo aparecería vacío y
+    // parecería que la compra no lo tiene.
+    setVenceEl(compra.vence_el ?? "");
     setComprobante(compra.numero_comprobante ?? "");
     setFecha(compra.fecha ?? "");
     setNotas("");
@@ -341,6 +347,7 @@ export default function Compras({
               moneda,
               items,
               motivo: motivoEdicion.trim(),
+              vence_el: condicion === "credito" && venceEl ? venceEl : null,
             }),
           })
         : await fetch("/api/erp/compras", {
@@ -354,6 +361,7 @@ export default function Compras({
               condicion,
               moneda,
               items,
+              vence_el: condicion === "credito" && venceEl ? venceEl : null,
             }),
           });
 
@@ -439,6 +447,17 @@ export default function Compras({
               <label className="neg-field"><span>Nº de factura</span><input className="neg-input" placeholder="Ej. 001-001-0001234" value={comprobante} maxLength={40} onChange={(e) => setComprobante(e.target.value)} /></label>
               <label className="neg-field"><span>Fecha</span><input className="neg-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
               <label className="neg-field"><span>Condición</span><select className="neg-input" value={condicion} onChange={(e) => setCondicion(e.target.value === "credito" ? "credito" : "contado")}><option value="contado">Contado · registrar pago ahora</option><option value="credito">Crédito · pagar después</option></select></label>
+              {condicion === "credito" && (
+                <label className="neg-field">
+                  <span>Vence el</span>
+                  <input className="neg-input" type="date" value={venceEl} onChange={(e) => setVenceEl(e.target.value)} />
+                  <small style={{ color: "var(--muted)" }}>
+                    {editandoId
+                      ? "Si lo dejás como está, se conserva. Para quitarlo, anulá la compra y cargala de nuevo"
+                      : "Opcional. Con fecha, EOS te avisa cuando el pago esté por vencer"}
+                  </small>
+                </label>
+              )}
               <label className="neg-field neg-field-wide"><span>Notas</span><input className="neg-input" placeholder="Observación, orden de compra o referencia (opcional)" value={notas} maxLength={2000} onChange={(e) => setNotas(e.target.value)} /></label>
             </div>
 
@@ -647,7 +666,7 @@ export default function Compras({
                     <small>
                       {c.fecha} · {c.contacto?.nombre ?? "Sin proveedor"}
                       {c.numero_comprobante ? ` · ${c.numero_comprobante}` : ""} ·{" "}
-                      {c.condicion === "credito" ? "a crédito" : "contado"}
+                      {c.condicion === "credito" ? "a crédito" : "contado"}{c.condicion === "credito" && c.vence_el ? ` · vence ${c.vence_el}` : ""}
                     </small>
                   </div>
 

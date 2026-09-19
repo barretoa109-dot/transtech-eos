@@ -12,6 +12,7 @@ import { scorePrincipal } from "@/lib/kpi/twin";
 import { avisoDeCobertura } from "@/lib/kpi/score";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { hoyEnParaguay } from "@/lib/fecha";
+import { leerComprasAPagar } from "@/lib/erp/compras-a-pagar";
 import type { PuntoHistoria } from "@/lib/kpi/historia";
 import {
   detectarRiesgosNegocio,
@@ -196,8 +197,13 @@ export async function GET() {
       .gte("fecha", restarDias(hoy, 30))
       .limit(5000);
 
+    // Los pagos a proveedores vencidos o por vencer (`lib/erp/pagos-proveedores.ts`).
+    // Si no se pudo leer, este aviso simplemente no sale: no se dice "todo al día".
+    const comprasAPagar = await leerComprasAPagar(admin, user.id);
+
     const riesgos = detectarRiesgosNegocio({
       hoy,
+      comprasAPagar: comprasAPagar ?? [],
       salidasStock: ((salidasRiesgo.data ?? []) as SalidaDeStock[]).map((s) => ({
         producto_id: s.producto_id,
         fecha: s.fecha,

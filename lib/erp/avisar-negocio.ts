@@ -1,6 +1,7 @@
 import { entregarAviso, type EnviarCorreo } from "../finanzas/avisarRiesgos.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import { hoyEnParaguay, sumarDias } from "../fecha.ts";
+import { leerComprasAPagar } from "./compras-a-pagar.ts";
 import {
   detectarRiesgosNegocio,
   redactarRiesgoNegocio,
@@ -87,6 +88,10 @@ export async function avisarRiesgosNegocio(
     resumen.evaluados += 1;
 
     try {
+      // Aparte del `Promise.all`: es la única lectura que puede FALLAR sin que
+      // eso signifique "no hay nada" (ver `leerComprasAPagar`).
+      const comprasAPagar = await leerComprasAPagar(admin, uid);
+
       const [productos, ventas, gastos, fijos, previos, salidas] = await Promise.all([
         admin
           .from("eos_erp_productos")
@@ -147,6 +152,7 @@ export async function avisarRiesgosNegocio(
 
       const riesgos = detectarRiesgosNegocio({
         hoy,
+        comprasAPagar: comprasAPagar ?? [],
         salidasStock: ((salidas.data ?? []) as SalidaDeStock[]).map((s) => ({
           producto_id: s.producto_id,
           fecha: s.fecha,
@@ -181,6 +187,9 @@ export async function avisarRiesgosNegocio(
        * porque el problema volvió y eso sí es una noticia.
        */
       const tiposVigentes = new Set(riesgos.map((r) => r.tipo));
+      // Si no se pudieron leer las compras, NO se sabe si el aviso de pagos sigue
+      // vigente: se lo deja como está en vez de "resolverlo" por un error de lectura.
+      if (comprasAPagar === null) tiposVigentes.add("pagos_a_proveedores");
       for (const tipo of yaAvisado.keys()) {
         if (!tiposVigentes.has(tipo as RiesgoNegocio["tipo"])) {
           await admin.from("eos_negocio_avisos").delete().eq("usuario_id", uid).eq("tipo", tipo);
