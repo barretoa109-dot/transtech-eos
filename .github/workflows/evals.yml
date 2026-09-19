@@ -93,3 +93,14 @@ jobs:
       # privileges de la v0): hacen falta los dos revokes, y con uno solo la función
       # queda expuesta en /rest/v1/rpc sin que nada falle. Probado en rojo.
       - run: npm run grants
+
+      # Que la aplicación COMPILE, no solo que los tipos cierren. `tsc` y el lint
+      # pasaron con un error que rompía el despliegue: sin las variables públicas,
+      # `/actualizar-contrasena` falla al prerenderizarse (el cliente de Supabase se
+      # crea al importar la página). Vercel compila igual, pero su fallo no bloquea
+      # un merge: este paso sí. Los valores son de relleno: la compilación no se
+      # conecta a nada, solo necesita que existan.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-build.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-anon-key
