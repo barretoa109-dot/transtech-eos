@@ -55,11 +55,20 @@ export const caso = {
     alTerminar(() => cliente.auth.admin.deleteUser(id));
 
     // ---------- Arranca ----------
-    const { error: errorInicio } = await cliente
+    // Desde la v114 la fila nace con la cuenta (`handle_new_user()`): el recorrido
+    // arranca solo, en la bienvenida. Insertarla acá chocaba con la clave primaria y
+    // dejaba este caso en rojo por un defecto de la prueba, no del producto.
+    const { data: inicio, error: errorInicio } = await cliente
       .from("eos_onboarding")
-      .insert({ usuario_id: id, paso: "bienvenida" });
+      .select("paso,completado_en")
+      .eq("usuario_id", id)
+      .maybeSingle();
 
-    comprobar("el recorrido arranca en la bienvenida", !errorInicio, errorInicio?.message ?? "");
+    comprobar(
+      "el recorrido arranca en la bienvenida",
+      !errorInicio && inicio?.paso === "bienvenida" && !inicio?.completado_en,
+      errorInicio?.message ?? `paso: ${inicio?.paso ?? "sin fila"}`,
+    );
 
     // ---------- Avanza paso por paso ----------
     const noAvanzan = [];
