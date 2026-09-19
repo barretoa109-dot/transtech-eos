@@ -8,8 +8,14 @@ import {
 } from "./gasto-anormal.ts";
 
 import { proyectarAgotamiento, type SalidaDeStock } from "./agotamiento.ts";
+import {
+  pagosAProveedores,
+  redactarPagos,
+  type CompraAPagar,
+  type PagosPorMoneda,
+} from "./pagos-proveedores.ts";
 
-export type { FijoDeclarado, GastoHistorico, SalidaDeStock };
+export type { CompraAPagar, FijoDeclarado, GastoHistorico, SalidaDeStock };
 
 /**
  * Los riesgos que no son de la caja, sino del negocio.
@@ -93,6 +99,16 @@ export type RiesgoNegocio =
       productos: { nombre: string; stock: number; dias: number }[];
     }
   | {
+      /**
+       * Pagos a proveedores vencidos o que vencen en los próximos 7 días. Uno
+       * solo con todas las monedas adentro: el aviso guarda una fila por tipo.
+       * Ver `lib/erp/pagos-proveedores.ts`.
+       */
+      tipo: "pagos_a_proveedores";
+      clave: string;
+      grupos: PagosPorMoneda[];
+    }
+  | {
       tipo: "cobros_demorados";
       clave: string;
       moneda: string;
@@ -139,6 +155,8 @@ export function detectarRiesgosNegocio(datos: {
   fijos?: FijoDeclarado[];
   /** Las salidas del kardex de los últimos 30 días. Sin ellas no hay proyección. */
   salidasStock?: SalidaDeStock[];
+  /** Compras a crédito sin pagar del todo, con lo ya pagado. Sin ellas no hay aviso de pagos. */
+  comprasAPagar?: CompraAPagar[];
 }): RiesgoNegocio[] {
   const riesgos: RiesgoNegocio[] = [];
 
@@ -235,6 +253,22 @@ export function detectarRiesgosNegocio(datos: {
     });
   }
 
+  // ---------- Pagos a proveedores ----------
+  //
+  // Solo lo que tiene fecha de vencimiento pactada: sin ella no hay plazo que
+  // se pueda incumplir y no se inventa uno (ver `pagos-proveedores.ts`).
+  const pagos = pagosAProveedores(datos.hoy, datos.comprasAPagar ?? [], monedaConocida);
+
+  if (pagos.length > 0) {
+    riesgos.push({
+      tipo: "pagos_a_proveedores",
+      // Por moneda y con los ids adentro: si entra un pago nuevo a la ventana
+      // de 7 días, la clave cambia y eso sí es una noticia.
+      clave: pagos.map((g) => `${g.moneda}:${g.ids.join(",")}`).join("|"),
+      grupos: pagos,
+    });
+  }
+
   // ---------- Gasto anormal ----------
   //
   // Uno solo con la lista adentro, igual que el inventario bajo: dos avisos
@@ -296,6 +330,10 @@ export function redactarRiesgoNegocio(
       `Al ritmo de tus ventas de las últimas semanas, se te podrían acabar pronto: ${lista}. ` +
       "Decime y te dejo la reposición como tarea."
     );
+  }
+
+  if (riesgo.tipo === "pagos_a_proveedores") {
+    return riesgo.grupos.map((g) => redactarPagos(g, formatear)).join(" ");
   }
 
   if (riesgo.tipo === "gasto_anormal") {

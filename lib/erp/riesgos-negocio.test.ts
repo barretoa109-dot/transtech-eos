@@ -383,3 +383,58 @@ test("la clave del agotamiento cambia si cambia qué productos se acaban", () =>
   assert.notEqual(con(["a"]).clave, con(["a", "b"]).clave);
   assert.equal(con(["b", "a"]).clave, con(["a", "b"]).clave);
 });
+
+// ============================================================
+// Pagos a proveedores
+// ============================================================
+
+const compraAPagar = (p: Partial<import("./riesgos-negocio.ts").CompraAPagar> & { id: string }) => ({
+  total: 500_000,
+  pagado: 0,
+  moneda: "PYG",
+  vence_el: "2026-08-26",
+  ...p,
+});
+
+test("un pago a un proveedor vencido es un aviso, con el monto y el atraso", () => {
+  const riesgos = detectarRiesgosNegocio({
+    hoy: HOY,
+    productos: [],
+    ventasACobrar: [],
+    comprasAPagar: [compraAPagar({ id: "c1", total: 500_000, pagado: 200_000 })],
+  });
+
+  assert.equal(riesgos.length, 1);
+  assert.equal(riesgos[0].tipo, "pagos_a_proveedores");
+
+  const texto = redactarRiesgoNegocio(riesgos[0], formatearMonto);
+  assert.match(texto, /1 pago a un proveedor vencido/);
+  assert.match(texto, /300\.000/); // el saldo, no el total
+  assert.match(texto, /5 días de atraso/);
+});
+
+test("sin compras a pagar, o sin fecha de vencimiento, no hay aviso de pagos", () => {
+  assert.deepEqual(detectarRiesgosNegocio({ hoy: HOY, productos: [], ventasACobrar: [] }), []);
+  assert.deepEqual(
+    detectarRiesgosNegocio({
+      hoy: HOY,
+      productos: [],
+      ventasACobrar: [],
+      comprasAPagar: [compraAPagar({ id: "c1", vence_el: null })],
+    }),
+    [],
+  );
+});
+
+test("la clave de pagos cambia cuando entra uno nuevo a la ventana", () => {
+  const con = (ids: string[]) =>
+    detectarRiesgosNegocio({
+      hoy: HOY,
+      productos: [],
+      ventasACobrar: [],
+      comprasAPagar: ids.map((id) => compraAPagar({ id })),
+    })[0];
+
+  assert.notEqual(con(["a"]).clave, con(["a", "b"]).clave);
+  assert.equal(con(["b", "a"]).clave, con(["a", "b"]).clave);
+});

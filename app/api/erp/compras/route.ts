@@ -9,6 +9,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { esFechaISOValida } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     .from("eos_erp_compras")
     .select(
       "id,fecha,moneda,subtotal,iva_total,total,condicion,estado,numero_comprobante," +
-        "movimiento_id,notas,creado_en," +
+        "movimiento_id,vence_el,notas,creado_en," +
         "contacto:eos_crm_contactos(id,nombre)," +
         "items:eos_erp_compra_items(id,producto_id,descripcion,cantidad,precio_unitario,iva,total,orden)",
     )
@@ -95,6 +96,17 @@ export async function POST(request: Request) {
 
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
+  // Vencimiento del pago al proveedor (v180). Una fecha que no existe se rechaza
+  // con un 400 en vez de llegar a Postgres como un 500 de casteo.
+  const venceEnBruto = cuerpo.vence_el;
+  if (venceEnBruto !== undefined && venceEnBruto !== null && venceEnBruto !== "" && !esFechaISOValida(venceEnBruto)) {
+    return NextResponse.json(
+      { error: "La fecha de vencimiento no es válida." },
+      { status: 400, headers: noStore() },
+    );
+  }
+  const venceEl = cuerpo.condicion === "credito" && esFechaISOValida(venceEnBruto) ? venceEnBruto : null;
+
   const { data, error } = await adminSinTipos().rpc("eos_erp_registrar_compra", {
     p_usuario_id: puerta.usuarioId,
     p_items: items,
@@ -105,6 +117,9 @@ export async function POST(request: Request) {
     p_pagada: cuerpo.condicion === "credito" ? false : cuerpo.pagada !== false,
     p_numero_comprobante: String(cuerpo.numero_comprobante ?? "").trim().slice(0, 40) || null,
     p_notas: String(cuerpo.notas ?? "").trim().slice(0, 2000) || null,
+    // Solo cuando hay fecha: sin ella el parámetro no viaja, y esto también
+    // funciona si el código sale antes que la v180.
+    ...(venceEl ? { p_vence_el: venceEl } : {}),
   });
 
   if (error) {

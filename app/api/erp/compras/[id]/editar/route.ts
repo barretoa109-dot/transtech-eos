@@ -8,6 +8,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { empresaDe } from "@/lib/empresa/acceso";
+import { esFechaISOValida } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,14 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const motivo = String(cuerpo?.motivo ?? "").trim().slice(0, 500) || "Editada";
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(cuerpo?.fecha ?? "")) ? String(cuerpo.fecha) : null;
 
+  // Vencimiento (v180). Opcional: sin fecha, la compra conserva el que ya tenía.
+  // Una fecha que no existe se rechaza: quien la escribió cree que quedó guardada.
+  const venceEnBruto = cuerpo?.vence_el;
+  if (venceEnBruto !== undefined && venceEnBruto !== null && venceEnBruto !== "" && !esFechaISOValida(venceEnBruto)) {
+    return respuesta("La fecha de vencimiento no es válida.", 400);
+  }
+  const venceEl = cuerpo?.condicion === "credito" && esFechaISOValida(venceEnBruto) ? venceEnBruto : null;
+
   const admin = adminSinTipos();
 
   const { data: antes } = await admin
@@ -72,6 +81,9 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     p_numero_comprobante: String(cuerpo?.numero_comprobante ?? "").trim().slice(0, 40) || null,
     p_notas: String(cuerpo?.notas ?? "").trim().slice(0, 2000) || null,
     p_motivo: motivo,
+    // Solo con fecha nueva: sin ella el parámetro no viaja y la función conserva
+    // el original (y esto funciona aunque el código salga antes que la v180).
+    ...(venceEl ? { p_vence_el: venceEl } : {}),
   });
 
   if (error) {
