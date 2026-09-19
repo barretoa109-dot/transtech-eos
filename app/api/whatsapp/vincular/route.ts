@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { numeroWhatsappEOS } from "@/lib/whatsapp/numero-eos";
 
 /**
  * Vincular un número de WhatsApp a la cuenta de quien tiene la sesión abierta.
@@ -54,7 +55,7 @@ export async function GET() {
     vinculado,
     telefono_enmascarado: vinculado ? enmascarar(data!.telefono) : null,
     codigo_pendiente: !vinculado && codigoVigente,
-    numero_whatsapp_eos: process.env.WHATSAPP_DISPLAY_NUMBER || null,
+    numero_whatsapp_eos: numeroWhatsappEOS(process.env.WHATSAPP_DISPLAY_NUMBER),
   });
 }
 
@@ -87,7 +88,7 @@ export async function POST() {
       return Response.json({
         codigo,
         expira_en_segundos: CODIGO_VIGENCIA_MS / 1000,
-        numero_whatsapp_eos: process.env.WHATSAPP_DISPLAY_NUMBER || null,
+        numero_whatsapp_eos: numeroWhatsappEOS(process.env.WHATSAPP_DISPLAY_NUMBER),
       });
     }
 
