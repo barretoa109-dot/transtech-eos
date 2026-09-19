@@ -8,6 +8,13 @@ import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
 import { atenderCanalEmpresa, buscarCanalEmpresa, type ValorWebhook } from "@/lib/whatsapp-crm/entrante";
+import { extraerPhoneNumberIds, secretoParaPayload } from "@/lib/whatsapp-crm/firma-canal";
+import {
+  aplicarEstadoDePlantilla,
+  secretosDeApp,
+  tokenDeVerificacionValido,
+  type AvisoDePlantilla,
+} from "@/lib/whatsapp-crm/webhook-canal";
 
 /**
  * WhatsApp como segundo canal de EOS.
@@ -46,19 +53,49 @@ export async function GET(req: Request) {
     return new Response(challenge, { status: 200 });
   }
 
+  // El apretón de manos de una empresa que conectó su propio WhatsApp: cada canal
+  // tiene su token de verificación (v185). Solo si el canal sigue conectado.
+  if (modo === "subscribe" && token && (await tokenDeVerificacionValido(adminSinTipos(), token))) {
+    return new Response(challenge, { status: 200 });
+  }
+
   return new Response("Forbidden", { status: 403 });
 }
 
 export async function POST(req: Request) {
   const cuerpoCrudo = await req.text();
 
-  if (!firmaWhatsappValida(cuerpoCrudo, req.headers.get("x-hub-signature-256"))) {
+  /*
+   * ¿Con qué secreto se valida la firma?
+   *
+   * Si el número al que le escriben es de una empresa con su PROPIA app de Meta, la
+   * firma salió con el secreto de esa app y el global no la valida. La regla que lo
+   * hace seguro —todos los números del paquete resuelven al MISMO secreto— vive en
+   * `lib/whatsapp-crm/firma-canal.ts` y tiene sus casos de ataque escritos.
+   */
+  let secretoDeCanal: string | null;
+  try {
+    const ids = extraerPhoneNumberIds(cuerpoCrudo);
+    const decision = secretoParaPayload(ids, ids.length ? await secretosDeApp(adminSinTipos(), ids) : new Map());
+
+    if (!decision.ok) return new Response("Firma inválida", { status: 401 });
+    secretoDeCanal = decision.secreto;
+  } catch (error) {
+    // No se pudo resolver el secreto: validar con el global sería aceptar lo que
+    // firmó otra app. Meta reintenta.
+    console.error("WhatsApp: no se pudo resolver el secreto de la firma:", error);
+    return new Response("Error", { status: 500 });
+  }
+
+  if (!firmaWhatsappValida(cuerpoCrudo, req.headers.get("x-hub-signature-256"), secretoDeCanal)) {
     return new Response("Firma inválida", { status: 401 });
   }
 
   let payload: {
     entry?: Array<{
+      id?: string;
       changes?: Array<{
+        field?: string;
         value?: {
           messages?: MensajeEntrante[];
           contacts?: ContactoEntrante[];
@@ -77,7 +114,11 @@ export async function POST(req: Request) {
   }
 
   const admin = adminSinTipos();
-  const cambios = (payload.entry ?? []).flatMap((entrada) => entrada.changes ?? []);
+  // Cada cambio se acompaña del id de la cuenta de WhatsApp Business (`entry.id`):
+  // hace falta para los avisos de plantillas, que se atan a la cuenta y no al número.
+  const cambios = (payload.entry ?? []).flatMap((entrada) =>
+    (entrada.changes ?? []).map((cambio) => ({ ...cambio, waba_id: entrada.id })),
+  );
 
   // Si algo del canal de una empresa falla, se contesta con error para que Meta
   // reintente: registrar el mensaje es idempotente por su id, así que repetir
@@ -85,6 +126,17 @@ export async function POST(req: Request) {
   let fallaDeCanalEmpresa = false;
 
   for (const cambio of cambios) {
+    // Meta avisa que revisó una plantilla (aprobada, rechazada, pausada). No es un
+    // mensaje: solo actualiza el estado de la plantilla de esa cuenta.
+    if (cambio.field === "message_template_status_update") {
+      await aplicarEstadoDePlantilla(
+        admin,
+        String(cambio.waba_id ?? ""),
+        (cambio.value ?? {}) as AvisoDePlantilla,
+      ).catch((error) => console.error("WhatsApp empresa: no se pudo aplicar el aviso de plantilla:", error));
+      continue;
+    }
+
     /*
      * ¿Es el WhatsApp de una EMPRESA y no el de EOS?
      *
