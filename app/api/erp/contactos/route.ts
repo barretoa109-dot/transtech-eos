@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirAlgunModulo } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { COLUMNAS_FICHA, faltaLaFicha, leerCamposFicha } from "@/lib/crm/ficha";
+import { responsableValido } from "@/lib/crm/responsable";
 
 export const dynamic = "force-dynamic";
 
@@ -39,23 +42,30 @@ export async function GET(request: Request) {
   // empresa haría desaparecer sin aviso una fila con la columna en null.
   const empresaId = await miEmpresa(supabase);
 
-  let consulta = supabase
-    .from("eos_crm_contactos")
-    .select(COLUMNAS)
-    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
-    .eq("activo", true)
-    .order("nombre", { ascending: true })
-    .limit(MAX_FILAS);
+  const armar = (columnas: string) => {
+    let consulta = supabase
+      .from("eos_crm_contactos")
+      .select(columnas)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
+      .eq("activo", true)
+      .order("nombre", { ascending: true })
+      .limit(MAX_FILAS);
 
-  if (rol === "cliente") consulta = consulta.eq("es_cliente", true);
-  if (rol === "proveedor") consulta = consulta.eq("es_proveedor", true);
+    if (rol === "cliente") consulta = consulta.eq("es_cliente", true);
+    if (rol === "proveedor") consulta = consulta.eq("es_proveedor", true);
 
-  // `ilike` y no búsqueda de texto completo: con quinientas filas la diferencia
-  // no existe, y un índice de texto sobre nombres propios acierta menos que un
-  // "contiene" cuando alguien escribe medio apellido.
-  if (busqueda) consulta = consulta.ilike("nombre", `%${busqueda}%`);
+    // `ilike` y no búsqueda de texto completo: con quinientas filas la diferencia
+    // no existe, y un índice de texto sobre nombres propios acierta menos que un
+    // "contiene" cuando alguien escribe medio apellido.
+    if (busqueda) consulta = consulta.ilike("nombre", `%${busqueda}%`);
 
-  const { data, error } = await consulta;
+    return consulta;
+  };
+
+  // Con las columnas de la ficha (v185) y, si todavía no existen, sin ellas: la lista de
+  // contactos no puede romperse porque la migración y el código no salen a la vez.
+  let { data, error } = await armar(`${COLUMNAS},${COLUMNAS_FICHA}`);
+  if (error && faltaLaFicha(error)) ({ data, error } = await armar(COLUMNAS));
 
   if (error) {
     console.error("ERP: no se pudieron leer los contactos:", error);
@@ -112,11 +122,21 @@ export async function POST(request: Request) {
     }
   }
 
+  const ficha = leerCamposFicha(cuerpo);
+  if (ficha.error) {
+    return NextResponse.json({ error: ficha.error }, { status: 400, headers: noStore() });
+  }
+
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("eos_crm_contactos")
-    .insert({
+  if (typeof ficha.cambios.responsable_id === "string") {
+    const empresaId = await miEmpresa(supabase);
+    if (!(await responsableValido(adminSinTipos(), empresaId, ficha.cambios.responsable_id, puerta.usuarioId))) {
+      return NextResponse.json({ error: "Ese responsable no es de tu empresa." }, { status: 400, headers: noStore() });
+    }
+  }
+
+  const base = {
       usuario_id: puerta.usuarioId,
       tipo: cuerpo.tipo === "empresa" ? "empresa" : "persona",
       nombre,
@@ -130,9 +150,26 @@ export async function POST(request: Request) {
       es_cliente: cuerpo.es_cliente !== false,
       es_proveedor: cuerpo.es_proveedor === true,
       notas: texto(cuerpo.notas, 2000) || null,
-    })
-    .select(COLUMNAS)
+  };
+
+  const conFicha = Object.keys(ficha.cambios).length > 0;
+
+  let { data, error } = await supabase
+    .from("eos_crm_contactos")
+    .insert({ ...base, ...ficha.cambios })
+    .select(`${COLUMNAS},${COLUMNAS_FICHA}`)
     .single();
+
+  if (error && faltaLaFicha(error)) {
+    if (conFicha) {
+      // La v185 todavía no está aplicada: no se guarda a medias ni se ignora en silencio.
+      return NextResponse.json(
+        { error: "La ficha completa todavía no está disponible en tu cuenta." },
+        { status: 409, headers: noStore() },
+      );
+    }
+    ({ data, error } = await supabase.from("eos_crm_contactos").insert(base).select(COLUMNAS).single());
+  }
 
   if (error) {
     console.error("ERP: no se pudo guardar el contacto:", error);

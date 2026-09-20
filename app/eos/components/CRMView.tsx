@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BellRing, Handshake, MessageCircle, TrendingUp, Users } from "lucide-react";
 import ConversacionesWA from "./ConversacionesWA";
 import SeguimientosCRM from "./SeguimientosCRM";
+import FichaCliente from "./FichaCliente";
 import Embudo from "./negocio/Embudo";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto } from "./negocio/tipos";
@@ -220,6 +221,8 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
    `FilaContacto` para editar. Solo cambió dónde vive. */
 
 function Contactos({ contactos, onCambio }: { contactos: Contacto[]; onCambio: () => void }) {
+  // Con una ficha abierta, la ficha reemplaza a la lista: es la misma pestaña, un nivel más adentro.
+  const [fichaId, setFichaId] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [ruc, setRuc] = useState("");
   const [rucDv, setRucDv] = useState("");
@@ -258,6 +261,10 @@ function Contactos({ contactos, onCambio }: { contactos: Contacto[]; onCambio: (
     } finally {
       setGuardando(false);
     }
+  }
+
+  if (fichaId) {
+    return <FichaCliente contactoId={fichaId} onVolver={() => { setFichaId(null); onCambio(); }} />;
   }
 
   return (
@@ -315,7 +322,7 @@ function Contactos({ contactos, onCambio }: { contactos: Contacto[]; onCambio: (
         ) : (
           <div className="neg-lista">
             {contactos.map((c) => (
-              <FilaContacto key={c.id} contacto={c} onCambio={onCambio} />
+              <FilaContacto key={c.id} contacto={c} onCambio={onCambio} onFicha={(x) => setFichaId(x.id)} />
             ))}
           </div>
         )}

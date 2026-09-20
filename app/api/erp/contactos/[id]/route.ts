@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirAlgunModulo } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { COLUMNAS_FICHA, faltaLaFicha, leerCamposFicha } from "@/lib/crm/ficha";
+import { responsableValido } from "@/lib/crm/responsable";
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +107,15 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   if (cuerpo.es_proveedor !== undefined) cambios.es_proveedor = cuerpo.es_proveedor === true;
   if (cuerpo.activo !== undefined) cambios.activo = cuerpo.activo === true;
 
+  // La ficha del CRM (v185): empresa, estado de la relación, próximo contacto y responsable.
+  const ficha = leerCamposFicha(cuerpo);
+  if (ficha.error) {
+    return NextResponse.json({ error: ficha.error }, { status: 400, headers: noStore() });
+  }
+  const cambiosDeFicha = Object.keys(ficha.cambios).length > 0;
+  Object.assign(cambios, ficha.cambios);
+
+
   if (Object.keys(cambios).length === 0) {
     return NextResponse.json({ error: "No hay nada que cambiar." }, { status: 400, headers: noStore() });
   }
@@ -115,13 +127,33 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   // Las dos fronteras mientras dure la transición de la v109/v110.
   const empresaId = await miEmpresa(supabase);
 
-  const { data, error } = await supabase
-    .from("eos_crm_contactos")
-    .update(cambios)
-    .eq("id", id)
-    .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
-    .select(COLUMNAS)
-    .maybeSingle();
+  if (typeof ficha.cambios.responsable_id === "string") {
+    if (!(await responsableValido(adminSinTipos(), empresaId, ficha.cambios.responsable_id, puerta.usuarioId))) {
+      return NextResponse.json({ error: "Ese responsable no es de tu empresa." }, { status: 400, headers: noStore() });
+    }
+  }
+
+  const actualizar = (valores: Record<string, unknown>, columnas: string) =>
+    supabase
+      .from("eos_crm_contactos")
+      .update(valores)
+      .eq("id", id)
+      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
+      .select(columnas)
+      .maybeSingle();
+
+  let { data, error } = await actualizar(cambios, `${COLUMNAS},${COLUMNAS_FICHA}`);
+
+  if (error && faltaLaFicha(error)) {
+    if (cambiosDeFicha) {
+      // La v185 todavía no está aplicada: no se guarda a medias ni se ignora en silencio.
+      return NextResponse.json(
+        { error: "La ficha completa todavía no está disponible en tu cuenta." },
+        { status: 409, headers: noStore() },
+      );
+    }
+    ({ data, error } = await actualizar(cambios, COLUMNAS));
+  }
 
   if (error) {
     console.error("ERP: no se pudo editar el contacto:", error);

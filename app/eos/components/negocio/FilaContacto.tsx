@@ -19,9 +19,14 @@ import type { Contacto } from "./tipos";
  * una factura ya entregada.
  */
 
-type Props = { contacto: Contacto; onCambio: () => void };
+type Props = {
+  contacto: Contacto;
+  onCambio: () => void;
+  /** Si viene, la fila ofrece abrir la ficha completa (el CRM la pasa; el ERP no). */
+  onFicha?: (contacto: Contacto) => void;
+};
 
-export default function FilaContacto({ contacto, onCambio }: Props) {
+export default function FilaContacto({ contacto, onCambio, onFicha }: Props) {
   const [editando, setEditando] = useState(false);
 
   /** La baja es lógica: el historial que ya lo nombra no se toca. */
@@ -60,6 +65,12 @@ export default function FilaContacto({ contacto, onCambio }: Props) {
       </div>
 
       <span className="neg-estado">{rol}</span>
+
+      {onFicha && !editando && (
+        <button type="button" className="chip crm-contacto-accion" onClick={() => onFicha(contacto)}>
+          Ficha
+        </button>
+      )}
 
       {contacto.telefono && !editando && (
         <a className="chip crm-contacto-accion" href={`tel:${contacto.telefono}`} aria-label={`Llamar a ${contacto.nombre}`}>
