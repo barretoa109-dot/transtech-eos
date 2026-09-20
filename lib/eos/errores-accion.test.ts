@@ -135,3 +135,17 @@ test("los errores que pueden ser pasajeros NO se declaran del sistema", () => {
   assert.equal(errorDeLaBase("53300"), null);
   assert.equal(errorDeLaBase(""), null);
 });
+
+test("escribirle a un cliente: cada falta dice qué hacer, con el nombre cuando lo hay", () => {
+  const sinTelefono = errorDeAccion("EOS_ACCION_WHATSAPP_SIN_TELEFONO: Marcos")!;
+  assert.match(sinTelefono.mensaje, /^A Marcos no le cargaste el teléfono/);
+  assert.equal(sinTelefono.estado, 422);
+
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_BAJA: Marcos")!.mensaje, /^Marcos pidió no recibir más mensajes/);
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_SIN_CANAL")!.mensaje, /CRM > WhatsApp/);
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_CANAL_PAUSADO")!.mensaje, /token de Meta/);
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_SIN_MENSAJE")!.mensaje, /qué le escribo/);
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_SIN_CLIENTE")!.mensaje, /a qué cliente/);
+  assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_MENSAJE_LARGO")!.mensaje, /largo/);
+  assert.ok(CODIGOS_DE_NEGOCIO.includes("EOS_ACCION_WHATSAPP_BAJA"));
+});
