@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
-import { ETAPAS, embudoPorMoneda, esEtapa, siguienteEtapa } from "@/lib/crm/embudo";
+import { ETAPAS, embudoPorMoneda, esEtapa } from "@/lib/crm/embudo";
 import { combinarConfig, escalaDe, type FilaConfig } from "@/lib/crm/etapas-config";
 import { faltaLaColumna, validarCambios } from "@/lib/crm/oportunidades";
 import { registrarAprendizajeComercial } from "@/lib/crm/aprendizaje";

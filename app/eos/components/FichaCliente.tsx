@@ -82,18 +82,16 @@ export default function FichaCliente({ contactoId, onVolver }: { contactoId: str
   const [equipo, setEquipo] = useState<Miembro[]>([]);
   const [plantillas, setPlantillas] = useState<PlantillaWA[]>([]);
 
-  const cargar = useCallback(async () => {
-    try {
-      const r = await fetch(`/api/crm/contactos/${contactoId}/ficha`, { cache: "no-store" });
-      const cuerpo = await r.json().catch(() => null);
-      if (!r.ok || !cuerpo) throw new Error(cuerpo?.error || "No pudimos cargar la ficha.");
-      setDatos(cuerpo as Datos);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos cargar la ficha.");
-    } finally {
-      setCargando(false);
-    }
+  const cargar = useCallback(() => {
+    return fetch(`/api/crm/contactos/${contactoId}/ficha`, { cache: "no-store" })
+      .then(async (r) => {
+        const cuerpo = await r.json().catch(() => null);
+        if (!r.ok || !cuerpo) throw new Error(cuerpo?.error || "No pudimos cargar la ficha.");
+        setDatos(cuerpo as Datos);
+        setError("");
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "No pudimos cargar la ficha."))
+      .finally(() => setCargando(false));
   }, [contactoId]);
 
   useEffect(() => {

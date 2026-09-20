@@ -49,25 +49,23 @@ export default function SeguimientosCRM({ onIrAConversaciones }: { onIrAConversa
   const [cargando, setCargando] = useState(true);
   const [abierto, setAbierto] = useState<string | null>(null);
 
-  const cargar = useCallback(async () => {
-    try {
-      const r = await fetch("/api/crm/seguimientos", { cache: "no-store" });
-      const cuerpo = await r.json().catch(() => null);
+  const cargar = useCallback(() => {
+    return fetch("/api/crm/seguimientos", { cache: "no-store" })
+      .then(async (r) => {
+        const cuerpo = await r.json().catch(() => null);
 
-      if (r.status === 403) {
-        setDatos({ hoy: "", titular: "", seguimientos: [] });
+        if (r.status === 403) {
+          setDatos({ hoy: "", titular: "", seguimientos: [] });
+          setError("");
+          return;
+        }
+        if (!r.ok || !cuerpo) throw new Error(cuerpo?.error || "No pudimos calcular tus seguimientos.");
+
+        setDatos(cuerpo as Respuesta);
         setError("");
-        return;
-      }
-      if (!r.ok || !cuerpo) throw new Error(cuerpo?.error || "No pudimos calcular tus seguimientos.");
-
-      setDatos(cuerpo as Respuesta);
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos calcular tus seguimientos.");
-    } finally {
-      setCargando(false);
-    }
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "No pudimos calcular tus seguimientos."))
+      .finally(() => setCargando(false));
   }, []);
 
   useEffect(() => {

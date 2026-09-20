@@ -66,6 +66,11 @@ export type Oportunidad = {
   etapa: string;
   cierre_estimado: string | null;
   contacto: { id: string; nombre: string } | null;
+  /* Los de la v185: ausentes mientras la migración no esté aplicada. */
+  probabilidad?: number | null;
+  producto_servicio?: string | null;
+  proxima_accion_en?: string | null;
+  motivo_perdida?: string | null;
 };
 
 export type Actividad = {
