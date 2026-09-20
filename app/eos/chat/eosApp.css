@@ -2876,7 +2876,10 @@
   color: var(--ink);
 }
 .eos-app .fin-setup-input::placeholder {
-  color: #cbd5e1;
+  /* Era #cbd5e1: 1,48:1 sobre el fondo blanco del modo claro (WCAG pide 3:1 aun
+     para texto grande). --muted da 5,5:1 en claro y 7,0:1 en oscuro, y es el
+     mismo color que ya usan los otros campos de la app. */
+  color: var(--muted);
   font-weight: 600;
 }
 
