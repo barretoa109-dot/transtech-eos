@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { esAprendizajeDelNegocio } from "@/lib/eos/aprendizajes-visibles";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,8 @@ export async function GET() {
       .in("estado", ["activo", "descartado"])
       .order("confianza", { ascending: false })
       .order("updated_at", { ascending: false })
-      .limit(40),
+      // Se piden de más porque después se sacan los que hablan del sistema.
+      .limit(200),
   ]);
 
   if (summaryResult.error || learningsResult.error) {
@@ -67,8 +69,25 @@ export async function GET() {
     latest_learning_at: null,
   };
 
+  /*
+   * Solo lo que es del negocio de la persona. El motor de aprendizaje aprende de
+   * la bitácora de acciones, así que casi todo lo que produce habla del sistema
+   * (152 de 179 en cuentas reales): ver `aprendizajes-visibles.ts`. El contador
+   * de la pantalla sale de la misma lista, para que no diga 152 y muestre 3.
+   */
+  const visibles = ((learningsResult.data ?? []) as unknown as Array<Record<string, unknown>>).filter(
+    (l) =>
+      esAprendizajeDelNegocio({
+        categoria: l.categoria as string | null,
+        patron: l.patron as string | null,
+        recomendacion: l.recomendacion as string | null,
+      }),
+  );
+
+  summary.active_learnings = visibles.filter((l) => l.estado === "activo").length;
+
   return NextResponse.json(
-    { summary, learnings: learningsResult.data ?? [], minimum_evidence: 3 },
+    { summary, learnings: visibles.slice(0, 40), minimum_evidence: 3 },
     { headers: noStoreHeaders() },
   );
 }
