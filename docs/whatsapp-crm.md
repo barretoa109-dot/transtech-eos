@@ -84,41 +84,56 @@ motivo).
 
 ## Qué está hecho y qué falta
 
-**Hecho y probado**
+**Hecho y probado** (v177, v185 y v186)
 
 * Esquema, RLS, bitácora inmutable, funciones (v177).
 * Recepción completa: cliente, mensaje, última interacción, actividad,
   consentimiento, baja, oportunidad, seguimiento, aviso.
-* Confirmaciones de entrega y lectura (estados que solo avanzan).
-* Política de envío, lectura de intención, normalización de teléfonos.
-* Prueba de punta a punta de la base: `supabase/pruebas/whatsapp_crm_e2e.sql`
-  (dos empresas, mismo teléfono, RLS, anon, idempotencia).
+* **Conectar un canal desde la pantalla** (CRM > Conversaciones): la empresa pega su
+  `phone_number_id` y su token. El token va a **Vault** (`eos_wa_guardar_secreto_v185`), nunca a
+  la tabla, y solo lo lee el servidor con la clave de servicio. Cada canal tiene su
+  `verify_token` y, si la empresa usa su propia app de Meta, su propio secreto de firma.
+* **Enviar** por el canal de la empresa (`lib/whatsapp-crm/enviar.ts`) con la política completa:
+  consentimiento, ventana de 24 h, plantillas aprobadas, tope diario y horario de silencio. Todo
+  envío queda registrado, también el que se bloquea, con su motivo. Idempotente por clave.
+* **Plantillas**: alta, sincronización de estado con Meta y uso desde la caja de respuesta.
+* **Conversaciones** en el CRM y **ficha del cliente** con su historia.
+* **Seguimientos** (CRM > Para retomar): quién no contestó, qué oportunidad se estancó, qué cierre
+  se acerca, con un mensaje propuesto **editable** y el "Sí, escribile". Un aviso diario por correo
+  o push de lo urgente, sin repetirlo.
+* **"Sí, escribile" en el chat** (`ENVIAR_WHATSAPP_CLIENTE`, v186): el ejecutor valida, el servidor
+  envía con la misma política. EOS solo lo emite con el texto confirmado, y dice lo que Meta
+  contestó de verdad.
+* **EOS aprende** de las oportunidades cerradas (tasa, ciclo, motivos de pérdida, origen) y lo usa
+  en el chat.
+* **Lectura de intención con IA** por encima de las reglas (`lib/whatsapp-crm/intencion-ia.ts`).
+  **Apagada por defecto**: ver más abajo.
+* Pruebas de punta a punta de la base: `supabase/pruebas/whatsapp_crm_e2e.sql`,
+  `crm_completo_e2e.sql` y `chat_escribe_cliente_e2e.sql`.
 
-**Falta, y por qué**
+**Falta, y depende de la empresa o de Meta (no es código)**
 
-1. **Enviar.** Hace falta el **token de acceso** de la cuenta de WhatsApp
-   Business de cada empresa. Lo entrega Meta al completar el *Embedded Signup*
-   (o lo genera la empresa en su app de Meta con permiso
-   `whatsapp_business_messaging`). Debe guardarse en **Supabase Vault** y
-   referenciarse en `eos_wa_canales.secreto_ref`; nunca en la tabla.
-   Sin token, el código de envío no puede probarse contra Meta.
-2. **Plantillas aprobadas.** Cada plantilla se registra en el Business Manager
-   de la empresa y Meta la revisa (horas o días). Hasta entonces, EOS solo puede
-   contestar dentro de la ventana de 24 h.
-3. **Alta de un canal desde la interfaz.** Requiere el flujo de Embedded Signup
-   (una app de Meta con verificación de negocio, que es un trámite de
-   TransTech con Meta, no de código) o, como alternativa, un formulario para que
-   la empresa pegue su `phone_number_id` y su token.
-4. **Pantalla de conversaciones en el CRM** y el "Sí, escribile" que dispara el
-   envío autorizado.
-5. **Suscripción del webhook**: en la app de Meta, suscribir el campo
-   `messages` de cada WABA a la URL existente. No hay que crear otra.
+1. **El token de acceso** de la cuenta de WhatsApp Business de cada empresa. Lo entrega Meta al
+   completar el *Embedded Signup* (o lo genera la empresa en su app de Meta con el permiso
+   `whatsapp_business_messaging`). Sin token, nada sale; el resto funciona.
+2. **Plantillas aprobadas.** Cada plantilla la revisa Meta (horas o días). Hasta entonces, EOS solo
+   puede escribir dentro de las 24 h de que el cliente escribió.
+3. **Suscripción del webhook**: en la app de Meta, suscribir el campo `messages` de cada WABA a la
+   URL existente. No hay que crear otra.
+4. **Embedded Signup** (alta con un clic, sin pegar el token) requiere una app de Meta con
+   verificación de negocio: es un trámite de TransTech con Meta.
+5. **Encender la lectura con IA** es una decisión de la empresa: manda el texto de un CLIENTE suyo a
+   un proveedor de IA. Se enciende con `EOS_INTENCION_IA=1` (y `OPENAI_API_KEY`); el modelo se
+   cambia con `EOS_INTENCION_MODELO`. Sin la variable, todo sigue exactamente como antes.
 
 ## Orden de despliegue
 
-1. Aplicar la **v177** en la base.
-2. Desplegar el código.
+1. Aplicar las migraciones **v185** y **v186** en la base (`db push`).
+2. Mergear y desplegar el código.
+3. Aplicar el parche de n8n del chat (`node n8n/parches/2026-09-19-chat-escribe-cliente.mjs`), después
+   exportar y sincronizar el prompt.
 
-Si el código sale antes, el webhook trata la tabla inexistente como "no hay
-canales de empresa" y sigue funcionando para los usuarios de EOS
-(`buscarCanalEmpresa`, error `42P01`/`PGRST205`).
+Si el código sale antes que las migraciones, todo lo nuevo se apaga solo sin romper lo de antes: las
+lecturas caen a las columnas de siempre y las escrituras de la ficha responden que todavía no están
+disponibles. Si el prompt de n8n sale antes que la v186, el verbo nuevo lo rechaza un CHECK de la base
+y la persona lee "no pude": por eso el orden.
