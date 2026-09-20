@@ -8,6 +8,7 @@ import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarUsoAlto } from "@/lib/monitoreo/uso-alto";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
+import { avisarSeguimientosCRM } from "@/lib/crm/avisar-crm";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -169,6 +170,30 @@ export async function GET(request: Request) {
       });
 
       console.log("Negocio: avisos del día", negocio);
+
+      /*
+       * El CRM, en su propio try: aprende de lo que se cerró y avisa a quién hay que retomar.
+       * Que falle no le quita al negocio sus avisos (ya salieron) ni al barrido de abajo.
+       */
+      try {
+        const crm = await avisarSeguimientosCRM(cliente, {
+          hoy: hoyEnParaguay(),
+          enviarCorreo: clave
+            ? async ({ para, asunto, texto }) => {
+                await new Resend(clave).emails.send({
+                  from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+                  to: para,
+                  subject: asunto,
+                  text: texto,
+                });
+              }
+            : undefined,
+        });
+
+        console.log("CRM: seguimientos del día", crm);
+      } catch (error) {
+        console.error("CRM: falló el aviso de seguimientos:", error);
+      }
 
       /*
        * Y se barren los contadores de límite que ya no afectan a nadie.

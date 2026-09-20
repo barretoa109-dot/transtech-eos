@@ -44,6 +44,8 @@ import {
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
 import { textoMemoria } from "@/lib/eos/memoria-contexto";
+import { contextoDeSeguimientos } from "@/lib/crm/contexto-chat";
+import { hoyEnParaguay } from "@/lib/fecha";
 import {
   avisoDeVerificacion,
   corregirAfirmacionFallida,
@@ -693,6 +695,13 @@ export async function procesarMensajeEOS(
       }
     })();
 
+    /*
+     * A quién hay que retomar hoy, y con qué mensaje: es lo que hace que "sí, escribile" signifique
+     * algo. Solo para quien tiene el CRM y con un plazo corto: si tarda, el chat sigue sin esto.
+     * Nunca rechaza. Ver `lib/crm/contexto-chat.ts`.
+     */
+    const seguimientosPromise = contextoDeSeguimientos(adminSinTipos(), usuarioId, { hoy: hoyEnParaguay() });
+
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
         return {
@@ -797,7 +806,7 @@ export async function procesarMensajeEOS(
      * El día que el gateway corra entero en TypeScript esto se puede partir en
      * dos; hasta entonces, un campo que llega es mejor que dos que se pierden.
      */
-    const contextoNegocio = [textoContexto(await contextoPromise), await memoriaPromise]
+    const contextoNegocio = [textoContexto(await contextoPromise), await seguimientosPromise, await memoriaPromise]
       .filter((parte) => parte.trim() !== "")
       .join("\n\n");
 

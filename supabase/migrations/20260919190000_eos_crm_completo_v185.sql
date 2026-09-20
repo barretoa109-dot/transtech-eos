@@ -497,3 +497,16 @@ revoke execute on function public.eos_wa_recibir_v177(uuid, text, text, text, te
   from public, anon, authenticated;
 grant execute on function public.eos_wa_recibir_v177(uuid, text, text, text, text, text, timestamptz, text)
   to service_role;
+
+-- ============================================================
+-- El aviso diario de seguimientos del CRM
+-- ============================================================
+--
+-- Es un tipo más de `eos_negocio_avisos`, la tabla que recuerda qué se avisó para no repetirlo
+-- todos los días (`lib/crm/avisar-crm.ts`). La lista es la que tiene la base HOY más el tipo nuevo.
+alter table public.eos_negocio_avisos
+  drop constraint if exists eos_negocio_avisos_tipo_check;
+
+alter table public.eos_negocio_avisos
+  add constraint eos_negocio_avisos_tipo_check
+  check (tipo in ('inventario_bajo', 'cobros_demorados', 'gasto_anormal', 'stock_por_agotarse', 'pagos_a_proveedores', 'seguimientos_crm'));

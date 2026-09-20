@@ -238,6 +238,27 @@ select pg_temp.chk('un usuario logueado NO ejecuta leer_secreto', current_settin
 select pg_temp.chk('anon NO ejecuta leer_secreto', current_setting('e2e.leer_anon') = 'no');
 select pg_temp.chk('anon NO lee las tablas nuevas', current_setting('e2e.tabla_anon') = 'no');
 
+do $$
+declare
+  u uuid := gen_random_uuid();
+begin
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  insert into auth.users (id, aud, role, email, raw_user_meta_data)
+  values (u, 'authenticated', 'authenticated', 'e2e-crm-aviso-' || u || '@test.invalid', '{}');
+  begin
+    insert into public.eos_negocio_avisos (usuario_id, tipo, clave) values (u, 'seguimientos_crm', 'x');
+    perform pg_temp.chk('el aviso de seguimientos del CRM es un tipo válido de aviso', true);
+  exception when check_violation then
+    perform pg_temp.chk('el aviso de seguimientos del CRM es un tipo válido de aviso', false, 'el check lo rechazó');
+  end;
+  begin
+    insert into public.eos_negocio_avisos (usuario_id, tipo, clave) values (u, 'tipo_inventado', 'x');
+    perform pg_temp.chk('un tipo de aviso inventado se rechaza', false, 'no lanzó');
+  exception when check_violation then
+    perform pg_temp.chk('un tipo de aviso inventado se rechaza', true);
+  end;
+end $$;
+
 select n, prueba, ok, detalle from _r order by n;
 
 rollback;
