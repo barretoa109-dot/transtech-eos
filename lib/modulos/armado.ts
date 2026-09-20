@@ -72,9 +72,11 @@ export type Armado = {
  *
  * Lo puso el usuario: "si el usuario pide todas las opciones entonces que su
  * máximo sea Gs. 500.000". No es un descuento por volumen calculado, es una
- * promesa: prendas lo que prendas, no vas a pagar más que esto. El catálogo
- * está armado para que la suma de TODO dé exactamente este número, así la
- * promesa no es una letra chica sino la última fila de la cuenta.
+ * promesa: prendas lo que prendas, no vas a pagar más que esto. Se armó el
+ * catálogo para que la suma de TODO diera exactamente este número; desde el 19
+ * de septiembre de 2026, con el tramo sin tope de conversaciones a Gs. 60.000,
+ * la suma es menor (Gs. 440.000, porque de un grupo se cuenta la opción más
+ * cara). Sigue siendo un techo, y ya no hace falta que sea exacto.
  */
 export const TOPE_MENSUAL_PYG = 500_000;
 

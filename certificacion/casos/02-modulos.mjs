@@ -52,10 +52,14 @@ export const caso = {
     // ---------- El techo ----------
     const todo = await precio(codigos);
 
+    // La promesa es un TECHO ("nunca pasa de Gs. 500.000"), no que prender todo
+    // sume exactamente eso. Lo sumaba hasta el 19 de septiembre de 2026, cuando
+    // el tramo sin tope de conversaciones bajó de Gs. 150.000 a Gs. 60.000 por
+    // decisión comercial; desde entonces prender todo cuesta menos que el techo.
     comprobar(
-      `prender todo cuesta el tope prometido`,
-      todo === TOPE,
-      `Gs. ${todo.toLocaleString("es-PY")}`,
+      `prender todo no pasa del tope prometido`,
+      todo > 0 && todo <= TOPE,
+      `Gs. ${todo.toLocaleString("es-PY")} de ${TOPE.toLocaleString("es-PY")}`,
     );
 
     // ---------- Los tres paquetes que se piensan vender ----------
