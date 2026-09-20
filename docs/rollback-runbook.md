@@ -193,6 +193,33 @@ apaga: los vencimientos son fechas en la base y no dependen de Bancard.
    deshace plan, módulos, solicitud e historial en una transacción y es
    idempotente. No deshacerlo a mano.
 
+## Actualización del 20 de septiembre de 2026: la base NO tiene copia de respaldo
+
+El proyecto de Supabase está en el **plan gratuito** (`GET /v1/organizations` →
+`plan: "free"`), y la API de respaldos sigue diciendo `backups: []` y
+`pitr_enabled: false`. Es decir: **hoy no existe ninguna copia de la base de
+producción en ningún lado.** Si se borra o se corrompe, no hay a dónde volver.
+
+Lo correcto es pasar a un plan pago, que da copia diaria (y recuperación puntual
+como agregado). Es una decisión de plata y es del dueño. Mientras tanto, y para no
+depender de eso:
+
+```bash
+npm run respaldo                        # baja todas las tablas de public a ../respaldos-eos/AAAA-MM-DD/
+npm run respaldo -- --verificar RUTA    # comprueba que esa copia esté íntegra
+```
+
+Es de solo lectura. Baja 139 tablas y unas 6.500 filas (5,6 MB el 20 de
+septiembre). **No incluye `auth.users`** (correos y hashes de contraseña) salvo
+con `--con-auth`, y la carpeta tiene datos personales: vive fuera del
+repositorio y hay que guardarla cifrada. El esquema no se copia porque se
+reconstruye con las migraciones. **No es una restauración ensayada**: se puede
+comprobar que la copia está íntegra contra su manifiesto, no que restaurarla
+funcione.
+
+Se probó que `supabase db dump` NO sirve en esta máquina: necesita Docker y el
+daemon no está corriendo.
+
 ## Lo que falta, dicho sin adornos
 
 Este runbook explica qué hacer. Lo que todavía **no** está, y el punto 47 lo

@@ -148,6 +148,32 @@ async function main() {
       }
     }
 
+    /*
+     * Borrar la cuenta de Auth NO borra su fila de `usuarios` (no hay una clave
+     * foránea que lo arrastre). Cada corrida dejaba unas cuatro filas huérfanas
+     * de `cert-…@transtech.test`: el 20 de septiembre de 2026 había 17, las mismas
+     * que ya se habían limpiado a mano el 18. Se barren acá, y solo las de
+     * prueba que ya no tienen cuenta de Auth: nunca una fila con sesión posible.
+     */
+    try {
+      const servicio = admin();
+      const { data: restos } = await servicio
+        .from("usuarios")
+        .select("id")
+        .like("email", "cert-%@transtech.test");
+
+      for (const resto of restos ?? []) {
+        const { data: cuenta } = await servicio.auth.admin.getUserById(resto.id);
+        if (!cuenta?.user) await servicio.from("usuarios").delete().eq("id", resto.id);
+      }
+    } catch (error) {
+      console.log(
+        `   ${GRIS}(no se pudieron barrer las filas de prueba: ${
+          error instanceof Error ? error.message : error
+        })${FIN}`,
+      );
+    }
+
     for (const c of chequeos) {
       const marca = c.pendiente
         ? `${AMARILLO}·· ${FIN}`
