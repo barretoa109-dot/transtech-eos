@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CalendarDays, Check, ChevronRight, Plus, RefreshCw, Target } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, Plus, RefreshCw, Target } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { etiquetaDeEtapa, siguienteEtapa } from "@/lib/crm/embudo";
+import { hoyEnParaguay } from "@/lib/fecha";
 import type { Actividad, Contacto, Oportunidad } from "./tipos";
 import { useEscape } from "../useEscape";
+import ConfigurarEtapas, { type EtapaCfg } from "./ConfigurarEtapas";
+import TarjetaOportunidad from "./TarjetaOportunidad";
 
 /**
  * El embudo y la agenda del CRM.
@@ -63,6 +66,8 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
   const [moviendo, setMoviendo] = useState<string | null>(null);
+  // Cómo llama esta empresa a cada etapa (v185). Vacío = las de fábrica.
+  const [etapasCfg, setEtapasCfg] = useState<EtapaCfg[]>([]);
 
   const cargar = useCallback(() => {
     return Promise.all([
@@ -88,6 +93,7 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
 
         setOportunidades(oportunidadesData?.oportunidades ?? []);
         setEmbudos(oportunidadesData?.embudos ?? []);
+        setEtapasCfg(oportunidadesData?.etapas_config ?? []);
         setActividades(actividadesData?.actividades ?? []);
       })
       .catch((err) => {
@@ -101,7 +107,7 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
     void cargar();
   }, [cargar]);
 
-  async function mover(oportunidad: Oportunidad, etapa: string) {
+  async function mover(oportunidad: Oportunidad, etapa: string, motivo?: string) {
     if (moviendo) return;
     setMoviendo(oportunidad.id);
     setErrorCarga("");
@@ -109,7 +115,7 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
       const respuesta = await fetch("/api/crm/oportunidades", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: oportunidad.id, etapa }),
+        body: JSON.stringify({ id: oportunidad.id, etapa, ...(motivo ? { motivo_perdida: motivo } : {}) }),
       });
       const datos = await respuesta.json().catch(() => null);
       if (!respuesta.ok) throw new Error(datos?.error || "No se pudo actualizar la oportunidad.");
@@ -152,6 +158,29 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
       </div>
     );
   }
+
+  // El nombre que la empresa le puso a la etapa; si no configuró nada, el de siempre.
+  const etiqueta = (clave: string) => etapasCfg.find((e) => e.clave === clave)?.etiqueta ?? etiquetaDeEtapa(clave);
+
+  // Las columnas, en el orden de la empresa. Una etapa OCULTA que todavía tiene oportunidades
+  // se sigue mostrando: ocultarla no las borra, y que desaparezcan tarjetas sería peor.
+  const columnas = (etapasCfg.length > 0 ? etapasCfg.map((e) => e.clave) : ["nueva", "contactado", "propuesta", "negociacion", "ganada", "perdida"]).filter(
+    (clave) => etapasCfg.find((e) => e.clave === clave)?.visible !== false || oportunidades.some((o) => o.etapa === clave),
+  );
+
+  // A dónde va con un clic: la siguiente etapa VISIBLE según el orden de la empresa.
+  const siguiente = (actual: string) => {
+    if (etapasCfg.length === 0) {
+      const clave = siguienteEtapa(actual);
+      return { clave, etiqueta: etiqueta(clave) };
+    }
+    const orden = etapasCfg.map((e) => e.clave);
+    const desde = orden.indexOf(actual);
+    const proxima = orden.slice(desde + 1).find((c) => etapasCfg.find((e) => e.clave === c)?.visible !== false && c !== "perdida") ?? "ganada";
+    return { clave: proxima, etiqueta: etiqueta(proxima) };
+  };
+
+  const hoy = hoyEnParaguay();
 
   const abiertasTotales = embudos.reduce((t, e) => t + e.abiertas, 0);
   const variasMonedas = embudos.length > 1;
@@ -214,7 +243,7 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
               .filter((e) => e.clave !== "perdida")
               .map((e) => (
                 <div className="neg-etapa" key={e.clave}>
-                  <span className="neg-etapa-nombre">{e.etiqueta}</span>
+                  <span className="neg-etapa-nombre">{etiqueta(e.clave)}</span>
                   <span className="neg-etapa-cantidad">{e.cantidad}</span>
                 </div>
               ))}
@@ -227,7 +256,10 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
       <NuevaOportunidad contactos={contactos} onCreada={() => void cargar()} />
 
       <div className="card">
-        <div className="card-title">Oportunidades</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="card-title" style={{ marginBottom: 0 }}>Oportunidades</div>
+        </div>
+        <ConfigurarEtapas key={JSON.stringify(etapasCfg)} etapas={etapasCfg} onGuardado={() => void cargar()} />
 
         {oportunidades.length === 0 ? (
           <div className="neg-empty-state">
@@ -239,47 +271,26 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
           </div>
         ) : (
           <div className="crm-pipeline" aria-label="Embudo de oportunidades">
-            {["nueva", "contactado", "propuesta", "negociacion", "ganada", "perdida"].map((etapa) => {
+            {columnas.map((etapa) => {
               const deEtapa = oportunidades.filter((o) => o.etapa === etapa);
               return (
                 <section className="crm-columna" key={etapa}>
                   <header>
-                    <span>{etiquetaDeEtapa(etapa)}</span>
+                    <span>{etiqueta(etapa)}</span>
                     <strong>{deEtapa.length}</strong>
                   </header>
                   <div className="crm-columna-lista">
                   {deEtapa.length === 0 && <p className="crm-columna-vacia">Sin oportunidades</p>}
                   {deEtapa.map((o) => (
-                    <article className="crm-oportunidad" key={o.id}>
-                <div className="neg-fila-texto">
-                  <strong>{o.titulo}</strong>
-                  <small>
-                    {o.contacto?.nombre ?? "Sin cliente"}
-                  </small>
-                </div>
-                <strong className="neg-fila-monto">{formatearMonto(o.monto, o.moneda)}</strong>
-                {o.cierre_estimado && (
-                  <small className="crm-fecha"><CalendarDays size={12} /> {formatearFecha(o.cierre_estimado)}</small>
-                )}
-
-                {o.etapa !== "ganada" && o.etapa !== "perdida" && (
-                  <div className="crm-acciones">
-                    <button
-                      type="button"
-                      className="chip"
-                      disabled={moviendo === o.id}
-                      onClick={() => mover(o, siguienteEtapa(o.etapa))}
-                      title={`Pasar a ${etiquetaDeEtapa(siguienteEtapa(o.etapa))}`}
-                    >
-                      {etiquetaDeEtapa(siguienteEtapa(o.etapa))}
-                      <ChevronRight size={12} style={{ verticalAlign: -2 }} />
-                    </button>
-                    <button type="button" className="chip" onClick={() => mover(o, "perdida")}>
-                      Perdida
-                    </button>
-                  </div>
-                )}
-                    </article>
+                    <TarjetaOportunidad
+                      key={o.id}
+                      oportunidad={o}
+                      hoy={hoy}
+                      moviendo={moviendo === o.id}
+                      siguiente={siguiente(o.etapa)}
+                      onMover={(etapa, motivo) => void mover(o, etapa, motivo)}
+                      onGuardado={() => void cargar()}
+                    />
                   ))}
                   </div>
                 </section>
@@ -310,6 +321,9 @@ function NuevaOportunidad({
   const [moneda, setMoneda] = useState("PYG");
   const [contactoId, setContactoId] = useState("");
   const [cierre, setCierre] = useState("");
+  const [producto, setProducto] = useState("");
+  const [probabilidad, setProbabilidad] = useState("");
+  const [proximo, setProximo] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -330,6 +344,10 @@ function NuevaOportunidad({
           moneda,
           contacto_id: contactoId || null,
           cierre_estimado: cierre || null,
+          // Solo si los completó: vacío es «sin estimar», no cero.
+          ...(producto.trim() ? { producto_servicio: producto } : {}),
+          ...(probabilidad !== "" ? { probabilidad: Number(probabilidad) } : {}),
+          ...(proximo ? { proxima_accion_en: proximo } : {}),
         }),
       });
 
@@ -340,6 +358,9 @@ function NuevaOportunidad({
       setMonto("");
       setDetalle("");
       setCierre("");
+      setProducto("");
+      setProbabilidad("");
+      setProximo("");
       setAbierto(false);
       onCreada();
     } catch (err) {
@@ -408,6 +429,24 @@ function NuevaOportunidad({
             </option>
           ))}
         </select>
+        </label>
+        <label className="neg-field">
+          <span>Qué se le vende</span>
+          <input className="neg-input" placeholder="Producto o servicio" value={producto} maxLength={200} onChange={(e) => setProducto(e.target.value)} />
+        </label>
+        <label className="neg-field neg-field-small">
+          <span>Probabilidad %</span>
+          <input
+            className="neg-input"
+            placeholder="Sin estimar"
+            inputMode="numeric"
+            value={probabilidad}
+            onChange={(e) => setProbabilidad(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+          />
+        </label>
+        <label className="neg-field">
+          <span>Próximo paso</span>
+          <input className="neg-input" type="date" value={proximo} onChange={(e) => setProximo(e.target.value)} />
         </label>
         <label className="neg-field">
           <span>Cierre estimado</span>
@@ -581,7 +620,3 @@ function Agenda({
   );
 }
 
-function formatearFecha(fecha: string) {
-  const [anio, mes, dia] = fecha.split("-");
-  return anio && mes && dia ? `${dia}/${mes}/${anio}` : fecha;
-}

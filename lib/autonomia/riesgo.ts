@@ -439,6 +439,27 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
    * riesgo real no es el presupuesto sino inventar el monto: por eso el
    * prompt prohíbe inventarlo y la función acepta que entre en cero.
    */
+  /*
+   * Escribirle a un cliente por el WhatsApp de la empresa (v186).
+   *
+   * Es la única acción que habla con un TERCERO, y un mensaje enviado no se deshace.
+   * Lo que la sostiene NO es el nivel de autonomía sino tres cosas:
+   *   - el prompt sólo la emite cuando la persona confirmó el texto exacto ("sí, escribile"),
+   *     nunca por iniciativa propia ni con un texto que ella no vio;
+   *   - la política de WhatsApp (`lib/whatsapp-crm/politica.ts`) sigue mandando: ventana de
+   *     24 horas, baja del cliente, tope diario. Si bloquea, el chat dice el motivo;
+   *   - el envío es idempotente por comando: un reintento no manda dos mensajes.
+   *
+   * Por eso `forceApproval: false`: pedir además una aprobación en otra pantalla después
+   * de un "sí" explícito en el chat sería preguntar dos veces lo mismo.
+   */
+  ENVIAR_WHATSAPP_CLIENTE: {
+    tier: 3,
+    points: 6,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
   REGISTRAR_OPORTUNIDAD: {
     tier: 1,
     points: 2,

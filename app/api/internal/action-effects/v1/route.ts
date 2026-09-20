@@ -4,6 +4,7 @@ import { CODIGOS_DE_NEGOCIO, errorDeAccion, errorDeLaBase } from "@/lib/eos/erro
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { autorizadoComoWorker } from "@/lib/seguridad/worker-bearer";
 import { paraRegistro } from "@/lib/seguridad/registro";
+import { enviarDesdeElChat } from "@/lib/whatsapp-crm/envio-por-chat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -329,6 +330,35 @@ export async function POST(request: Request) {
       );
     }
 
+    let resultado: Record<string, unknown> = effect.resultado ?? {};
+
+    /*
+     * Escribirle a un cliente (v186): el ejecutor de la base validó; el ENVÍO es de acá.
+     *
+     * Se hace también cuando la orden ya estaba completada (`idempotent`): si el primer
+     * intento murió entre validar y enviar, este es el que lo termina. No duplica nada
+     * porque la clave del envío es el id de la orden y `enviarPorCanal` la respeta.
+     *
+     * Que el envío salga mal NO cambia el `ok` de la orden —el ejecutor cumplió lo suyo—
+     * pero SÍ queda dicho en `resultado.envio`, que es lo que la respuesta le cuenta a la
+     * persona. Nunca se afirma un envío que no se confirmó.
+     */
+    if (effect.accion === "ENVIAR_WHATSAPP_CLIENTE") {
+      const { data: orden } = await admin
+        .from("eos_action_commands")
+        .select("usuario_id")
+        .eq("id", effect.command_id)
+        .maybeSingle();
+
+      const usuarioId = typeof orden?.usuario_id === "string" ? orden.usuario_id : null;
+
+      const envio = usuarioId
+        ? await enviarDesdeElChat(admin, { usuarioId, commandId: effect.command_id, resultado })
+        : ({ estado: "pendiente", motivo: "No pude confirmar de quién era la orden." } as const);
+
+      resultado = { ...resultado, envio };
+    }
+
     return respond({
       ok: true,
       command_id: effect.command_id,
@@ -337,7 +367,7 @@ export async function POST(request: Request) {
       effect_id: effect.effect_id,
       idempotent: effect.idempotent === true,
       estado: effect.estado,
-      resultado: effect.resultado ?? {},
+      resultado,
     });
   } catch (error) {
     console.error("Worker effect executor unexpected error:", error);

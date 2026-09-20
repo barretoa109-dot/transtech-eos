@@ -58,6 +58,7 @@
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
+import { fraseDelEnvio, type EnvioDeChat } from "../whatsapp-crm/envio-por-chat.ts";
 
 /**
  * Los handlers que este ejecutor orquesta.
@@ -126,6 +127,7 @@ export const ACCIONES_INTERNAS = new Set([
   "CORREGIR_VENTA",
   "ANULAR_COMPRA",
   "CORREGIR_COMPRA",
+  "ENVIAR_WHATSAPP_CLIENTE",
 ]);
 
 /** Qué se le dice a la persona cuando la acción salió bien. */
@@ -143,6 +145,8 @@ const HECHO: Record<string, string> = {
   REGISTRAR_TARJETA: "Anoté la tarjeta.",
   REGISTRAR_COMPRA_TARJETA: "Anoté la compra.",
   REGISTRAR_OPORTUNIDAD: "Anoté la oportunidad.",
+  // Se reemplaza por lo que Meta contestó de verdad: ver `frasesDelEnvio`.
+  ENVIAR_WHATSAPP_CLIENTE: "Le escribí por WhatsApp.",
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -270,7 +274,12 @@ async function ramaInterna(
     effect_id: resultado.effect_id ?? null,
     resultado: resultado.resultado ?? {},
     respuesta: salioBien
-      ? (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
+      ? job.accion.tipo === "ENVIAR_WHATSAPP_CLIENTE"
+        ? fraseDelEnvio(
+            String((resultado.resultado as Record<string, unknown> | undefined)?.contacto_nombre ?? ""),
+            (resultado.resultado as { envio?: EnvioDeChat } | undefined)?.envio,
+          )
+        : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
       : String(resultado.error ?? "No fue posible completar la acción interna."),
   };
 }

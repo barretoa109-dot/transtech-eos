@@ -10,6 +10,8 @@ una fila por comprobación (`ok = true` en todas).
 | `compra_vence_el_e2e.sql` | Compras a crédito con vencimiento (v180): se guarda, corregir lo conserva, al contado no aplica | Ver la cabecera del archivo: va tras la v180 |
 | `chat_vence_el_e2e.sql` | El chat traduce "me paga el 30" / "en 15 días" a un vencimiento (v182), incluida la compra por el chat completa | Ver la cabecera: va tras la v182 |
 | `whatsapp_crm_e2e.sql` | Canal de WhatsApp de la empresa (v177): recepción, dedupe, baja, oportunidad, seguimiento, aislamiento | Ver la cabecera del archivo: va **después** de la migración v177 |
+| `crm_completo_e2e.sql` | CRM completo (v185): ficha del cliente, oportunidades, etapas configurables, seguimientos y token de WhatsApp en Vault | Ver la cabecera: va tras la v185 |
+| `chat_escribe_cliente_e2e.sql` | El chat le escribe a un cliente (v186): valida cliente único, texto, canal, teléfono y baja; aislamiento entre cuentas; permisos | Ver la cabecera: **se corre con v185 + v186 concatenadas** si todavía no están aplicadas. Las migraciones NO llevan `commit` de nivel superior a propósito |
 
 Los indicadores del Dashboard y la salud financiera se calculan en TypeScript
 (`lib/kpi`) y tienen sus tests con `npm test`; estas pruebas comprueban los

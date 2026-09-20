@@ -126,3 +126,58 @@ test("una sola moneda da un solo embudo, como antes", () => {
 test("sin oportunidades no hay ninguna moneda que mostrar", () => {
   assert.deepEqual(embudoPorMoneda([]), []);
 });
+
+// ============================================================
+// La probabilidad propia de una oportunidad y la escala de la empresa (v185)
+// ============================================================
+
+import { probabilidadEfectiva, valorPonderado as valorPonderadoV185, embudoPorMoneda as embudoV185 } from "./embudo.ts";
+
+test("sin probabilidad propia ni escala, vale la de la etapa de siempre", () => {
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "propuesta" }), 0.5);
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "propuesta", probabilidad: null }), 0.5);
+});
+
+test("la probabilidad propia de la oportunidad manda sobre la de la etapa", () => {
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "propuesta", probabilidad: 80 }), 0.8);
+  // Un 0 dicho a propósito NO es "sin estimar": es "no va a pasar".
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "negociacion", probabilidad: 0 }), 0);
+});
+
+test("la escala de la empresa cambia la de la etapa, pero no pisa la propia", () => {
+  const escala = { propuesta: 0.3 };
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "propuesta" }, escala), 0.3);
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "propuesta", probabilidad: 90 }, escala), 0.9);
+  assert.equal(probabilidadEfectiva({ monto: 100, etapa: "nueva" }, escala), 0.1);
+});
+
+test("un valor fuera de rango se acota, no rompe el pronóstico", () => {
+  assert.equal(probabilidadEfectiva({ monto: 1, etapa: "nueva", probabilidad: 250 }), 1);
+  assert.equal(probabilidadEfectiva({ monto: 1, etapa: "nueva", probabilidad: -10 }), 0);
+  assert.equal(probabilidadEfectiva({ monto: 1, etapa: "nueva", probabilidad: Number.NaN }), 0.1);
+  assert.equal(probabilidadEfectiva({ monto: 1, etapa: "nueva" }, { nueva: 7 }), 1);
+});
+
+test("el pronóstico usa la probabilidad propia y la escala; lo cerrado no cuenta", () => {
+  const ops = [
+    { monto: 1000, etapa: "propuesta", probabilidad: 80 }, // 800
+    { monto: 1000, etapa: "propuesta" }, // 300 con la escala de la empresa
+    { monto: 1000, etapa: "ganada" },
+    { monto: 1000, etapa: "perdida", probabilidad: 90 },
+  ];
+  assert.equal(valorPonderadoV185(ops, { propuesta: 0.3 }), 1100);
+  // Sin escala ni propias vuelve al comportamiento de siempre (dos propuestas al 50%: 500 + 500).
+  assert.equal(valorPonderadoV185(ops.map((o) => ({ monto: o.monto, etapa: o.etapa }))), 1000);
+});
+
+test("el embudo por moneda usa la escala, y cada moneda su total", () => {
+  const r = embudoV185(
+    [
+      { monto: 1000, etapa: "propuesta", moneda: "PYG" },
+      { monto: 100, etapa: "propuesta", moneda: "USD", probabilidad: 100 },
+    ],
+    "PYG",
+    { propuesta: 0.2 },
+  );
+  assert.deepEqual(r.map((x) => [x.moneda, x.esperado]), [["PYG", 200], ["USD", 100]]);
+});

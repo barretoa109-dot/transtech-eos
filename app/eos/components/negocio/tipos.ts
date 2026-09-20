@@ -27,6 +27,11 @@ export type Contacto = {
   direccion?: string | null;
   ciudad?: string | null;
   notas?: string | null;
+  /* La ficha del CRM (v185). Ausentes mientras la migración no esté aplicada. */
+  empresa?: string | null;
+  estado_relacion?: "prospecto" | "activo" | "inactivo";
+  proxima_interaccion_en?: string | null;
+  responsable_id?: string | null;
 };
 
 export type Producto = {
@@ -61,6 +66,11 @@ export type Oportunidad = {
   etapa: string;
   cierre_estimado: string | null;
   contacto: { id: string; nombre: string } | null;
+  /* Los de la v185: ausentes mientras la migración no esté aplicada. */
+  probabilidad?: number | null;
+  producto_servicio?: string | null;
+  proxima_accion_en?: string | null;
+  motivo_perdida?: string | null;
 };
 
 export type Actividad = {

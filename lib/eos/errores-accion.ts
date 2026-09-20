@@ -487,6 +487,48 @@ const REGLAS: Regla[] = [
       "Tu cuenta no tiene activo el módulo CRM, que es el que guarda tus contactos. " +
       "Lo podés agregar desde Planes.",
   },
+
+  /*
+   * Escribirle a un cliente por WhatsApp (v186).
+   *
+   * Cada mensaje dice QUÉ falta y qué hacer, porque un mensaje enviado no se deshace y
+   * el ejecutor prefiere frenar antes de mandar: nunca adivina a qué cliente ni por qué canal.
+   */
+  {
+    codigo: "EOS_ACCION_WHATSAPP_SIN_CLIENTE",
+    mensaje: () => "Decime a qué cliente le escribo.",
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_SIN_MENSAJE",
+    mensaje: () => "Decime qué le escribo, o pedime que te proponga el mensaje y me decís si va.",
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_MENSAJE_LARGO",
+    mensaje: () => "Ese mensaje es demasiado largo para WhatsApp. Acortalo a unas pocas líneas y lo mando.",
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_SIN_TELEFONO",
+    mensaje: (d) =>
+      `${d ? `A ${d}` : "Al cliente"} no le cargaste el teléfono. Agregalo en su ficha (CRM > Contactos) y le escribo.`,
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_SIN_CANAL",
+    mensaje: () =>
+      "Todavía no conectaste el WhatsApp de tu empresa, así que no puedo escribirle a tus clientes. " +
+      "Conectalo desde CRM > WhatsApp.",
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_CANAL_PAUSADO",
+    mensaje: () =>
+      "El WhatsApp de tu empresa está pausado (suele pasar cuando vence el token de Meta). " +
+      "Revisalo en CRM > WhatsApp y después te lo mando.",
+  },
+  {
+    codigo: "EOS_ACCION_WHATSAPP_BAJA",
+    mensaje: (d) =>
+      `${d || "Ese cliente"} pidió no recibir más mensajes, así que no le escribo. ` +
+      "Si cambió de opinión, registralo en su ficha.",
+  },
 ];
 
 /**

@@ -33,7 +33,8 @@ const DIAS = 60;
 
 /** La tabla todavía no existe: la migración v177 no está aplicada. */
 function faltaLaMigracion(error: { code?: string } | null): boolean {
-  return error?.code === "42P01" || error?.code === "PGRST205";
+  // 42703: una columna que todavía no existe (la v185 sin aplicar).
+  return error?.code === "42P01" || error?.code === "PGRST205" || error?.code === "42703";
 }
 
 export async function GET() {
@@ -46,7 +47,10 @@ export async function GET() {
   const [canales, mensajes, consentimientos, eventos] = await Promise.all([
     supabase
       .from("eos_wa_canales")
-      .select("id,nombre_visible,telefono,estado,respuesta_automatica,secreto_ref")
+      .select(
+        "id,nombre_visible,telefono,estado,respuesta_automatica,secreto_ref,secreto_app_ref,waba_id,verify_token," +
+          "limite_diario,limite_por_contacto_dia,silencio_desde_hora,silencio_hasta_hora,ultimo_error,creado_en",
+      )
       .order("creado_en", { ascending: true })
       .limit(5),
     supabase
@@ -95,30 +99,47 @@ export async function GET() {
     contactos = (data ?? []) as FilaContacto[];
   }
 
-  const canal = (canales.data ?? [])[0] as
-    | {
-        id: string;
-        nombre_visible: string | null;
-        telefono: string | null;
-        estado: string;
-        respuesta_automatica: boolean;
-        secreto_ref: string | null;
-      }
-    | undefined;
+  // El que sigue conectado. Uno desconectado se trata como "no hay canal": se puede
+  // volver a conectar el mismo número desde el formulario.
+  const canal = ((canales.data ?? []) as unknown as FilaCanal[]).find((c) => c.estado !== "desconectado");
+
+  // Las plantillas del canal. Si la lectura falla, la pantalla igual funciona sin ellas.
+  let plantillas: unknown[] = [];
+  if (canal) {
+    const { data: filasPlantillas } = await supabase
+      .from("eos_wa_plantillas")
+      .select("id,nombre,cuerpo,cantidad_variables,estado,motivo_rechazo,categoria")
+      .eq("canal_id", canal.id)
+      .order("creado_en", { ascending: false })
+      .limit(50);
+    plantillas = filasPlantillas ?? [];
+  }
 
   return NextResponse.json(
     {
       disponible: true,
       canal: canal
         ? {
+            id: canal.id,
             nombre: canal.nombre_visible,
             telefono: canal.telefono,
             estado: canal.estado,
             respuesta_automatica: canal.respuesta_automatica,
             // Si se puede ENVIAR: hace falta el token. Recibir no lo necesita.
             puede_enviar: canal.estado === "activo" && Boolean(canal.secreto_ref),
+            tiene_waba: Boolean(canal.waba_id),
+            tiene_secreto_app: Boolean(canal.secreto_app_ref),
+            limite_diario: canal.limite_diario,
+            limite_por_contacto_dia: canal.limite_por_contacto_dia,
+            silencio_desde_hora: canal.silencio_desde_hora,
+            silencio_hasta_hora: canal.silencio_hasta_hora,
+            ultimo_error: canal.ultimo_error,
+            // Lo que hay que pegar en Meta. NUNCA el token ni el secreto de la app:
+            // esos no salen de Vault.
+            verify_token: canal.verify_token,
           }
         : null,
+      plantillas,
       conversaciones: agruparConversaciones({
         mensajes: filas,
         contactos,
@@ -130,6 +151,23 @@ export async function GET() {
     { headers: noStore() },
   );
 }
+
+type FilaCanal = {
+  id: string;
+  nombre_visible: string | null;
+  telefono: string | null;
+  estado: string;
+  respuesta_automatica: boolean;
+  secreto_ref: string | null;
+  secreto_app_ref: string | null;
+  waba_id: string | null;
+  verify_token: string | null;
+  limite_diario: number;
+  limite_por_contacto_dia: number;
+  silencio_desde_hora: number;
+  silencio_hasta_hora: number;
+  ultimo_error: string | null;
+};
 
 function noStore() {
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };

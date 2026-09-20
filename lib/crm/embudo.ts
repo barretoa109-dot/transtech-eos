@@ -69,7 +69,29 @@ export function siguienteEtapa(etapa: string): Etapa {
 export type OportunidadResumen = {
   monto: number;
   etapa: string;
+  /**
+   * La probabilidad que la persona estimó para ESTA oportunidad, de 0 a 100 (v185).
+   * Es opcional a propósito —ver "LA PROBABILIDAD NO SE PIDE, SE DEDUCE"—: cuando
+   * está, manda sobre la de la etapa; cuando no, sigue valiendo la de la etapa.
+   */
+  probabilidad?: number | null;
 };
+
+/**
+ * La probabilidad de cada etapa, ajustada por la empresa (0 a 1). Lo que no esté
+ * acá usa la escala de siempre. Ver `lib/crm/etapas-config.ts`.
+ */
+export type EscalaDeEtapas = Partial<Record<Etapa, number>>;
+
+/** La probabilidad que vale para una oportunidad: la suya, la de la empresa o la de la etapa. */
+export function probabilidadEfectiva(o: OportunidadResumen, escala?: EscalaDeEtapas): number {
+  if (typeof o.probabilidad === "number" && Number.isFinite(o.probabilidad)) {
+    return Math.min(1, Math.max(0, o.probabilidad / 100));
+  }
+  const deLaEmpresa = escala?.[o.etapa as Etapa];
+  if (typeof deLaEmpresa === "number" && Number.isFinite(deLaEmpresa)) return Math.min(1, Math.max(0, deLaEmpresa));
+  return probabilidadDe(o.etapa);
+}
 
 /**
  * Lo que razonablemente va a entrar, no lo que suma el embudo.
@@ -79,10 +101,10 @@ export type OportunidadResumen = {
  * futura hace gastar plata que todavía no existe, que es exactamente lo que el
  * panel financiero de EOS trata de evitar.
  */
-export function valorPonderado(oportunidades: OportunidadResumen[]): number {
+export function valorPonderado(oportunidades: OportunidadResumen[], escala?: EscalaDeEtapas): number {
   const abiertas = oportunidades.filter((o) => o.etapa !== "ganada" && o.etapa !== "perdida");
 
-  return Math.round(abiertas.reduce((total, o) => total + o.monto * probabilidadDe(o.etapa), 0));
+  return Math.round(abiertas.reduce((total, o) => total + o.monto * probabilidadEfectiva(o, escala), 0));
 }
 
 /** Cuántas hay en cada etapa, en el orden del embudo. */
@@ -136,6 +158,7 @@ export type EmbudoDeMoneda = {
 export function embudoPorMoneda(
   oportunidades: OportunidadConMoneda[],
   principal = "PYG",
+  escala?: EscalaDeEtapas,
 ): EmbudoDeMoneda[] {
   const monedas = [...new Set(oportunidades.map((o) => o.moneda))];
 
@@ -154,7 +177,7 @@ export function embudoPorMoneda(
       moneda,
       abiertas: abiertas.length,
       en_juego: Math.round(abiertas.reduce((t, o) => t + o.monto, 0)),
-      esperado: valorPonderado(suyas),
+      esperado: valorPonderado(suyas, escala),
       ganadas: ganadas.length,
       ganado: Math.round(ganadas.reduce((t, o) => t + o.monto, 0)),
       por_etapa: porEtapa(suyas),

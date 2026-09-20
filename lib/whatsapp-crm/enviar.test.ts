@@ -1,0 +1,301 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { enviarPorCanal, limpiarTexto, rellenarPlantilla, type PedidoEnvio } from "./enviar.ts";
+import { baseFalsa } from "./base-falsa.ts";
+import type { Fetcher } from "./meta.ts";
+
+const AHORA = "2026-09-18T13:00:00Z"; // 10:00 en Paraguay
+const TOKEN = "EAAG" + "x".repeat(40);
+
+const CANAL = { id: "canal-1", estado: "activo", phone_number_id: "123456789" };
+const CONTACTO = { id: "c-1", nombre: "Carlos", telefono: "0981 123 456" };
+
+function contexto(extra: Record<string, unknown> = {}) {
+  return {
+    canal: { estado: "activo", limite_diario: 250, enviados_hoy: 0, limite_por_contacto_dia: 2, silencio_desde_hora: 21, silencio_hasta_hora: 7 },
+    consentimiento: "otorgado",
+    ultimo_entrante_en: "2026-09-18T12:30:00Z", // escribió hace media hora
+    enviados_a_este_contacto_hoy: 0,
+    ...extra,
+  };
+}
+
+/** El guion de un envío que sale bien; cada test pisa lo que necesita. */
+function guion(sobre: Record<string, unknown> = {}) {
+  return {
+    "eos_wa_canales.select": { data: CANAL, error: null },
+    "eos_crm_contactos.select": { data: CONTACTO, error: null },
+    "rpc:eos_wa_contexto_envio_v177": { data: contexto(), error: null },
+    "rpc:eos_wa_registrar_saliente_v177": { data: { duplicado: false, mensaje_id: "m-1", telefono: "595981123456" }, error: null },
+    "rpc:eos_wa_leer_secreto_v185": { data: TOKEN, error: null },
+    "rpc:eos_wa_actualizar_estado_v177": { data: 1, error: null },
+    ...sobre,
+  } as never;
+}
+
+const pedido = (extra: Partial<PedidoEnvio> = {}): PedidoEnvio => ({
+  usuarioId: "u-1",
+  canalId: "canal-1",
+  contactoId: "c-1",
+  contenido: { tipo: "texto", texto: "Hola Carlos, ¿pudiste ver la propuesta?" },
+  origen: "usuario",
+  autorizacion: "aprobada",
+  clave: "clave-1",
+  ahora: AHORA,
+  ...extra,
+});
+
+/** Meta: cuenta cuántas veces le pegaron y responde lo que se le diga. */
+function meta(status: number, cuerpo: unknown) {
+  const llamadas: { url: string; body: unknown; auth: string }[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => {
+    llamadas.push({ url: String(url), body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>).Authorization });
+    return new Response(JSON.stringify(cuerpo), { status });
+  }) as unknown as Fetcher;
+  return { fetcher, llamadas };
+}
+
+const metaOk = () => meta(200, { messages: [{ id: "wamid.OUT" }] });
+
+// ---------------------------------------------------------------------- limpieza
+
+test("el texto se limpia: sin caracteres de control, sin espacios de más, con tope", () => {
+  assert.equal(limpiarTexto("  Hola" + String.fromCharCode(0, 7) + "   mundo  "), "Hola mundo");
+  assert.equal(limpiarTexto("a\n\n\n\nb"), "a\n\nb");
+  assert.equal(limpiarTexto("x".repeat(5000)).length, 1000);
+  assert.equal(limpiarTexto(null), "");
+});
+
+test("una plantilla se rellena con sus variables; una que falta queda a la vista", () => {
+  assert.equal(rellenarPlantilla("Hola {{1}}, tu propuesta es de {{2}}.", ["Carlos", "Gs. 3.500.000"]), "Hola Carlos, tu propuesta es de Gs. 3.500.000.");
+  assert.equal(rellenarPlantilla("Hola {{1}} y {{2}}", ["Carlos"]), "Hola Carlos y {{2}}");
+});
+
+// ------------------------------------------------------------------- el camino feliz
+
+test("responder dentro de la ventana: registra, manda a Meta, marca enviado y deja el historial al día", async () => {
+  const { admin, pedidos } = baseFalsa(guion());
+  const { fetcher, llamadas } = metaOk();
+
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.deepEqual(r, { ok: true, mensajeId: "m-1", waMessageId: "wamid.OUT", via: "ventana_abierta" });
+
+  // A Meta le llegó lo correcto.
+  assert.equal(llamadas.length, 1);
+  assert.match(llamadas[0].url, /\/123456789\/messages$/);
+  assert.equal(llamadas[0].auth, `Bearer ${TOKEN}`);
+  assert.equal((llamadas[0].body as { to: string }).to, "595981123456");
+  assert.equal((llamadas[0].body as { text: { body: string } }).text.body, "Hola Carlos, ¿pudiste ver la propuesta?");
+
+  // Se registró ANTES de mandar, y se marcó enviado con el id de Meta.
+  const orden = pedidos.map((p) => p.clave);
+  assert.ok(orden.indexOf("rpc:eos_wa_registrar_saliente_v177") < orden.indexOf("rpc:eos_wa_leer_secreto_v185"));
+  const marca = pedidos.find((p) => p.clave === "rpc:eos_wa_actualizar_estado_v177")!.args as Record<string, unknown>;
+  assert.equal(marca.p_estado, "enviado");
+  assert.equal(marca.p_wa_message_id, "wamid.OUT");
+
+  // El historial del cliente.
+  assert.ok(pedidos.some((p) => p.clave === "eos_crm_contactos.update"));
+  const act = pedidos.find((p) => p.clave === "eos_crm_actividades.insert")!.payload as { tipo: string; detalle: string };
+  assert.equal(act.tipo, "whatsapp");
+  assert.match(act.detalle, /Se le escribió por WhatsApp: Hola Carlos/);
+  assert.equal((pedidos.find((p) => p.clave === "eos_wa_eventos.insert")!.payload as { evento: string }).evento, "envio_realizado");
+});
+
+test("el token nunca viaja en lo que se registra: solo se lee para mandar", async () => {
+  const { admin, pedidos } = baseFalsa(guion());
+  await enviarPorCanal(admin, pedido(), metaOk().fetcher);
+
+  for (const p of pedidos.filter((x) => x.clave !== "rpc:eos_wa_leer_secreto_v185")) {
+    assert.ok(!JSON.stringify(p).includes(TOKEN), p.clave);
+  }
+});
+
+test("toda consulta lleva el dueño como filtro", async () => {
+  const { admin, pedidos } = baseFalsa(guion());
+  await enviarPorCanal(admin, pedido(), metaOk().fetcher);
+
+  for (const p of pedidos.filter((x) => /^eos_(wa_canales|crm_contactos)\.select$/.test(x.clave))) {
+    assert.ok(p.filtros.some((f) => f.metodo === "eq" && f.args[0] === "usuario_id" && f.args[1] === "u-1"), p.clave);
+  }
+});
+
+// ------------------------------------------------------------- lo que NO sale, y por qué
+
+test("un cliente que pidió la baja: se registra bloqueado con su motivo y NO se le pega a Meta", async () => {
+  const { admin, pedidos } = baseFalsa(guion({ "rpc:eos_wa_contexto_envio_v177": { data: contexto({ consentimiento: "revocado" }), error: null } }));
+  const { fetcher, llamadas } = metaOk();
+
+  const r = await enviarPorCanal(admin, pedido({ origen: "eos_autonomo" }), fetcher);
+
+  assert.ok(!r.ok);
+  assert.equal(r.estado, "bloqueado");
+  assert.match(r.motivo, /pidió no recibir más mensajes/);
+  assert.equal(r.mensajeId, "m-1");
+  assert.equal(llamadas.length, 0);
+  // Quedó registrado: el dueño ve que se quiso escribir y por qué no salió.
+  const reg = pedidos.find((p) => p.clave === "rpc:eos_wa_registrar_saliente_v177")!.args as Record<string, unknown>;
+  assert.equal(reg.p_estado, "bloqueado");
+  assert.match(String(reg.p_motivo), /pidió no recibir/);
+  // Y ni siquiera se leyó el token.
+  assert.ok(!pedidos.some((p) => p.clave === "rpc:eos_wa_leer_secreto_v185"));
+});
+
+test("fuera de la ventana de 24 horas, el texto libre no sale y se explica", async () => {
+  const { admin } = baseFalsa(guion({ "rpc:eos_wa_contexto_envio_v177": { data: contexto({ ultimo_entrante_en: "2026-09-10T13:00:00Z" }), error: null } }));
+  const r = await enviarPorCanal(admin, pedido(), metaOk().fetcher);
+
+  assert.ok(!r.ok);
+  assert.equal(r.estado, "bloqueado");
+  assert.match(r.motivo, /24 horas.*plantilla aprobada/);
+});
+
+test("un canal pausado no manda nada", async () => {
+  const { admin } = baseFalsa(guion({ "rpc:eos_wa_contexto_envio_v177": { data: contexto({ canal: { ...contexto().canal, estado: "pausado" } }), error: null } }));
+  const { fetcher, llamadas } = metaOk();
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.ok(!r.ok && r.estado === "bloqueado");
+  assert.equal(llamadas.length, 0);
+});
+
+test("lo que EOS inicia sin autorización queda PENDIENTE de aprobar, no bloqueado", async () => {
+  const { admin, pedidos } = baseFalsa(
+    guion({
+      "rpc:eos_wa_contexto_envio_v177": { data: contexto({ ultimo_entrante_en: "2026-09-10T13:00:00Z" }), error: null },
+      "eos_wa_plantillas.select": { data: { id: "p-1", nombre: "seguimiento", idioma: "es", cuerpo: "Hola {{1}}", estado: "aprobada", cantidad_variables: 1 }, error: null },
+    }),
+  );
+  const { fetcher, llamadas } = metaOk();
+
+  const r = await enviarPorCanal(
+    admin,
+    pedido({ origen: "eos_autonomo", autorizacion: "ninguna", contenido: { tipo: "plantilla", plantillaId: "p-1", variables: ["Carlos"] } }),
+    fetcher,
+  );
+
+  assert.ok(!r.ok);
+  assert.equal(r.estado, "pendiente_aprobacion");
+  assert.equal(llamadas.length, 0);
+  assert.equal((pedidos.find((p) => p.clave === "rpc:eos_wa_registrar_saliente_v177")!.args as { p_estado: string }).p_estado, "pendiente_aprobacion");
+});
+
+// -------------------------------------------------------------------- plantillas
+
+const plantillaAprobada = { data: { id: "p-1", nombre: "seguimiento", idioma: "es", cuerpo: "Hola {{1}}, ¿viste la propuesta de {{2}}?", estado: "aprobada", cantidad_variables: 2 }, error: null };
+
+test("una plantilla aprobada retoma la conversación fuera de la ventana", async () => {
+  const { admin, pedidos } = baseFalsa(
+    guion({ "rpc:eos_wa_contexto_envio_v177": { data: contexto({ ultimo_entrante_en: "2026-09-10T13:00:00Z" }), error: null }, "eos_wa_plantillas.select": plantillaAprobada }),
+  );
+  const { fetcher, llamadas } = metaOk();
+
+  const r = await enviarPorCanal(admin, pedido({ contenido: { tipo: "plantilla", plantillaId: "p-1", variables: ["Carlos", "Gs. 3.500.000"] } }), fetcher);
+
+  assert.ok(r.ok && r.via === "plantilla");
+  const t = (llamadas[0].body as { template: { name: string; components: { parameters: { text: string }[] }[] } }).template;
+  assert.equal(t.name, "seguimiento");
+  assert.deepEqual(t.components[0].parameters.map((p) => p.text), ["Carlos", "Gs. 3.500.000"]);
+  // Lo que se registra es el texto que ve el cliente.
+  assert.equal((pedidos.find((p) => p.clave === "rpc:eos_wa_registrar_saliente_v177")!.args as { p_texto: string }).p_texto, "Hola Carlos, ¿viste la propuesta de Gs. 3.500.000?");
+});
+
+test("una plantilla sin aprobar no sale", async () => {
+  const { admin } = baseFalsa(
+    guion({
+      "rpc:eos_wa_contexto_envio_v177": { data: contexto({ ultimo_entrante_en: "2026-09-10T13:00:00Z" }), error: null },
+      "eos_wa_plantillas.select": { data: { ...plantillaAprobada.data, estado: "en_revision" }, error: null },
+    }),
+  );
+  const r = await enviarPorCanal(admin, pedido({ contenido: { tipo: "plantilla", plantillaId: "p-1", variables: ["Carlos", "x"] } }), metaOk().fetcher);
+  assert.ok(!r.ok && r.estado === "bloqueado");
+  assert.match(r.motivo, /todavía no está aprobada/);
+});
+
+test("una plantilla con datos de menos o vacíos se rechaza ANTES de registrar nada", async () => {
+  const { admin, pedidos } = baseFalsa(guion({ "eos_wa_plantillas.select": plantillaAprobada }));
+
+  for (const variables of [["Carlos"], ["Carlos", ""], ["Carlos", "   "]]) {
+    const r = await enviarPorCanal(admin, pedido({ contenido: { tipo: "plantilla", plantillaId: "p-1", variables } }), metaOk().fetcher);
+    assert.ok(!r.ok && r.estado === "invalido", JSON.stringify(variables));
+  }
+  assert.ok(!pedidos.some((p) => p.clave === "rpc:eos_wa_registrar_saliente_v177"));
+});
+
+// --------------------------------------------------------------------- idempotencia
+
+test("la misma orden dos veces NO manda dos mensajes", async () => {
+  const { admin, pedidos } = baseFalsa(guion({ "rpc:eos_wa_registrar_saliente_v177": { data: { duplicado: true, mensaje_id: "m-1" }, error: null } }));
+  const { fetcher, llamadas } = metaOk();
+
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.deepEqual(r, { ok: true, mensajeId: "m-1", waMessageId: null, via: "ya_enviado" });
+  assert.equal(llamadas.length, 0);
+  assert.ok(!pedidos.some((p) => p.clave === "rpc:eos_wa_leer_secreto_v185"));
+});
+
+// ------------------------------------------------------------------------ fallas
+
+test("un token vencido marca el mensaje fallido y PAUSA el canal", async () => {
+  const { admin, pedidos } = baseFalsa(guion());
+  const { fetcher } = meta(401, { error: { code: 190, message: "expired" } });
+
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.ok(!r.ok);
+  assert.equal(r.estado, "fallido");
+  assert.match(r.motivo, /token de acceso venció/);
+  assert.equal(r.reintentable, false);
+
+  const marca = pedidos.find((p) => p.clave === "rpc:eos_wa_actualizar_estado_v177")!.args as Record<string, unknown>;
+  assert.equal(marca.p_estado, "fallido");
+  const pausa = pedidos.find((p) => p.clave === "eos_wa_canales.update")!.payload as { estado: string };
+  assert.equal(pausa.estado, "pausado");
+  // Y el historial NO dice que se le escribió.
+  assert.ok(!pedidos.some((p) => p.clave === "eos_crm_actividades.insert"));
+});
+
+test("una falla pasajera de Meta es reintentable y NO pausa el canal", async () => {
+  const { admin, pedidos } = baseFalsa(guion());
+  const r = await enviarPorCanal(admin, pedido(), meta(503, {}).fetcher);
+
+  assert.ok(!r.ok);
+  assert.equal(r.reintentable, true);
+  assert.ok(!pedidos.some((p) => p.clave === "eos_wa_canales.update"));
+});
+
+test("sin token guardado se marca fallido con qué hacer, sin llamar a Meta", async () => {
+  const { admin } = baseFalsa(guion({ "rpc:eos_wa_leer_secreto_v185": { data: null, error: null } }));
+  const { fetcher, llamadas } = metaOk();
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.ok(!r.ok && r.estado === "fallido");
+  assert.match(r.motivo, /Conectalo de nuevo/);
+  assert.equal(llamadas.length, 0);
+});
+
+test("si no se puede verificar el estado del canal, NO se manda a ciegas", async () => {
+  const { admin, pedidos } = baseFalsa(guion({ "rpc:eos_wa_contexto_envio_v177": { data: null, error: { message: "caída" } } }));
+  const { fetcher, llamadas } = metaOk();
+  const r = await enviarPorCanal(admin, pedido(), fetcher);
+
+  assert.ok(!r.ok && r.reintentable === true);
+  assert.equal(llamadas.length, 0);
+  assert.ok(!pedidos.some((p) => p.clave === "rpc:eos_wa_registrar_saliente_v177"));
+});
+
+test("datos inválidos: canal ajeno, cliente sin teléfono, mensaje vacío", async () => {
+  const sinCanal = baseFalsa(guion({ "eos_wa_canales.select": { data: null, error: null } }));
+  assert.equal((await enviarPorCanal(sinCanal.admin, pedido(), metaOk().fetcher) as { estado: string }).estado, "invalido");
+
+  const sinTelefono = baseFalsa(guion({ "eos_crm_contactos.select": { data: { ...CONTACTO, telefono: null }, error: null } }));
+  const r2 = await enviarPorCanal(sinTelefono.admin, pedido(), metaOk().fetcher);
+  assert.ok(!r2.ok && /no tiene un teléfono válido/.test(r2.motivo));
+
+  const vacio = baseFalsa(guion());
+  const r3 = await enviarPorCanal(vacio.admin, pedido({ contenido: { tipo: "texto", texto: " " + String.fromCharCode(0) + " " } }), metaOk().fetcher);
+  assert.ok(!r3.ok && /vacío/.test(r3.motivo));
+});

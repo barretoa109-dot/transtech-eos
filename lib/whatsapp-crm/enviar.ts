@@ -1,0 +1,305 @@
+import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { enviarPlantilla, enviarTexto, type Fetcher } from "./meta.ts";
+import { normalizarTelefono } from "./telefono.ts";
+import { evaluarEnvio, type Autorizacion, type Consentimiento, type EstadoCanal } from "./politica.ts";
+
+/**
+ * Enviarle un mensaje de WhatsApp a un cliente de la empresa.
+ *
+ * ============================================================
+ * EL RECORRIDO, EN ORDEN, Y POR QUÉ ESE ORDEN
+ * ============================================================
+ *
+ *   1. Se junta lo necesario (canal, cliente, plantilla, y los números del día).
+ *   2. La POLÍTICA decide (`politica.ts`): consentimiento, ventana de 24 horas,
+ *      plantilla aprobada, límites, silencio, autorización.
+ *   3. Se REGISTRA el mensaje —SIEMPRE, también si no va a salir— con su estado y
+ *      su motivo. Un "no salió" sin rastro es el peor resultado posible: el dueño
+ *      no sabe si EOS falló o hizo bien en callar.
+ *   4. Recién ahí, si estaba permitido, se le manda a Meta.
+ *   5. Se anota lo que pasó (enviado o fallido) y el historial del cliente queda al
+ *      día: última interacción y una actividad.
+ *
+ * Que el registro vaya ANTES de Meta es lo que hace idempotente el envío: la misma
+ * orden dos veces (un reintento de n8n, un doble clic) encuentra el registro por
+ * su clave y no manda dos mensajes.
+ *
+ * DE QUIÉN SON LOS DATOS: todo lleva `usuario_id`. Se usa la clave de servicio, así
+ * que ese filtro es la única frontera; y la función de registro de la base repite
+ * la regla (`EOS_WA_CONTACTO_AJENO`) como última defensa.
+ */
+
+export type Contenido =
+  | { tipo: "texto"; texto: string }
+  | { tipo: "plantilla"; plantillaId: string; variables: string[] };
+
+export type PedidoEnvio = {
+  usuarioId: string;
+  canalId: string;
+  contactoId: string;
+  contenido: Contenido;
+  /** `usuario`: una persona lo escribió y lo mandó. `eos_autonomo`: lo redactó EOS. */
+  origen: "usuario" | "eos_autonomo";
+  autorizacion: Autorizacion;
+  /** Hace idempotente el envío: la misma clave no manda dos mensajes. */
+  clave: string;
+  ahora?: string;
+};
+
+export type ResultadoEnvio =
+  | { ok: true; mensajeId: string; waMessageId: string | null; via: "ventana_abierta" | "plantilla" | "ya_enviado" }
+  | {
+      ok: false;
+      /** Qué pasó con el mensaje: no salió por política, espera aprobación, o Meta falló. */
+      estado: "bloqueado" | "pendiente_aprobacion" | "fallido" | "invalido";
+      motivo: string;
+      mensajeId?: string;
+      /** ¿Tiene sentido reintentar más tarde? Solo si falló Meta por algo pasajero. */
+      reintentable?: boolean;
+    };
+
+export const MAX_TEXTO = 1000;
+
+/**
+ * ¿Es un carácter de control? Todos menos el salto de línea (código 10). Se decide por
+ * el código y no con una expresión regular: los caracteres de control escritos dentro
+ * de una regex son ilegibles y se pierden al copiar el archivo.
+ */
+function esControl(c: string): boolean {
+  const codigo = c.charCodeAt(0);
+  return codigo !== 10 && (codigo < 32 || codigo === 127);
+}
+
+/** Sin caracteres de control (menos el salto de línea), recortado y sin espacios de más. */
+export function limpiarTexto(texto: unknown): string {
+  return String(texto ?? "")
+    .split("")
+    .map((c) => (esControl(c) ? " " : c))
+    .join("")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, MAX_TEXTO);
+}
+
+/** El texto de una plantilla con sus variables puestas: es lo que ve el cliente. */
+export function rellenarPlantilla(cuerpo: string, variables: string[]): string {
+  return cuerpo.replace(/\{\{\s*(\d+)\s*\}\}/g, (todo, n: string) => variables[Number(n) - 1] ?? todo);
+}
+
+type CanalFila = { id: string; estado: string; phone_number_id: string };
+type ContactoFila = { id: string; nombre: string; telefono: string | null };
+type PlantillaFila = { id: string; nombre: string; idioma: string; cuerpo: string; estado: string; cantidad_variables: number };
+type Contexto = {
+  canal: {
+    estado: EstadoCanal;
+    limite_diario: number;
+    enviados_hoy: number;
+    limite_por_contacto_dia: number;
+    silencio_desde_hora: number;
+    silencio_hasta_hora: number;
+  };
+  consentimiento: Consentimiento;
+  ultimo_entrante_en: string | null;
+  enviados_a_este_contacto_hoy: number;
+};
+
+export async function enviarPorCanal(
+  admin: ClienteSinTipos,
+  pedido: PedidoEnvio,
+  fetcher: Fetcher = fetch,
+): Promise<ResultadoEnvio> {
+  const ahora = pedido.ahora ?? new Date().toISOString();
+  const invalido = (motivo: string): ResultadoEnvio => ({ ok: false, estado: "invalido", motivo });
+
+  // ---------------------------------------------------------------- 1. lo necesario
+  const { data: canalData, error: errorCanal } = await admin
+    .from("eos_wa_canales")
+    .select("id, estado, phone_number_id")
+    .eq("id", pedido.canalId)
+    .eq("usuario_id", pedido.usuarioId)
+    .maybeSingle();
+
+  if (errorCanal) return { ok: false, estado: "fallido", motivo: "No pudimos leer el canal. Reintentá en un momento.", reintentable: true };
+  if (!canalData) return invalido("Ese canal de WhatsApp no existe.");
+  const canal = canalData as CanalFila;
+
+  const { data: contactoData } = await admin
+    .from("eos_crm_contactos")
+    .select("id, nombre, telefono")
+    .eq("id", pedido.contactoId)
+    .eq("usuario_id", pedido.usuarioId)
+    .maybeSingle();
+
+  if (!contactoData) return invalido("No encontré a ese cliente.");
+  const contacto = contactoData as ContactoFila;
+  // Meta exige el formato internacional (595981123456): la ficha guarda lo que
+  // escribió la persona ("0981 123 456"). Sin esto el mensaje no le llega a nadie.
+  const telefono = normalizarTelefono(contacto.telefono);
+  if (!telefono) {
+    return invalido(`${contacto.nombre} no tiene un teléfono válido cargado.`);
+  }
+
+  let plantilla: PlantillaFila | null = null;
+  let texto: string;
+
+  if (pedido.contenido.tipo === "plantilla") {
+    const { data } = await admin
+      .from("eos_wa_plantillas")
+      .select("id, nombre, idioma, cuerpo, estado, cantidad_variables")
+      .eq("id", pedido.contenido.plantillaId)
+      .eq("canal_id", pedido.canalId)
+      .eq("usuario_id", pedido.usuarioId)
+      .maybeSingle();
+
+    if (!data) return invalido("Esa plantilla no existe en este canal.");
+    plantilla = data as PlantillaFila;
+
+    const variables = pedido.contenido.variables.map((v) => limpiarTexto(v).slice(0, 200));
+    if (variables.length !== plantilla.cantidad_variables || variables.some((v) => !v)) {
+      return invalido(`Esa plantilla necesita ${plantilla.cantidad_variables} dato(s) y no puede llevar ninguno vacío.`);
+    }
+    texto = rellenarPlantilla(plantilla.cuerpo, variables);
+  } else {
+    texto = limpiarTexto(pedido.contenido.texto);
+    if (!texto) return invalido("El mensaje está vacío.");
+  }
+
+  const { data: ctxData, error: errorCtx } = await admin.rpc("eos_wa_contexto_envio_v177", {
+    p_canal_id: pedido.canalId,
+    p_contacto_id: pedido.contactoId,
+  });
+  if (errorCtx || !ctxData) {
+    return { ok: false, estado: "fallido", motivo: "No pudimos verificar el estado del canal. Reintentá en un momento.", reintentable: true };
+  }
+  const ctx = ctxData as Contexto;
+
+  // ------------------------------------------------------------------ 2. la política
+  const decision = evaluarEnvio({
+    ahora,
+    canal: ctx.canal,
+    consentimiento: ctx.consentimiento,
+    ultimo_entrante_en: ctx.ultimo_entrante_en,
+    enviados_a_este_contacto_hoy: ctx.enviados_a_este_contacto_hoy,
+    es_plantilla: plantilla !== null,
+    plantilla_aprobada: plantilla?.estado === "aprobada",
+    origen: pedido.origen,
+    autorizacion: pedido.autorizacion,
+  });
+
+  const estadoARegistrar = decision.permitido
+    ? "en_cola"
+    : decision.motivo === "requiere_aprobacion"
+      ? "pendiente_aprobacion"
+      : "bloqueado";
+
+  // ------------------------------------------------------------------ 3. registrar
+  const { data: regData, error: errorReg } = await admin.rpc("eos_wa_registrar_saliente_v177", {
+    p_canal_id: pedido.canalId,
+    p_contacto_id: pedido.contactoId,
+    p_clave: pedido.clave,
+    p_texto: texto,
+    p_plantilla_id: plantilla?.id ?? null,
+    p_origen: pedido.origen,
+    p_autorizacion: pedido.autorizacion,
+    p_estado: estadoARegistrar,
+    p_motivo: decision.permitido ? null : decision.explicacion,
+  });
+
+  if (errorReg || !regData) {
+    console.error("WhatsApp empresa: no se pudo registrar el mensaje saliente:", errorReg);
+    return { ok: false, estado: "fallido", motivo: "No pudimos registrar el mensaje. No se envió: reintentá.", reintentable: true };
+  }
+
+  const reg = regData as { duplicado: boolean; mensaje_id: string };
+
+  // La misma orden otra vez: el mensaje ya se procesó, no se repite.
+  if (reg.duplicado) {
+    return { ok: true, mensajeId: reg.mensaje_id, waMessageId: null, via: "ya_enviado" };
+  }
+
+  if (!decision.permitido) {
+    return {
+      ok: false,
+      estado: decision.motivo === "requiere_aprobacion" ? "pendiente_aprobacion" : "bloqueado",
+      motivo: decision.explicacion,
+      mensajeId: reg.mensaje_id,
+    };
+  }
+
+  // ---------------------------------------------------------------- 4. mandarlo a Meta
+  const marcar = async (estado: "enviado" | "fallido", waId: string | null, motivo: string | null) => {
+    const { error } = await admin.rpc("eos_wa_actualizar_estado_v177", {
+      p_canal_id: pedido.canalId,
+      p_mensaje_id: reg.mensaje_id,
+      p_wa_message_id: waId,
+      p_estado: estado,
+      p_motivo: motivo,
+    });
+    if (error) console.error("WhatsApp empresa: no se pudo actualizar el estado del mensaje:", error);
+  };
+
+  const { data: token } = await admin.rpc("eos_wa_leer_secreto_v185", { p_canal_id: pedido.canalId, p_tipo: "token" });
+
+  if (!token || typeof token !== "string") {
+    const motivo = "Este canal no tiene el acceso de Meta guardado. Conectalo de nuevo con su token.";
+    await marcar("fallido", null, motivo);
+    return { ok: false, estado: "fallido", motivo, mensajeId: reg.mensaje_id };
+  }
+
+  const r =
+    plantilla !== null && pedido.contenido.tipo === "plantilla"
+      ? await enviarPlantilla(
+          token,
+          canal.phone_number_id,
+          telefono,
+          { nombre: plantilla.nombre, idioma: plantilla.idioma, variables: pedido.contenido.variables.map((v) => limpiarTexto(v).slice(0, 200)) },
+          fetcher,
+        )
+      : await enviarTexto(token, canal.phone_number_id, telefono, texto, fetcher);
+
+  // ------------------------------------------------------------ 5. anotar lo que pasó
+  if (!r.ok) {
+    await marcar("fallido", null, r.mensaje);
+
+    // Un token vencido no se arregla reintentando y cada intento suma ruido: se pausa el canal.
+    if (r.codigo === 190) {
+      await admin
+        .from("eos_wa_canales")
+        .update({ estado: "pausado", ultimo_error: r.mensaje })
+        .eq("id", pedido.canalId)
+        .eq("usuario_id", pedido.usuarioId);
+    }
+
+    return { ok: false, estado: "fallido", motivo: r.mensaje, mensajeId: reg.mensaje_id, reintentable: r.transitorio };
+  }
+
+  await marcar("enviado", r.datos.wa_message_id, null);
+
+  // El historial del cliente al día: última interacción y una actividad.
+  await admin
+    .from("eos_crm_contactos")
+    .update({ ultima_interaccion_en: ahora, actualizado_en: ahora })
+    .eq("id", pedido.contactoId)
+    .eq("usuario_id", pedido.usuarioId);
+
+  await admin.from("eos_crm_actividades").insert({
+    usuario_id: pedido.usuarioId,
+    contacto_id: pedido.contactoId,
+    tipo: "whatsapp",
+    detalle: `Se le escribió por WhatsApp: ${texto}`.slice(0, 4000),
+    hecha: true,
+  });
+
+  await admin.from("eos_wa_eventos").insert({
+    usuario_id: pedido.usuarioId,
+    canal_id: pedido.canalId,
+    contacto_id: pedido.contactoId,
+    evento: "envio_realizado",
+    actor: pedido.origen === "usuario" ? "usuario" : "eos",
+    resumen: `Se le escribió a ${contacto.nombre} por WhatsApp.`,
+    detalle: { mensaje_id: reg.mensaje_id },
+  });
+
+  return { ok: true, mensajeId: reg.mensaje_id, waMessageId: r.datos.wa_message_id, via: decision.via };
+}

@@ -1,5 +1,6 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
-import { clasificarIntencion } from "./intencion.ts";
+import { clasificarIntencion, type Intencion } from "./intencion.ts";
+import { refinarIntencion } from "./intencion-ia.ts";
 
 /**
  * Lo que Meta manda cuando le escribe un cliente al WhatsApp de una empresa.
@@ -210,6 +211,9 @@ export async function atenderCanalEmpresa(
   canal: CanalEmpresa,
   valor: ValorWebhook,
   ahora: string = new Date().toISOString(),
+  // Se inyecta en las pruebas. En producción, el modelo solo corre si la empresa lo encendió
+  // (`EOS_INTENCION_IA=1`); sin eso devuelve lo que dijeron las reglas, sin salir a la red.
+  refinar: (texto: string, regla: Intencion) => Promise<Intencion> = refinarIntencion,
 ): Promise<ResumenEntrante> {
   const resumen: ResumenEntrante = { mensajes: 0, duplicados: 0, clientes_nuevos: 0, bajas: 0, estados: 0, errores: 0 };
 
@@ -226,7 +230,7 @@ export async function atenderCanalEmpresa(
           p_tipo: item.tipo,
           p_nombre_perfil: item.nombre_perfil,
           p_ocurrio_en: item.ocurrio_en,
-          p_intencion: item.intencion,
+          p_intencion: await refinar(item.texto, item.intencion as Intencion),
         });
 
         if (error) throw error;

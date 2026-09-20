@@ -91,6 +91,9 @@ export const RUTAS: Record<string, string> = {
   // Las simétricas de compra (v170): mismo camino interno.
   ANULAR_COMPRA: "eos-worker-rc1-internal",
   CORREGIR_COMPRA: "eos-worker-rc1-internal",
+  // Escribirle a un cliente por el WhatsApp de la empresa (v186): el ejecutor valida y el
+  // servidor envía con la misma política que la pantalla.
+  ENVIAR_WHATSAPP_CLIENTE: "eos-worker-rc1-internal",
 };
 
 export type Job = {

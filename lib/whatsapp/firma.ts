@@ -11,8 +11,17 @@ import { createHmac, timingSafeEqual } from "crypto";
  * compara en tiempo constante, mismo patrón que
  * `lib/seguridad/worker-bearer.ts` usa para el secreto del Worker.
  */
-export function firmaWhatsappValida(cuerpoCrudo: string, firmaHeader: string | null): boolean {
-  const secreto = process.env.WHATSAPP_APP_SECRET;
+export function firmaWhatsappValida(
+  cuerpoCrudo: string,
+  firmaHeader: string | null,
+  /**
+   * El secreto de la app de Meta de UN canal de empresa (v185), si lo tiene. Cuando
+   * viene, es el ÚNICO que vale —no se cae al global—: un canal con app propia no
+   * acepta lo que firmó otra. Ver `lib/whatsapp-crm/firma-canal.ts`.
+   */
+  secretoDeCanal?: string | null,
+): boolean {
+  const secreto = secretoDeCanal || process.env.WHATSAPP_APP_SECRET;
   if (!secreto || !firmaHeader) return false;
 
   const esperada =
