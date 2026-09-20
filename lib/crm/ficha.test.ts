@@ -53,7 +53,7 @@ test("mezcla las cuatro fuentes, lo más nuevo primero", () => {
     mensajes: [msg({ ocurrio_en: "2026-09-10T13:00:00Z" })],
     actividades: [{ id: "a1", tipo: "llamada", detalle: "Pidió precio", fecha: "2026-09-12", hecha: true }],
     oportunidades: [{ id: "o1", titulo: "Sistema", etapa: "nueva", monto: 5_000_000, moneda: "PYG", creado_en: "2026-09-01T10:00:00Z", cerrada_en: null, motivo_perdida: null }],
-    ventas: [{ id: "v1", fecha: "2026-09-14", total: 300_000, moneda: "PYG", estado: "cobrada", numero_comprobante: "001-001-0000012" }],
+    ventas: [{ id: "v1", fecha: "2026-09-14", total: 300_000, moneda: "PYG", estado: "cobrada" }],
   });
 
   assert.deepEqual(h.map((e) => e.tipo), ["venta", "actividad", "mensaje_enviado", "oportunidad_creada"]);
@@ -88,7 +88,7 @@ test("una oportunidad cerrada suma su cierre; la perdida dice el motivo", () => 
 test("una venta anulada no es historia comercial; una tarea pendiente se marca", () => {
   const h = armarHistorial({
     ...vacio,
-    ventas: [{ id: "v", fecha: "2026-09-14", total: 1, moneda: "PYG", estado: "anulada", numero_comprobante: null }],
+    ventas: [{ id: "v", fecha: "2026-09-14", total: 1, moneda: "PYG", estado: "anulada" }],
     actividades: [{ id: "a", tipo: "tarea", detalle: "Llamarlo", fecha: "2026-09-20", hecha: false }],
   });
 
@@ -147,10 +147,10 @@ test("las ventas y la plata abierta se suman POR MONEDA, sin mezclarlas", () => 
     {
       ...vacio,
       ventas: [
-        { id: "1", fecha: "2026-09-01", total: 100, moneda: "PYG", estado: "emitida", numero_comprobante: null },
-        { id: "2", fecha: "2026-09-02", total: 50, moneda: "PYG", estado: "cobrada", numero_comprobante: null },
-        { id: "3", fecha: "2026-09-03", total: 20, moneda: "USD", estado: "emitida", numero_comprobante: null },
-        { id: "4", fecha: "2026-09-04", total: 999, moneda: "PYG", estado: "anulada", numero_comprobante: null },
+        { id: "1", fecha: "2026-09-01", total: 100, moneda: "PYG", estado: "emitida" },
+        { id: "2", fecha: "2026-09-02", total: 50, moneda: "PYG", estado: "cobrada" },
+        { id: "3", fecha: "2026-09-03", total: 20, moneda: "USD", estado: "emitida" },
+        { id: "4", fecha: "2026-09-04", total: 999, moneda: "PYG", estado: "anulada" },
       ],
       oportunidades: [
         { id: "a", titulo: "A", etapa: "propuesta", monto: 1000, moneda: "PYG", creado_en: "2026-09-01T00:00:00Z", cerrada_en: null, motivo_perdida: null },

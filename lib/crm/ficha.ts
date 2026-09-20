@@ -90,7 +90,7 @@ export type OportunidadFila = {
   cerrada_en: string | null;
   motivo_perdida: string | null;
 };
-export type VentaFila = { id: string; fecha: string; total: number; moneda: string; estado: string; numero_comprobante: string | null };
+export type VentaFila = { id: string; fecha: string; total: number; moneda: string; estado: string };
 
 export type TipoHistorial =
   | "mensaje_recibido"
@@ -203,7 +203,7 @@ export function armarHistorial(f: {
       clave: `venta:${v.id}`,
       cuando: alMediodia(v.fecha),
       tipo: "venta",
-      titulo: `Venta${v.numero_comprobante ? ` ${v.numero_comprobante}` : ""}`,
+      titulo: "Venta",
       detalle: `${monto(v.total, v.moneda)}${v.estado === "cobrada" ? " · cobrada" : ""}`,
     });
   }

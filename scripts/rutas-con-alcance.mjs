@@ -98,6 +98,10 @@ const PERMITIDAS = new Map([
     "El cron recorre a todos los usuarios por definición: es lo que hace un cron. Su puerta es `CRON_SECRET`, no una sesión.",
   ],
   [
+    "app/api/crm/equipo/route.ts::usuarios",
+    "Lee SOLO el nombre de quienes son miembros de LA empresa de la sesión: los ids salen de `eos_empresa_miembros` filtrada por `empresa_id` (que sale de la sesión, nunca de un parámetro) y se consultan con `.in(\"id\", ids)`. La política de `usuarios` solo deja ver la fila propia, así que sin el cliente de servicio el selector de responsable no podría mostrar a nadie más.",
+  ],
+  [
     "app/api/finanzas/correo/route.ts::eos_finanzas_buzon",
     "El correo entrante llega sin sesión. Esta consulta es justamente la que averigua DE QUIÉN es la casilla que recibió el mensaje, a partir del token secreto de esa casilla; filtrarla por un usuario que todavía no se conoce es imposible por definición.",
   ],

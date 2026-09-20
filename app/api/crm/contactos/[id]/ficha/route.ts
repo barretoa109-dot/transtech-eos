@@ -116,7 +116,7 @@ export async function GET(_request: Request, contexto: { params: Promise<{ id: s
     fuente<VentaFila>(
       supabase
         .from("eos_erp_ventas")
-        .select("id,fecha,total,moneda,estado,numero_comprobante")
+        .select("id,fecha,total,moneda,estado")
         .eq("contacto_id", id)
         .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
         .order("fecha", { ascending: false })
