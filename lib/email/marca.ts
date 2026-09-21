@@ -7,7 +7,7 @@
  * sí hay dos plantillas distintas que lo repetirían letra por letra.
  */
 
-function escaparHtml(texto: string): string {
+export function escaparHtml(texto: string): string {
   return texto
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -29,6 +29,8 @@ export function envolverEmailDeMarca(opciones: {
   ctaTexto?: string;
   ctaUrl?: string;
   notaFinal?: string;
+  /** HTML ya armado por quien llama (no se escapa): para el enlace de baja. */
+  pieHtml?: string;
 }): string {
   const eyebrow = escaparHtml(opciones.eyebrow || "TRANSTECH EOS");
   const titulo = escaparHtml(opciones.titulo);
@@ -65,6 +67,7 @@ export function envolverEmailDeMarca(opciones: {
           ${parrafosHtml}
           ${cta}
           ${notaFinal}
+          ${opciones.pieHtml ?? ""}
         </div>
       </div>
     </div>
