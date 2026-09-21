@@ -5724,3 +5724,22 @@
 @media (prefers-reduced-motion: reduce) {
   .eos-app .cal-grilla { transition: none; }
 }
+
+/* Lo que se repite, las tareas sin fecha y el interruptor de avisos (v191). */
+.eos-app .cal-repite { font-weight: 600; color: var(--blue); }
+.eos-app .cal-avisos { margin-top: 18px; }
+/* Texto arriba y acciones abajo: en la columna lateral no alcanza el ancho para los dos lado a lado
+   y el título quedaba cortado en "Lla…". */
+.eos-app .cal-sinfecha {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.eos-app .cal-sinfecha .cal-salto-titulo { white-space: normal; overflow: visible; font-size: 13.5px; font-weight: 600; }
+.eos-app .cal-sinfecha .cal-item-acciones { justify-content: flex-start; max-width: none; }
+.eos-app .cal-sinfecha:last-child { border-bottom: 0; }
+.eos-app .cal-sinfecha-texto { display: grid; min-width: 0; gap: 2px; }
+.eos-app .cal-sinfecha-texto small { color: var(--muted); overflow-wrap: anywhere; }

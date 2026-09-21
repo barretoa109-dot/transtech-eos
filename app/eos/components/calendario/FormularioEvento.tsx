@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { CATEGORIAS_PROPIAS, ETIQUETAS, type CategoriaPropia } from "@/lib/calendario/agenda";
+import { ETIQUETAS_REPITE, REPETICIONES } from "@/lib/calendario/repeticion";
 
 export type BorradorEvento = {
   id?: string;
@@ -18,6 +19,10 @@ export type BorradorEvento = {
   hora_fin: string;
   contacto_nombre: string;
   detalle: string;
+  /** "" = no se repite; si no, uno de `REPETICIONES`. */
+  repite: string;
+  /** Hasta cuándo se repite ("" = sin fin). */
+  repite_hasta: string;
 };
 
 const AYUDA: Record<CategoriaPropia, string> = {
@@ -73,6 +78,8 @@ export default function FormularioEvento({ inicial, onGuardado, onCancelar }: Pr
           hora_fin: datos.hora_fin || null,
           contacto_nombre: datos.contacto_nombre || null,
           detalle: datos.detalle || null,
+          repite: datos.repite || null,
+          repite_hasta: datos.repite ? datos.repite_hasta || null : null,
         }),
       });
 
@@ -123,7 +130,7 @@ export default function FormularioEvento({ inicial, onGuardado, onCancelar }: Pr
         )}
 
         <label className="cal-campo">
-          <span>Fecha</span>
+          <span>{datos.repite ? "Primera vez" : "Fecha"}</span>
           <input
             className="neg-input"
             type="date"
@@ -153,6 +160,33 @@ export default function FormularioEvento({ inicial, onGuardado, onCancelar }: Pr
               disabled={!datos.hora_inicio}
               onChange={(e) => cambiar("hora_fin", e.target.value)}
             />
+          </label>
+        )}
+
+        <label className="cal-campo">
+          <span>Se repite</span>
+          <select className="neg-input" value={datos.repite} onChange={(e) => cambiar("repite", e.target.value)}>
+            <option value="">No se repite</option>
+            {REPETICIONES.map((r) => (
+              <option key={r} value={r}>
+                {ETIQUETAS_REPITE[r]}
+              </option>
+            ))}
+          </select>
+          {datos.repite === "mensual" && <small>El mismo día de cada mes; en los meses cortos, el último.</small>}
+        </label>
+
+        {datos.repite && (
+          <label className="cal-campo">
+            <span>Hasta (opcional)</span>
+            <input
+              className="neg-input"
+              type="date"
+              min={datos.fecha}
+              value={datos.repite_hasta}
+              onChange={(e) => cambiar("repite_hasta", e.target.value)}
+            />
+            <small>Sin fecha, no termina.</small>
           </label>
         )}
 

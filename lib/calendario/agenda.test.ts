@@ -30,6 +30,10 @@ function evento(parcial: Partial<EventoAgenda> & { id: string; fecha: string }):
     moneda: null,
     editable: true,
     completable: true,
+    repite: null,
+    ocurrencia: null,
+    serie_desde: null,
+    serie_hasta: null,
     ...parcial,
   };
 }
@@ -203,4 +207,37 @@ test("agendaAInstante y instanteAAgenda son inversas", () => {
   ] as const) {
     assert.deepEqual(instanteAAgenda(agendaAInstante(fecha, hora)), { fecha, hora });
   }
+});
+
+test("la repetición se valida: solo las cuatro que la base acepta", () => {
+  const base = { titulo: "Pagar los salarios", fecha: "2026-09-25" };
+
+  const ok = validarEventoPropio({ ...base, repite: "mensual", repite_hasta: "2027-09-25" });
+  assert.equal(ok.ok, true);
+  if (ok.ok) {
+    assert.equal(ok.datos.repite, "mensual");
+    assert.equal(ok.datos.repite_hasta, "2027-09-25");
+  }
+
+  const invalida = validarEventoPropio({ ...base, repite: "cada_mes" });
+  assert.equal(invalida.ok, false);
+  if (!invalida.ok) assert.match(invalida.error, /repetición/);
+});
+
+test("'No se repite' llega como vacío y no guarda ni un fin suelto", () => {
+  const r = validarEventoPropio({ titulo: "x", fecha: "2026-09-25", repite: "", repite_hasta: "2027-01-01" });
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    assert.equal(r.datos.repite, null);
+    // Un fin sin regla no significa nada: se descarta en vez de guardarlo.
+    assert.equal(r.datos.repite_hasta, null);
+  }
+});
+
+test("una repetición no puede terminar antes de empezar, ni con una fecha que no existe", () => {
+  const antes = validarEventoPropio({ titulo: "x", fecha: "2026-09-25", repite: "mensual", repite_hasta: "2026-09-01" });
+  assert.equal(antes.ok, false);
+
+  const imposible = validarEventoPropio({ titulo: "x", fecha: "2026-09-25", repite: "mensual", repite_hasta: "2027-02-30" });
+  assert.equal(imposible.ok, false);
 });

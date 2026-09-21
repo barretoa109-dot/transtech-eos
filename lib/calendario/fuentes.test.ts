@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { armarAgenda, type ContextoAgenda } from "./fuentes.ts";
+import { agendaPropia, armarAgenda, tareasSinFecha, type ContextoAgenda } from "./fuentes.ts";
 
 type Respuesta = { data: unknown[] | null; error: unknown };
 
@@ -16,7 +16,7 @@ function cliente(porTabla: Record<string, Respuesta>, consultadas: string[] = []
       consultadas.push(tabla);
       const respuesta = porTabla[tabla] ?? { data: [], error: null };
       const cadena: Record<string, unknown> = {};
-      const metodos = ["select", "eq", "neq", "in", "not", "or", "gte", "lte", "lt", "order", "limit"];
+      const metodos = ["select", "eq", "neq", "in", "not", "is", "or", "gte", "lte", "lt", "order", "limit"];
       for (const m of metodos) cadena[m] = () => cadena;
       cadena.then = (resolver: (r: Respuesta) => unknown) => Promise.resolve(respuesta).then(resolver);
       return cadena;
@@ -243,4 +243,143 @@ test("si no se pueden leer las tareas, el calendario lo dice en vez de mostrarse
   );
 
   assert.deepEqual(fuentes_caidas, ["tus tareas"]);
+});
+
+// ------------------------------------------------------------- lo que se repite
+
+test("una serie mensual aparece en cada mes que se mira, con su ocurrencia hecha aparte", async () => {
+  // "El 25 de cada mes": una sola fila, y septiembre ya se marcó como hecho.
+  const { eventos } = await armarAgenda(
+    contexto({
+      hasta: "2026-12-31",
+      supabase: cliente({
+        eos_calendario_eventos: {
+          data: [
+            {
+              id: "s1", titulo: "Pagar los salarios", detalle: null, categoria: "recordatorio",
+              fecha: "2026-09-25", hora_inicio: null, hora_fin: null, estado: "pendiente", contacto_nombre: null,
+              repite: "mensual", repite_hasta: null, repite_hechas: ["2026-09-25"],
+            },
+          ],
+          error: null,
+        },
+      }),
+    }),
+  );
+
+  const salarios = eventos.filter((e) => e.origen === "propio");
+  assert.deepEqual(salarios.map((e) => e.fecha), ["2026-09-25", "2026-10-25", "2026-11-25", "2026-12-25"]);
+  // Cada ocurrencia tiene su propio id: con el mismo, se pisarían en la grilla.
+  assert.equal(new Set(salarios.map((e) => e.id)).size, 4);
+  assert.equal(salarios[0].id, "propio:s1@2026-09-25");
+  // Marcar septiembre como hecho no marca octubre.
+  assert.deepEqual(salarios.map((e) => e.estado), ["hecho", "pendiente", "pendiente", "pendiente"]);
+  // Cada una sabe de qué serie es y cuál es su día.
+  assert.equal(salarios[1].repite, "mensual");
+  assert.equal(salarios[1].ocurrencia, "2026-10-25");
+  assert.equal(salarios[1].serie_desde, "2026-09-25");
+});
+
+test("una serie que empieza después del rango, o ya terminó, no aparece", async () => {
+  const fila = (extra: Record<string, unknown>) => ({
+    id: "s", titulo: "X", detalle: null, categoria: "actividad", hora_inicio: null, hora_fin: null,
+    estado: "pendiente", contacto_nombre: null, repite: "semanal", repite_hasta: null, repite_hechas: [], ...extra,
+  });
+
+  const { eventos } = await armarAgenda(
+    contexto({
+      supabase: cliente({
+        eos_calendario_eventos: {
+          data: [
+            fila({ id: "futura", fecha: "2027-03-01" }),
+            fila({ id: "terminada", fecha: "2026-01-05", repite_hasta: "2026-06-30" }),
+            fila({ id: "cancelada", fecha: "2026-09-01", estado: "cancelado" }),
+          ],
+          error: null,
+        },
+      }),
+    }),
+  );
+
+  assert.deepEqual(eventos.filter((e) => e.origen === "propio"), []);
+});
+
+test("un evento de una sola vez fuera del rango no se cuela por la consulta de las series", async () => {
+  // La consulta trae también lo que tiene regla; el resto se filtra por fecha.
+  const { eventos } = await armarAgenda(
+    contexto({
+      supabase: cliente({
+        eos_calendario_eventos: {
+          data: [{ ...PROPIO, id: "lejano", fecha: "2027-05-01", repite: null, repite_hasta: null, repite_hechas: [] }],
+          error: null,
+        },
+      }),
+    }),
+  );
+
+  assert.equal(eventos.length, 0);
+});
+
+test("una tarea del chat que se repite ('el 25 de cada mes') se expande igual", async () => {
+  const { eventos } = await armarAgenda(
+    contexto({
+      hasta: "2026-11-30",
+      supabase: cliente({
+        eos_tasks: {
+          data: [
+            {
+              id: "t9", titulo: "Pagar salarios", descripcion: null, estado: "pendiente",
+              // El 25 de septiembre, 00:00 en Asunción.
+              fecha_limite: "2026-09-25T03:00:00+00:00",
+              repite: "mensual", repite_hasta: null, repite_hechas: [],
+            },
+          ],
+          error: null,
+        },
+      }),
+    }),
+  );
+
+  const tareas = eventos.filter((e) => e.origen === "tareas");
+  assert.deepEqual(tareas.map((e) => e.fecha), ["2026-09-25", "2026-10-25", "2026-11-25"]);
+  assert.equal(tareas[2].id, "tarea:t9@2026-11-25");
+  assert.ok(tareas.every((e) => e.hora === null && e.repite === "mensual"));
+});
+
+// -------------------------------------------------------------------- sin fecha
+
+test("las tareas sin fecha se listan aparte, con su detalle solo si agrega algo", async () => {
+  const lista = await tareasSinFecha({
+    usuarioId: "u1",
+    supabase: cliente({
+      eos_tasks: {
+        data: [
+          { id: "a", titulo: "Llamar al proveedor", descripcion: "Llamar al proveedor", created_at: "2026-09-20T15:00:00+00:00" },
+          { id: "b", titulo: "Revisar el contrato", descripcion: "Que incluya la cláusula de precio", created_at: "2026-09-19T12:00:00+00:00" },
+        ],
+        error: null,
+      },
+    }),
+  });
+
+  assert.deepEqual(lista, [
+    { id: "tarea:a", titulo: "Llamar al proveedor", detalle: null, creada: "2026-09-20" },
+    { id: "tarea:b", titulo: "Revisar el contrato", detalle: "Que incluya la cláusula de precio", creada: "2026-09-19" },
+  ]);
+});
+
+test("si no se pueden leer las tareas sin fecha, se avisa y no se devuelve una lista vacía", async () => {
+  await assert.rejects(
+    tareasSinFecha({ usuarioId: "u1", supabase: cliente({ eos_tasks: { data: null, error: { message: "boom" } } }) }),
+    /tus tareas sin fecha/,
+  );
+});
+
+test("lo que lee el aviso de la mañana son solo las dos tablas propias, nunca los módulos", async () => {
+  const consultadas: string[] = [];
+  const supabase = cliente({}, consultadas);
+
+  await agendaPropia(contexto({ supabase, modulos: { crm: true, erp: true, finanzas: true } }));
+
+  assert.deepEqual([...new Set(consultadas)].sort(), ["eos_calendario_eventos", "eos_tasks"]);
 });

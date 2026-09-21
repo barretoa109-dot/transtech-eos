@@ -5,7 +5,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { miEmpresa } from "@/lib/empresa/acceso";
 import { verificarModulo } from "@/lib/modulos/acceso";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
-import { armarAgenda, type ContextoAgenda } from "@/lib/calendario/fuentes";
+import { armarAgenda, tareasSinFecha, type ContextoAgenda, type TareaSinFecha } from "@/lib/calendario/fuentes";
 import {
   agendaAInstante,
   compararEventos,
@@ -161,6 +161,15 @@ export async function GET(request: Request) {
   const fuentesCaidas = new Set([...rango.fuentes_caidas, ...pendientes.fuentes_caidas]);
   if (sinEmpresa) fuentesCaidas.add("tu CRM y tu ERP");
 
+  // Las tareas sin día no tienen lugar en la grilla, pero no se callan: van en su
+  // propia lista. Si no se pueden leer, se dice, igual que con cualquier fuente.
+  let sinFecha: TareaSinFecha[] = [];
+  try {
+    sinFecha = await tareasSinFecha({ supabase, usuarioId });
+  } catch {
+    fuentesCaidas.add("tus tareas sin fecha");
+  }
+
   return responder({
     hoy,
     desde,
@@ -169,6 +178,7 @@ export async function GET(request: Request) {
     eventos: rango.eventos,
     atrasados: porHacer.filter((e) => e.fecha < hoy).sort(compararEventos),
     proximos: porHacer.filter((e) => e.fecha >= hoy).sort(compararEventos),
+    sin_fecha: sinFecha,
     resumen: resumir(porHacer, hoy),
     fuentes_caidas: [...fuentesCaidas],
   });
@@ -222,6 +232,13 @@ export async function PATCH(request: Request) {
   const id = esTarea ? idPedido.slice(PREFIJO_TAREA.length) : idPedido;
   if (!UUID.test(id)) return responder({ error: "No encontrado." }, 404);
 
+  // "Hecho" sobre UNA ocurrencia de una serie: se anota ese día en `repite_hechas` y
+  // las demás quedan como estaban. Sin esto, marcar el pago de septiembre como hecho
+  // marcaría todos los meses.
+  if (cuerpo.ocurrencia !== undefined && cuerpo.titulo === undefined) {
+    return marcarOcurrencia(supabase, usuarioId, esTarea ? "eos_tasks" : "eos_calendario_eventos", id, cuerpo);
+  }
+
   if (esTarea) return actualizarTarea(supabase, usuarioId, id, cuerpo);
 
   let cambios: Record<string, unknown>;
@@ -234,6 +251,8 @@ export async function PATCH(request: Request) {
     const validado = validarEventoPropio(cuerpo);
     if (!validado.ok) return responder({ error: validado.error }, 400);
     cambios = { ...validado.datos };
+    // Sin regla, no hay ocurrencias que recordar como hechas.
+    if (!validado.datos.repite) cambios.repite_hechas = [];
     if (ESTADOS.has(String(cuerpo.estado))) cambios.estado = cuerpo.estado;
   }
 
@@ -311,6 +330,9 @@ async function actualizarTarea(
       titulo: d.titulo,
       descripcion: d.detalle,
       fecha_limite: agendaAInstante(d.fecha, d.hora_inicio),
+      repite: d.repite,
+      repite_hasta: d.repite_hasta,
+      ...(d.repite ? {} : { repite_hechas: [] }),
     };
     if (ESTADO_DE_TAREA[String(cuerpo.estado)]) cambios.estado = ESTADO_DE_TAREA[String(cuerpo.estado)];
   }
@@ -331,4 +353,59 @@ async function actualizarTarea(
   if (!data) return responder({ error: "No encontrado." }, 404);
 
   return responder({ id: data.id });
+}
+
+/**
+ * Marcar hecha (o reabrir) UNA ocurrencia de un evento que se repite.
+ *
+ * El estado de una serie no es una columna sino una lista de días: `repite_hechas`.
+ * Se lee y se reescribe entera porque el cliente de Supabase no expone
+ * `array_append`; una carrera entre dos pestañas de la misma persona a la vez
+ * pisaría un "hecho" como mucho, y el efecto es que la ocurrencia vuelve a
+ * aparecer pendiente.
+ */
+async function marcarOcurrencia(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  usuarioId: string,
+  tabla: "eos_tasks" | "eos_calendario_eventos",
+  id: string,
+  cuerpo: Record<string, unknown>,
+) {
+  if (!esFechaValida(cuerpo.ocurrencia)) return responder({ error: "La fecha no es válida." }, 400);
+  if (cuerpo.estado !== "hecho" && cuerpo.estado !== "pendiente") return responder({ error: "Estado no válido." }, 400);
+
+  const { data: fila, error: errorLectura } = await supabase
+    .from(tabla)
+    .select("repite,repite_hechas")
+    .eq("id", id)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (errorLectura) {
+    console.error("Calendario: no se pudo leer la serie:", errorLectura);
+    return responder({ error: "No pudimos guardar el cambio." }, 503);
+  }
+
+  if (!fila) return responder({ error: "No encontrado." }, 404);
+  if (!fila.repite) return responder({ error: "Ese evento no se repite." }, 400);
+
+  const hechas = new Set<string>(
+    Array.isArray(fila.repite_hechas) ? fila.repite_hechas.map((d: unknown) => String(d).slice(0, 10)) : [],
+  );
+
+  if (cuerpo.estado === "hecho") hechas.add(cuerpo.ocurrencia);
+  else hechas.delete(cuerpo.ocurrencia);
+
+  const { error } = await supabase
+    .from(tabla)
+    .update({ repite_hechas: [...hechas].sort() })
+    .eq("id", id)
+    .eq("usuario_id", usuarioId);
+
+  if (error) {
+    console.error("Calendario: no se pudo marcar la ocurrencia:", error);
+    return responder({ error: "No pudimos guardar el cambio." }, 503);
+  }
+
+  return responder({ id });
 }
