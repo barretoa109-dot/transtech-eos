@@ -156,11 +156,23 @@ export function normalizarDatos(tipo: string, entrada: unknown): Record<string, 
     : {}) as Record<string, unknown>;
 
   if (tipo === "CREAR_TAREA") {
+    // Lo que la persona DIJO ("el 25", "mañana", "el lunes", "a las 10"): la base
+    // hace la cuenta con la fecha de Paraguay (v189). Es el gemelo del nodo
+    // "06 GW Preparar Jobs Worker" de n8n, que descarta en silencio lo que no
+    // nombra. Entran SOLO si vinieron con algo: agregarlos siempre, aunque vacíos,
+    // cambiaría la huella de todas las tareas y con ella el exactly-once.
+    const cuando: Record<string, string> = {};
+    for (const campo of ["vence_dia", "vence_en_dias", "vence_semana", "vence_el", "hora"]) {
+      const valor = texto(d[campo]);
+      if (valor) cuando[campo] = valor;
+    }
+
     return {
       titulo: texto(d.titulo, d.nombre, d.name, d.asunto, d.tarea),
       descripcion: texto(d.descripcion, d.description, d.detalle, d.detalles),
       prioridad: prioridad(d.prioridad ?? d.priority),
       fecha_limite: texto(d.fecha_limite, d.fecha, d.deadline, d.due_date, d.vencimiento),
+      ...cuando,
     };
   }
 

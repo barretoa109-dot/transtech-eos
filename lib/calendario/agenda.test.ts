@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  agendaAInstante,
   agruparPorDia,
   compararEventos,
   diasDeGrilla,
   esFechaValida,
   estaAtrasado,
+  instanteAAgenda,
   moverMes,
   normalizarHora,
   resumir,
@@ -171,4 +173,34 @@ test("una categoría desconocida cae en actividad y no pasa a la base", () => {
   const r = validarEventoPropio({ titulo: "x", fecha: "2026-09-22", categoria: "cobro" });
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(r.datos.categoria, "actividad");
+});
+
+test("una tarea que el chat guardó para 'el 25' se lee como el 25, con o sin hora", () => {
+  // El ejecutor guarda la hora de Paraguay: 00:00 del 25 en Asunción = 03:00 UTC.
+  assert.deepEqual(instanteAAgenda("2026-09-25T03:00:00+00:00"), { fecha: "2026-09-25", hora: null });
+  // A las 10:30 del 25 en Asunción.
+  assert.deepEqual(instanteAAgenda("2026-09-25T13:30:00+00:00"), { fecha: "2026-09-25", hora: "10:30" });
+  // Cerca de la medianoche: las 23:30 del 24 en Asunción ya son el 25 en UTC.
+  assert.deepEqual(instanteAAgenda("2026-09-25T02:30:00+00:00"), { fecha: "2026-09-24", hora: "23:30" });
+});
+
+test("una tarea vieja guardada como medianoche UTC sigue siendo el día que se pidió", () => {
+  // Antes de la v188 "2026-09-25" entraba como 00:00 UTC, que en Asunción es el 24
+  // a las 21:00. Leerla con la zona de Paraguay mostraría el 24.
+  assert.deepEqual(instanteAAgenda("2026-09-25T00:00:00+00:00"), { fecha: "2026-09-25", hora: null });
+});
+
+test("instanteAAgenda rechaza lo que no es una fecha", () => {
+  assert.equal(instanteAAgenda(null), null);
+  assert.equal(instanteAAgenda("mañana"), null);
+});
+
+test("agendaAInstante y instanteAAgenda son inversas", () => {
+  for (const [fecha, hora] of [
+    ["2026-09-25", null],
+    ["2026-09-25", "10:30"],
+    ["2026-12-31", "23:59"],
+  ] as const) {
+    assert.deepEqual(instanteAAgenda(agendaAInstante(fecha, hora)), { fecha, hora });
+  }
 });

@@ -6,6 +6,11 @@ import { CATEGORIAS_PROPIAS, ETIQUETAS, type CategoriaPropia } from "@/lib/calen
 
 export type BorradorEvento = {
   id?: string;
+  /**
+   * Una tarea que EOS anotó desde el chat. Tiene título, fecha, hora y notas;
+   * no tiene tipo, hora de fin ni contacto, así que esos campos no se ofrecen.
+   */
+  esTarea?: boolean;
   titulo: string;
   categoria: CategoriaPropia;
   fecha: string;
@@ -99,21 +104,23 @@ export default function FormularioEvento({ inicial, onGuardado, onCancelar }: Pr
           />
         </label>
 
-        <label className="cal-campo">
-          <span>Tipo</span>
-          <select
-            className="neg-input"
-            value={datos.categoria}
-            onChange={(e) => cambiar("categoria", e.target.value as CategoriaPropia)}
-          >
-            {CATEGORIAS_PROPIAS.map((c) => (
-              <option key={c} value={c}>
-                {ETIQUETAS[c]}
-              </option>
-            ))}
-          </select>
-          <small>{AYUDA[datos.categoria]}</small>
-        </label>
+        {!datos.esTarea && (
+          <label className="cal-campo">
+            <span>Tipo</span>
+            <select
+              className="neg-input"
+              value={datos.categoria}
+              onChange={(e) => cambiar("categoria", e.target.value as CategoriaPropia)}
+            >
+              {CATEGORIAS_PROPIAS.map((c) => (
+                <option key={c} value={c}>
+                  {ETIQUETAS[c]}
+                </option>
+              ))}
+            </select>
+            <small>{AYUDA[datos.categoria]}</small>
+          </label>
+        )}
 
         <label className="cal-campo">
           <span>Fecha</span>
@@ -136,27 +143,31 @@ export default function FormularioEvento({ inicial, onGuardado, onCancelar }: Pr
           <small>Sin hora = todo el día</small>
         </label>
 
-        <label className="cal-campo">
-          <span>Hasta</span>
-          <input
-            className="neg-input"
-            type="time"
-            value={datos.hora_fin}
-            disabled={!datos.hora_inicio}
-            onChange={(e) => cambiar("hora_fin", e.target.value)}
-          />
-        </label>
+        {!datos.esTarea && (
+          <label className="cal-campo">
+            <span>Hasta</span>
+            <input
+              className="neg-input"
+              type="time"
+              value={datos.hora_fin}
+              disabled={!datos.hora_inicio}
+              onChange={(e) => cambiar("hora_fin", e.target.value)}
+            />
+          </label>
+        )}
 
-        <label className="cal-campo cal-campo-ancho">
-          <span>Con quién (opcional)</span>
-          <input
-            className="neg-input"
-            value={datos.contacto_nombre}
-            maxLength={160}
-            placeholder="Nombre del cliente o proveedor"
-            onChange={(e) => cambiar("contacto_nombre", e.target.value)}
-          />
-        </label>
+        {!datos.esTarea && (
+          <label className="cal-campo cal-campo-ancho">
+            <span>Con quién (opcional)</span>
+            <input
+              className="neg-input"
+              value={datos.contacto_nombre}
+              maxLength={160}
+              placeholder="Nombre del cliente o proveedor"
+              onChange={(e) => cambiar("contacto_nombre", e.target.value)}
+            />
+          </label>
+        )}
 
         <label className="cal-campo cal-campo-ancho">
           <span>Notas (opcional)</span>

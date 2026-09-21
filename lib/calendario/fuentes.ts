@@ -5,6 +5,7 @@ import { hoyEnParaguay, sumarDias } from "../fecha.ts";
 import { leerPanoramaPersonal } from "../finanzas/leerCalendario.ts";
 import {
   compararEventos,
+  instanteAAgenda,
   normalizarHora,
   type CategoriaAgenda,
   type CategoriaPropia,
@@ -149,6 +150,80 @@ async function propios(c: ContextoAgenda): Promise<EventoAgenda[]> {
       completable: true,
     }),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Lo que la persona le dijo a EOS por el chat
+// ---------------------------------------------------------------------------
+
+const ESTADO_DE_TAREA: Record<string, EstadoAgenda> = {
+  pendiente: "pendiente",
+  completada: "hecho",
+  cancelada: "cancelado",
+};
+
+/**
+ * Las tareas que EOS anota cuando la persona dice algo como "tengo que pagar
+ * los salarios el 25" (verbo CREAR_TAREA, tabla `eos_tasks`).
+ *
+ * Es lo que evita la carga manual: la persona habla y aparece en el
+ * calendario, sin abrir ningún formulario. Se leen de su propia tabla —no se
+ * copian a `eos_calendario_eventos`— para que "completada" en un lado sea
+ * "completada" en el otro.
+ *
+ * Solo entran las que tienen fecha: una tarea sin fecha no tiene lugar en un
+ * calendario. Las canceladas tampoco (son intentos que la persona descartó).
+ */
+async function tareasDelChat(c: ContextoAgenda): Promise<EventoAgenda[]> {
+  // Un día de margen hacia atrás: las tareas viejas guardaron "2026-09-25" como
+  // medianoche UTC, que cae antes del inicio del día en Paraguay (ver
+  // `instanteAAgenda`). El filtro fino se hace después, con la fecha ya leída.
+  let consulta = c.supabase
+    .from("eos_tasks")
+    .select("id,titulo,descripcion,estado,fecha_limite")
+    .eq("usuario_id", c.usuarioId)
+    .neq("estado", "cancelada")
+    .not("fecha_limite", "is", null)
+    .gte("fecha_limite", ini(sumarDias(c.desde, -1)))
+    .lt("fecha_limite", fin(sumarDias(c.hasta, 1)))
+    .limit(LIMITE);
+
+  if (c.soloPendientes) consulta = consulta.eq("estado", "pendiente");
+
+  const { data, error } = await consulta;
+  if (error) falla("tus tareas", error);
+
+  const eventos: EventoAgenda[] = [];
+
+  for (const f of (data ?? []) as Fila[]) {
+    const cuando = instanteAAgenda(f.fecha_limite);
+    if (!cuando || cuando.fecha < c.desde || cuando.fecha > c.hasta) continue;
+
+    const titulo = texto(f.titulo) ?? "Tarea";
+
+    // Cuando la persona no dio descripción, el ejecutor guarda su mensaje entero:
+    // repetir el título como "detalle" no agrega nada.
+    const descripcion = texto(f.descripcion);
+    const detalle =
+      descripcion && descripcion.toLowerCase() !== titulo.toLowerCase() ? descripcion : null;
+
+    eventos.push(
+      base({
+        id: `tarea:${f.id}`,
+        origen: "tareas",
+        categoria: "recordatorio",
+        titulo,
+        detalle,
+        fecha: cuando.fecha,
+        hora: cuando.hora,
+        estado: ESTADO_DE_TAREA[String(f.estado)] ?? "pendiente",
+        editable: true,
+        completable: true,
+      }),
+    );
+  }
+
+  return eventos;
 }
 
 // ---------------------------------------------------------------------------
@@ -596,7 +671,7 @@ export type ResultadoAgenda = {
 };
 
 export async function armarAgenda(c: ContextoAgenda): Promise<ResultadoAgenda> {
-  const tareas: Promise<EventoAgenda[]>[] = [propios(c), metas(c)];
+  const tareas: Promise<EventoAgenda[]>[] = [propios(c), tareasDelChat(c), metas(c)];
 
   if (c.modulos.crm) tareas.push(crmActividades(c), crmOportunidades(c));
   if (c.modulos.erp) {

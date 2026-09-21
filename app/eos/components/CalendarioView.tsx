@@ -95,9 +95,17 @@ function horario(e: EventoAgenda): string {
   return e.hora_fin ? `${e.hora} – ${e.hora_fin}` : e.hora;
 }
 
-/** Un evento del CRM que se puede completar desde acá (las tareas, no las oportunidades). */
-function esActividadCRM(e: EventoAgenda): boolean {
-  return e.origen === "crm" && e.id.startsWith("crm:");
+/**
+ * El id con el que la API de `/api/calendario` reconoce el evento: los propios
+ * viajan sin prefijo; las tareas que EOS anotó desde el chat, con `tarea:`.
+ */
+function idParaApi(e: EventoAgenda): string {
+  return e.origen === "tareas" ? e.id : e.id.replace(/^propio:/, "");
+}
+
+/** Los que el calendario puede reabrir: los que son suyos o de las tareas del chat. */
+function esReabrible(e: EventoAgenda): boolean {
+  return e.origen === "propio" || e.origen === "tareas";
 }
 
 export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void }) {
@@ -219,7 +227,8 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
 
   function editar(e: EventoAgenda) {
     setFormulario({
-      id: e.id.replace(/^propio:/, ""),
+      id: idParaApi(e),
+      esTarea: e.origen === "tareas",
       titulo: e.titulo,
       categoria: e.categoria as BorradorEvento["categoria"],
       fecha: e.fecha,
@@ -249,12 +258,12 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
   }
 
   function cambiarEstado(e: EventoAgenda, estado: "hecho" | "pendiente") {
-    if (e.origen === "propio") {
+    if (esReabrible(e)) {
       return llamar(e.id, () =>
         fetch("/api/calendario", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: e.id.replace(/^propio:/, ""), estado }),
+          body: JSON.stringify({ id: idParaApi(e), estado }),
         }),
       );
     }
@@ -272,7 +281,7 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
 
   function borrar(e: EventoAgenda) {
     return llamar(e.id, () =>
-      fetch(`/api/calendario?id=${encodeURIComponent(e.id.replace(/^propio:/, ""))}`, { method: "DELETE" }),
+      fetch(`/api/calendario?id=${encodeURIComponent(idParaApi(e))}`, { method: "DELETE" }),
     );
   }
 
@@ -588,7 +597,11 @@ function FilaEvento({
   onBorrar: (e: EventoAgenda) => void;
 }) {
   const atrasado = e.estado === "pendiente" && e.fecha < hoy;
-  const puedeCompletar = e.origen === "propio" ? e.estado !== "cancelado" : esActividadCRM(e) && e.estado === "pendiente";
+  // Se marca hecho lo pendiente que se pueda completar (los propios, las tareas del
+  // chat y las del CRM); se reabre lo hecho que sea propio o del chat. Una tarea del
+  // CRM ya hecha no se reabre desde acá: eso es una decisión del CRM.
+  const puedeHecho = e.estado === "pendiente" && e.completable;
+  const puedeReabrir = e.estado === "hecho" && esReabrible(e);
 
   return (
     <li className={`cal-item cat-${e.categoria}${e.estado !== "pendiente" ? " terminado" : ""}`}>
@@ -614,16 +627,17 @@ function FilaEvento({
       </div>
 
       <div className="cal-item-acciones">
-        {puedeCompletar &&
-          (e.estado === "hecho" ? (
-            <button type="button" className="chip" disabled={ocupado} onClick={() => onCambiarEstado(e, "pendiente")}>
-              <Undo2 size={12} /> Reabrir
-            </button>
-          ) : (
-            <button type="button" className="chip" disabled={ocupado} onClick={() => onCambiarEstado(e, "hecho")}>
-              <Check size={12} /> Hecho
-            </button>
-          ))}
+        {puedeReabrir && (
+          <button type="button" className="chip" disabled={ocupado} onClick={() => onCambiarEstado(e, "pendiente")}>
+            <Undo2 size={12} /> Reabrir
+          </button>
+        )}
+
+        {puedeHecho && (
+          <button type="button" className="chip" disabled={ocupado} onClick={() => onCambiarEstado(e, "hecho")}>
+            <Check size={12} /> Hecho
+          </button>
+        )}
 
         {e.editable && (
           <>

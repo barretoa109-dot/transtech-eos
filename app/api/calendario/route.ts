@@ -7,6 +7,7 @@ import { verificarModulo } from "@/lib/modulos/acceso";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { armarAgenda, type ContextoAgenda } from "@/lib/calendario/fuentes";
 import {
+  agendaAInstante,
   compararEventos,
   diasDeGrilla,
   esFechaValida,
@@ -54,6 +55,18 @@ const MAX_DIAS_RANGO = 70;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ESTADOS = new Set(["pendiente", "hecho", "cancelado"]);
+
+/**
+ * Las tareas que EOS anota desde el chat viven en `eos_tasks`, con su propio
+ * vocabulario de estados. El id llega con el prefijo `tarea:` para no confundirlas
+ * con los eventos propios, y acá se traduce en los dos sentidos.
+ */
+const PREFIJO_TAREA = "tarea:";
+const ESTADO_DE_TAREA: Record<string, string> = {
+  pendiente: "pendiente",
+  hecho: "completada",
+  cancelado: "cancelada",
+};
 
 function noStore() {
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
@@ -204,8 +217,12 @@ export async function PATCH(request: Request) {
     return responder({ error: "Cuerpo inválido." }, 400);
   }
 
-  const id = String(cuerpo.id ?? "");
+  const idPedido = String(cuerpo.id ?? "");
+  const esTarea = idPedido.startsWith(PREFIJO_TAREA);
+  const id = esTarea ? idPedido.slice(PREFIJO_TAREA.length) : idPedido;
   if (!UUID.test(id)) return responder({ error: "No encontrado." }, 404);
+
+  if (esTarea) return actualizarTarea(supabase, usuarioId, id, cuerpo);
 
   let cambios: Record<string, unknown>;
 
@@ -242,11 +259,13 @@ export async function DELETE(request: Request) {
   const { supabase, usuarioId } = await sesion();
   if (!usuarioId) return responder({ error: "Sesión no válida." }, 401);
 
-  const id = new URL(request.url).searchParams.get("id") ?? "";
+  const idPedido = new URL(request.url).searchParams.get("id") ?? "";
+  const esTarea = idPedido.startsWith(PREFIJO_TAREA);
+  const id = esTarea ? idPedido.slice(PREFIJO_TAREA.length) : idPedido;
   if (!UUID.test(id)) return responder({ error: "No encontrado." }, 404);
 
   const { data, error } = await supabase
-    .from("eos_calendario_eventos")
+    .from(esTarea ? "eos_tasks" : "eos_calendario_eventos")
     .delete()
     .eq("id", id)
     .eq("usuario_id", usuarioId)
@@ -261,4 +280,55 @@ export async function DELETE(request: Request) {
   if (!data) return responder({ error: "No encontrado." }, 404);
 
   return responder({ ok: true });
+}
+
+/**
+ * Marcar hecha, reabrir o reprogramar una tarea del chat.
+ *
+ * Es la misma fila que ve el resto de EOS: `eos_tasks.estado` es la fuente de
+ * verdad, así que completarla desde el calendario la completa en todos lados.
+ * La RLS de la tabla ya limita a las propias; el `.eq("usuario_id")` es el
+ * cinturón que acompaña al tirante.
+ */
+async function actualizarTarea(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  usuarioId: string,
+  id: string,
+  cuerpo: Record<string, unknown>,
+) {
+  let cambios: Record<string, unknown>;
+
+  if (cuerpo.titulo === undefined) {
+    const estado = ESTADO_DE_TAREA[String(cuerpo.estado)];
+    if (!estado) return responder({ error: "Estado no válido." }, 400);
+    cambios = { estado };
+  } else {
+    const validado = validarEventoPropio(cuerpo);
+    if (!validado.ok) return responder({ error: validado.error }, 400);
+
+    const d = validado.datos;
+    cambios = {
+      titulo: d.titulo,
+      descripcion: d.detalle,
+      fecha_limite: agendaAInstante(d.fecha, d.hora_inicio),
+    };
+    if (ESTADO_DE_TAREA[String(cuerpo.estado)]) cambios.estado = ESTADO_DE_TAREA[String(cuerpo.estado)];
+  }
+
+  const { data, error } = await supabase
+    .from("eos_tasks")
+    .update(cambios)
+    .eq("id", id)
+    .eq("usuario_id", usuarioId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Calendario: no se pudo actualizar la tarea:", error);
+    return responder({ error: "No pudimos guardar el cambio." }, 503);
+  }
+
+  if (!data) return responder({ error: "No encontrado." }, 404);
+
+  return responder({ id: data.id });
 }
