@@ -9,6 +9,7 @@ import { avisarUsoAlto } from "@/lib/monitoreo/uso-alto";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
 import { avisarSeguimientosCRM } from "@/lib/crm/avisar-crm";
+import { enviarMotivacionales } from "@/lib/email/motivacionales";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -246,6 +247,52 @@ export async function GET(request: Request) {
       console.log("Pulso: foto diaria personal", pulso);
     } catch (error) {
       console.error("Pulso: falló la captura diaria personal:", error);
+    }
+  });
+
+  /*
+   * El correo motivacional, cada 3 días, en su PROPIO `after`.
+   *
+   * Corre todos los días y es idempotente: el ciclo de 3 días lo decide
+   * `enviarMotivacionales`, no el cron (el plan Hobby no deja crear otro).
+   * Va antes de los `return` tempranos por el mismo motivo que el resto —
+   * "nadie tiene el briefing activado" no tiene nada que ver con este correo,
+   * que le llega a toda cuenta que no se dio de baja.
+   */
+  after(async () => {
+    try {
+      const clave = process.env.RESEND_API_KEY;
+      const secreto = process.env.CRON_SECRET;
+      if (!clave || !secreto) {
+        console.error("Motivacionales: falta RESEND_API_KEY o CRON_SECRET; no se manda.");
+        return;
+      }
+
+      const resend = new Resend(clave);
+      const resumen = await enviarMotivacionales(adminSinTipos(), {
+        hoy: hoyEnParaguay(),
+        appUrl: baseUrlApp(),
+        secreto,
+        enviar: async ({ para, asunto, html, texto, urlBaja }) => {
+          const { error } = await resend.emails.send({
+            from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+            to: para,
+            subject: asunto,
+            html,
+            text: texto,
+            // Baja de un clic para los clientes de correo (RFC 8058).
+            headers: {
+              "List-Unsubscribe": `<${urlBaja}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          });
+          if (error) throw new Error(error.message ?? "Resend rechazó el envío.");
+        },
+      });
+
+      console.log("Motivacionales: correos del ciclo", resumen);
+    } catch (error) {
+      console.error("Motivacionales: falló el envío del ciclo:", error);
     }
   });
 
