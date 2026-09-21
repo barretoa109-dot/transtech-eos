@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 type Preferencias = {
   canal_email: boolean;
   correos_motivacionales: boolean;
+  avisos_riesgo_correo: boolean | null;
   hora_local: number | null;
   zona_horaria: string | null;
 };
@@ -37,7 +38,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("eos_followup_preferences")
-    .select("canal_email,correos_motivacionales,hora_local,zona_horaria")
+    .select("canal_email,correos_motivacionales,avisos_riesgo_correo,hora_local,zona_horaria")
     .eq("usuario_id", user.id)
     .maybeSingle<Preferencias>();
 
@@ -56,6 +57,8 @@ export async function GET() {
       canal_email: data?.canal_email ?? false,
       // Al revés que el briefing: sin fila, los motivacionales SÍ llegan.
       correos_motivacionales: data?.correos_motivacionales ?? true,
+      // Los avisos de riesgo arrancan encendidos (v190): sin fila, o sin dato, es "sí".
+      avisos_riesgo_correo: data?.avisos_riesgo_correo ?? true,
       hora_local: data?.hora_local ?? 8,
       zona_horaria: data?.zona_horaria ?? "America/Asuncion",
     },
@@ -63,7 +66,7 @@ export async function GET() {
   );
 }
 
-/** Activa o desactiva el briefing por correo. */
+/** Activa o desactiva el briefing por correo y/o los avisos de riesgo por correo. */
 export async function PUT(request: Request) {
   const supabase = await createClient();
   const {
@@ -75,18 +78,22 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { canal_email?: unknown; correos_motivacionales?: unknown };
+  let body: {
+    canal_email?: unknown;
+    correos_motivacionales?: unknown;
+    avisos_riesgo_correo?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
 
-  // Se acepta uno u otro (o los dos): cada interruptor guarda solo lo suyo y
-  // no pisa la preferencia del otro.
-  const cambios: { canal_email?: boolean; correos_motivacionales?: boolean } = {};
+  // Se acepta cualquiera de los campos: cada interruptor guarda solo lo suyo y
+  // no pisa la preferencia de los otros.
+  const cambios: Record<string, boolean> = {};
 
-  for (const campo of ["canal_email", "correos_motivacionales"] as const) {
+  for (const campo of ["canal_email", "correos_motivacionales", "avisos_riesgo_correo"] as const) {
     const valor = body[campo];
     if (valor === undefined) continue;
     if (typeof valor !== "boolean") {
@@ -99,10 +106,7 @@ export async function PUT(request: Request) {
   }
 
   if (Object.keys(cambios).length === 0) {
-    return NextResponse.json(
-      { error: "No hay nada para guardar." },
-      { status: 400, headers: noStore() },
-    );
+    return NextResponse.json({ error: "No hay nada que cambiar." }, { status: 400, headers: noStore() });
   }
 
   // upsert y no update: la mayoría de los usuarios todavía no tiene fila, y
