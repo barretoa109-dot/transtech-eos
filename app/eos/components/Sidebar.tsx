@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, FileText, Handshake, Lightbulb, Plus, ScrollText, Store, Wallet, PanelLeftClose } from "lucide-react";
+import { BarChart3, CalendarDays, FileText, Handshake, Lightbulb, Plus, ScrollText, Store, Wallet, PanelLeftClose } from "lucide-react";
 
 type Conversacion = {
   id: string;
@@ -9,7 +9,7 @@ type Conversacion = {
   created_at?: string;
 };
 
-type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "crm" | "gastos" | "perfil";
+type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "crm" | "gastos" | "calendario" | "perfil";
 
 type SidebarProps = {
   nombre: string;
@@ -57,6 +57,14 @@ const NAV_ITEMS: { vista: Vista; label: string; icon: React.ReactNode }[] = [
    * sostiene en la base.
    */
   { vista: "gastos", label: "Personal", icon: <Wallet size={16} /> },
+  /*
+   * Calendario va después de Personal y antes de Decisiones: es la vista que
+   * cruza a todas las demás (cobros del negocio, tareas del CRM, metas,
+   * cuotas personales), y las otras cinco secciones son las que lo alimentan.
+   * No depende de ningún módulo contratado: una cita o un recordatorio los
+   * tiene cualquiera.
+   */
+  { vista: "calendario", label: "Calendario", icon: <CalendarDays size={16} /> },
   { vista: "decisions", label: "Decisiones", icon: <ScrollText size={16} /> },
   { vista: "learnings", label: "Aprendizajes", icon: <Lightbulb size={16} /> },
 ];
