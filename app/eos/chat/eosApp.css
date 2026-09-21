@@ -5417,3 +5417,310 @@
   background: var(--blue-light);
   color: var(--blue);
 }
+
+/* ============================================================
+   Calendario (CalendarioView.tsx)
+   ============================================================
+   Todo sale de los tokens de arriba, así el modo oscuro lo hereda sin un bloque
+   propio: cada categoría define DOS variables (`--cat` y `--cat-fondo`) y el
+   resto de las reglas las usan. Cambiar el color de una categoría es una línea.
+
+   Ninguna categoría se distingue SOLO por el color: la lista del día siempre
+   escribe su nombre, y en la grilla el título del evento va al lado del punto. */
+.eos-app .cat-agenda { --cat: var(--blue); --cat-fondo: var(--blue-light); }
+.eos-app .cat-seguimiento { --cat: var(--blue-dark); --cat-fondo: var(--blue-light); }
+.eos-app .cat-recordatorio,
+.eos-app .cat-meta { --cat: var(--amber); --cat-fondo: var(--amber-light); }
+.eos-app .cat-actividad { --cat: var(--muted); --cat-fondo: var(--line-soft); }
+.eos-app .cat-trabajo,
+.eos-app .cat-cobro { --cat: var(--green); --cat-fondo: var(--green-light); }
+.eos-app .cat-pago { --cat: var(--red); --cat-fondo: var(--red-light); }
+
+.eos-app .cal-encabezado-acciones {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.eos-app .cal-encabezado-acciones .reco-btn { display: inline-flex; align-items: center; gap: 6px; }
+
+.eos-app .cal-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.eos-app .cal-resumen-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.eos-app .cal-resumen-card svg { color: var(--blue); }
+.eos-app .cal-resumen-card > span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.eos-app .cal-resumen-card strong { grid-column: 1 / -1; font-size: 26px; line-height: 1.1; }
+.eos-app .cal-resumen-card small { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.eos-app .cal-resumen-card.es-alerta { border-color: var(--red); background: var(--red-light); }
+.eos-app .cal-resumen-card.es-alerta svg,
+.eos-app .cal-resumen-card.es-alerta strong { color: var(--red); }
+
+.eos-app .cal-card { margin-bottom: 18px; }
+
+.eos-app .cal-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.eos-app .cal-nav { display: flex; align-items: center; gap: 6px; }
+.eos-app .cal-mes {
+  min-width: 170px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+/* Solo la primera letra: `capitalize` también mayusculiza "de" ("Septiembre De 2026"). */
+.eos-app .cal-mes::first-letter,
+.eos-app .cal-dia-titulo::first-letter { text-transform: uppercase; }
+.eos-app .cal-nav-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+.eos-app .cal-nav-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+.eos-app .cal-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.eos-app .cal-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.eos-app .cal-filtro small { color: var(--muted); font-weight: 600; }
+.eos-app .cal-filtro.apagado { opacity: 0.5; text-decoration: line-through; }
+
+.eos-app .cal-punto {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cat);
+}
+
+.eos-app .cal-semana,
+.eos-app .cal-grilla {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.eos-app .cal-semana span {
+  padding: 6px 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.eos-app .cal-grilla {
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--line);
+  transition: opacity 0.15s ease;
+}
+.eos-app .cal-grilla.cargando { opacity: 0.55; }
+
+.eos-app .cal-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 92px;
+  padding: 6px;
+  border: 0;
+  background: var(--panel);
+  font-family: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.eos-app .cal-dia:hover { background: var(--panel-suave, var(--line-soft)); }
+.eos-app .cal-dia.fuera { background: var(--line-soft); color: var(--muted); }
+.eos-app .cal-dia.es-seleccionado { box-shadow: inset 0 0 0 2px var(--blue); }
+.eos-app .cal-dia:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+
+.eos-app .cal-num {
+  align-self: flex-start;
+  min-width: 22px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.eos-app .cal-dia.es-hoy .cal-num { background: var(--blue-solido); color: #fff; }
+
+.eos-app .cal-chips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eos-app .cal-chip {
+  display: block;
+  overflow: hidden;
+  padding: 1px 5px;
+  border-left: 3px solid var(--cat);
+  border-radius: 4px;
+  background: var(--cat-fondo);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eos-app .cal-chip.terminado { opacity: 0.6; text-decoration: line-through; }
+.eos-app .cal-chip.atrasado { border-left-color: var(--red); }
+.eos-app .cal-mas { padding-left: 5px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.eos-app .cal-puntos { display: none; gap: 3px; flex-wrap: wrap; }
+
+.eos-app .cal-columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+.eos-app .cal-columnas .card + .card,
+.eos-app .cal-lateral .card + .card { margin-top: 0; }
+.eos-app .cal-lateral { display: grid; gap: 16px; }
+.eos-app .cal-alerta { border-color: var(--red); }
+
+.eos-app .cal-titulo-dia {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.eos-app .cal-titulo-dia .chip { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.eos-app .cal-lista { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.eos-app .cal-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--cat);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.eos-app .cal-item.terminado .cal-item-titulo { text-decoration: line-through; color: var(--muted); }
+.eos-app .cal-item-cuerpo { min-width: 0; }
+.eos-app .cal-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.eos-app .cal-etiqueta {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cat-fondo);
+  font-weight: 700;
+  color: var(--cat);
+}
+.eos-app .cal-atrasado { font-weight: 700; color: var(--red); }
+.eos-app .cal-hecho { font-weight: 700; color: var(--green); }
+.eos-app .cal-item-titulo { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.eos-app .cal-item-sub { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.eos-app .cal-item-sub strong { color: var(--ink); }
+.eos-app .cal-item-detalle { margin-top: 4px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.eos-app .cal-item-acciones {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 220px;
+}
+.eos-app .cal-item-acciones .chip { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.eos-app .cal-lista.compacta { gap: 2px; margin-top: 8px; }
+.eos-app .cal-salto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.eos-app .cal-salto:hover { background: var(--line-soft); }
+.eos-app .cal-salto-titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-app .cal-salto small { flex-shrink: 0; color: var(--muted); }
+
+.eos-app .cal-nota { margin: 18px 0 0; font-size: 12px; color: var(--muted); }
+
+.eos-app .cal-form { margin-bottom: 18px; }
+.eos-app .cal-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.eos-app .cal-campo { display: grid; align-content: start; gap: 4px; min-width: 0; }
+.eos-app .cal-campo > span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.eos-app .cal-campo > small { font-size: 11.5px; color: var(--muted); }
+.eos-app .cal-campo .neg-input { flex: none; width: 100%; }
+.eos-app .cal-campo-ancho { grid-column: span 2; }
+.eos-app .cal-notas { resize: vertical; }
+.eos-app .cal-form-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+@media (max-width: 760px) {
+  .eos-app .cal-columnas { grid-template-columns: minmax(0, 1fr); }
+  .eos-app .cal-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eos-app .cal-item { flex-direction: column; }
+  .eos-app .cal-item-acciones { justify-content: flex-start; max-width: none; }
+}
+
+@media (max-width: 560px) {
+  .eos-app .cal-resumen { grid-template-columns: minmax(0, 1fr); }
+  .eos-app .cal-mes { min-width: 0; font-size: 15px; }
+  /* Con siete columnas en un teléfono, un título no entra: quedan los puntos. */
+  .eos-app .cal-dia { min-height: 56px; padding: 4px; }
+  .eos-app .cal-chips { display: none; }
+  .eos-app .cal-puntos { display: flex; }
+  .eos-app .cal-encabezado-acciones { flex-direction: column; align-items: stretch; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eos-app .cal-grilla { transition: none; }
+}

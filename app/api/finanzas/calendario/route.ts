@@ -2,12 +2,8 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
-import { leerTarjetas } from "@/lib/finanzas/leerTarjetas";
-import { armarPanorama } from "@/lib/finanzas/panorama";
-import { codigoMoneda } from "@/lib/finanzas/monedas";
+import { leerPanoramaPersonal } from "@/lib/finanzas/leerCalendario";
 import { exigirModulo } from "@/lib/modulos/acceso";
-import type { Deuda } from "@/lib/finanzas/deudas";
-import type { Fijo } from "@/lib/finanzas/fijos";
 
 export const dynamic = "force-dynamic";
 
@@ -62,88 +58,13 @@ export async function GET() {
   const hoy = hoyEnParaguay();
   const hasta = sumarDias(hoy, DIAS);
 
-  const [politicaRes, movimientosRes, conciliacionesRes, fijosRes, deudasRes] = await Promise.all([
-    supabase
-      .from("eos_finanzas_politica")
-      .select("moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima")
-      .eq("usuario_id", usuarioId)
-      .maybeSingle(),
-    supabase
-      .from("eos_movimientos_financieros")
-      .select("tipo,monto,fecha,descripcion")
-      .eq("usuario_id", usuarioId)
-      .eq("ambito", "personal")
-      .order("fecha", { ascending: true }),
-    supabase
-      .from("eos_finanzas_conciliaciones")
-      .select("fecha,saldo_declarado")
-      .eq("usuario_id", usuarioId),
-    supabase
-      .from("eos_finanzas_fijos")
-      .select("tipo,descripcion,monto,dia_del_mes")
-      .eq("usuario_id", usuarioId)
-      .eq("ambito", "personal")
-      .eq("activo", true),
-    supabase
-      .from("eos_finanzas_deudas")
-      .select("acreedor,tipo,moneda,saldo_declarado,cuota_monto,cuota_dia,cuotas_totales,cuotas_pagadas,estado")
-      .eq("ambito", "personal")
-      .eq("usuario_id", usuarioId)
-      .neq("estado", "saldada"),
-  ]);
+  const leido = await leerPanoramaPersonal(supabase, usuarioId, hoy, hasta);
 
-  const politica = politicaRes.data;
-
-  // Sin Constitución Financiera no hay de dónde partir, y un calendario
-  // armado sobre supuestos diría que no viene nada cuando puede venir todo.
-  if (!politica) {
+  if (!leido.configurado) {
     return NextResponse.json({ configurado: false }, { headers: noStore() });
   }
 
-  const principal = codigoMoneda(politica.moneda, "PYG");
-
-  /*
-   * Las tarjetas, en la misma línea de tiempo que todo lo demás.
-   *
-   * El pago del resumen es lo que SALE del bolsillo; las compras en cuotas ya
-   * están adentro de ese pago y no se proyectan aparte. `leerTarjetas` lo
-   * resuelve en un solo lugar para las cinco pantallas, y `armarPanorama` las
-   * pasa por el mismo filtro de duplicados que las cuotas de deuda.
-   */
-  const { obligaciones: deTarjetas } = await leerTarjetas(supabase, usuarioId, {
-    desde: hoy,
-    hasta,
-  });
-
-  const panorama = armarPanorama({
-    hoy,
-    hasta,
-    obligacionesTarjeta: deTarjetas,
-    saldoInicial: num(politica.saldo_inicial),
-    saldoInicialFecha: politica.saldo_inicial_fecha,
-    reservaMinima: num(politica.reserva_minima),
-    movimientos: ((movimientosRes.data ?? []) as Record<string, unknown>[]).map((m) => ({
-      tipo: m.tipo as "ingreso" | "gasto" | "compromiso",
-      monto: num(m.monto),
-      fecha: m.fecha as string,
-      descripcion: (m.descripcion as string | null) ?? null,
-    })),
-    conciliaciones: ((conciliacionesRes.data ?? []) as Record<string, unknown>[]).map((c) => ({
-      fecha: c.fecha as string,
-      saldo_declarado: num(c.saldo_declarado),
-    })),
-    fijos: ((fijosRes.data ?? []) as Record<string, unknown>[]).map<Fijo>((f) => ({
-      tipo: f.tipo === "ingreso" ? "ingreso" : "gasto",
-      descripcion: f.descripcion as string,
-      monto: num(f.monto),
-      dia_del_mes: f.dia_del_mes as number,
-    })),
-    deudas: ((deudasRes.data ?? []) as unknown as Deuda[]).map((d) => ({
-      ...d,
-      saldo_declarado: num(d.saldo_declarado),
-      cuota_monto: d.cuota_monto === null ? null : num(d.cuota_monto),
-    })),
-  });
+  const { panorama, moneda: principal } = leido;
 
   /*
    * Un solo hilo ordenado por fecha, con lo que entra y lo que sale mezclado.
@@ -183,11 +104,6 @@ export async function GET() {
     },
     { headers: noStore() },
   );
-}
-
-function num(valor: unknown): number {
-  const n = typeof valor === "string" ? Number(valor) : Number(valor ?? 0);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function noStore() {
