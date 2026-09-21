@@ -16,6 +16,8 @@
  * calendario, no un instante, y no tiene zona horaria.
  */
 
+import { ZONA_PARAGUAY, hoyEnParaguay } from "../fecha.ts";
+
 export type CategoriaAgenda =
   | "agenda"
   | "recordatorio"
@@ -37,7 +39,7 @@ export const CATEGORIAS_PROPIAS = [
 
 export type CategoriaPropia = (typeof CATEGORIAS_PROPIAS)[number];
 
-export type OrigenAgenda = "propio" | "crm" | "erp" | "metas" | "finanzas";
+export type OrigenAgenda = "propio" | "tareas" | "crm" | "erp" | "metas" | "finanzas";
 
 export type EstadoAgenda = "pendiente" | "hecho" | "cancelado";
 
@@ -57,7 +59,7 @@ export type EventoAgenda = {
   contacto: string | null;
   monto: number | null;
   moneda: string | null;
-  /** Solo los que la persona anotó a mano se pueden editar y borrar. */
+  /** Los que la persona anotó a mano, o que EOS anotó por ella desde el chat. */
   editable: boolean;
   /** Se puede marcar como hecho desde el calendario. */
   completable: boolean;
@@ -84,6 +86,54 @@ const ORDEN_CATEGORIA: Record<CategoriaAgenda, number> = {
   meta: 6,
   trabajo: 7,
 };
+
+/**
+ * Paraguay está en UTC-3 todo el año desde 2024, así que un instante se arma y
+ * se lee con ese desfase fijo. Es la misma suposición que hace `fuentes.ts` al
+ * consultar por rango.
+ */
+const DESFASE_PARAGUAY = "-03:00";
+
+/**
+ * De un instante de la base (`timestamptz`) al día y la hora que ve la persona.
+ *
+ * Las tareas del chat guardan su fecha límite como un instante. Hay dos
+ * maneras en que llegó ahí, y las dos se leen bien:
+ *
+ *   · El ejecutor actual guarda la hora de Paraguay: "el 25" es las 00:00 del 25
+ *     en Asunción (03:00 UTC). Las 00:00 locales significan "todo el día".
+ *   · Antes de la v188 una fecha AAAA-MM-DD entraba como MEDIANOCHE UTC, que en
+ *     Paraguay son las 21:00 del día anterior. Leerla con la zona de Asunción
+ *     mostraría "el 24" para algo que la persona pidió el 25. Medianoche UTC
+ *     exacta no la produce ninguna persona real (nadie agenda a las 21:00 del día
+ *     anterior con segundos en cero justo ahí), así que se lee como fecha sin
+ *     hora.
+ */
+export function instanteAAgenda(valor: unknown): { fecha: string; hora: string | null } | null {
+  if (typeof valor !== "string") return null;
+
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return null;
+
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+    return { fecha: d.toISOString().slice(0, 10), hora: null };
+  }
+
+  const fecha = hoyEnParaguay(d);
+  const hora = new Intl.DateTimeFormat("en-GB", {
+    timeZone: ZONA_PARAGUAY,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(d);
+
+  return { fecha, hora: hora === "00:00" ? null : hora };
+}
+
+/** Lo contrario: el día y la hora del formulario, al instante que se guarda. */
+export function agendaAInstante(fecha: string, hora: string | null): string {
+  return `${fecha}T${hora ?? "00:00"}:00${DESFASE_PARAGUAY}`;
+}
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
