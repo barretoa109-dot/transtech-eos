@@ -52,6 +52,7 @@ export type VistaEOS =
   | "negocio"
   | "crm"
   | "gastos"
+  | "calendario"
   | "perfil";
 
 export type ArchivoAdjunto = {
