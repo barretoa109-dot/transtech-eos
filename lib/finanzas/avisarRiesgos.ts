@@ -269,6 +269,30 @@ export async function avisarRiesgos(
  * dónde activarlo; borrarlo obligaría a reescribir el reintento, el recorte
  * del texto y la limpieza de suscripciones muertas desde cero.
  */
+/**
+ * ¿Se le puede mandar un aviso de riesgo por correo?
+ *
+ * Sí, salvo que la persona lo haya apagado. Sin fila de preferencias cuenta como
+ * "sí": la mayoría no tiene una, porque una fila solo aparece cuando alguien
+ * decide algo. `habilitado = false` (apagó todo el seguimiento) también manda.
+ *
+ * Ojo: NO mira `canal_email`. Ese campo es el opt-in del briefing diario, y un
+ * aviso de riesgo —que el 28 no alcanza la plata— no es un correo que haya que
+ * pedir. Ver la migración v190.
+ */
+export function puedeAvisarPorCorreo(
+  preferencia: { habilitado?: boolean | null; avisos_riesgo_correo?: boolean | null } | null | undefined,
+): boolean {
+  if (!preferencia) return true;
+  if (preferencia.habilitado === false) return false;
+  return preferencia.avisos_riesgo_correo !== false;
+}
+
+/** Cómo dejar de recibirlos, al pie de cada correo de aviso. */
+export const PIE_DE_AVISO_POR_CORREO =
+  "\n\n—\nRecibís este aviso porque afecta tu plata o tu negocio. Si no querés recibirlo por correo, " +
+  "desactivalo en EOS, en la pantalla de Briefing (\"Avisos importantes por correo\").";
+
 export async function entregarAviso(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver arriba
   admin: any,
@@ -311,13 +335,11 @@ export async function entregarAviso(
 
   const { data: preferencia } = await admin
     .from("eos_followup_preferences")
-    .select("usuario_id")
+    .select("habilitado,avisos_riesgo_correo")
     .eq("usuario_id", usuarioId)
-    .eq("canal_email", true)
-    .eq("habilitado", true)
     .maybeSingle();
 
-  if (!preferencia) return false;
+  if (!puedeAvisarPorCorreo(preferencia)) return false;
 
   const { data: perfil } = await admin
     .from("usuarios")
@@ -333,7 +355,7 @@ export async function entregarAviso(
     // El asunto no lleva la cifra: se ve en la lista de correos, y el monto es
     // asunto del usuario, no de quien mire su pantalla.
     asunto: "Algo que conviene mirar antes de que pase",
-    texto,
+    texto: texto + PIE_DE_AVISO_POR_CORREO,
   });
 
   return true;

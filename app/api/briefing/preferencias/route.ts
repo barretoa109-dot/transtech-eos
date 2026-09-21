@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 type Preferencias = {
   canal_email: boolean;
+  avisos_riesgo_correo: boolean | null;
   hora_local: number | null;
   zona_horaria: string | null;
 };
@@ -36,7 +37,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("eos_followup_preferences")
-    .select("canal_email,hora_local,zona_horaria")
+    .select("canal_email,avisos_riesgo_correo,hora_local,zona_horaria")
     .eq("usuario_id", user.id)
     .maybeSingle<Preferencias>();
 
@@ -53,6 +54,8 @@ export async function GET() {
   return NextResponse.json(
     {
       canal_email: data?.canal_email ?? false,
+      // Los avisos de riesgo arrancan encendidos (v190): sin fila, o sin dato, es "sí".
+      avisos_riesgo_correo: data?.avisos_riesgo_correo ?? true,
       hora_local: data?.hora_local ?? 8,
       zona_horaria: data?.zona_horaria ?? "America/Asuncion",
     },
@@ -60,7 +63,7 @@ export async function GET() {
   );
 }
 
-/** Activa o desactiva el briefing por correo. */
+/** Activa o desactiva el briefing por correo y/o los avisos de riesgo por correo. */
 export async function PUT(request: Request) {
   const supabase = await createClient();
   const {
@@ -72,18 +75,29 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { canal_email?: unknown };
+  let body: { canal_email?: unknown; avisos_riesgo_correo?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
 
-  if (typeof body.canal_email !== "boolean") {
-    return NextResponse.json(
-      { error: "canal_email debe ser verdadero o falso." },
-      { status: 400, headers: noStore() },
-    );
+  const cambios: Record<string, boolean> = {};
+
+  for (const campo of ["canal_email", "avisos_riesgo_correo"] as const) {
+    const valor = body[campo];
+    if (valor === undefined) continue;
+    if (typeof valor !== "boolean") {
+      return NextResponse.json(
+        { error: `${campo} debe ser verdadero o falso.` },
+        { status: 400, headers: noStore() },
+      );
+    }
+    cambios[campo] = valor;
+  }
+
+  if (Object.keys(cambios).length === 0) {
+    return NextResponse.json({ error: "No hay nada que cambiar." }, { status: 400, headers: noStore() });
   }
 
   // upsert y no update: la mayoría de los usuarios todavía no tiene fila, y
@@ -91,7 +105,7 @@ export async function PUT(request: Request) {
   const { error } = await supabase
     .from("eos_followup_preferences")
     .upsert(
-      { usuario_id: user.id, canal_email: body.canal_email, updated_at: new Date().toISOString() },
+      { usuario_id: user.id, ...cambios, updated_at: new Date().toISOString() },
       { onConflict: "usuario_id" },
     );
 
@@ -103,7 +117,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, canal_email: body.canal_email }, { headers: noStore() });
+  return NextResponse.json({ ok: true, ...cambios }, { headers: noStore() });
 }
 
 function noStore() {
