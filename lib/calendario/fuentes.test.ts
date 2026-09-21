@@ -187,3 +187,60 @@ test("en modo solo pendientes no se hacen las lecturas de lo ya hecho", async ()
   assert.equal(consultadas.filter((t) => t === "eos_goals").length, 2);
   assert.equal(consultadas.filter((t) => t === "eos_crm_oportunidades").length, 1);
 });
+
+test("lo que la persona dijo por el chat aparece en el calendario sin cargar nada", async () => {
+  // "Tengo que pagar los salarios el 25": el chat crea una tarea con fecha y el
+  // calendario la muestra. Es el camino que evita la carga manual.
+  const { eventos, fuentes_caidas } = await armarAgenda(
+    contexto({
+      supabase: cliente({
+        eos_tasks: {
+          data: [
+            // La que guarda el ejecutor nuevo: 00:00 del 25 en Asunción.
+            { id: "t1", titulo: "Pagar los salarios", descripcion: "Tengo que pagar los salarios el 25", estado: "pendiente", fecha_limite: "2026-09-25T03:00:00+00:00" },
+            // Con hora, y la descripción repite el título.
+            { id: "t2", titulo: "Reunión con el contador", descripcion: "reunión con el contador", estado: "pendiente", fecha_limite: "2026-09-22T13:00:00+00:00" },
+            // Guardada antes de la v188, como medianoche UTC.
+            { id: "t3", titulo: "Renovar el seguro", descripcion: null, estado: "completada", fecha_limite: "2026-09-23T00:00:00+00:00" },
+            // Fuera del rango que se mira.
+            { id: "t4", titulo: "De otro mes", descripcion: null, estado: "pendiente", fecha_limite: "2026-12-01T03:00:00+00:00" },
+          ],
+          error: null,
+        },
+      }),
+    }),
+  );
+
+  assert.deepEqual(fuentes_caidas, []);
+
+  const porId = new Map(eventos.map((e) => [e.id, e]));
+  assert.equal(porId.has("tarea:t4"), false, "una tarea de otro mes no va en esta grilla");
+
+  const salarios = porId.get("tarea:t1")!;
+  assert.equal(salarios.fecha, "2026-09-25");
+  assert.equal(salarios.hora, null);
+  assert.equal(salarios.estado, "pendiente");
+  assert.equal(salarios.categoria, "recordatorio");
+  assert.equal(salarios.origen, "tareas");
+  // Se puede completar, editar y borrar desde el calendario.
+  assert.equal(salarios.completable, true);
+  assert.equal(salarios.editable, true);
+  // Lo que dijo la persona queda como detalle porque agrega algo al título.
+  assert.equal(salarios.detalle, "Tengo que pagar los salarios el 25");
+
+  const reunion = porId.get("tarea:t2")!;
+  assert.equal(reunion.hora, "10:00");
+  assert.equal(reunion.detalle, null, "la descripción que repite el título no se muestra");
+
+  const seguro = porId.get("tarea:t3")!;
+  assert.equal(seguro.fecha, "2026-09-23", "una tarea vieja no se corre un día");
+  assert.equal(seguro.estado, "hecho");
+});
+
+test("si no se pueden leer las tareas, el calendario lo dice en vez de mostrarse vacío", async () => {
+  const { fuentes_caidas } = await armarAgenda(
+    contexto({ supabase: cliente({ eos_tasks: { data: null, error: { message: "boom" } } }) }),
+  );
+
+  assert.deepEqual(fuentes_caidas, ["tus tareas"]);
+});
