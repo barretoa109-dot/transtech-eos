@@ -54,7 +54,7 @@ export async function GET() {
   return NextResponse.json(
     {
       canal_email: data?.canal_email ?? false,
-      // Los avisos de riesgo arrancan encendidos (v189): sin fila, o sin dato, es "sí".
+      // Los avisos de riesgo arrancan encendidos (v190): sin fila, o sin dato, es "sí".
       avisos_riesgo_correo: data?.avisos_riesgo_correo ?? true,
       hora_local: data?.hora_local ?? 8,
       zona_horaria: data?.zona_horaria ?? "America/Asuncion",

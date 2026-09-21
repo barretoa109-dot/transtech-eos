@@ -6,7 +6,7 @@ import { BellRing, Check } from "lucide-react";
 /**
  * Apagar o volver a encender los avisos de riesgo por correo.
  *
- * Arrancan ENCENDIDOS (migración v189), a diferencia del briefing diario, que
+ * Arrancan ENCENDIDOS (migración v190), a diferencia del briefing diario, que
  * es opt-in: un aviso de que el 28 no te alcanza la plata o de que se acaba un
  * producto es plata tuya, no un boletín. Pero tiene que haber una salida a la
  * vista, y es ésta. Vive junto al del briefing porque es donde la persona ya

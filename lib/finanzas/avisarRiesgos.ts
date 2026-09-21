@@ -278,7 +278,7 @@ export async function avisarRiesgos(
  *
  * Ojo: NO mira `canal_email`. Ese campo es el opt-in del briefing diario, y un
  * aviso de riesgo —que el 28 no alcanza la plata— no es un correo que haya que
- * pedir. Ver la migración v189.
+ * pedir. Ver la migración v190.
  */
 export function puedeAvisarPorCorreo(
   preferencia: { habilitado?: boolean | null; avisos_riesgo_correo?: boolean | null } | null | undefined,
