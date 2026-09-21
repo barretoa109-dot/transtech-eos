@@ -122,8 +122,11 @@ export default function PrivacidadPage() {
             <strong>Corregir tus datos:</strong> podés editarlos desde la aplicación o escribirnos.
           </li>
           <li style={li}>
-            <strong>Dejar de recibir correos:</strong> el briefing diario se desactiva con un clic
-            desde la propia aplicación.
+            <strong>Dejar de recibir correos:</strong> el briefing diario, que solo recibís si lo
+            activás, y los avisos importantes —cuando algo puede afectar tu plata o tu negocio, como
+            un pago que no te alcanza o un producto que se acaba, que te llegan sin que los
+            actives— se desactivan cada uno con un clic desde la pantalla de Briefing de la propia
+            aplicación.
           </li>
         </Lista>
       </Seccion>
