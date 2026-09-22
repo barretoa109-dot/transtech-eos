@@ -3,6 +3,7 @@ import { filtroDeEmpresa } from "../empresa/acceso.ts";
 import { SALDO_CERO } from "../erp/cartera.ts";
 import { hoyEnParaguay, sumarDias } from "../fecha.ts";
 import { leerPanoramaPersonal } from "../finanzas/leerCalendario.ts";
+import { esRepeticion, ocurrencias, type Repeticion } from "./repeticion.ts";
 import {
   compararEventos,
   instanteAAgenda,
@@ -94,9 +95,53 @@ function base(parcial: Partial<EventoAgenda> & Pick<EventoAgenda, "id" | "origen
     moneda: null,
     editable: false,
     completable: false,
+    repite: null,
+    ocurrencia: null,
+    serie_desde: null,
+    serie_hasta: null,
     ...parcial,
   };
 }
+
+/** Los días de `repite_hechas`: una lista de fechas, o nada. */
+function diasHechos(valor: unknown): Set<string> {
+  return new Set(Array.isArray(valor) ? valor.map((d) => String(d).slice(0, 10)) : []);
+}
+
+/**
+ * De UNA fila con regla a sus ocurrencias dentro del rango.
+ *
+ * `fabricar` arma el evento de cada día con lo propio de su origen (título, hora,
+ * quién puede tocarlo); acá se le suma lo que tienen en común: que cada ocurrencia
+ * tenga un id distinto —dos ocurrencias con el mismo id se pisan en la grilla y en
+ * los resúmenes— y que sepa qué serie es y cuál es su día, para poder marcar UNA
+ * como hecha sin tocar las demás.
+ */
+function expandirSerie(
+  serie: { fecha: string; repite: Repeticion; hasta: string | null; hechas: Set<string> },
+  c: Pick<ContextoAgenda, "desde" | "hasta">,
+  idBase: string,
+  fabricar: (dia: string) => EventoAgenda,
+): EventoAgenda[] {
+  return ocurrencias({ fecha: serie.fecha, repite: serie.repite, hasta: serie.hasta }, c.desde, c.hasta).map((dia) => {
+    const evento = fabricar(dia);
+
+    return {
+      ...evento,
+      id: `${idBase}@${dia}`,
+      fecha: dia,
+      estado: serie.hechas.has(dia) ? "hecho" : "pendiente",
+      repite: serie.repite,
+      ocurrencia: dia,
+      serie_desde: serie.fecha,
+      serie_hasta: serie.hasta,
+    };
+  });
+}
+
+/** Lo que trae la consulta de "cae en el rango, o tiene regla que puede caer". */
+const conRegla = (columna: string, desde: string, hasta: string) =>
+  `and(${columna}.gte.${desde},${columna}.lt.${hasta}),and(repite.not.is.null,${columna}.lt.${hasta})`;
 
 function falla(fuente: string, error: unknown): never {
   console.error(`Calendario: no se pudo leer ${fuente}:`, error);
@@ -122,10 +167,11 @@ const fin = (fecha: string) => `${sumarDias(fecha, 1)}T00:00:00-03:00`;
 async function propios(c: ContextoAgenda): Promise<EventoAgenda[]> {
   let consulta = c.supabase
     .from("eos_calendario_eventos")
-    .select("id,titulo,detalle,categoria,fecha,hora_inicio,hora_fin,estado,contacto_nombre")
+    .select("id,titulo,detalle,categoria,fecha,hora_inicio,hora_fin,estado,contacto_nombre,repite,repite_hasta,repite_hechas")
     .eq("usuario_id", c.usuarioId)
-    .gte("fecha", c.desde)
-    .lte("fecha", c.hasta)
+    // Lo que cae en el rango, MÁS lo que tiene regla y empezó antes del final del
+    // rango: una serie de septiembre tiene que aparecer al mirar diciembre.
+    .or(conRegla("fecha", c.desde, sumarDias(c.hasta, 1)))
     .limit(1000);
 
   if (c.soloPendientes) consulta = consulta.eq("estado", "pendiente");
@@ -134,22 +180,47 @@ async function propios(c: ContextoAgenda): Promise<EventoAgenda[]> {
 
   if (error) falla("tu agenda", error);
 
-  return ((data ?? []) as Fila[]).map((f) =>
-    base({
-      id: `propio:${f.id}`,
-      origen: "propio",
-      categoria: f.categoria as CategoriaPropia,
-      titulo: String(f.titulo),
-      detalle: texto(f.detalle),
-      fecha: String(f.fecha),
-      hora: normalizarHora(f.hora_inicio),
-      hora_fin: normalizarHora(f.hora_fin),
-      estado: f.estado as EstadoAgenda,
-      contacto: texto(f.contacto_nombre),
-      editable: true,
-      completable: true,
-    }),
-  );
+  const eventos: EventoAgenda[] = [];
+
+  for (const f of (data ?? []) as Fila[]) {
+    const evento = (fecha: string) =>
+      base({
+        id: `propio:${f.id}`,
+        origen: "propio",
+        categoria: f.categoria as CategoriaPropia,
+        titulo: String(f.titulo),
+        detalle: texto(f.detalle),
+        fecha,
+        hora: normalizarHora(f.hora_inicio),
+        hora_fin: normalizarHora(f.hora_fin),
+        estado: f.estado as EstadoAgenda,
+        contacto: texto(f.contacto_nombre),
+        editable: true,
+        completable: true,
+      });
+
+    if (esRepeticion(f.repite)) {
+      // Una serie cancelada entera no aparece; una sola ocurrencia no se cancela.
+      if (f.estado === "cancelado") continue;
+
+      eventos.push(
+        ...expandirSerie(
+          { fecha: String(f.fecha), repite: f.repite, hasta: texto(f.repite_hasta), hechas: diasHechos(f.repite_hechas) },
+          c,
+          `propio:${f.id}`,
+          evento,
+        ),
+      );
+      continue;
+    }
+
+    // Las de una sola vez. La consulta también deja pasar series (que se expanden
+    // arriba), así que acá solo se quedan las que caen dentro del rango.
+    const fecha = String(f.fecha);
+    if (fecha >= c.desde && fecha <= c.hasta) eventos.push(evento(fecha));
+  }
+
+  return eventos;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,12 +251,11 @@ async function tareasDelChat(c: ContextoAgenda): Promise<EventoAgenda[]> {
   // `instanteAAgenda`). El filtro fino se hace después, con la fecha ya leída.
   let consulta = c.supabase
     .from("eos_tasks")
-    .select("id,titulo,descripcion,estado,fecha_limite")
+    .select("id,titulo,descripcion,estado,fecha_limite,repite,repite_hasta,repite_hechas")
     .eq("usuario_id", c.usuarioId)
     .neq("estado", "cancelada")
     .not("fecha_limite", "is", null)
-    .gte("fecha_limite", ini(sumarDias(c.desde, -1)))
-    .lt("fecha_limite", fin(sumarDias(c.hasta, 1)))
+    .or(conRegla("fecha_limite", ini(sumarDias(c.desde, -1)), fin(sumarDias(c.hasta, 1))))
     .limit(LIMITE);
 
   if (c.soloPendientes) consulta = consulta.eq("estado", "pendiente");
@@ -197,7 +267,10 @@ async function tareasDelChat(c: ContextoAgenda): Promise<EventoAgenda[]> {
 
   for (const f of (data ?? []) as Fila[]) {
     const cuando = instanteAAgenda(f.fecha_limite);
-    if (!cuando || cuando.fecha < c.desde || cuando.fecha > c.hasta) continue;
+    if (!cuando) continue;
+
+    // Las de una sola vez tienen que caer en el rango; las series se expanden.
+    if (!esRepeticion(f.repite) && (cuando.fecha < c.desde || cuando.fecha > c.hasta)) continue;
 
     const titulo = texto(f.titulo) ?? "Tarea";
 
@@ -207,23 +280,83 @@ async function tareasDelChat(c: ContextoAgenda): Promise<EventoAgenda[]> {
     const detalle =
       descripcion && descripcion.toLowerCase() !== titulo.toLowerCase() ? descripcion : null;
 
-    eventos.push(
+    const evento = (fecha: string) =>
       base({
         id: `tarea:${f.id}`,
         origen: "tareas",
         categoria: "recordatorio",
         titulo,
         detalle,
-        fecha: cuando.fecha,
+        fecha,
         hora: cuando.hora,
         estado: ESTADO_DE_TAREA[String(f.estado)] ?? "pendiente",
         editable: true,
         completable: true,
-      }),
-    );
+      });
+
+    if (esRepeticion(f.repite)) {
+      eventos.push(
+        ...expandirSerie(
+          { fecha: cuando.fecha, repite: f.repite, hasta: texto(f.repite_hasta), hechas: diasHechos(f.repite_hechas) },
+          c,
+          `tarea:${f.id}`,
+          evento,
+        ),
+      );
+      continue;
+    }
+
+    eventos.push(evento(cuando.fecha));
   }
 
   return eventos;
+}
+
+export type TareaSinFecha = { id: string; titulo: string; detalle: string | null; creada: string | null };
+
+/**
+ * Las tareas que EOS anotó pero no tienen día: "tengo que llamar al proveedor" sin
+ * decir cuándo.
+ *
+ * Un calendario no las puede ubicar, pero tampoco las puede callar: la persona las
+ * dijo por el chat esperando que quedaran anotadas. Se muestran aparte, con lo que
+ * hace falta para resolverlas —ponerles fecha, marcarlas hechas, borrarlas—.
+ */
+export async function tareasSinFecha(c: Pick<ContextoAgenda, "supabase" | "usuarioId">): Promise<TareaSinFecha[]> {
+  const { data, error } = await c.supabase
+    .from("eos_tasks")
+    .select("id,titulo,descripcion,created_at")
+    .eq("usuario_id", c.usuarioId)
+    .eq("estado", "pendiente")
+    .is("fecha_limite", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) falla("tus tareas sin fecha", error);
+
+  return ((data ?? []) as Fila[]).map((f) => {
+    const titulo = texto(f.titulo) ?? "Tarea";
+    const descripcion = texto(f.descripcion);
+
+    return {
+      id: `tarea:${f.id}`,
+      titulo,
+      detalle: descripcion && descripcion.toLowerCase() !== titulo.toLowerCase() ? descripcion : null,
+      creada: typeof f.created_at === "string" ? f.created_at.slice(0, 10) : null,
+    };
+  });
+}
+
+/**
+ * Lo que la persona anotó (a mano o por el chat), sin las fuentes de los módulos.
+ *
+ * Es lo que lee el aviso de cada mañana: un recordatorio es lo que ELLA pidió que
+ * se le recuerde. Los cobros y los pagos ya tienen sus propios avisos de riesgo, y
+ * repetirlos acá sería mandarle la misma noticia dos veces.
+ */
+export async function agendaPropia(c: ContextoAgenda): Promise<EventoAgenda[]> {
+  const [propia, tareas] = await Promise.all([propios(c), tareasDelChat(c)]);
+  return [...propia, ...tareas].sort(compararEventos);
 }
 
 // ---------------------------------------------------------------------------

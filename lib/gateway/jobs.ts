@@ -162,7 +162,7 @@ export function normalizarDatos(tipo: string, entrada: unknown): Record<string, 
     // nombra. Entran SOLO si vinieron con algo: agregarlos siempre, aunque vacíos,
     // cambiaría la huella de todas las tareas y con ella el exactly-once.
     const cuando: Record<string, string> = {};
-    for (const campo of ["vence_dia", "vence_en_dias", "vence_semana", "vence_el", "hora"]) {
+    for (const campo of ["vence_dia", "vence_en_dias", "vence_semana", "vence_el", "hora", "repite"]) {
       const valor = texto(d[campo]);
       if (valor) cuando[campo] = valor;
     }

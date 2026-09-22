@@ -17,6 +17,7 @@
  */
 
 import { ZONA_PARAGUAY, hoyEnParaguay } from "../fecha.ts";
+import { esRepeticion, type Repeticion } from "./repeticion.ts";
 
 export type CategoriaAgenda =
   | "agenda"
@@ -61,6 +62,17 @@ export type EventoAgenda = {
   moneda: string | null;
   /** Los que la persona anotó a mano, o que EOS anotó por ella desde el chat. */
   editable: boolean;
+  /** Cada cuánto se repite, o null si es de una sola vez. */
+  repite: Repeticion | null;
+  /**
+   * De una serie que se repite: el día de ESTA ocurrencia. Es lo que se manda para
+   * marcarla hecha sin tocar las demás. Null si el evento no se repite.
+   */
+  ocurrencia: string | null;
+  /** De una serie: el día de la primera ocurrencia (lo que se edita al editar la serie). */
+  serie_desde: string | null;
+  /** De una serie: hasta cuándo se repite, si tiene fin. */
+  serie_hasta: string | null;
   /** Se puede marcar como hecho desde el calendario. */
   completable: boolean;
 };
@@ -270,6 +282,8 @@ export type EventoPropioEntrada = {
   hora_inicio: string | null;
   hora_fin: string | null;
   contacto_nombre: string | null;
+  repite: Repeticion | null;
+  repite_hasta: string | null;
 };
 
 /**
@@ -305,6 +319,22 @@ export function validarEventoPropio(
   const detalle = String(cuerpo.detalle ?? "").trim().slice(0, 4000) || null;
   const contacto = String(cuerpo.contacto_nombre ?? "").trim().slice(0, 160) || null;
 
+  // La repetición. Vacío = no se repite (el formulario manda "" para "No").
+  const pideRepetir = cuerpo.repite !== undefined && cuerpo.repite !== null && cuerpo.repite !== "";
+  if (pideRepetir && !esRepeticion(cuerpo.repite)) return { ok: false, error: "La repetición no es válida." };
+  const repite = pideRepetir ? (cuerpo.repite as Repeticion) : null;
+
+  // El fin solo tiene sentido si se repite; sin repetición se descarta en vez de
+  // guardar un dato que nada va a leer.
+  let repiteHasta: string | null = null;
+  if (repite && cuerpo.repite_hasta) {
+    if (!esFechaValida(cuerpo.repite_hasta)) return { ok: false, error: "La fecha en que termina no es válida." };
+    if (cuerpo.repite_hasta < cuerpo.fecha) {
+      return { ok: false, error: "La repetición no puede terminar antes de empezar." };
+    }
+    repiteHasta = cuerpo.repite_hasta;
+  }
+
   return {
     ok: true,
     datos: {
@@ -315,6 +345,8 @@ export function validarEventoPropio(
       hora_inicio: horaInicio,
       hora_fin: horaFin,
       contacto_nombre: contacto,
+      repite,
+      repite_hasta: repiteHasta,
     },
   };
 }

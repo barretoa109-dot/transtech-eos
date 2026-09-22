@@ -7,6 +7,7 @@ import { renderBriefing, type BriefingFila } from "@/lib/briefing/email";
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
 import { avisarUsoAlto } from "@/lib/monitoreo/uso-alto";
 import { avisarRiesgos } from "@/lib/finanzas/avisarRiesgos";
+import { avisarAgenda } from "@/lib/calendario/avisar-agenda";
 import { avisarRiesgosNegocio } from "@/lib/erp/avisar-negocio";
 import { avisarSeguimientosCRM } from "@/lib/crm/avisar-crm";
 import { enviarMotivacionales } from "@/lib/email/motivacionales";
@@ -118,6 +119,37 @@ export async function GET(request: Request) {
       await avisarUsoAlto(baseUrlApp());
     } catch (error) {
       console.error("Briefing: falló el aviso de uso alto:", error);
+    }
+  });
+
+  // El aviso de la agenda: lo que la persona anotó —a mano o por el chat— para hoy y
+  // para mañana, y lo que quedó atrás. Va en su PROPIO `after` y antes de cualquier
+  // salida temprana, por lo mismo que el chequeo de salud: si nadie tiene el briefing
+  // activado o falta la clave de correo, este aviso igual tiene que salir por push.
+  //
+  // Es independiente de los avisos de riesgo (esos son de plata y de negocio, con su
+  // propio historial): un recordatorio es algo que la persona pidió que le recuerden.
+  after(async () => {
+    try {
+      const clave = process.env.RESEND_API_KEY;
+
+      const resumen = await avisarAgenda(adminSinTipos(), {
+        hoy: hoyEnParaguay(),
+        enviarCorreo: clave
+          ? async ({ para, asunto, texto }) => {
+              await new Resend(clave).emails.send({
+                from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+                to: para,
+                subject: asunto,
+                text: texto,
+              });
+            }
+          : undefined,
+      });
+
+      console.log("Agenda: avisos del día", resumen);
+    } catch (error) {
+      console.error("Briefing: falló el aviso de agenda:", error);
     }
   });
 

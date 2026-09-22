@@ -14,8 +14,12 @@ import {
   type EventoAgenda,
   type ResumenAgenda,
 } from "@/lib/calendario/agenda";
+import { ETIQUETAS_REPITE } from "@/lib/calendario/repeticion";
+import type { TareaSinFecha } from "@/lib/calendario/fuentes";
 import Confirmar from "./negocio/Confirmar";
+import AvisosAgenda from "./calendario/AvisosAgenda";
 import FormularioEvento, { type BorradorEvento } from "./calendario/FormularioEvento";
+import SinFecha from "./calendario/SinFecha";
 
 /**
  * El calendario: todo lo que tiene fecha, en un solo lugar.
@@ -33,13 +37,16 @@ import FormularioEvento, { type BorradorEvento } from "./calendario/FormularioEv
  * marcar una tarea como hecha desde acá la marca en el CRM, y al revés.
  *
  * ============================================================
- * QUÉ NO HACE TODAVÍA
+ * LO QUE SE REPITE, Y LO QUE AVISA
  * ============================================================
  *
- * No avisa. Un recordatorio se ve en el resumen de arriba y en el calendario,
- * pero no llega como notificación ni como mensaje: eso necesita un envío
- * programado que hoy no existe para esto. Está dicho en pantalla para que nadie
- * confíe en que "EOS me va a avisar".
+ * Un evento puede repetirse (cada día, semana, mes o año). Es UNA fila con su
+ * regla; cada ocurrencia se calcula al leer y se marca hecha por separado.
+ *
+ * Cada mañana el cron diario avisa lo que la persona tiene ese día y el siguiente
+ * (`lib/calendario/avisar-agenda.ts`). No avisa "30 minutos antes": corre una vez
+ * por día. Está dicho en pantalla, en "Avisos de agenda", para que nadie confíe
+ * en un aviso que el sistema no da.
  */
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -65,6 +72,7 @@ type Respuesta = {
   eventos: EventoAgenda[];
   atrasados: EventoAgenda[];
   proximos: EventoAgenda[];
+  sin_fecha: TareaSinFecha[];
   resumen: ResumenAgenda;
   fuentes_caidas: string[];
 };
@@ -100,7 +108,10 @@ function horario(e: EventoAgenda): string {
  * viajan sin prefijo; las tareas que EOS anotó desde el chat, con `tarea:`.
  */
 function idParaApi(e: EventoAgenda): string {
-  return e.origen === "tareas" ? e.id : e.id.replace(/^propio:/, "");
+  // Una ocurrencia de una serie lleva su día pegado (`<id>@<día>`): la API trabaja
+  // con la SERIE, y el día viaja aparte cuando hace falta.
+  const serie = e.id.split("@")[0];
+  return e.origen === "tareas" ? serie : serie.replace(/^propio:/, "");
 }
 
 /** Los que el calendario puede reabrir: los que son suyos o de las tareas del chat. */
@@ -222,6 +233,8 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
       hora_fin: "",
       contacto_nombre: "",
       detalle: "",
+      repite: "",
+      repite_hasta: "",
     });
   }
 
@@ -231,12 +244,46 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
       esTarea: e.origen === "tareas",
       titulo: e.titulo,
       categoria: e.categoria as BorradorEvento["categoria"],
-      fecha: e.fecha,
+      // Editar una serie edita la serie entera: la fecha es la de la PRIMERA vez, no
+      // la de la ocurrencia que se tocó.
+      fecha: e.serie_desde ?? e.fecha,
       hora_inicio: e.hora ?? "",
       hora_fin: e.hora_fin ?? "",
       contacto_nombre: e.contacto ?? "",
       detalle: e.detalle ?? "",
+      repite: e.repite ?? "",
+      repite_hasta: e.serie_hasta ?? "",
     });
+  }
+
+  function ponerFecha(t: TareaSinFecha) {
+    setFormulario({
+      id: t.id,
+      esTarea: true,
+      titulo: t.titulo,
+      categoria: "recordatorio",
+      fecha: hoy,
+      hora_inicio: "",
+      hora_fin: "",
+      contacto_nombre: "",
+      detalle: t.detalle ?? "",
+      repite: "",
+      repite_hasta: "",
+    });
+  }
+
+  function tareaSinFechaHecha(t: TareaSinFecha) {
+    return llamar(t.id, () =>
+      fetch("/api/calendario", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: t.id, estado: "hecho" }),
+      }),
+    );
+  }
+
+  function borrarTareaSinFecha(t: TareaSinFecha) {
+    return llamar(t.id, () => fetch(`/api/calendario?id=${encodeURIComponent(t.id)}`, { method: "DELETE" }));
   }
 
   async function llamar(clave: string, peticion: () => Promise<Response>) {
@@ -263,7 +310,9 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
         fetch("/api/calendario", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: idParaApi(e), estado }),
+          // `ocurrencia` solo viaja si el evento se repite: marca ESE día y deja
+          // los demás como estaban.
+          body: JSON.stringify({ id: idParaApi(e), estado, ...(e.ocurrencia ? { ocurrencia: e.ocurrencia } : {}) }),
         }),
       );
     }
@@ -529,6 +578,16 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
           </div>
 
           <div className="cal-lateral">
+            {datos && (
+              <SinFecha
+                tareas={datos.sin_fecha ?? []}
+                ocupado={ocupado}
+                onPonerFecha={ponerFecha}
+                onHecho={tareaSinFechaHecha}
+                onBorrar={borrarTareaSinFecha}
+              />
+            )}
+
             {datos && datos.atrasados.length > 0 && (
               <div className="card cal-alerta">
                 <div className="card-title">Atrasado</div>
@@ -572,10 +631,7 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
           </div>
         </div>
 
-        <p className="cal-nota">
-          Los recordatorios se ven acá y en el resumen de arriba; todavía no te llegan como aviso al celular ni por
-          mensaje.
-        </p>
+        <AvisosAgenda />
       </div>
     </div>
   );
@@ -609,6 +665,7 @@ function FilaEvento({
         <div className="cal-item-meta">
           <span className={`cal-etiqueta cat-${e.categoria}`}>{ETIQUETAS[e.categoria]}</span>
           <span>{horario(e)}</span>
+          {e.repite && <span className="cal-repite">↻ {ETIQUETAS_REPITE[e.repite]}</span>}
           {atrasado && <span className="cal-atrasado">Atrasado</span>}
           {e.estado === "hecho" && <span className="cal-hecho">Hecho</span>}
           {e.estado === "cancelado" && <span>Cancelado</span>}
@@ -646,7 +703,11 @@ function FilaEvento({
             </button>
             <Confirmar
               etiqueta="Borrar"
-              consecuencia={`Se borra “${e.titulo}” del calendario. No se puede deshacer.`}
+              consecuencia={
+                e.repite
+                  ? `Se borra “${e.titulo}” y TODAS sus repeticiones, también las de otros meses. No se puede deshacer.`
+                  : `Se borra “${e.titulo}” del calendario. No se puede deshacer.`
+              }
               confirmar="Borrar evento"
               peligro
               ocupado={ocupado}
