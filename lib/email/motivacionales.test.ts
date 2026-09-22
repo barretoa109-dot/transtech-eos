@@ -12,6 +12,7 @@ import {
   urlDeBaja,
   type CorreoMotivacional,
 } from "./motivacionales.ts";
+import { CONSEJOS_FINANCIEROS } from "./consejoDeObjetivo.ts";
 
 test("a lo largo de un mes el ciclo avanza de a uno cada 3 días", () => {
   let previo = cicloDe("2026-09-01");
@@ -64,12 +65,13 @@ test("el token de baja sirve para su usuario y para nadie más", () => {
   assert.equal(tokenDeBajaValido("u-1", MOTIVO_BAJA, token.slice(1), "secreto"), false);
 });
 
-test("el correo lleva saludo, botón al chat y enlace de baja, y escapa el nombre", () => {
+test("el correo lleva saludo, la línea personal, botón al chat y enlace de baja, y escapa el nombre", () => {
   const { html, texto, asunto } = redactarMotivacional({
     mensaje: MENSAJES[0],
     nombre: "<b>Marta</b> Gómez",
     appUrl: "https://app.test",
     urlBaja: "https://app.test/api/correos/baja?u=1&t=abc",
+    lineaPersonal: "Un consejo <script>con html raro</script>.",
   });
 
   assert.equal(asunto, MENSAJES[0].asunto);
@@ -77,6 +79,8 @@ test("el correo lleva saludo, botón al chat y enlace de baja, y escapa el nombr
   assert.match(html, /darte de baja/);
   assert.match(html, /correos\/baja\?u=1&t=abc/);
   assert.doesNotMatch(html, /<b>Marta/);
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(texto, /Un consejo <script>con html raro<\/script>\./);
   assert.match(texto, /baja acá: https:\/\/app\.test\/api\/correos\/baja/);
 });
 
@@ -89,6 +93,9 @@ type Estado = {
   reclamados: { usuario_id: string; ciclo: number }[];
   bajas: string[];
   fallaReclamo?: string;
+  // Objetivos monetarios activos, para probar la personalización de punta a
+  // punta. Vacío por default: es lo que hoy tienen 6 de 6 cuentas reales.
+  objetivos: Record<string, unknown>[];
 };
 
 function clienteFalso(estado: Estado) {
@@ -104,6 +111,7 @@ function clienteFalso(estado: Estado) {
         not: () => q,
         lte: () => q,
         order: () => q,
+        limit: () => q,
         range: (a: number, b: number) => {
           rango = [a, b];
           return q;
@@ -120,6 +128,14 @@ function clienteFalso(estado: Estado) {
         delete: () => {
           op = "delete";
           return q;
+        },
+        maybeSingle: async () => {
+          if (tabla !== "eos_goals") return { data: null, error: null };
+          const candidatas = estado.objetivos.filter((f) =>
+            Object.entries(filtros).every(([k, v]) => f[k] === v),
+          );
+          candidatas.sort((a, b) => Number(a.prioridad ?? 3) - Number(b.prioridad ?? 3));
+          return { data: candidatas[0] ?? null, error: null };
         },
         then: (ok: (r: unknown) => unknown) => {
           let resultado: { data?: unknown; error: unknown } = { data: [], error: null };
@@ -173,6 +189,7 @@ function armar(estado: Partial<Estado> = {}) {
     ],
     reclamados: [],
     bajas: [],
+    objetivos: [],
     ...estado,
   };
   const enviados: CorreoMotivacional[] = [];
@@ -218,6 +235,46 @@ test("un ciclo nuevo vuelve a mandar", async () => {
   await enviarMotivacionales(cliente, { ...opciones, hoy: "2026-09-30" });
 
   assert.equal(enviados.length, 4);
+});
+
+test("sin objetivo con plata cargado, el correo trae un consejo financiero del ciclo", async () => {
+  const { cliente, opciones, enviados } = armar();
+  await enviarMotivacionales(cliente, opciones);
+
+  const linea = enviados[0].texto.split("\n")[2];
+  assert.ok(CONSEJOS_FINANCIEROS.includes(linea), `no es un consejo conocido: "${linea}"`);
+  // Los dos correos del mismo envío comparten ciclo, y sin objetivo comparten consejo.
+  assert.equal(linea, enviados[1].texto.split("\n")[2]);
+});
+
+test("con un objetivo activo, el correo habla de él y no del consejo genérico", async () => {
+  const { cliente, opciones, enviados } = armar({
+    objetivos: [
+      {
+        usuario_id: "u1",
+        ambito: "personal",
+        estado: "activo",
+        tipo_medicion: "monetario",
+        titulo: "Moto para reparto",
+        clase: "general",
+        moneda: "PYG",
+        prioridad: 1,
+        valor_objetivo: 5_000_000,
+        valor_inicial: 0,
+        valor_actual: 1_000_000,
+        fecha_inicio: "2026-08-01",
+        fecha_limite: "2026-12-01",
+        ultima_actualizacion_at: "2026-09-01",
+      },
+    ],
+  });
+  await enviarMotivacionales(cliente, opciones);
+
+  const deAna = enviados.find((e) => e.para === "ana@test.py");
+  const deOtro = enviados.find((e) => e.para === "dos@test.py");
+
+  assert.match(deAna!.texto, /Moto para reparto/);
+  assert.doesNotMatch(deOtro!.texto, /Moto para reparto/);
 });
 
 test("quien se dio de baja no recibe nada", async () => {
