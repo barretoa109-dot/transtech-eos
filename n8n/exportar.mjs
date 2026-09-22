@@ -34,6 +34,8 @@ const FLUJOS = {
   gateway: { id: "JRgzUkoHBKgGpyPA", archivo: "eos-conversational-gateway-rc1.json" },
   worker: { id: "iUMdg9fhAg54irmy", archivo: "eos-background-worker-rc1.json" },
   briefing: { id: "bFY6PPhJyTPJ4X2P", archivo: "eos-briefing-personalizado-diario-v5.json" },
+  // Entró el 21 de septiembre de 2026, al parchearlo por primera vez desde acá.
+  decisiones: { id: "xwFkncvx2T7DYAm8", archivo: "eos-registro-decisiones-resultados-v6.json" },
 };
 
 function env() {
