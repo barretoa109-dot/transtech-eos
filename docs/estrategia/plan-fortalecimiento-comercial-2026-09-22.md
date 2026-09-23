@@ -221,3 +221,33 @@ de ejecución en esta misma carpeta:
 Los puntos 8, 11 y 12 (corregir el costo de caché, error tracking, medir la
 conversión del panel gratis) son código, no documentos — su estado real está
 en las ramas correspondientes, no acá.
+
+## Addenda 2026-09-23: estado de cierre — todo lo que se podía hacer con código
+
+| # | Estado | Dónde |
+|---|---|---|
+| 1 | Listo. Falta prender la variable en Vercel | `gateway-ts-listo-para-prender.md` |
+| 2 | Cifras listas. Falta aprobar el gasto | `costo-upgrade-infraestructura.md` |
+| 3 | Mensaje listo. Falta enviarlo a Bancard | `bancard-produccion-seguimiento.md` |
+| 4 | Preguntas listas. Falta contratar al abogado | `revision-legal-brief.md` |
+| 5 | Pasos listos. Falta gestionarlo con Meta | `whatsapp-business-checklist.md` |
+| 6 | Plan listo. Falta elegir las cuentas | `piloto-comercial-plan.md` |
+| 7 | **Hecho**, y arreglado: `siguiente-migracion` no revisaba ninguna rama remota. Se agregó `npm run quien-toca` (que reemplaza el archivo de estado del 2.3) | `../coordinacion-sesiones.md` |
+| 8 | **Hecho en código.** El costo usa el descuento real de caché. Falta la variable y aplicar el parche de n8n | `lib/eos/costo-mensaje.ts` |
+| 9 | **Hecho, apagado.** Los combos pre-armados están detrás de una bandera; prenderla es tu decisión | `lib/modulos/presets.ts`, v193 |
+| 10 | **Pasos 1 a 3 hechos**, en modo sombra: solo mide y no cambia el modelo. El paso 4 espera una semana de logs | `enrutamiento-modelo-diseno.md` |
+| 11 | **Hecho sin Sentry.** Registro propio de excepciones con su chequeo de salud | `error-tracking-sentry.md`, v194 |
+| 12 | Hecho: las vistas v192 | migración v192 |
+| 3.3 | No se llevó al CI: el token que usa es de poder total y guardarlo en GitHub lo decidís vos | — |
+
+### Lo que queda de tu lado, en orden
+
+1. **Subir la rama.** Arreglar el acceso de GitHub o aplicar el bundle desde la PC, y unir el PR.
+2. **Aplicar las migraciones v192, v193 y v194** con `supabase db push`, desde una carpeta limpia y *después* de unir la rama.
+3. **Cargar en Vercel:**
+   - `EOS_USD_POR_MTOK_ENTRADA_CACHEADA=0.5` (la tarifa cacheada de gpt-5.5).
+   - `OPENAI_API_KEY` y `EOS_GATEWAY_TS=1` (punto 1).
+   - Opcional: `NEXT_PUBLIC_EOS_PRESETS_PLANES=1`, si aprobás los combos.
+4. **Aplicar el parche de n8n:** `node n8n/parches/2026-09-23-tokens-cacheados.mjs`, primero con `SECO=1`, y después `node n8n/exportar.mjs gateway`.
+5. **Después de una semana,** leer en los logs `enrutamiento` y `simple_con_accion`, siguiendo `enrutamiento-modelo-diseno.md`.
+6. **Los trámites externos:** Bancard, abogado, Meta, gasto de infraestructura y piloto.
