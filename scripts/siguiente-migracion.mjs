@@ -43,13 +43,24 @@
  * descartó. Copiarla como prefijo del archivo nuevo de inmediato.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-function sh(cmd) {
+/*
+ * Sin shell y con los argumentos separados. La primera versión pasaba
+ * `git branch -r --format=%(refname:short)` por la shell: los paréntesis
+ * rompían la sintaxis, el error se tragaba y el script informaba "0 rama(s)
+ * remota(s)" sin revisar ninguna — justo la parte que lo justificaba. Así
+ * además funciona igual en Windows (cmd.exe) y en Linux.
+ */
+function git(...args) {
   try {
-    return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 64 * 1024 * 1024,
+    }).trim();
   } catch {
     return "";
   }
@@ -71,7 +82,7 @@ if (fs.existsSync(DIR)) {
 // ------------------------------------------------------------
 // 2. origin/main (por si el checkout local está atrasado)
 // ------------------------------------------------------------
-const arbolMain = sh("git ls-tree -r origin/main --name-only -- supabase/migrations");
+const arbolMain = git("ls-tree", "-r", "origin/main", "--name-only", "--", "supabase/migrations");
 for (const linea of arbolMain.split("\n").filter(Boolean)) {
   const archivo = path.basename(linea);
   const version = archivo.slice(0, 14);
@@ -81,14 +92,14 @@ for (const linea of arbolMain.split("\n").filter(Boolean)) {
 // ------------------------------------------------------------
 // 3. Toda rama remota, mergeada o no — acá es donde vive el choque real
 // ------------------------------------------------------------
-const ramas = sh("git branch -r --format=%(refname:short)")
+const ramas = git("branch", "-r", "--format=%(refname:short)")
   .split("\n")
   .map((r) => r.trim())
   .filter((r) => r && !r.endsWith("/HEAD"));
 
 for (const rama of ramas) {
   if (rama === "origin/main") continue; // ya cubierta arriba
-  const arbol = sh(`git ls-tree -r ${rama} --name-only -- supabase/migrations`);
+  const arbol = git("ls-tree", "-r", rama, "--name-only", "--", "supabase/migrations");
   for (const linea of arbol.split("\n").filter(Boolean)) {
     const archivo = path.basename(linea);
     const version = archivo.slice(0, 14);
