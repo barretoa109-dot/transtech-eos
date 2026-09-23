@@ -61,3 +61,28 @@ arrancar (a diferencia de Supabase/Vercel, ver
   la auditoría (`limpiarDetalle()`) debería aplicar acá: un error de
   Sentry no puede ser el camino por el que se filtra el texto de una
   conversación.
+
+## Actualización 2026-09-23: ya hay error tracking, sin Sentry
+
+El plan pedía "Sentry **o similar**". Mientras no exista el DSN, quedó
+funcionando un registro propio con el hook nativo de Next (`onRequestError`),
+sin dependencias nuevas:
+
+- `instrumentation.ts` (raíz) → `lib/monitoreo/errores-servidor.ts` →
+  tabla `eos_errores_servidor_v194` (migración v194, **pendiente de aplicar**).
+- Guarda clase, mensaje recortado y limpio (correos, tokens, UUIDs y números
+  largos borrados), ruta SIN query, tipo de ruta, método, digest y 8 líneas de
+  pila. Nunca cuerpo, headers ni query — la regla de "Qué NO instrumentar" de
+  arriba, aplicada.
+- Nunca lanza y no inunda: 20 por minuto por instancia como máximo.
+- `/api/internal/salud` suma el chequeo "Excepciones del servidor (24 h)": rojo
+  solo si un mismo error se repitió 5+ veces y siguió pasando en la última
+  hora, así el monitor externo no parpadea por una excepción suelta.
+- Probado de punta a punta el 2026-09-23 con un `next dev` real, una ruta que
+  lanzaba con un correo y un RUC en el mensaje, y un Supabase falso: la fila
+  llegó con `[correo]` y `[número]`, y sin el `?token=` de la URL. Build de
+  producción en verde.
+
+Sentry sigue valiendo la pena el día que haya DSN (errores del navegador,
+agrupación, source maps). Cuando el wizard edite `instrumentation.ts`, la
+llamada a `registrarErrorDeServidor` se deja junto a la de Sentry.

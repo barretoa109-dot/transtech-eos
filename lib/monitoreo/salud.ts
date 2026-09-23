@@ -21,6 +21,7 @@
 
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import { UMBRAL_USO_ALTO, cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
+import { evaluarErroresServidor, type FilaErrores24h } from "./errores-servidor.ts";
 
 export type Chequeo = {
   nombre: string;
@@ -203,6 +204,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
   chequeos.push(await chequeoEmbudo());
   chequeos.push(await chequeoChatReal());
   chequeos.push(await chequeoUsoAlto());
+  chequeos.push(await chequeoErroresServidor());
 
   const fallos = chequeos.filter((c) => !c.ok);
 
@@ -365,6 +367,34 @@ async function chequeoUsoAlto(): Promise<Chequeo> {
           : cuentas.map(describirCuenta).join(" | "),
     };
   } catch (error) {
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
+}
+
+/**
+ * Las excepciones que nadie manejó (punto 11), capturadas por
+ * `instrumentation.ts`. El criterio de rojo está en `evaluarErroresServidor`.
+ */
+async function chequeoErroresServidor(): Promise<Chequeo> {
+  const nombre = "Excepciones del servidor (24 h)";
+
+  try {
+    const { data, error } = await adminSinTipos()
+      .from("eos_errores_servidor_24h_v194")
+      .select("huella,clase,mensaje,ruta,veces,ultima_vez")
+      .limit(200);
+
+    if (error) throw new Error(error.message);
+
+    const { ok, detalle } = evaluarErroresServidor((data ?? []) as FilaErrores24h[]);
+    return { nombre, ok, detalle };
+  } catch (error) {
+    // Sin la v194 aplicada la vista no existe: es un problema de esta
+    // vigilancia, no del sistema.
     return {
       nombre,
       ok: true,
