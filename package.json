@@ -19,7 +19,8 @@
     "grants": "node scripts/grants-sanos.mjs",
     "columnas": "node scripts/columnas-existen.mjs",
     "respaldo": "node scripts/respaldo-de-datos.mjs",
-    "siguiente-migracion": "node scripts/siguiente-migracion.mjs"
+    "siguiente-migracion": "node scripts/siguiente-migracion.mjs",
+    "quien-toca": "node scripts/quien-toca.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

@@ -94,6 +94,27 @@ Ver `docs/n8n-backups/` y [respaldo de flujos] — antes de tocar un nodo,
 respaldar, y después de tocarlo, reexportar a `n8n/workflows/` (o
 `node n8n/exportar.mjs`) para que el repo refleje lo que está vivo.
 
+## 6. Antes de editar un área, `npm run quien-toca -- <rutas>`
+
+`git status` (regla 4) solo ve el checkout propio. Otra sesión en otra
+máquina o en la nube trabaja en su rama, y lo único visible de ella es esa
+rama en `origin`. Después de `git fetch --all --prune`:
+
+    npm run quien-toca -- lib/gateway lib/eos/procesar-mensaje.ts
+
+lista las ramas sin mergear de los últimos 14 días que cambian algo ahí, y
+qué archivos. Si aparece alguna, coordinar antes de editar.
+
+Reemplaza la idea de un `docs/estado-compartido.md` que cada sesión
+actualice (plan de fortalecimiento, 2.3): un archivo que editan todas las
+ramas a la vez es el que más conflictos tiene, y se desactualiza apenas
+alguien se olvida de anotarse. Las ramas remotas ya son ese estado.
+
+**Nota (2026-09-23):** hasta ese día, `siguiente-migracion` decía "0 rama(s)
+remota(s)" sin revisar ninguna (un problema de comillas en la shell). Si una
+migración se nombró con la versión que recomendó antes de esa fecha, conviene
+volver a correrlo y confirmar que no choca.
+
 ## Resumen de una línea por regla
 
 1. Worktree limpio desde `origin/main`, nunca el checkout compartido.
@@ -101,3 +122,4 @@ respaldar, y después de tocarlo, reexportar a `n8n/workflows/` (o
 3. Mergear antes de aplicar a producción, no al revés.
 4. `git status` + `ListAgents` antes de tocar algo que ya está sucio.
 5. Todo cambio de n8n se respalda y se reexporta a `n8n/workflows/`.
+6. `npm run quien-toca -- <rutas>` antes de editar un área compartida.
