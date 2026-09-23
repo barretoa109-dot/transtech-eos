@@ -56,6 +56,24 @@ export function gatewayEnTypeScript(): boolean {
 }
 
 /**
+ * Los mensajes con adjunto, aparte y APAGADOS por defecto.
+ *
+ * El 22 de septiembre de 2026 una foto de WhatsApp tuvo a la etapa 1 colgada
+ * los 60 s enteros de `TIMEOUT_MS` contra OpenAI antes de delegar en n8n
+ * (docs/admision-reserva-race-2026-09-22.md): la imagen de WhatsApp viaja a
+ * resolución completa (`lib/whatsapp/media.ts` no la achica) y la persona
+ * esperó un minuto para después recibir la respuesta de n8n igual.
+ *
+ * La etapa 1 existe para la conversación PURA, que es donde se mide la
+ * latencia ganada. Con un adjunto, n8n es el camino que ya funcionaba: ir
+ * directo ahí no le quita nada a nadie. Se prende con
+ * `EOS_GATEWAY_TS_IMAGENES=1` el día que la imagen llegue achicada y se mida.
+ */
+export function adjuntosEnTypeScript(): boolean {
+  return process.env.EOS_GATEWAY_TS_IMAGENES === "1";
+}
+
+/**
  * La bandera de la etapa 2, aparte de la 1 a propósito.
  *
  * La etapa 1 no deja rastro: prenderla y apagarla no cuesta nada. La etapa 2
@@ -109,6 +127,11 @@ export async function conversar(payload: Record<string, unknown>): Promise<Resul
       error instanceof EntradaInvalida ? error.message : "error desconocido",
     );
     return null;
+  }
+
+  if (entrada.tiene_archivo && !adjuntosEnTypeScript()) {
+    // Antes de llamar a nadie: sin costo y sin demora. Ver `adjuntosEnTypeScript`.
+    return { estado: "delegar", motivo: "adjunto" };
   }
 
   const { contenido } = armarPrompt(entrada);
