@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { esCodigoPreset } from "@/lib/modulos/presets";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,38 @@ export async function POST(request: Request) {
     );
   }
 
+  await anotarPreset(data, user.id, cuerpo);
+
   return NextResponse.json(data, { headers: noStore() });
+}
+
+/**
+ * Desde qué combinación armada se llegó (v193), solo para medir.
+ *
+ * Va en un update APARTE y después de guardar, a propósito: si falla, el
+ * armado y su precio quedan exactamente igual — se pierde el dato de medición,
+ * nunca la compra. Un código que no es un preset conocido se ignora.
+ */
+async function anotarPreset(data: unknown, usuarioId: string, cuerpo: Record<string, unknown>) {
+  if (!esCodigoPreset(cuerpo.preset)) return;
+
+  const armadoId =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? String((data as Record<string, unknown>).armado_id ?? "")
+      : "";
+  if (!armadoId) return;
+
+  try {
+    const { error } = await adminSinTipos()
+      .from("eos_planes_armados")
+      .update({ preset_origen: cuerpo.preset, preset_editado: cuerpo.preset_editado === true })
+      .eq("id", armadoId)
+      .eq("usuario_id", usuarioId);
+
+    if (error) console.error("Armado: no se pudo anotar el preset de origen:", error);
+  } catch (err) {
+    console.error("Armado: no se pudo anotar el preset de origen:", err);
+  }
 }
 
 /**

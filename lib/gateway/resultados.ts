@@ -34,6 +34,7 @@ export type Base = {
   accion: string;
   metadata: Record<string, unknown>;
   tokens_entrada: number;
+  tokens_entrada_cacheados: number;
   tokens_salida: number;
 };
 
@@ -42,6 +43,7 @@ export type Final = {
   conversacion_id: string;
   respuesta: string;
   tokens_entrada: number;
+  tokens_entrada_cacheados: number;
   tokens_salida: number;
   documento: Record<string, unknown> | null;
   acciones: { tipo: string; datos: Record<string, unknown> }[];
@@ -224,6 +226,7 @@ export function juntarResultados(base: Base, resultados: ResultadoWorker[]): Fin
     conversacion_id: base.conversacion_id,
     respuesta,
     tokens_entrada: base.tokens_entrada,
+    tokens_entrada_cacheados: base.tokens_entrada_cacheados,
     tokens_salida: base.tokens_salida,
     documento: base.documento,
     acciones: base.acciones,

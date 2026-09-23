@@ -60,6 +60,8 @@ import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route"
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
+import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
+import { clasificarTurno, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -133,6 +135,8 @@ type RespuestaN8N = {
   worker: unknown;
   /* Lo que consumió el mensaje en OpenAI. Cero si el gateway no lo mandó. */
   tokens_entrada: number;
+  /* Parte de la entrada servida desde el caché de OpenAI. Ver `lib/eos/costo-mensaje.ts`. */
+  tokens_entrada_cacheados: number;
   tokens_salida: number;
 };
 
@@ -487,6 +491,7 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
 
     /* Si el gateway todavía no los manda, quedan en cero y no rompen nada. */
     tokens_entrada: Number(data.tokens_entrada ?? 0) || 0,
+    tokens_entrada_cacheados: Number(data.tokens_entrada_cacheados ?? 0) || 0,
     tokens_salida: Number(data.tokens_salida ?? 0) || 0,
   };
 }
@@ -969,6 +974,19 @@ export async function procesarMensajeEOS(
      */
     let n8nResponse: Response | null = null;
 
+    /*
+     * Punto 10, en MODO SOMBRA: qué modelo HABRÍA atendido este turno. Solo va
+     * al log de abajo; no cambia a quién se le pregunta. Se clasifica con el
+     * mensaje ORIGINAL de la persona, no con el que ya trae el análisis de un
+     * adjunto pegado. Ver `lib/eos/enrutamiento-modelo.ts`.
+     */
+    const enrutamiento = clasificarTurno({
+      mensaje,
+      adjuntos: archivos.length,
+      conCita: Boolean(payload.cita),
+      historial: payload.historial,
+    });
+
     if (gatewayEnTypeScript()) {
       const propio = await conversar(payload);
 
@@ -1114,12 +1132,20 @@ export async function procesarMensajeEOS(
      * el usuario había pedido cargar productos, costos o compras. La nota
      * quedó; el catálogo no. Ver `corregirAfirmacionSoloMemoria`.
      */
+    const antesDeSoloMemoria = resultado.respuesta;
     resultado.respuesta = corregirAfirmacionSoloMemoria(
       resultado.respuesta,
       resultado.acciones,
       mensaje,
       verificaciones,
     );
+    /*
+     * Para el piloto (docs/estrategia/piloto-comercial-plan.md, "Qué
+     * instrumentar", punto 2): cada vez que un pedido operativo terminó como
+     * una nota, queda marcado en el log. Contarlas cada semana dice qué verbo
+     * de negocio falta, antes de que un cliente lo descubra.
+     */
+    const soloMemoria = resultado.respuesta !== antesDeSoloMemoria;
 
     resultado.respuesta = avisoDeVerificacion(
       resultado.respuesta,
@@ -1149,13 +1175,17 @@ export async function procesarMensajeEOS(
      * corrige. Si no están configuradas, el costo queda en cero y los tokens
      * igual se guardan — que es lo que después se puede convertir a plata en
      * cualquier momento.
+     *
+     * Desde el 23 de septiembre de 2026 los tokens que OpenAI sirvió desde su
+     * caché se cobran a su tarifa real (`EOS_USD_POR_MTOK_ENTRADA_CACHEADA`).
+     * Antes se cobraban a tarifa completa y el costo guardado sobreestimaba
+     * ~2,3 veces. Ver `lib/eos/costo-mensaje.ts`.
      */
-    const tokensEntrada = Math.max(0, Math.trunc(Number(resultado.tokens_entrada ?? 0)) || 0);
-    const tokensSalida = Math.max(0, Math.trunc(Number(resultado.tokens_salida ?? 0)) || 0);
+    const tokens = normalizarTokens(resultado);
+    const tokensEntrada = tokens.entrada;
+    const tokensSalida = tokens.salida;
 
-    const costoEstimado =
-      (tokensEntrada / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_ENTRADA || 0) +
-      (tokensSalida / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_SALIDA || 0);
+    const costoEstimado = costoDelMensaje(tokens, tarifasDelEntorno());
 
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
@@ -1280,7 +1310,9 @@ export async function procesarMensajeEOS(
         acciones: resultado.acciones.map((a) => String(a?.tipo ?? "")),
         verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
         worker_informado: evidencia.informado,
-        tokens: { entrada: tokensEntrada, salida: tokensSalida },
+        tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
+        enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
+        solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,
       }),
     );

@@ -14,6 +14,14 @@ import {
   TOPE_MENSUAL_PYG,
   type ModuloCatalogo,
 } from "@/lib/modulos/armado";
+import {
+  esCodigoPreset,
+  presetsDisponibles,
+  presetsVisibles,
+  seleccionIgualAPreset,
+  type CodigoPreset,
+  type PresetCalculado,
+} from "@/lib/modulos/presets";
 
 /**
  * Armá tu EOS.
@@ -76,6 +84,20 @@ const PERIODOS = [
  * El parámetro solo importa al volver del login, que pasa siempre en el
  * navegador. Leerlo acá da lo mismo y deja la página prerenderizada entera.
  */
+/**
+ * Los atajos de "Empezar / Negocio / Negocio completo" (punto 9 del plan de
+ * fortalecimiento). Apagados salvo que el deploy traiga la bandera: ver
+ * `lib/modulos/presets.ts` para por qué la decisión es del usuario.
+ */
+const MOSTRAR_PRESETS = presetsVisibles(process.env.NEXT_PUBLIC_EOS_PRESETS_PLANES);
+
+/** El preset con el que se había partido antes de ir al login, si hubo uno. */
+function presetDeLaUrl(): CodigoPreset | null {
+  if (typeof window === "undefined") return null;
+  const valor = new URLSearchParams(window.location.search).get("preset");
+  return esCodigoPreset(valor) ? valor : null;
+}
+
 function elegidasDeLaUrl(): string[] {
   if (typeof window === "undefined") return [];
 
@@ -94,6 +116,7 @@ export default function PlanesPage() {
   const [seleccion, setSeleccion] = useState<string[]>([]);
   const [contratados, setContratados] = useState<string[]>([]);
   const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">("mensual");
+  const [presetElegido, setPresetElegido] = useState<CodigoPreset | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -113,10 +136,12 @@ export default function PlanesPage() {
   useEffect(() => {
     let activo = true;
     const elegidasEnLaUrl = elegidasDeLaUrl();
+    const presetEnLaUrl = presetDeLaUrl();
 
     async function cargarCatalogo() {
       setCargando(true);
       setError("");
+      if (presetEnLaUrl) setPresetElegido(presetEnLaUrl);
 
       try {
         const respuesta = await fetch("/api/modulos/catalogo", { cache: "no-store" });
@@ -196,6 +221,23 @@ export default function PlanesPage() {
 
   const elegido = useCallback((codigo: string) => armado.modulos.includes(codigo), [armado.modulos]);
 
+  const presets = useMemo(
+    () => (MOSTRAR_PRESETS ? presetsDisponibles(catalogo, periodicidad) : []),
+    [catalogo, periodicidad],
+  );
+
+  /**
+   * Partir de una combinación armada.
+   *
+   * Reemplaza la selección por la del preset, pero sin soltar lo que la
+   * persona ya paga: elegir "Empezar" no puede, en la práctica, darle de baja
+   * el ERP que tiene contratado. Todo sigue editable debajo.
+   */
+  function elegirPreset(preset: PresetCalculado) {
+    setSeleccion([...new Set([...contratados, ...preset.seleccion])]);
+    setPresetElegido(preset.codigo);
+  }
+
   /**
    * Prender o apagar una función.
    *
@@ -232,7 +274,9 @@ export default function PlanesPage() {
 
       if (!user) {
         // La selección viaja en la URL para que volver del login no la pierda.
-        const destino = `/planes?elegidas=${encodeURIComponent(armado.modulos.join(","))}`;
+        const destino =
+          `/planes?elegidas=${encodeURIComponent(armado.modulos.join(","))}` +
+          (presetElegido ? `&preset=${presetElegido}` : "");
         router.push(`/login?redirect=${encodeURIComponent(destino)}`);
         return;
       }
@@ -240,7 +284,17 @@ export default function PlanesPage() {
       const respuesta = await fetch("/api/modulos/armado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modulos: armado.modulos, periodicidad }),
+        body: JSON.stringify({
+          modulos: armado.modulos,
+          periodicidad,
+          // Solo medición (v193): el servidor no lo usa para el precio.
+          ...(presetElegido
+            ? {
+                preset: presetElegido,
+                preset_editado: !seleccionIgualAPreset(armado.modulos, presetElegido, catalogo),
+              }
+            : {}),
+        }),
       });
 
       const resultado = await respuesta.json().catch(() => null);
@@ -366,6 +420,43 @@ export default function PlanesPage() {
             </button>
           </div>
         ) : (
+          <>
+          {presets.length > 0 && (
+            <section className="presets" aria-labelledby="presets-titulo">
+              <h2 className="bloque-titulo" id="presets-titulo">
+                ¿No sabés por dónde empezar?
+              </h2>
+              <p className="bloque-sub">
+                Elegí un punto de partida. Se prende abajo y podés cambiar lo que quieras.
+              </p>
+              <div className="presets-lista">
+                {presets.map((preset) => {
+                  const actual = presetElegido === preset.codigo;
+                  return (
+                    <button
+                      type="button"
+                      key={preset.codigo}
+                      className={`preset ${actual ? "activa" : ""}`}
+                      onClick={() => elegirPreset(preset)}
+                      aria-pressed={actual}
+                      aria-label={`${preset.nombre}, ${formatearGs(preset.total)} ${
+                        periodicidad === "anual" ? "por año" : "por mes"
+                      }`}
+                    >
+                      <span className="preset-nombre">{preset.nombre}</span>
+                      <span className="preset-precio">
+                        {formatearGs(preset.total)}
+                        <span className="preset-periodo">
+                          {periodicidad === "anual" ? " / año" : " / mes"}
+                        </span>
+                      </span>
+                      <span className="preset-para">{preset.para}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
           <div className="armador">
             <div className="armador-lista">
               {grupos.map((grupo) => (
@@ -424,6 +515,10 @@ export default function PlanesPage() {
                   con el que se prueba, y el EOS Personalizado que cada uno arma.
                   Ningún paquete cerrado, ninguna combinación sugerida como
                   producto. El tope de Gs. 500.000 es la única frontera.
+
+                  (Los puntos de partida de arriba, si la bandera está
+                  prendida, no cambian esto: solo pre-llenan esta misma
+                  cuenta. Ver lib/modulos/presets.ts.)
                 */}
                 <span className="cuenta-eyebrow">EOS PERSONALIZADO</span>
 
@@ -529,6 +624,7 @@ export default function PlanesPage() {
               </div>
             </aside>
           </div>
+          </>
         )}
 
         <p className="note">
@@ -1296,6 +1392,73 @@ export default function PlanesPage() {
           grid-template-columns: minmax(0, 1fr) 320px;
           gap: 28px;
           align-items: start;
+        }
+
+        /* ============================================================
+           LOS PUNTOS DE PARTIDA (punto 9, detras de una bandera)
+
+           Tres tarjetas arriba del armador. No son planes: tocarlas solo
+           prende modulos en la lista de abajo. Mismos tokens que las
+           opciones, para que se lean como parte del mismo armador.
+           ============================================================ */
+        .presets {
+          margin-bottom: 28px;
+        }
+        .presets-lista {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .preset {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+          width: 100%;
+          padding: 14px 16px;
+          text-align: left;
+          background: var(--bg);
+          color: var(--text);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
+        }
+        .preset:hover {
+          border-color: var(--border-hover);
+          background: var(--surface);
+        }
+        .preset.activa {
+          border-color: var(--blue);
+          background: var(--blue-light);
+        }
+        .preset-nombre {
+          font-size: 14px;
+          font-weight: 800;
+        }
+        .preset-precio {
+          font-size: 15px;
+          font-weight: 800;
+          color: var(--blue-dark);
+          font-variant-numeric: tabular-nums;
+        }
+        .preset-periodo {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .preset-para {
+          font-size: 12.5px;
+          line-height: 1.45;
+          color: var(--muted);
+        }
+        .preset.activa .preset-para,
+        .preset.activa .preset-periodo {
+          color: #5a6373;
+        }
+        @media (max-width: 900px) {
+          .presets-lista {
+            grid-template-columns: 1fr;
+          }
         }
 
         .bloque {

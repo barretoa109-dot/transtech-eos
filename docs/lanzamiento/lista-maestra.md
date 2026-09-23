@@ -267,6 +267,29 @@ Dos cosas que encontraron las pruebas y no la lectura del código:
 un producto para comercios. Si se anuncia también para personas físicas, ese
 documento hay que actualizarlo antes, no después.
 
+## Revisión del 23 de septiembre: el plan de fortalecimiento comercial
+
+El plan (`docs/estrategia/plan-fortalecimiento-comercial-2026-09-22.md`) no
+reemplaza esta lista: ordena el trabajo desde el negocio. Lo que movió acá,
+con la evidencia de cada cosa en el PR #110:
+
+- **Costo por mensaje:** ya descuenta el caché de OpenAI (antes sobreestimaba
+  ~2,3 veces). Queda **parcial** hasta cargar
+  `EOS_USD_POR_MTOK_ENTRADA_CACHEADA` y aplicar el parche de n8n.
+- **Monitoreo:** hay registro propio de excepciones del servidor
+  (`instrumentation.ts`, migración v194) con su chequeo en
+  `/api/internal/salud`. Sentry sigue opcional.
+- **Piloto (punto 50):** la salud ahora muestra el tiempo al primer valor de
+  cada cuenta real nueva y las que llevan más de 24 h sin una acción, para
+  intervenir a mano. El log marca `solo_memoria` cada vez que un pedido
+  operativo terminó como una nota. El piloto sigue **externo**: depende de a
+  quién se invite.
+- **Precios:** combos pre-armados sobre el armador, **apagados** hasta que el
+  usuario decida (contradicen a la letra el "ninguna combinación sugerida").
+- **Pendiente del usuario:** aplicar v192-v194, las variables de Vercel, el
+  parche de n8n, y los trámites externos (Bancard, legal, Meta,
+  infraestructura).
+
 ---
 
 ## Hallazgos abiertos, con nombre y apellido
