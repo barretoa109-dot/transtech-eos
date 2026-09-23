@@ -53,7 +53,7 @@ const ramas = git(
 )
   .split("\n")
   .map((l) => l.split("|"))
-  .filter(([fecha, rama]) => rama && !rama.endsWith("/HEAD") && rama !== "origin/main")
+  .filter(([, rama]) => rama && !rama.endsWith("/HEAD") && rama !== "origin/main")
   .filter(([fecha]) => Number(fecha) * 1000 >= desde);
 
 let encontradas = 0;
