@@ -54,6 +54,22 @@ function respond(body: Record<string, unknown>, status = 200) {
  * Cerrar acá no cambia lo que ve el usuario: el 422 con su explicación sale
  * igual y sale antes. Cambia lo que queda escrito, que es de dónde sale el
  * diagnóstico la próxima vez.
+ *
+ * ============================================================
+ * Y POR QUÉ ESTE CIERRE NO CERRÓ NADA DURANTE TRES DÍAS
+ * ============================================================
+ *
+ * La primera versión llamaba a `eos_finalize_action_command_v66`, y la v70 le
+ * había sacado a `service_role` el permiso sobre esa función —a propósito:
+ * ningún cierre sin lease desde afuera—. Cada llamada devolvía `42501
+ * permission denied`, caía en el `console.error` de abajo, y la orden la seguía
+ * cerrando el barrido con ACTION_TIMEOUT. Del 9 al 12 de septiembre de 2026 no
+ * cerró una sola, y desde la v163 cada una de esas iba a quedar en la bitácora
+ * inmutable con el motivo equivocado.
+ *
+ * Ahora llama a `eos_cerrar_orden_rechazada_v164`, la puerta angosta hecha para
+ * este caso: cierra con error solo una orden que nunca se tomó con lease, y
+ * delega todo lo demás en v66 por dentro. Ver la migración.
  */
 async function cerrarConMotivo(
   admin: ReturnType<typeof adminSinTipos>,
@@ -61,18 +77,26 @@ async function cerrarConMotivo(
   codigo: string,
   mensaje: string,
 ) {
-  const { error } = await admin.rpc("eos_finalize_action_command_v66", {
+  const { error } = await admin.rpc("eos_cerrar_orden_rechazada_v164", {
     p_command_id: commandId,
-    p_estado: "error",
-    p_resultado: {},
     p_error_code: codigo.slice(0, 80),
     p_error_message: mensaje.slice(0, 500),
   });
 
   if (error) {
-    // No se corta la respuesta por esto: la persona ya tiene su motivo y la
-    // orden, en el peor caso, la cierra el barrido de siempre.
-    console.error("Worker effect executor: no se pudo cerrar la orden fallida:", error);
+    /*
+     * No se corta la respuesta por esto: la persona ya tiene su motivo.
+     *
+     * Pero que falle es un incidente, no un detalle. "En el peor caso la
+     * cierra el barrido" fue exactamente la frase que dejó pasar tres días de
+     * 403 sin que nadie lo viera: el barrido la cierra, con el motivo
+     * equivocado. Por eso el log dice qué orden quedó abierta y con qué código.
+     */
+    console.error("Worker effect executor: la orden rechazada quedó ABIERTA, la cerrará el barrido como ACTION_TIMEOUT:", {
+      commandId,
+      codigo,
+      error,
+    });
   }
 }
 

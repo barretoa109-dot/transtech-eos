@@ -52,41 +52,74 @@ type Area = {
   tabla: string;
   /** La acción del chat que escribe ahí, si existe. */
   verbo?: string;
-  /** Los módulos de `lib/` cuyas pruebas cubren su lógica. */
-  pruebas?: string[];
+  /**
+   * Los módulos de `lib/` cuyas pruebas cubren su lógica. OBLIGATORIO.
+   *
+   * Era opcional, y un área sin la clave salía "—" sin que nadie hubiera
+   * buscado. El 10 de septiembre de 2026 eso hizo que este script —y la
+   * auditoría escrita con él— dijera "catorce áreas sin una sola prueba"
+   * cuando varias las tenían: la bitácora, con quince; la cuenta corriente,
+   * las compras, el Business Twin, los pagos. Un script que se presenta como
+   * medición no puede reportar como hallazgo lo que no miró.
+   *
+   * `[]` quiere decir "se buscó y no hay". La ausencia ya no compila.
+   */
+  pruebas: string[];
+  /** Los casos de `certificacion/casos/` que la recorren contra producción. */
+  certificacion?: string[];
 };
 
 const AREAS: Area[] = [
   { nombre: "Chat", tabla: "mensajes", pruebas: ["gateway"] },
   { nombre: "Memoria", tabla: "eos_memory", verbo: "GUARDAR_MEMORIA", pruebas: ["eos/memoria-contexto"] },
   { nombre: "Objetivos", tabla: "eos_goals", verbo: "CREAR_OBJETIVO", pruebas: ["finanzas/objetivos"] },
-  { nombre: "Tareas", tabla: "eos_tasks", verbo: "CREAR_TAREA" },
+  // Solo cómo entran al contexto del modelo. El alta es SQL y no tiene prueba.
+  { nombre: "Tareas", tabla: "eos_tasks", verbo: "CREAR_TAREA", pruebas: ["eos/memoria-contexto"] },
   { nombre: "Briefing", tabla: "eos_daily_briefings", pruebas: ["briefing"] },
-  { nombre: "Decisiones", tabla: "eos_decisions" },
-  { nombre: "Aprendizajes", tabla: "eos_learnings" },
-  { nombre: "Business Twin", tabla: "eos_business_twins_v14" },
-  { nombre: "Autonomía · reglas", tabla: "eos_autonomy_rules_v12", pruebas: ["autonomia"] },
-  { nombre: "Autonomía · gate", tabla: "eos_worker_gate_audit_v15", pruebas: ["worker-gate"] },
-  { nombre: "Órdenes del chat", tabla: "eos_action_commands", pruebas: ["eos/errores-accion"] },
+  // Solo las pendientes en el Centro de atención.
+  { nombre: "Decisiones", tabla: "eos_decisions", pruebas: ["eos/atencion"] },
+  // Solo el filtro de lo que llega al prompt. El motor vive en n8n.
+  { nombre: "Aprendizajes", tabla: "eos_learnings", pruebas: ["eos/memoria-contexto"] },
+  { nombre: "Business Twin", tabla: "eos_business_twins_v14", pruebas: ["kpi/twin"] },
+  { nombre: "Autonomía · reglas", tabla: "eos_autonomy_rules_v12", pruebas: ["autonomia/decision"] },
+  { nombre: "Autonomía · gate", tabla: "eos_worker_gate_audit_v15", pruebas: ["autonomia", "seguridad/worker-bearer"] },
+  {
+    nombre: "Órdenes del chat",
+    tabla: "eos_action_commands",
+    pruebas: ["eos/errores-accion", "gateway/ejecutar", "auditoria/ordenes-del-chat"],
+  },
   { nombre: "ERP · productos", tabla: "eos_erp_productos", verbo: "CREAR_PRODUCTO", pruebas: ["erp"] },
-  { nombre: "ERP · ventas", tabla: "eos_erp_ventas", verbo: "REGISTRAR_VENTA", pruebas: ["erp"] },
-  { nombre: "ERP · compras", tabla: "eos_erp_compras", verbo: "REGISTRAR_COMPRA" },
-  { nombre: "ERP · cuenta corriente", tabla: "eos_erp_cuenta_movimientos_v107", verbo: "REGISTRAR_COBRO" },
+  { nombre: "ERP · ventas", tabla: "eos_erp_ventas", verbo: "REGISTRAR_VENTA", pruebas: ["erp"], certificacion: ["08-venta-compra", "09-anulacion"] },
+  {
+    nombre: "ERP · compras",
+    tabla: "eos_erp_compras",
+    verbo: "REGISTRAR_COMPRA",
+    pruebas: ["erp/anulacion-invariantes", "kpi/definiciones/compras"],
+    certificacion: ["08-venta-compra"],
+  },
+  {
+    nombre: "ERP · cuenta corriente",
+    tabla: "eos_erp_cuenta_movimientos_v107",
+    verbo: "REGISTRAR_COBRO",
+    pruebas: ["erp/cartera", "kpi/definiciones/cartera"],
+  },
   { nombre: "CRM · contactos", tabla: "eos_crm_contactos", verbo: "CREAR_CONTACTO", pruebas: ["crm"] },
   { nombre: "CRM · oportunidades", tabla: "eos_crm_oportunidades", verbo: "REGISTRAR_OPORTUNIDAD", pruebas: ["crm/embudo"] },
   { nombre: "Personal · movimientos", tabla: "eos_movimientos_financieros", verbo: "REGISTRAR_MOVIMIENTO_PERSONAL", pruebas: ["finanzas/panorama"] },
-  { nombre: "Personal · cuentas", tabla: "eos_finanzas_cuentas", verbo: "DECLARAR_SALDO" },
+  { nombre: "Personal · cuentas", tabla: "eos_finanzas_cuentas", verbo: "DECLARAR_SALDO", pruebas: ["eos/contexto-posicion", "finanzas/patrimonio"] },
   { nombre: "Personal · deudas", tabla: "eos_finanzas_deudas", verbo: "REGISTRAR_DEUDA", pruebas: ["finanzas/deudas"] },
   { nombre: "Personal · tarjetas", tabla: "eos_finanzas_tarjetas", verbo: "REGISTRAR_TARJETA", pruebas: ["finanzas/tarjetas"] },
   { nombre: "Personal · fijos", tabla: "eos_finanzas_fijos", verbo: "REGISTRAR_GASTO_FIJO", pruebas: ["finanzas/fijos"] },
-  { nombre: "Personal · transferencias", tabla: "eos_finanzas_transferencias", verbo: "REGISTRAR_TRANSFERENCIA" },
+  // Buscado el 12/09/2026: ninguna prueba la nombra salvo una lista de verbos.
+  { nombre: "Personal · transferencias", tabla: "eos_finanzas_transferencias", verbo: "REGISTRAR_TRANSFERENCIA", pruebas: [] },
   { nombre: "Personal · bienes", tabla: "eos_finanzas_activos", pruebas: ["finanzas/patrimonio"] },
-  { nombre: "Personal · política", tabla: "eos_finanzas_politica" },
-  { nombre: "Onboarding", tabla: "eos_onboarding" },
+  // Buscado el 12/09/2026: ninguna prueba la nombra.
+  { nombre: "Personal · política", tabla: "eos_finanzas_politica", pruebas: [] },
+  { nombre: "Onboarding", tabla: "eos_onboarding", pruebas: ["auth/destino"], certificacion: ["07-onboarding"] },
   { nombre: "Indicadores · historia", tabla: "eos_kpi_historia_v105", pruebas: ["kpi"] },
   { nombre: "Documentos", tabla: "eos_documentos", pruebas: ["documentos"] },
-  { nombre: "Auditoría", tabla: "eos_auditoria_v60" },
-  { nombre: "Pagos", tabla: "eos_pagos" },
+  { nombre: "Auditoría", tabla: "eos_auditoria_v60", pruebas: ["auditoria"], certificacion: ["13-auditoria"] },
+  { nombre: "Pagos", tabla: "eos_pagos", pruebas: ["pagos"], certificacion: ["03-pago", "05-renovacion", "06-vencimiento"] },
 ];
 
 // ------------------------------------------------------------ usuarios reales
@@ -110,6 +143,8 @@ function recorrer(dir: string) {
 }
 recorrer(path.join(RAIZ, "lib"));
 
+const casosDeCertificacion = fs.readdirSync(path.join(RAIZ, "certificacion", "casos"));
+
 // -------------------------------------------------------- qué verbos existen
 const sistema = fs.readFileSync(path.join(RAIZ, "lib", "gateway", "sistema.ts"), "utf8");
 const prompt = JSON.parse(`"${sistema.match(/export const PROMPT_SISTEMA = "([\s\S]*?)";/)![1]}"`) as string;
@@ -128,10 +163,24 @@ const sinVerbo: string[] = [];
 const sinPruebas: string[] = [];
 
 for (const area of AREAS) {
-  const total = await db.from(area.tabla).select("*", { count: "exact", head: true });
+  const contar = () => db.from(area.tabla).select("*", { count: "exact", head: true });
+
+  /*
+   * Una lectura que falla no dice que la tabla no existe: dice que no se pudo
+   * leer. Este script imprimía "(no existe: …)" ante cualquier error, y el
+   * 12/09/2026 informó que el Chat —1.204 mensajes— no existía, por un conteo
+   * que falló una vez y funcionó en la siguiente. Se reintenta una vez; si
+   * igual falla, se dice lo que pasó y el script termina en error. Un error de
+   * medición no puede salir impreso con cara de hallazgo.
+   */
+  let total = await contar();
+  if (total.error) total = await contar();
 
   if (total.error) {
-    console.log(`${area.nombre.padEnd(26)}${"—".padStart(7)}   (no existe: ${total.error.message.slice(0, 40)})`);
+    process.exitCode = 1;
+    console.log(
+      `${area.nombre.padEnd(26)}${"?".padStart(7)}   NO SE PUDO CONTAR (${total.status} ${total.error.message.slice(0, 40) || "sin mensaje"})`,
+    );
     continue;
   }
 
@@ -148,17 +197,35 @@ for (const area of AREAS) {
       : `${area.verbo} (NO está en el prompt)`
     : "—";
 
-  const pruebas = (area.pruebas ?? []).flatMap((p) =>
-    archivosDePrueba.filter((a) => a.startsWith(p)),
-  );
+  /*
+   * Un prefijo declarado que no encuentra ningún archivo es un error del
+   * script, no un área sin pruebas: alguien renombró el módulo o lo escribió
+   * mal. Se corta acá, en vez de volver a informar un "—" que nadie miró.
+   */
+  const pruebas = area.pruebas.flatMap((prefijo) => {
+    const archivos = archivosDePrueba.filter((a) => a.startsWith(prefijo));
+    if (archivos.length === 0) throw new Error(`${area.nombre}: ninguna prueba empieza con "${prefijo}"`);
+    return archivos;
+  });
+
+  const certificacion = (area.certificacion ?? []).map((caso) => {
+    const archivo = casosDeCertificacion.find((c) => c.startsWith(caso));
+    if (!archivo) throw new Error(`${area.nombre}: no existe el caso de certificación "${caso}"`);
+    return archivo;
+  });
+
+  const cobertura =
+    [pruebas.length ? `${pruebas.length} lib` : "", certificacion.length ? `${certificacion.length} cert` : ""]
+      .filter(Boolean)
+      .join(" + ") || "—";
 
   console.log(
-    `${area.nombre.padEnd(26)}${String(total.count ?? 0).padStart(7)}${String(conteoReales === -1 ? "n/a" : conteoReales).padStart(11)}  ${verbo.padEnd(30)}${pruebas.length || "—"}`,
+    `${area.nombre.padEnd(26)}${String(total.count ?? 0).padStart(7)}${String(conteoReales === -1 ? "n/a" : conteoReales).padStart(11)}  ${verbo.padEnd(30)}${cobertura}`,
   );
 
   if (conteoReales === 0) sinUso.push(area.nombre);
   if (!area.verbo) sinVerbo.push(area.nombre);
-  if (pruebas.length === 0) sinPruebas.push(area.nombre);
+  if (pruebas.length === 0 && certificacion.length === 0) sinPruebas.push(area.nombre);
 }
 
 console.log("\n" + "=".repeat(96));
