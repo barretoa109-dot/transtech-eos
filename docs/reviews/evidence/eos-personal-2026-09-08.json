@@ -1,0 +1,91 @@
+{
+  "method": "Actual TSX component and route, transpiled; mocked hooks, HTTP and Supabase; synthetic data only. Not browser E2E or a real database test.",
+  "cases": [
+    {
+      "case": "mixed_currency_total_and_currency_overwrite",
+      "reproduced": true,
+      "input": [
+        {
+          "moneda": "PYG",
+          "saldo": 1000000
+        },
+        {
+          "moneda": "USD",
+          "saldo": 100
+        }
+      ],
+      "displayed": "PYG 1000100",
+      "savedCurrencies": [
+        "PYG",
+        "PYG"
+      ]
+    },
+    {
+      "case": "failed_read_is_presented_as_empty_accounts",
+      "reproduced": true
+    },
+    {
+      "case": "insert_failure_loses_previous_accounts",
+      "reproduced": true,
+      "httpStatus": 500,
+      "calls": [
+        "DELETE",
+        "INSERT"
+      ],
+      "remainingRows": []
+    },
+    {
+      "case": "invalid_balance_silently_deletes_account",
+      "reproduced": true,
+      "httpStatus": 200,
+      "calls": [
+        "DELETE"
+      ],
+      "remainingRows": []
+    },
+    {
+      "case": "unchanged_balance_date_reset_to_today",
+      "reproduced": true,
+      "httpStatus": 200,
+      "calls": [
+        "DELETE",
+        "INSERT"
+      ],
+      "remainingRows": [
+        {
+          "usuario_id": "synthetic-user",
+          "nombre": "Existing",
+          "tipo": "banco",
+          "institucion": null,
+          "moneda": "USD",
+          "saldo_declarado": 100,
+          "saldo_declarado_el": "2026-09-08",
+          "recibe_avisos": false,
+          "activa": true
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "file": "app/eos/components/FinanzasCuentas.tsx",
+      "sha256": "55449d1fd7d41a2762d8a8685b7fef26f76337032140167d4dcf7520ae437a42"
+    },
+    {
+      "file": "app/eos/components/FinanzasCuentas.tsx",
+      "sha256": "55449d1fd7d41a2762d8a8685b7fef26f76337032140167d4dcf7520ae437a42"
+    },
+    {
+      "file": "app/api/finanzas/cuentas/route.ts",
+      "sha256": "3e0b11830a264b7d605fae5fe4c8dc35c081c4119127a43c845420018d6ae475"
+    },
+    {
+      "file": "app/api/finanzas/cuentas/route.ts",
+      "sha256": "3e0b11830a264b7d605fae5fe4c8dc35c081c4119127a43c845420018d6ae475"
+    },
+    {
+      "file": "app/api/finanzas/cuentas/route.ts",
+      "sha256": "3e0b11830a264b7d605fae5fe4c8dc35c081c4119127a43c845420018d6ae475"
+    }
+  ]
+}

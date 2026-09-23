@@ -1,0 +1,12 @@
+# El CLI de Vercel no está heredando .gitignore como se esperaba: sin este
+# archivo, `vercel deploy` intenta subir carpetas pesadas que no son parte de
+# la app y no caben en el límite de 100 MB por archivo.
+.video-build/
+tmp/
+output/
+n8n/respaldos/
+"Nuevo logo de EOS.jpeg"
+"nuevo logo EOS/"
+*.zip
+*.mp4
+*.pptx
