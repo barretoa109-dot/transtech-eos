@@ -1,6 +1,7 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { crearTokenBaja } from "./baja.ts";
 import { envolverEmailDeMarca, escaparHtml, primerNombre } from "./marca.ts";
+import { lineaPersonal } from "./consejoDeObjetivo.ts";
 
 /**
  * Correo motivacional, uno cada 3 días.
@@ -20,7 +21,12 @@ import { envolverEmailDeMarca, escaparHtml, primerNombre } from "./marca.ts";
  *    acompañamiento de spam.
  *  - UN MENSAJE POR CICLO PARA TODOS (`ciclo % mensajes`): no hace falta contar
  *    lo que ya recibió cada uno, y la rotación es la misma para todas las
- *    cuentas.
+ *    cuentas. La parte de ARRIBA del mensaje (el título, el cierre, el botón)
+ *    es igual para todos por ciclo; la de ABAJO del saludo es personal —cómo
+ *    va su objetivo, o un consejo financiero si todavía no tiene uno— y se
+ *    arma por persona (`lib/email/consejoDeObjetivo.ts`). Ver ahí por qué hoy
+ *    casi siempre es el consejo: 0 de 6 cuentas reales tenían un objetivo con
+ *    plata el 21 de septiembre de 2026.
  */
 
 export const MOTIVO_BAJA = "motivacionales";
@@ -178,24 +184,29 @@ export function redactarMotivacional(params: {
   nombre: string | null | undefined;
   appUrl: string;
   urlBaja: string;
+  /** Cómo va su objetivo, o un consejo financiero. Ver `consejoDeObjetivo.ts`. */
+  lineaPersonal: string;
 }): { asunto: string; html: string; texto: string } {
-  const { mensaje, appUrl, urlBaja } = params;
+  const { mensaje, appUrl, urlBaja, lineaPersonal } = params;
   const nombre = primerNombre(params.nombre);
   const saludo = nombre ? `Hola ${nombre},` : "Hola,";
   const urlChat = `${appUrl}/eos/chat`;
 
+  // La línea personal va justo después del saludo y antes del mensaje
+  // rotativo: es lo más importante que el correo tiene para decirle a ESTA
+  // persona, y no un párrafo más entre otros.
+  const parrafos = [saludo, lineaPersonal, ...mensaje.parrafos];
+
   const html = envolverEmailDeMarca({
     titulo: mensaje.titulo,
-    parrafos: [escaparHtml(saludo), ...mensaje.parrafos.map(escaparHtml)],
+    parrafos: parrafos.map(escaparHtml),
     ctaTexto: mensaje.ctaTexto,
     ctaUrl: urlChat,
     pieHtml: `<p style="margin:24px 0 0;color:#94a3b8;line-height:1.6;font-size:12px;">Te escribimos porque tenés una cuenta en EOS. Si no querés recibir estos correos, <a href="${urlBaja}" style="color:#94a3b8;">darte de baja</a> lleva un clic.</p>`,
   });
 
   const texto = [
-    saludo,
-    "",
-    ...mensaje.parrafos.flatMap((p) => [p, ""]),
+    ...parrafos.flatMap((p) => [p, ""]),
     `${mensaje.ctaTexto}: ${urlChat}`,
     "",
     `Si no querés recibir estos correos, date de baja acá: ${urlBaja}`,
@@ -301,11 +312,15 @@ export async function enviarMotivacionales(
       }
 
       const urlBaja = urlDeBaja(appUrl, u.id, secreto);
+      // Nunca lanza por un problema de datos: sin objetivo, o si algo falla al
+      // leerlo, cae sola al consejo financiero del ciclo (ver consejoDeObjetivo.ts).
+      const personal = await lineaPersonal(admin, u.id, hoy, ciclo);
       const { asunto, html, texto } = redactarMotivacional({
         mensaje,
         nombre: u.nombre,
         appUrl,
         urlBaja,
+        lineaPersonal: personal,
       });
 
       try {
