@@ -60,6 +60,7 @@ import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route"
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
+import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -133,6 +134,8 @@ type RespuestaN8N = {
   worker: unknown;
   /* Lo que consumió el mensaje en OpenAI. Cero si el gateway no lo mandó. */
   tokens_entrada: number;
+  /* Parte de la entrada servida desde el caché de OpenAI. Ver `lib/eos/costo-mensaje.ts`. */
+  tokens_entrada_cacheados: number;
   tokens_salida: number;
 };
 
@@ -487,6 +490,7 @@ function normalizarRespuestaN8N(rawText: string): RespuestaN8N {
 
     /* Si el gateway todavía no los manda, quedan en cero y no rompen nada. */
     tokens_entrada: Number(data.tokens_entrada ?? 0) || 0,
+    tokens_entrada_cacheados: Number(data.tokens_entrada_cacheados ?? 0) || 0,
     tokens_salida: Number(data.tokens_salida ?? 0) || 0,
   };
 }
@@ -1149,13 +1153,17 @@ export async function procesarMensajeEOS(
      * corrige. Si no están configuradas, el costo queda en cero y los tokens
      * igual se guardan — que es lo que después se puede convertir a plata en
      * cualquier momento.
+     *
+     * Desde el 23 de septiembre de 2026 los tokens que OpenAI sirvió desde su
+     * caché se cobran a su tarifa real (`EOS_USD_POR_MTOK_ENTRADA_CACHEADA`).
+     * Antes se cobraban a tarifa completa y el costo guardado sobreestimaba
+     * ~2,3 veces. Ver `lib/eos/costo-mensaje.ts`.
      */
-    const tokensEntrada = Math.max(0, Math.trunc(Number(resultado.tokens_entrada ?? 0)) || 0);
-    const tokensSalida = Math.max(0, Math.trunc(Number(resultado.tokens_salida ?? 0)) || 0);
+    const tokens = normalizarTokens(resultado);
+    const tokensEntrada = tokens.entrada;
+    const tokensSalida = tokens.salida;
 
-    const costoEstimado =
-      (tokensEntrada / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_ENTRADA || 0) +
-      (tokensSalida / 1_000_000) * Number(process.env.EOS_USD_POR_MTOK_SALIDA || 0);
+    const costoEstimado = costoDelMensaje(tokens, tarifasDelEntorno());
 
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
@@ -1280,7 +1288,7 @@ export async function procesarMensajeEOS(
         acciones: resultado.acciones.map((a) => String(a?.tipo ?? "")),
         verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
         worker_informado: evidencia.informado,
-        tokens: { entrada: tokensEntrada, salida: tokensSalida },
+        tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
         ms: Date.now() - comienzo,
       }),
     );

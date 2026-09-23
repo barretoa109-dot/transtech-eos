@@ -27,6 +27,7 @@
  */
 
 import type { Entrada } from "./entrada.ts";
+import { cacheadosDeUsage } from "../eos/costo-mensaje.ts";
 
 /*
  * Lo que el gateway acepta del modelo. Espejo del nodo 05 de n8n.
@@ -97,6 +98,8 @@ export type RespuestaGateway = {
   archivo_tipo: string;
   archivo_nombre: string;
   tokens_entrada: number;
+  /** Parte de la entrada que OpenAI sirvió desde su caché (se cobra más barata). */
+  tokens_entrada_cacheados: number;
   tokens_salida: number;
   metadata: Record<string, unknown>;
 };
@@ -189,6 +192,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
    */
   const tokens_entrada = Number(usage.input_tokens ?? usage.prompt_tokens ?? 0) || 0;
   const tokens_salida = Number(usage.output_tokens ?? usage.completion_tokens ?? 0) || 0;
+  const tokens_entrada_cacheados = cacheadosDeUsage(usage);
 
   const crudo = sinCercos(extraerTexto(ai));
 
@@ -257,6 +261,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
     archivo_tipo: "",
     archivo_nombre: "",
     tokens_entrada,
+    tokens_entrada_cacheados,
     tokens_salida,
     metadata: {
       plan: entrada.plan || "free",

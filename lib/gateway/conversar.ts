@@ -208,6 +208,7 @@ export async function conversar(payload: Record<string, unknown>): Promise<Resul
       accion: cuerpo.accion,
       metadata: cuerpo.metadata,
       tokens_entrada: cuerpo.tokens_entrada,
+      tokens_entrada_cacheados: cuerpo.tokens_entrada_cacheados,
       tokens_salida: cuerpo.tokens_salida,
     },
     resultados,

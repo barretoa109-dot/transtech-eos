@@ -20,6 +20,7 @@ function base(extra: Partial<Base> = {}): Base {
     accion: "RESPONDER",
     metadata: { plan: "free" },
     tokens_entrada: 10,
+    tokens_entrada_cacheados: 4,
     tokens_salida: 5,
     ...extra,
   };
@@ -309,4 +310,11 @@ test("worker.ok es cierto solo cuando no falló nada", () => {
   assert.equal(juntarResultados(base(), [hecho("CREAR_TAREA")]).worker.ok, true);
   assert.equal(juntarResultados(base(), []).worker.ok, true);
   assert.equal(juntarResultados(base(), [{ ok: false, accion: "X" }]).worker.ok, false);
+});
+
+test("los tokens cacheados llegan hasta la respuesta final", () => {
+  const final = juntarResultados(base(), [hecho("REGISTRAR_VENTA")]);
+  assert.equal(final.tokens_entrada, 10);
+  assert.equal(final.tokens_entrada_cacheados, 4);
+  assert.equal(final.tokens_salida, 5);
 });

@@ -226,6 +226,26 @@ test("un documento sin título o sin bloques no es documento", () => {
 // Tokens y metadata
 // ---------------------------------------------------------------------------
 
+test("los tokens cacheados viajan aparte para cobrarlos a su tarifa real", () => {
+  const r = prepararRespuesta(
+    entrada(),
+    ai(OK, {
+      usage: {
+        input_tokens: 9_000,
+        input_tokens_details: { cached_tokens: 7_900 },
+        output_tokens: 200,
+      },
+    }),
+  );
+  assert.equal(r.tokens_entrada, 9_000);
+  assert.equal(r.tokens_entrada_cacheados, 7_900);
+});
+
+test("sin detalle de caché, los cacheados son cero", () => {
+  const r = prepararRespuesta(entrada(), ai(OK));
+  assert.equal(r.tokens_entrada_cacheados, 0);
+});
+
 test("los tokens viajan para poder saber cuánto cuesta cada usuario", () => {
   const r = prepararRespuesta(entrada(), ai(OK));
   assert.equal(r.tokens_entrada, 120);
@@ -294,6 +314,7 @@ test("devuelve exactamente los campos que espera app/api/eos/route.ts", () => {
     "archivo_nombre",
     "metadata",
     "tokens_entrada",
+    "tokens_entrada_cacheados",
     "tokens_salida",
   ]) {
     assert.ok(campo in r, `falta ${campo}, que la ruta lee`);
