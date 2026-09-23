@@ -77,3 +77,44 @@ que use el descuento real de caché) es más urgente: hoy ese número
 enrutamiento tomada sobre el dato actual estaría optimizando contra un
 número inflado. Corregir la medición primero, decidir el enrutamiento
 después.
+
+## Estado al 2026-09-23: pasos 1 y 3 hechos, en modo sombra
+
+El gateway quedó tranquilo (ninguna rama remota tocaba `lib/gateway/` ni
+`lib/eos/procesar-mensaje.ts` al 23 de septiembre), así que se implementó la
+parte que **no cambia ninguna respuesta**:
+
+- **Paso 1, la regla:** `lib/eos/enrutamiento-modelo.ts`. Determinística, sin
+  llamada extra. Más conservadora que la propuesta de arriba en un punto: una
+  confirmación ("sí", "dale") **con una pregunta de EOS pendiente** queda en el
+  modelo completo, porque en el flujo real ese "sí" es el que ejecuta la venta
+  que EOS propuso. Solo cortesía pura y acuses sin pregunta pendiente son
+  `simple`.
+- **Paso 2, el corpus:** `evals/casos/enrutamiento.ts` (26 casos, 21
+  críticos). Ningún mensaje del corpus de acciones puede clasificarse simple.
+  Pasa 26/26.
+- **Paso 3, medir sin cambiar nada:** cada mensaje deja en el log de Vercel,
+  en la línea `EOS mensaje:`, el campo
+  `enrutamiento: { clase, motivo, simple_con_accion }` junto a los tokens (ya
+  con los cacheados del punto 8).
+
+### Cómo leer la semana de medición
+
+En Vercel → Logs, filtrar por `EOS mensaje:` y contar:
+
+1. Qué parte de los mensajes es `"clase":"simple"` — el techo de ahorro.
+2. Cuántos tienen `"simple_con_accion":true` — la tasa de error de la regla.
+   **Tiene que ser cero.** Si aparece uno, el `motivo` dice qué clase de mensaje
+   lo causó, y esa clase sale de la regla antes de enrutar nada.
+3. Con los tokens de los turnos simples y la tarifa del modelo barato
+   candidato, el ahorro real en USD.
+
+### Lo que falta (paso 4) y por qué no se hizo
+
+Enrutar de verdad: una bandera `EOS_ENRUTAR_MODELO=1` y un
+`EOS_MODELO_SIMPLE=<modelo>` en `lib/gateway/conversar.ts`. No se escribió
+porque (a) sin la semana de medición no hay con qué decidir, y (b) elegir el
+modelo barato exige el catálogo vigente de OpenAI y correr el corpus contra
+ese modelo con una clave real — nada de eso se puede hacer desde una sesión
+de Code sin credenciales. Además, hoy el tráfico real pasa por n8n: enrutar
+solo en el gateway TS no ahorra nada hasta prender la etapa 1 (punto 1).

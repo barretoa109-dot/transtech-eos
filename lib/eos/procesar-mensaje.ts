@@ -61,6 +61,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
+import { clasificarTurno, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -973,6 +974,19 @@ export async function procesarMensajeEOS(
      */
     let n8nResponse: Response | null = null;
 
+    /*
+     * Punto 10, en MODO SOMBRA: qué modelo HABRÍA atendido este turno. Solo va
+     * al log de abajo; no cambia a quién se le pregunta. Se clasifica con el
+     * mensaje ORIGINAL de la persona, no con el que ya trae el análisis de un
+     * adjunto pegado. Ver `lib/eos/enrutamiento-modelo.ts`.
+     */
+    const enrutamiento = clasificarTurno({
+      mensaje,
+      adjuntos: archivos.length,
+      conCita: Boolean(payload.cita),
+      historial: payload.historial,
+    });
+
     if (gatewayEnTypeScript()) {
       const propio = await conversar(payload);
 
@@ -1289,6 +1303,7 @@ export async function procesarMensajeEOS(
         verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
         worker_informado: evidencia.informado,
         tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
+        enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
         ms: Date.now() - comienzo,
       }),
     );
