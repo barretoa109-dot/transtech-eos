@@ -239,6 +239,7 @@ en las ramas correspondientes, no acá.
 | 11 | **Hecho sin Sentry.** Registro propio de excepciones con su chequeo de salud | `error-tracking-sentry.md`, v194 |
 | 12 | Hecho: las vistas v192 | migración v192 |
 | 3.3 | No se llevó al CI: el token que usa es de poder total y guardarlo en GitHub lo decidís vos | — |
+| 4.4 | **Instrumentación del piloto hecha:** tiempo al primer valor en la salud y `solo_memoria` en el log. Elegir las cuentas sigue siendo tuyo | `piloto-comercial-plan.md` |
 
 ### Lo que queda de tu lado, en orden
 

@@ -1132,12 +1132,20 @@ export async function procesarMensajeEOS(
      * el usuario había pedido cargar productos, costos o compras. La nota
      * quedó; el catálogo no. Ver `corregirAfirmacionSoloMemoria`.
      */
+    const antesDeSoloMemoria = resultado.respuesta;
     resultado.respuesta = corregirAfirmacionSoloMemoria(
       resultado.respuesta,
       resultado.acciones,
       mensaje,
       verificaciones,
     );
+    /*
+     * Para el piloto (docs/estrategia/piloto-comercial-plan.md, "Qué
+     * instrumentar", punto 2): cada vez que un pedido operativo terminó como
+     * una nota, queda marcado en el log. Contarlas cada semana dice qué verbo
+     * de negocio falta, antes de que un cliente lo descubra.
+     */
+    const soloMemoria = resultado.respuesta !== antesDeSoloMemoria;
 
     resultado.respuesta = avisoDeVerificacion(
       resultado.respuesta,
@@ -1304,6 +1312,7 @@ export async function procesarMensajeEOS(
         worker_informado: evidencia.informado,
         tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
         enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
+        solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,
       }),
     );

@@ -74,3 +74,18 @@ piloto) para ver si el tiempo-al-primer-valor y la retención a 14 días
 mejoran con el onboarding humano agregado — si no mejoran, es una señal de
 que el problema no es el onboarding sino el producto, y hay que mirar de
 nuevo los hallazgos de `eos-urgencias-uso-real`.
+
+## Actualización 2026-09-23: los puntos 1 y 2 de "Qué instrumentar" ya se miden
+
+- **Tiempo al primer valor:** `/api/internal/salud` tiene el chequeo "Tiempo
+  al primer valor, cuentas nuevas". Muestra las cuentas reales de los últimos
+  14 días, cuántas llegaron a una acción el primer día y la mediana. Las que
+  pasaron 24 h sin ninguna aparecen como **INTERVENIR** con los primeros 8
+  caracteres de su `usuario_id`. Ver `lib/monitoreo/primer-valor.ts`. No
+  necesita migración: lee `eos_analitica_usuario_v172`.
+- **Pedidos que terminan en nota:** cada mensaje deja `solo_memoria: true` en
+  la línea `EOS mensaje:` del log de Vercel cuando `corregirAfirmacionSoloMemoria`
+  tuvo que avisar que solo quedó una nota. Filtrar por `"solo_memoria":true`
+  una vez por semana y leer qué pedía la persona en ese turno.
+- El punto 3 (consentimiento para citar) no es código: pedirlo por escrito
+  antes de empezar.

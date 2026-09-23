@@ -22,6 +22,7 @@
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import { UMBRAL_USO_ALTO, cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
 import { evaluarErroresServidor, type FilaErrores24h } from "./errores-servidor.ts";
+import { DIAS_CUENTA_NUEVA, evaluarPrimerValor, type FilaPrimerValor } from "./primer-valor.ts";
 
 export type Chequeo = {
   nombre: string;
@@ -202,6 +203,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
      y cambiar sin una migración. */
   chequeos.push(...(await chequeosOperativos()));
   chequeos.push(await chequeoEmbudo());
+  chequeos.push(await chequeoPrimerValor());
   chequeos.push(await chequeoChatReal());
   chequeos.push(await chequeoUsoAlto());
   chequeos.push(await chequeoErroresServidor());
@@ -366,6 +368,31 @@ async function chequeoUsoAlto(): Promise<Chequeo> {
           ? "ninguna este mes"
           : cuentas.map(describirCuenta).join(" | "),
     };
+  } catch (error) {
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
+}
+
+/** Ver `primer-valor.ts`: informativo, lista a quién hay que llamar. */
+async function chequeoPrimerValor(): Promise<Chequeo> {
+  const nombre = "Tiempo al primer valor, cuentas nuevas (informativo)";
+
+  try {
+    const desde = new Date(Date.now() - DIAS_CUENTA_NUEVA * 86_400_000).toISOString();
+    const { data, error } = await adminSinTipos()
+      .from("eos_analitica_usuario_v172")
+      .select("usuario_id,registro,primera_accion_ok")
+      .eq("tipo", "real")
+      .gte("registro", desde)
+      .limit(5000);
+
+    if (error) throw new Error(error.message);
+
+    return { nombre, ok: true, detalle: evaluarPrimerValor((data ?? []) as FilaPrimerValor[]).detalle };
   } catch (error) {
     return {
       nombre,
