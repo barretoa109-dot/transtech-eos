@@ -18,7 +18,8 @@
     "ambito": "node scripts/ambito-declarado.mjs",
     "grants": "node scripts/grants-sanos.mjs",
     "columnas": "node scripts/columnas-existen.mjs",
-    "respaldo": "node scripts/respaldo-de-datos.mjs"
+    "respaldo": "node scripts/respaldo-de-datos.mjs",
+    "siguiente-migracion": "node scripts/siguiente-migracion.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
