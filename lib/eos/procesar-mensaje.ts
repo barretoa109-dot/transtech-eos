@@ -1269,7 +1269,15 @@ export async function procesarMensajeEOS(
               mensaje: payload.mensaje,
               respuesta: resultado.respuesta,
             }),
-            signal: AbortSignal.timeout(2500),
+            /*
+             * Corre en `after()`, después de que la respuesta ya salió: no le
+             * cuesta nada al usuario esperar más. El 2500 ms original venía de
+             * cuando esto SÍ estaba en el camino crítico (ver eos-rc1-status);
+             * contra un arranque frío de n8n (~3,3 s medidos en
+             * docs/latencia-del-chat.md) ese margen fallaba seguido sin que
+             * nadie lo notara, porque el error solo se loguea.
+             */
+            signal: AbortSignal.timeout(8000),
           },
         );
       } catch (captureError) {

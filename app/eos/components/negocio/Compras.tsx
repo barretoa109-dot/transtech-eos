@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import Anular from "./Anular";
+import PasarAlCatalogo from "./PasarAlCatalogo";
 import CorregirCosto from "./CorregirCosto";
 import { AlertCircle, Check, MoreHorizontal, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
@@ -599,14 +600,22 @@ export default function Compras({
               </button>
             </div>
           </>
-        ) : productos.length === 0 ? (
+        ) : productos.length === 0 && compras.length === 0 ? (
           <div className="neg-empty-state">
             <PackagePlus size={28} />
             <strong>Podés registrar una compra aunque todavía no tengas catálogo</strong>
-            <p>Agregá el proveedor y escribí cada concepto con su costo. Si después cargás productos, EOS también actualizará el stock automáticamente.</p>
+            <p>Agregá el proveedor y escribí cada concepto con su costo. Después vas a poder pasar lo comprado al catálogo para ver su stock y su margen.</p>
             <button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button>
           </div>
         ) : null}
+
+        {!abierto && !cargando && (
+          <PasarAlCatalogo
+            compras={compras}
+            nombresDelCatalogo={productos.map((p) => p.nombre)}
+            onCambio={() => { onCambio(); void cargar(); }}
+          />
+        )}
       </div>
 
       <div className="card">

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { accionesEnTypeScript, conversar, gatewayEnTypeScript } from "./conversar.ts";
+import { accionesEnTypeScript, adjuntosEnTypeScript, conversar, gatewayEnTypeScript } from "./conversar.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -127,11 +127,56 @@ test("manda el mismo modelo y el prompt del sistema entero", async () => {
   assert.equal(cuerpo.input[1].role, "user");
 });
 
-test("la imagen viaja en el turno del usuario", async () => {
-  const { enviado } = await conFetchFalso(
-    () => ok(respuestaDeOpenAI(JSON.stringify({ respuesta: "Veo el ticket.", acciones: [] }))),
-    payload({ archivo: { nombre: "t.png", tipo: "image/png", base64: "AAAA" } }),
-  );
+test("con un adjunto delega en n8n sin llamar a OpenAI", async () => {
+  const original = process.env.EOS_GATEWAY_TS_IMAGENES;
+  delete process.env.EOS_GATEWAY_TS_IMAGENES;
+  let llamadas = 0;
+  try {
+    const { resultado, enviado } = await conFetchFalso(
+      () => {
+        llamadas += 1;
+        return ok(respuestaDeOpenAI(JSON.stringify({ respuesta: "Veo el ticket.", acciones: [] })));
+      },
+      payload({ archivo: { nombre: "t.png", tipo: "image/png", base64: "AAAA" } }),
+    );
+    assert.deepEqual(resultado, { estado: "delegar", motivo: "adjunto" });
+    assert.equal(enviado, null);
+    assert.equal(llamadas, 0, "no puede gastar ni esperar a OpenAI para después delegar");
+  } finally {
+    if (original === undefined) delete process.env.EOS_GATEWAY_TS_IMAGENES;
+    else process.env.EOS_GATEWAY_TS_IMAGENES = original;
+  }
+});
+
+test("la bandera de adjuntos arranca apagada y solo se prende con 1", () => {
+  const original = process.env.EOS_GATEWAY_TS_IMAGENES;
+  try {
+    delete process.env.EOS_GATEWAY_TS_IMAGENES;
+    assert.equal(adjuntosEnTypeScript(), false);
+    process.env.EOS_GATEWAY_TS_IMAGENES = "true";
+    assert.equal(adjuntosEnTypeScript(), false);
+    process.env.EOS_GATEWAY_TS_IMAGENES = "1";
+    assert.equal(adjuntosEnTypeScript(), true);
+  } finally {
+    if (original === undefined) delete process.env.EOS_GATEWAY_TS_IMAGENES;
+    else process.env.EOS_GATEWAY_TS_IMAGENES = original;
+  }
+});
+
+test("con la bandera de adjuntos, la imagen viaja en el turno del usuario", async () => {
+  const original = process.env.EOS_GATEWAY_TS_IMAGENES;
+  process.env.EOS_GATEWAY_TS_IMAGENES = "1";
+  let resultado;
+  try {
+    resultado = await conFetchFalso(
+      () => ok(respuestaDeOpenAI(JSON.stringify({ respuesta: "Veo el ticket.", acciones: [] }))),
+      payload({ archivo: { nombre: "t.png", tipo: "image/png", base64: "AAAA" } }),
+    );
+  } finally {
+    if (original === undefined) delete process.env.EOS_GATEWAY_TS_IMAGENES;
+    else process.env.EOS_GATEWAY_TS_IMAGENES = original;
+  }
+  const { enviado } = resultado;
 
   const cuerpo = enviado as unknown as {
     input: { content: { type: string; image_url?: string }[] }[];
