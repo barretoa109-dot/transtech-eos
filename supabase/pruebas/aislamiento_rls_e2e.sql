@@ -5,7 +5,7 @@
 -- Corre dentro de una transacción que termina en ROLLBACK: no deja filas.
 -- Devuelve una fila por comprobación; todas tienen que dar ok = true.
 --
---   npx supabase db query --linked -f supabase/pruebas/aislamiento_rls_e2e.sql
+--   npm run go                       (contra producción; ver scripts/lib/aislamiento.mjs)
 --
 -- o contra una reconstrucción local (ver docs/lanzamiento/production-go-2026-09-24.md):
 --
