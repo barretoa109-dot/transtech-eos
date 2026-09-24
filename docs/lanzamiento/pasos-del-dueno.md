@@ -20,8 +20,12 @@ Desde una carpeta limpia, **después** de unir:
 ```bash
 git checkout main && git pull
 npx supabase migration list --linked   # mirar qué falta: al menos v192–v197
-npx supabase db push
+npx supabase db push --include-all
 ```
+
+`--include-all` hace falta porque otra sesión ya aplicó una migración con
+fecha posterior (`20260924102000_eos_imagenes_leidas_v197`). Aplica solo lo
+que falta; se probó el orden completo desde cero (295 migraciones, 24/24).
 
 La v197 es la que impide que alguien se asigne un plan pago desde el
 navegador y enciende la protección por cuenta en las 40 tablas heredadas. Es

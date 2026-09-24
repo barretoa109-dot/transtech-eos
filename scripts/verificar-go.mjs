@@ -97,7 +97,11 @@ await paso("v197 aplicada (el plan no se autoasigna)", async () => {
   const filas = await sql(
     "select count(*)::int as n from pg_trigger where tgname = 'usuarios_proteger_comercial_v197' and tgrelid = 'public.usuarios'::regclass",
   );
-  anotar("v197 aplicada (el plan no se autoasigna)", filas[0]?.n === 1, filas[0]?.n === 1 ? "" : "falta `supabase db push`");
+  anotar(
+    "v197 aplicada (el plan no se autoasigna)",
+    filas[0]?.n === 1,
+    filas[0]?.n === 1 ? "" : "falta `npx supabase db push --include-all`",
+  );
 });
 
 await paso("Toda tabla de public tiene RLS", async () => {
@@ -108,10 +112,11 @@ await paso("Toda tabla de public tiene RLS", async () => {
 });
 
 await paso("Aislamiento entre cuentas (24 comprobaciones)", async () => {
+  // En Windows el ejecutable es npx.cmd y Node no lo encuentra como "npx" (ENOENT).
   const salida = execFileSync(
-    "npx",
+    process.platform === "win32" ? "npx.cmd" : "npx",
     ["supabase", "db", "query", "--linked", "-f", "supabase/pruebas/aislamiento_rls_e2e.sql"],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" },
   );
   const json = JSON.parse(salida.slice(salida.indexOf("{")));
   const filas = json.rows ?? [];
