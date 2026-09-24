@@ -7,6 +7,8 @@ import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
+import { puedeProbarCodigo } from "@/lib/whatsapp/intentos-codigo";
+import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import { atenderCanalEmpresa, buscarCanalEmpresa, type ValorWebhook } from "@/lib/whatsapp-crm/entrante";
 import { extraerPhoneNumberIds, secretoParaPayload } from "@/lib/whatsapp-crm/firma-canal";
 import {
@@ -299,6 +301,16 @@ async function atenderNumeroSinVinculo(
 }
 
 async function confirmarCodigo(admin: ReturnType<typeof adminSinTipos>, desde: string, codigo: string) {
+  // Sin techo, mandar códigos al azar era una forma de entrar en la cuenta de
+  // quien estuviera vinculando su teléfono. Ver `lib/whatsapp/intentos-codigo.ts`.
+  if (!(await puedeProbarCodigo(admin, desde, secretoDelEntorno()))) {
+    await enviarTexto(
+      desde,
+      "Probaste varios códigos seguidos. Esperá un rato y generá uno nuevo desde tu perfil en la app.",
+    );
+    return;
+  }
+
   const { data: pendiente, error: buscarError } = await admin
     .from("eos_whatsapp_vinculos_v162")
     .select("usuario_id, codigo_expira_at")

@@ -63,5 +63,22 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true }, { headers: noStore() });
+  /*
+   * De qué despliegue es esta respuesta. El 2 de septiembre n8n le hablaba a un
+   * preview 185 commits atrás de main (lista maestra, hallazgo -1) y nada lo
+   * delataba: las respuestas eran correctas para un código equivocado. Con esto
+   * el worker —o cualquiera con el token— puede comprobar que habla con
+   * producción. Solo se muestra a quien ya está autorizado.
+   */
+  return NextResponse.json(
+    {
+      ok: true,
+      despliegue: {
+        entorno: process.env.VERCEL_ENV ?? null,
+        rama: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+        commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null,
+      },
+    },
+    { headers: noStore() },
+  );
 }
