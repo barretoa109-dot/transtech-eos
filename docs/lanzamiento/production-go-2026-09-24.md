@@ -233,3 +233,26 @@ La prueba se ajustó para aceptar los dos tipos de bloqueo.
   tarjeta de prueba catastrada. Es el camino que cambió en este ciclo (cobro
   incierto), así que **es obligatorio antes del GO oficial**: catastrar la
   tarjeta de prueba y volver a correr `npm run certificar -- 3 6`.
+
+## Decisión del dueño — 24/09/2026 18:00: pagos con tarjeta fuera de alcance hasta octubre
+
+Augusto decide lanzar sin Bancard: el cobro con tarjeta se habilita en octubre,
+junto con la salida de la aplicación. El camino comercial de hoy es la
+**transferencia bancaria** (proceso manual, separado del automático, en
+`/api/admin/pagos`).
+
+Consecuencia que se corrigió antes de declarar GO: producción usaba Bancard
+**staging** y el checkout con tarjeta estaba abierto a cualquiera. Con una
+tarjeta de prueba de Bancard se activaba un plan pago sin que entrara dinero
+(P1, "plan activado sin pago"). Ahora (`lib/pagos/tarjetaHabilitada.ts`):
+
+- Mientras `BANCARD_ENV` no sea `production`, cobrar, pagar una vez, catastrar
+  y sincronizar tarjetas responden 403 salvo para la cuenta de certificación y
+  los administradores.
+- La pantalla de pago con tarjeta lleva directo a la transferencia.
+- El día que `BANCARD_ENV=production`, se abre para todos sin tocar código.
+
+**Para octubre (antes de prender Bancard producción):** catastrar la tarjeta de
+prueba en `demo@transtech.com.py` y correr `npm run certificar -- 3 6`. Son los
+dos casos que hoy quedan sin verificar y cubren el cobro con tarjeta guardada
+que se modificó en esta auditoría.

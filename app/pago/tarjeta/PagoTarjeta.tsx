@@ -154,6 +154,16 @@ export default function PagoTarjeta() {
 
       if (!res.ok) throw new Error(data?.error || "No pudimos cargar tus tarjetas.");
 
+      // Mientras Bancard no esté en producción, el pago va por transferencia.
+      if (data?.habilitada === false) {
+        router.replace(
+          armadoId
+            ? `/pago?armado=${encodeURIComponent(armadoId)}`
+            : `/pago?plan=${codigoPlan}&periodicidad=${periodicidad}`,
+        );
+        return;
+      }
+
       const lista: Tarjeta[] = data.tarjetas || [];
 
       setTarjetas(lista);
