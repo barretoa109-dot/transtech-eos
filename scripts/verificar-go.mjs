@@ -12,7 +12,7 @@
  *   EOS_GO_URL              opcional; por defecto https://www.transtech.com.py
  *
  * No escribe nada en producción: la prueba de aislamiento corre dentro de una
- * transacción que termina en ROLLBACK, y el resto son lecturas.
+ * transacción que termina abortada (se deshace entera), y el resto son lecturas.
  *
  * Cada fila dice ok / FALLA y por qué. Sale con código 0 solo si todo está ok.
  * Lo que no se puede medir automáticamente (probar en un iPhone, el trámite de
@@ -20,8 +20,10 @@
  * hecho.
  */
 
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+
+import { filasDelError, sqlParaApi } from "./lib/aislamiento.mjs";
 
 const REF = "dirugpkamzgvyshcnsxs";
 const URL_BASE = (leer("EOS_GO_URL") || "https://www.transtech.com.py").replace(/\/$/, "");
@@ -112,15 +114,21 @@ await paso("Toda tabla de public tiene RLS", async () => {
 });
 
 await paso("Aislamiento entre cuentas (24 comprobaciones)", async () => {
-  // Un solo comando fijo, sin argumentos que vengan de afuera: así funciona
-  // igual en Windows (npx es npx.cmd) sin el aviso DEP0190 de Node.
-  const salida = execSync("npx supabase db query --linked -f supabase/pruebas/aislamiento_rls_e2e.sql", {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
+  // Por la Management API, como el resto. La prueba termina en ROLLBACK, y la
+  // API (igual que `supabase db query --linked`) solo devuelve la última
+  // sentencia: las filas vuelven dentro del error que aborta la transacción.
+  // Ver scripts/lib/aislamiento.mjs.
+  const token = leer("SUPABASE_ACCESS_TOKEN");
+  if (!token) throw new Error("falta SUPABASE_ACCESS_TOKEN");
+  const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query: sqlParaApi(fs.readFileSync("supabase/pruebas/aislamiento_rls_e2e.sql", "utf8")) }),
   });
-  const json = JSON.parse(salida.slice(salida.indexOf("{")));
-  const filas = json.rows ?? [];
-  const malas = filas.filter((f) => f.ok !== true && f.ok !== "t");
+  const texto = await r.text();
+  const filas = filasDelError(texto);
+  if (!filas) throw new Error(`la prueba no devolvió resultados: HTTP ${r.status} ${texto.slice(0, 300)}`);
+  const malas = filas.filter((f) => f.ok !== true);
   anotar(
     "Aislamiento entre cuentas (24 comprobaciones)",
     filas.length === 24 && malas.length === 0,
