@@ -76,11 +76,40 @@ export type Limpieza = {
   confirmacionMemoria: boolean;
 };
 
+/*
+ * ============================================================
+ * UN MISMO MENSAJE NO PUEDE DECIR "LE PUSE EL COSTO" Y "DECIME EL COSTO"
+ * ============================================================
+ *
+ * 24/09/2026: "Registrá esta venta: Campera Marrón Claro, venta 230.000, costo
+ * 207.052". El modelo pidió la venta (que crea el producto sin costo) y después
+ * ACTUALIZAR_PRODUCTO con el costo. Las dos se hicieron bien, pero la frase de
+ * la venta se armó cuando el costo todavía no estaba, y la respuesta terminó
+ * con "A “Campera…” le puse ₲ 207.052" y, dos líneas más abajo, "Todavía no sé
+ * cuánto te cuesta “Campera…”: decime el costo". La persona volvió a mandarlo.
+ *
+ * Si en la misma respuesta hay un costo puesto para ese producto, el pedido de
+ * costo ya no es cierto y se saca.
+ */
+const COSTO_PUESTO = /A \u201C([^\u201D]+)\u201D, que ya estaba sin costo, le puse \u20B2 [\d.]+\./g;
+const PIDE_COSTO =
+  /\s*Todav\u00eda no s\u00e9 cu\u00e1nto te cuesta \u201C([^\u201D]+)\u201D, as\u00ed que el margen queda pendiente: decime el costo y lo completo\./g;
+
+function clave(nombre: string): string {
+  return nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+export function quitarPedidosDeCostoResueltos(texto: string): string {
+  const conCosto = new Set([...texto.matchAll(COSTO_PUESTO)].map((m) => clave(m[1])));
+  if (conCosto.size === 0) return texto;
+  return texto.replace(PIDE_COSTO, (frase, nombre: string) => (conCosto.has(clave(nombre)) ? "" : frase));
+}
+
 export function limpiarRespuestaVisible(texto: string, respaldo = "Listo."): Limpieza {
   let confirmacionMemoria = false;
   let lineasTecnicas = 0;
 
-  let salida = String(texto ?? "");
+  let salida = quitarPedidosDeCostoResueltos(String(texto ?? ""));
 
   for (const frase of CONFIRMACIONES_DE_MEMORIA) {
     if (salida.includes(frase)) {

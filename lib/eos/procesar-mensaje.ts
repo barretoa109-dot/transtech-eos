@@ -66,6 +66,12 @@ import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
 import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
+import {
+  bloqueDeContexto,
+  guardarLecturas,
+  leerImagen,
+  lecturasRecientes,
+} from "@/lib/eos/imagenes-leidas";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -767,6 +773,25 @@ export async function procesarMensajeEOS(
      */
     let mensajeConAnalisis = mensaje;
 
+    /*
+     * Las imágenes, leídas UNA vez y pasadas a texto (v197).
+     *
+     * El modelo igual ve la imagen en este mensaje. La lectura es para el
+     * siguiente: se guarda atada a la conversación y vuelve como contexto, así
+     * "estos" o "sumale el envío a cada prenda" tienen a qué referirse. Caso
+     * real del 24/09/2026 por WhatsApp. Arranca ya, en paralelo, y se guarda en
+     * `after()`: no le suma ni un segundo a la respuesta.
+     */
+    const imagenes = archivos.filter((a) => a.tipo.startsWith("image/"));
+    const lecturasPromise = Promise.all(
+      imagenes.map(async (a) => ({ nombre: a.nombre, contenido: await leerImagen(a) })),
+    ).then((ls) =>
+      ls.filter((l): l is { nombre: string; contenido: string } => Boolean(l.contenido)),
+    );
+
+    // Lo que se vio en imágenes anteriores de esta misma conversación.
+    const recientesPromise = lecturasRecientes(adminSinTipos(), usuarioId, conversacionId || null);
+
     const extraibles = archivos.filter((a) => SYNC_EXTRACTABLE_TYPES.has(a.tipo));
 
     if (extraibles.length > 0) {
@@ -826,13 +851,31 @@ export async function procesarMensajeEOS(
      * El día que el gateway corra entero en TypeScript esto se puede partir en
      * dos; hasta entonces, un campo que llega es mejor que dos que se pierden.
      */
-    const contextoNegocio = [textoContexto(await contextoPromise), await seguimientosPromise, await memoriaPromise]
+    const contextoNegocio = [
+      textoContexto(await contextoPromise),
+      await seguimientosPromise,
+      await memoriaPromise,
+      bloqueDeContexto(await recientesPromise),
+    ]
       .filter((parte) => parte.trim() !== "")
       .join("\n\n");
 
     const origen = textoSeguro(entrada.origen, 50) || "eos-web";
     const nuevoChat = entrada.nuevoChat === true;
     const requestId = esUuid(entrada.requestId) ? entrada.requestId : crypto.randomUUID();
+
+    // `after()` corre aunque el mensaje falle: la próxima vez la imagen igual
+    // está leída.
+    if (imagenes.length > 0) {
+      after(async () => {
+        await guardarLecturas(adminSinTipos(), {
+          usuarioId,
+          conversacionId: conversacionId || null,
+          requestId,
+          lecturas: await lecturasPromise,
+        });
+      });
+    }
 
     /*
      * La cita, validada del lado del servidor.
