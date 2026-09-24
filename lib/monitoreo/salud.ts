@@ -207,6 +207,7 @@ export async function correrChequeos(baseUrl: string): Promise<Reporte> {
   chequeos.push(await chequeoChatReal());
   chequeos.push(await chequeoUsoAlto());
   chequeos.push(await chequeoErroresServidor());
+  chequeos.push(await chequeoCobrosInciertos());
 
   const fallos = chequeos.filter((c) => !c.ok);
 
@@ -406,6 +407,46 @@ async function chequeoPrimerValor(): Promise<Chequeo> {
  * Las excepciones que nadie manejó (punto 11), capturadas por
  * `instrumentation.ts`. El criterio de rojo está en `evaluarErroresServidor`.
  */
+/**
+ * Cobros de Bancard que pudieron haber salido y no sabemos. La conciliación
+ * (`lib/pagos/conciliacionBancard.ts`) los cierra sola; si uno sigue abierto
+ * pasada una hora, Bancard no está contestando y hay un cliente que quizás
+ * pagó y no tiene su plan. Es de los pocos casos que justifican despertar a
+ * alguien.
+ */
+async function chequeoCobrosInciertos(): Promise<Chequeo> {
+  const nombre = "Cobros con resultado desconocido";
+
+  try {
+    const { data, error } = await adminSinTipos()
+      .from("solicitudes_pago")
+      .select("id,created_at")
+      .eq("proveedor", "bancard")
+      .eq("estado", "pendiente")
+      .eq("metadata->>cobro_incierto", "true")
+      .lte("created_at", new Date(Date.now() - 60 * 60_000).toISOString())
+      .limit(20);
+
+    if (error) throw new Error(error.message);
+
+    const abiertos = (data ?? []).length;
+    return {
+      nombre,
+      ok: abiertos === 0,
+      detalle:
+        abiertos === 0
+          ? "ninguno sin resolver"
+          : `${abiertos} sin resolver hace más de una hora: revisar en Bancard antes de volver a cobrar`,
+    };
+  } catch (error) {
+    return {
+      nombre,
+      ok: true,
+      detalle: "no se pudo calcular: " + (error instanceof Error ? error.message : String(error)),
+    };
+  }
+}
+
 async function chequeoErroresServidor(): Promise<Chequeo> {
   const nombre = "Excepciones del servidor (24 h)";
 
