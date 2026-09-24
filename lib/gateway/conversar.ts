@@ -47,8 +47,17 @@ import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
-/** Más corto que el de n8n (90 s): si tarda tanto, mejor que conteste n8n. */
-export const TIMEOUT_MS = 60_000;
+/**
+ * Cuánto se espera a OpenAI antes de delegar en n8n.
+ *
+ * Era 60 s. Con esa espera, un turno que terminaba delegando sumaba los 60 s
+ * más lo que tarda n8n, y el celular corta la conexión mucho antes: el
+ * 24/09/2026 el chat mostró "no pude conectarme" en medio de una
+ * conversación. La etapa 1 atiende solo conversación pura (el motor ya
+ * manda directo a n8n lo que parece una acción), que contesta en 2-4 s
+ * medidos: 20 s es de sobra, y si se pasa, n8n todavía tiene tiempo.
+ */
+export const TIMEOUT_MS = 20_000;
 
 /** La bandera de la etapa 1. Sin ella, este archivo no se usa para nada. */
 export function gatewayEnTypeScript(): boolean {
