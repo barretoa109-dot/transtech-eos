@@ -188,3 +188,32 @@ al final.** Ver `pasos-del-dueno.md`.
 1. Calidad de memoria con datos reales (duplicadas, contradictorias,
    obsoletas): necesita leer producción.
 2. Con el resultado de `npm run go`, lo que salga en rojo.
+
+## Evidencia contra producción — 24/09/2026 17:41 (hora de Paraguay)
+
+`npm run go`, corrido por Augusto desde su PC contra `https://www.transtech.com.py`
+y la base de producción:
+
+| Chequeo | Resultado |
+|---|---|
+| Producción corre el último main | ok — `entorno=production`, commit `3ec29f476b15` |
+| v197 aplicada (el plan no se autoasigna) | ok — aplicada con `db push --include-all` |
+| Toda tabla de public tiene RLS | ok |
+| Aislamiento entre cuentas | **ok — 24/24 contra la base real**, con rollback forzado |
+| n8n autoriza contra producción | ok — 27 autorizaciones y 49 mensajes en 72 h (hallazgo −1 cerrado) |
+| Salud de producción | ok — sana |
+| Cobros sin resultado desconocido | ok — ninguno |
+| Webhook de Bancard rechaza basura | ok — HTTP 400 |
+| Sin sesión no hay datos | ok — HTTP 401 |
+
+**Resultado automático: GO (9/9).**
+
+Detalle encontrado al correrlo: producción es más estricta que la
+reconstrucción desde migraciones (el cliente no tiene UPDATE sobre `mensajes`).
+La prueba se ajustó para aceptar los dos tipos de bloqueo.
+
+### Pendiente para GO oficial (manual)
+
+- [ ] `npm run certificar -- 3 6 11` — cobro, vencimiento y reversión con Bancard staging.
+- [ ] iPhone Safari + Android Chrome: registro, chat, micrófono (negar permiso, cancelar, volver a escribir), PWA.
+- [ ] Dos cuentas QA reales: A registra una venta por chat; B no la ve; A la ve en Negocios.
