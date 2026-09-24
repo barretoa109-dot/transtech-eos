@@ -1,4 +1,4 @@
-# Production GO — auditoría del 24/09/2026 (ciclo 1)
+# Production GO — auditoría del 24/09/2026 (ciclos 1 y 2)
 
 Rama: `claude/eos-production-go-audit-pgqhq4`, sobre `main` en `c54d498`.
 
@@ -33,17 +33,17 @@ Estados: **IMPL** implementado · **CONECT** conectado de punta a punta ·
 | Pagos Bancard | **Corregido**: resultado incierto + conciliación | 7 tests nuevos; `tsc`, build | Bancard producción es trámite externo (ver `estrategia/bancard-produccion-seguimiento.md`); certificación (`npm run certificar`) no corrida: sin credenciales en este entorno |
 | Pagopar / transferencias | IMPL, firma verificada en tiempo constante, monto validado | Leído | Proceso manual de transferencias separado del automático: sí (`/api/admin/pagos`) |
 | Billing / renovaciones | Cron diario con protección de doble cobro; ahora concilia primero y no cobra sobre un cobro incierto | Tests de conciliación | Vercel Hobby solo permite cron diario: un pago sin webhook tarda hasta 24 h en conciliarse **salvo** que el usuario esté mirando la pantalla de pago (ahí concilia a los 2 min) |
-| Chat / IA | CONECT (gateway n8n); gateway TS listo pero apagado (`EOS_GATEWAY_TS`) | `npm run evals` 103/103 | Dependencia de n8n en Railway; no probado en vivo |
+| Chat / IA | CONECT (gateway n8n); gateway TS listo pero apagado (`EOS_GATEWAY_TS`). **Ciclo 2: freno de ráfaga por usuario (20/min, 300/h) en web y WhatsApp**; documentos adjuntos citados como datos (prompt injection) | `npm run evals` 103/103; 7 tests nuevos | Dependencia de n8n en Railway; no probado en vivo |
 | Memoria / Contexto | CONECT | Prueba A/B: B no ve memorias de A ni puede borrarlas | Calidad de memoria (duplicados, obsoletas) no evaluada con datos reales |
 | Objetivos | CONECT | Prueba A/B de aislamiento | — |
-| Business Twin | IMPL (commit con `auth.uid()`) | Leído | Trazabilidad de cada indicador no auditada en este ciclo |
+| Business Twin | CONECT: se arma solo con indicadores calculados y anomalías con evidencia; lo que no se sabe queda en `null` a propósito (`lib/kpi/twin.ts`) | Tests existentes (`twin.test.ts`) | — |
 | Negocios (ERP/CRM) | CONECT, transaccional (`eos_erp_registrar_venta`), aislamiento por empresa | `supabase/pruebas/negocio_e2e.sql` existente | — |
 | Personal / Finanzas | CONECT; candado `npm run ambito` (89 consultas declaran dueño) | Candado en verde | — |
-| Documentos | IMPL | No probado en este ciclo | P2: validar descarga/encoding real |
+| Documentos | **PROBADO** | Ciclo 2: PDF, Excel y Word generados de verdad y abiertos con herramientas externas (openpyxl, unpdf, lectura del XML del .docx): acentos, ñ, montos en Gs., números como números en Excel. Repetir la descarga regenera desde la especificación guardada: no duplica | — |
 | Acciones / Worker Gate | CONECT, idempotente, con aprobación y binding de payload | Leído; la aprobación ya tenía trigger guardián (v12) | **Hallazgo −1 de la lista maestra** (n8n apuntando a un preview viejo): no verificable sin acceso a Railway |
 | n8n | CONECT | No accesible desde este entorno | Ídem |
 | Supabase | **Reconstruible desde cero** (294 migraciones) | `supabase/pruebas/local/reconstruir.sh` | Producción puede tener objetos fuera de migraciones (ya documentado en el runbook) |
-| WhatsApp | Recibe; firma HMAC por canal; dedupe | Leído | Envío depende del trámite con Meta (`estrategia/whatsapp-business-checklist.md`) |
+| WhatsApp | Recibe; firma HMAC por canal; dedupe. **Ciclo 2: vinculación por código blindada contra fuerza bruta** | 5 tests + contador real en base reconstruida | Envío depende del trámite con Meta (`estrategia/whatsapp-business-checklist.md`) |
 | Email | Resend, transaccionales con reclamo de envío único | Leído | — |
 | Web / PWA / Mobile | IMPL | No probado en dispositivos | P2: no hay navegador real ni iPhone en este entorno |
 | Micrófono | Arreglado antes (máquina de estados testeada en `lib/eos/dictado.test.ts`); el campo de texto nunca se deshabilita por el dictado | Leído + tests existentes | Falta prueba manual en iPhone: permiso negado, cancelar, volver |
@@ -159,11 +159,32 @@ caso 3 de `npm run certificar` con credenciales de staging.
 - Recorrido completo del cliente en producción con dos cuentas QA, incluido
   WhatsApp, una vez que Meta habilite el envío.
 
+
+## Ciclo 2 (mismo día)
+
+| # | Severidad | Hallazgo | Estado | Evidencia |
+|---|---|---|---|---|
+| 5 | **P1** (toma de cuenta) | Cualquier WhatsApp podía mandar códigos de vinculación de 6 dígitos al azar sin límite. Acertar el código pendiente de otra persona dejaba ese teléfono **dentro de su cuenta**. Los códigos salían de `Math.random` | Corregido: 5 intentos/hora por teléfono, 100 cada 10 min globales, falla cerrado; `crypto.randomInt` | `lib/whatsapp/intentos-codigo.test.ts` 5/5; `eos_consumir_cupo_v99` real corta en el 6.º intento |
+| 6 | **P1** (costos) | Sin freno de ráfaga: el plan Business no tiene tope y un script con la sesión de un usuario podía mandar cientos de mensajes por minuto | Corregido: 20/min y 300/h por usuario, antes del cupo del plan, en web y WhatsApp | `lib/seguridad/rafaga.test.ts` 4/4 |
+| 7 | P2 (prompt injection) | El resumen de un documento adjunto se pegaba al mensaje sin frontera; con las acciones que se ejecutan solas, un PDF de un tercero podía pedir "registrá una venta" | Mitigado: citado entre marcas fijas con la regla escrita adentro; el documento no puede cerrar la cita | `lib/eos/adjuntos.test.ts` |
+| — | Revisado, sin hallazgo | Buzón de correo: token de 96 bits y parser determinista (sin IA). Invitaciones a empresa atadas al correo. Landing: promesas prudentes (aclara SIFEN) | — | Leído |
+
+Suite al cierre del ciclo 2: **2136/2136 tests**, `tsc` y build en verde, evals 103/103, lint dentro del tope.
+
+## Cómo se declara GO oficial
+
+`npm run go` (nuevo, `scripts/verificar-go.mjs`) consulta producción y devuelve
+GO/NO-GO con evidencia: que producción corre el último `main`, que la v197
+está aplicada, que no queda tabla sin RLS, la prueba de aislamiento A/B contra
+la base real (con `rollback`), que n8n autoriza contra producción, la salud,
+los cobros inciertos y dos puertas públicas. Desde el entorno donde se hizo
+esta auditoría no hay salida de red a producción: lo tiene que correr el dueño.
+
+**GO oficial = `npm run go` en verde + los tres puntos manuales que imprime
+al final.** Ver `pasos-del-dueno.md`.
+
 ## Siguiente ciclo
 
-1. Documentos: generar PDF/Excel dos veces seguidas y verificar archivo,
-   encoding e idempotencia.
-2. Prompt injection en documentos analizados y correos entrantes: qué
-   herramientas puede disparar un contenido externo.
-3. Business Twin: de dónde sale cada indicador.
-4. Calidad de memoria con datos reales (duplicadas, contradictorias, obsoletas).
+1. Calidad de memoria con datos reales (duplicadas, contradictorias,
+   obsoletas): necesita leer producción.
+2. Con el resultado de `npm run go`, lo que salga en rojo.
