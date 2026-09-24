@@ -12,7 +12,7 @@
  *   EOS_GO_URL              opcional; por defecto https://www.transtech.com.py
  *
  * No escribe nada en producción: la prueba de aislamiento corre dentro de una
- * transacción que termina en ROLLBACK, y el resto son lecturas.
+ * transacción que termina abortada (se deshace entera), y el resto son lecturas.
  *
  * Cada fila dice ok / FALLA y por qué. Sale con código 0 solo si todo está ok.
  * Lo que no se puede medir automáticamente (probar en un iPhone, el trámite de
@@ -22,6 +22,8 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+
+import { filasDelError, sqlParaApi } from "./lib/aislamiento.mjs";
 
 const REF = "dirugpkamzgvyshcnsxs";
 const URL_BASE = (leer("EOS_GO_URL") || "https://www.transtech.com.py").replace(/\/$/, "");
@@ -53,18 +55,7 @@ async function sql(query) {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
   });
-  if (!r.ok) {
-    const crudo = await r.text();
-    let mensaje = crudo;
-    try {
-      mensaje = JSON.parse(crudo).message ?? crudo;
-    } catch {
-      // No era JSON: queda el texto tal cual.
-    }
-    const error = new Error(`HTTP ${r.status}: ${mensaje.slice(0, 300)}`);
-    error.mensajeCompleto = mensaje;
-    throw error;
-  }
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
 }
 
@@ -93,36 +84,12 @@ await paso("Producción corre el último main", async () => {
   const r = await fetch(`${URL_BASE}/api/version`, { cache: "no-store" });
   if (r.status === 404) throw new Error("producción todavía no tiene los cambios de Production GO (falta unir el PR)");
   const d = await r.json();
-
-  let ok = d.entorno === "production";
-  let detalle = `entorno=${d.entorno} commit=${d.commit}`;
-
-  if (commitMain && !commitMain.startsWith(String(d.commit))) {
-    /*
-     * Producción no está en el último main. Si lo que falta desplegar son solo
-     * cosas que no llegan al sitio (scripts, docs, pruebas), no importa; si
-     * falta código de la app, sí: esperar a que Vercel termine y repetir.
-     */
-    let pendientes = [];
-    try {
-      pendientes = execFileSync("git", ["diff", "--name-only", String(d.commit), commitMain])
-        .toString()
-        .split("\n")
-        .filter(Boolean);
-    } catch {
-      pendientes = ["(no se pudo comparar)"];
-    }
-    const deLaApp = pendientes.filter(
-      (f) => !/^(scripts|docs|supabase\/pruebas|certificacion|evals|n8n)\//.test(f) && !f.endsWith(".md"),
-    );
-    ok = ok && deLaApp.length === 0;
-    detalle +=
-      deLaApp.length === 0
-        ? ` · main=${commitMain.slice(0, 12)} solo difiere en scripts/docs`
-        : ` · main=${commitMain.slice(0, 12)}: falta desplegar ${deLaApp.slice(0, 5).join(", ")} — esperá que Vercel diga Ready y repetí`;
-  }
-
-  anotar("Producción corre el último main", ok, detalle);
+  const coincide = commitMain ? commitMain.startsWith(String(d.commit)) : true;
+  anotar(
+    "Producción corre el último main",
+    d.entorno === "production" && coincide,
+    `entorno=${d.entorno} commit=${d.commit}${commitMain ? ` · main=${commitMain.slice(0, 12)}` : ""}`,
+  );
 });
 
 // ------------------------------------------------------------------
@@ -147,32 +114,20 @@ await paso("Toda tabla de public tiene RLS", async () => {
 });
 
 await paso("Aislamiento entre cuentas (24 comprobaciones)", async () => {
-  /*
-   * La prueba termina LANZANDO un error con los resultados adentro, en vez de
-   * `select … ; rollback`. Dos motivos: la API solo devuelve el último
-   * resultado (que sería el del rollback, vacío), y un error deshace la
-   * transacción entera pase lo que pase: es imposible que queden las cuentas
-   * de prueba escritas en producción.
-   */
-  const archivo = fs.readFileSync("supabase/pruebas/aislamiento_rls_e2e.sql", "utf8");
-  const corte = archivo.lastIndexOf("select prueba, ok from resultado;");
-  if (corte < 0) throw new Error("la prueba no tiene el select final esperado");
-  const query =
-    archivo.slice(0, corte) +
-    "do $$ begin raise exception 'RESULTADO:%', (select jsonb_agg(r)::text from resultado r); end $$;";
-
-  let mensaje = "";
-  try {
-    await sql(query);
-    throw new Error("la prueba terminó sin devolver resultados");
-  } catch (e) {
-    mensaje = e?.mensajeCompleto ?? (e instanceof Error ? e.message : String(e));
-  }
-
-  const inicio = mensaje.indexOf("RESULTADO:");
-  if (inicio < 0) throw new Error(mensaje.slice(0, 300));
-  const texto = mensaje.slice(inicio + "RESULTADO:".length);
-  const filas = JSON.parse(texto.slice(0, texto.lastIndexOf("]") + 1));
+  // Por la Management API, como el resto. La prueba termina en ROLLBACK, y la
+  // API (igual que `supabase db query --linked`) solo devuelve la última
+  // sentencia: las filas vuelven dentro del error que aborta la transacción.
+  // Ver scripts/lib/aislamiento.mjs.
+  const token = leer("SUPABASE_ACCESS_TOKEN");
+  if (!token) throw new Error("falta SUPABASE_ACCESS_TOKEN");
+  const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query: sqlParaApi(fs.readFileSync("supabase/pruebas/aislamiento_rls_e2e.sql", "utf8")) }),
+  });
+  const texto = await r.text();
+  const filas = filasDelError(texto);
+  if (!filas) throw new Error(`la prueba no devolvió resultados: HTTP ${r.status} ${texto.slice(0, 300)}`);
   const malas = filas.filter((f) => f.ok !== true);
   anotar(
     "Aislamiento entre cuentas (24 comprobaciones)",
