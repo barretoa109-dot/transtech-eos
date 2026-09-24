@@ -72,3 +72,23 @@ test("no repite el aviso si ya estaba", () => {
   const r = limpiarRespuestaVisible(`${AVISO_ACCION_NO_COMPLETADA}\n409 - "{\\"ok\\":false}"`);
   assert.equal(r.texto.split(AVISO_ACCION_NO_COMPLETADA).length - 1, 1);
 });
+
+test("el caso real de la campera: no pide el costo que ya se puso en la misma respuesta", () => {
+  const crudo = [
+    "Venta a registrar: 1 Campera Marron Claro a ₲230.000. También voy a cargar el producto con costo ₲207.052 para que el margen quede calculado.",
+    "",
+    "A “Campera Marron Claro”, que ya estaba sin costo, le puse ₲ 207.052.",
+    "",
+    "Registré la venta por ₲ 230.000. La ves en Negocio > Ventas. Como “Campera Marron Claro” no estaba en tu catálogo, lo cargué a ₲ 230.000. Todavía no sé cuánto te cuesta “Campera Marron Claro”, así que el margen queda pendiente: decime el costo y lo completo.",
+  ].join("\n");
+  const r = limpiarRespuestaVisible(crudo);
+  assert.ok(!r.texto.includes("decime el costo"));
+  assert.ok(r.texto.includes("le puse ₲ 207.052."));
+  assert.ok(r.texto.endsWith("lo cargué a ₲ 230.000."));
+});
+
+test("si el costo de ESE producto no se puso, el pedido se mantiene", () => {
+  const crudo =
+    "A “Otro”, que ya estaba sin costo, le puse ₲ 10.000.\n\nTodavía no sé cuánto te cuesta “Campera”, así que el margen queda pendiente: decime el costo y lo completo.";
+  assert.ok(limpiarRespuestaVisible(crudo).texto.includes("decime el costo"));
+});

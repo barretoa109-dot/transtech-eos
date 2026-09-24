@@ -275,6 +275,50 @@ function claveDeAccion(tipo: string, datos: unknown): string {
   return `${tipo}|${JSON.stringify(ordenar(datos))}`;
 }
 
+/** Acciones que pueden CREAR un producto en el catálogo. */
+const CREAN_PRODUCTO = new Set(["REGISTRAR_VENTA", "REGISTRAR_COMPRA", "CREAR_PRODUCTO"]);
+
+/**
+ * Un `ACTUALIZAR_PRODUCTO` que solo pone costo va DESPUÉS de lo que crea el
+ * producto (24/09/2026).
+ *
+ * "Registrá esta venta: Campera, 230.000, costo 207.052": si el costo corriera
+ * antes que la venta, el producto todavía no existiría y el costo se perdería.
+ * El modelo casi siempre las manda en el orden bueno, pero "casi siempre" no es
+ * una garantía. Solo se mueve el que pone costo sin tocar el precio: un cambio
+ * de precio antes de una venta puede ser a propósito ("subilo a 200 y vendí 2").
+ * El resto del orden no cambia. Mismo cálculo en el nodo 06 de n8n.
+ */
+export function costoDespuesDeCrear(acciones: Accion[]): Accion[] {
+  const tipo = (a: Accion) => String(a.tipo || "").trim().toUpperCase();
+  let ultimoCreador = -1;
+  acciones.forEach((a, i) => {
+    if (CREAN_PRODUCTO.has(tipo(a))) ultimoCreador = i;
+  });
+  if (ultimoCreador < 0) return acciones;
+
+  const soloCosto = (a: Accion) => {
+    if (tipo(a) !== "ACTUALIZAR_PRODUCTO") return false;
+    const productos = normalizarDatos("ACTUALIZAR_PRODUCTO", a.datos).productos;
+    return (
+      Array.isArray(productos) &&
+      productos.length > 0 &&
+      productos.every((p) => {
+        const r = (p ?? {}) as Record<string, unknown>;
+        const precio = r.precio_venta ?? r.precio;
+        return r.costo !== undefined && r.costo !== null && (precio === undefined || precio === null);
+      })
+    );
+  };
+
+  const diferidas = acciones.filter((a, i) => i < ultimoCreador && soloCosto(a));
+  if (diferidas.length === 0) return acciones;
+
+  const resto = acciones.filter((a) => !diferidas.includes(a));
+  const corte = resto.indexOf(acciones[ultimoCreador]) + 1;
+  return [...resto.slice(0, corte), ...diferidas, ...resto.slice(corte)];
+}
+
 export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
   const sinAcciones = r.acciones.length === 0;
   const pedidas: Accion[] = sinAcciones ? [{ tipo: "RESPONDER", datos: {} }] : r.acciones;
@@ -285,13 +329,15 @@ export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
    * para que la derivación de ids no la ejecute dos veces.
    */
   const vistas = new Set<string>();
-  const acciones = pedidas.filter((accion) => {
+  const unicas = pedidas.filter((accion) => {
     const tipo = String(accion.tipo || "RESPONDER").trim().toUpperCase();
     const clave = claveDeAccion(tipo, normalizarDatos(tipo, accion.datos));
     if (vistas.has(clave)) return false;
     vistas.add(clave);
     return true;
   });
+
+  const acciones = costoDespuesDeCrear(unicas);
 
   const porTipo = new Map<string, number>();
 
