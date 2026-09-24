@@ -7,6 +7,7 @@ import {
   MAX_MESSAGE_LENGTH,
   type ArchivoEOS,
 } from "@/lib/eos/procesar-mensaje";
+import { guardarRespuesta } from "@/lib/eos/respuestas-guardadas";
 
 function noStoreHeaders() {
   return {
@@ -127,6 +128,13 @@ export async function POST(req: Request) {
     nombreFallback,
     requestOrigin: new URL(req.url).origin,
   });
+
+  /*
+   * Al buzón ANTES de responder (v196). Si el teléfono ya cortó la conexión,
+   * esta es la única copia de la respuesta: la app la va a pedir a
+   * `/api/eos/resultado` en vez de mostrar "no pude conectarme".
+   */
+  await guardarRespuesta(user.id, body.request_id, resultado.status, resultado.body);
 
   return Response.json(resultado.body, {
     status: resultado.status,

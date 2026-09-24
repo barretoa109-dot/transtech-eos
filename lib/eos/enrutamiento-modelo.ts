@@ -197,3 +197,29 @@ export function registroDeEnrutamiento(
     simple_con_accion: clasificacion.clase === "simple" && accionesPedidas > 0,
   };
 }
+
+/**
+ * ¿Este turno probablemente termina en una acción o en una cuenta de plata?
+ *
+ * Distinto de `clasificarTurno`: aquella decide el MODELO (y es conservadora
+ * hacia "completo" por el largo); esta decide el CAMINO, y mira el contenido
+ * sin importar el largo. Un mensaje largo sobre la plata de la persona es de
+ * negocio aunque tenga cuarenta palabras.
+ *
+ * La usa el motor para no pasar por la etapa 1 del gateway en TypeScript
+ * cuando el turno igual va a terminar en n8n: con `EOS_GATEWAY_TS=1`, esos
+ * mensajes llamaban a OpenAI dos veces (Vercel y después n8n), y el 24/09/2026
+ * la espera sumada superó lo que el celular deja abierta la conexión.
+ */
+export function pareceAccion(turno: TurnoParaClasificar): boolean {
+  if (turno.adjuntos > 0 || turno.conCita) return true;
+
+  const crudo = String(turno.mensaje ?? "");
+  if (/\d/.test(crudo)) return true;
+
+  const texto = normalizar(crudo);
+  if (!texto) return false;
+  if (NEGOCIO.test(texto)) return true;
+
+  return AFIRMACION.has(texto) && eosPreguntoAlgo(turno.historial);
+}

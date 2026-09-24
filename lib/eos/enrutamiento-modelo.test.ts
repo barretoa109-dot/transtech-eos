@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { clasificarTurno, registroDeEnrutamiento, type TurnoParaClasificar } from "./enrutamiento-modelo.ts";
+import {
+  clasificarTurno,
+  pareceAccion,
+  registroDeEnrutamiento,
+  type TurnoParaClasificar,
+} from "./enrutamiento-modelo.ts";
 
 function turno(mensaje: string, extra: Partial<TurnoParaClasificar> = {}): TurnoParaClasificar {
   return { mensaje, adjuntos: 0, conCita: false, historial: [], ...extra };
@@ -68,4 +73,26 @@ test("el registro marca cuando un turno simple igual pidió una acción", () => 
   assert.equal(registroDeEnrutamiento(simple, 1).simple_con_accion, true);
   const completo = clasificarTurno(turno("vendí 3 panes"));
   assert.equal(registroDeEnrutamiento(completo, 2).simple_con_accion, false);
+});
+
+
+test("pareceAccion: lo de plata o negocio va directo a n8n aunque sea largo", () => {
+  const largo =
+    "quiero que me ayudes a ver cómo llego a fin de mes porque no quiero que me quede tan justo este mes con todo lo que tengo";
+  assert.equal(pareceAccion(turno(largo)), true);
+  assert.equal(pareceAccion(turno("cargá la tarjeta green")), true);
+  assert.equal(pareceAccion(turno("son 50 mil")), true);
+  assert.equal(pareceAccion(turno("hola", { adjuntos: 1 })), true);
+});
+
+test("pareceAccion: la conversación pura sigue por el camino rápido", () => {
+  assert.equal(pareceAccion(turno("hola")), false);
+  assert.equal(pareceAccion(turno("contame un chiste")), false);
+  assert.equal(pareceAccion(turno("gracias, sos un genio")), false);
+});
+
+test("pareceAccion: un sí con pregunta pendiente es acción", () => {
+  const historial = [{ rol: "eos" as const, texto: "¿Registro la venta?" }];
+  assert.equal(pareceAccion(turno("sí", { historial })), true);
+  assert.equal(pareceAccion(turno("sí")), false);
 });

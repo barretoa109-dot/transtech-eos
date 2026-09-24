@@ -301,20 +301,12 @@ export function useChat({
           creado_en: new Date().toISOString(),
         };
 
-        try {
-          await guardarMensaje(
-            conversacionActiva,
-            usuarioId,
-            "eos",
-            respuestaError,
-          );
-        } catch (errorGuardado) {
-          console.error(
-            "No se pudo guardar el mensaje de error:",
-            errorGuardado,
-          );
-        }
-
+        /*
+         * El aviso de error se MUESTRA, pero no se guarda en la conversación
+         * (24/09/2026). Guardado, viajaba en el historial como si EOS lo
+         * hubiera dicho, y el modelo terminaba hablando de la falla en vez de
+         * seguir con lo que la persona estaba haciendo.
+         */
         setHistorial((actual) => [
           ...actual,
           mensajeError,

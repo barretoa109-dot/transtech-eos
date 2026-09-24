@@ -61,7 +61,8 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
-import { clasificarTurno, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 
 const SYNC_EXTRACTABLE_TYPES = new Set([
   "text/plain",
@@ -232,6 +233,18 @@ export function textoSeguro(valor: unknown, max = 500) {
     : "";
 }
 
+const AVISOS_DE_FALLA = [
+  "Ahora mismo no pude conectarme correctamente",
+  "No pude conectarme con EOS en este momento",
+  "EOS tardó más de lo esperado en responder",
+  "EOS recibió tu mensaje, pero tuvo un problema procesándolo",
+  "no pudo generar una respuesta clara en este momento",
+];
+
+function esAvisoDeFalla(texto: string): boolean {
+  return AVISOS_DE_FALLA.some((aviso) => texto.startsWith(aviso) || texto.includes(aviso));
+}
+
 function normalizarHistorial(valor: unknown) {
   if (!Array.isArray(valor)) {
     return [];
@@ -260,7 +273,16 @@ function normalizarHistorial(valor: unknown) {
         return null;
       }
 
-      return { rol, texto };
+      // Los avisos de falla que la app llegó a guardar como si fueran de EOS
+      // (hasta el 24/09/2026) no son conversación: el modelo terminaba
+      // hablando de la falla en vez de seguir con el tema.
+      if (rol === "eos" && esAvisoDeFalla(texto)) {
+        return null;
+      }
+
+      // Lo técnico que alguna vez se coló en una respuesta tampoco vuelve a
+      // entrar como contexto.
+      return { rol, texto: rol === "eos" ? limpiarRespuestaVisible(texto, "").texto || texto : texto };
     })
     .filter(
       (item): item is { rol: "usuario" | "eos"; texto: string } =>
@@ -987,7 +1009,22 @@ export async function procesarMensajeEOS(
       historial: payload.historial,
     });
 
-    if (gatewayEnTypeScript()) {
+    /*
+     * La etapa 1 del gateway en TypeScript es para la conversación PURA. Un
+     * turno que probablemente termina en una acción o en una cuenta de plata
+     * iba a terminar en n8n igual, después de una primera llamada a OpenAI
+     * que se descartaba: el 24/09/2026 esa espera doble superó lo que el
+     * celular deja abierta la conexión y el chat "se cayó" en medio de una
+     * conversación. Esos turnos van directo a n8n, como antes de la bandera.
+     */
+    const turnoDeAccion = pareceAccion({
+      mensaje,
+      adjuntos: archivos.length,
+      conCita: Boolean(payload.cita),
+      historial: payload.historial,
+    });
+
+    if (gatewayEnTypeScript() && !turnoDeAccion) {
       const propio = await conversar(payload);
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
@@ -1152,6 +1189,20 @@ export async function procesarMensajeEOS(
       verificaciones,
       entrada.requestOrigin,
     );
+
+    /*
+     * Lo último antes de que la vea la persona: nada de JSON de error, códigos
+     * internos, rutas del código ni la confirmación automática de memoria en
+     * cada respuesta. Ver `lib/eos/respuesta-visible.ts` (24/09/2026).
+     */
+    const limpieza = limpiarRespuestaVisible(resultado.respuesta);
+    resultado.respuesta = limpieza.texto;
+    if (limpieza.lineasTecnicas > 0) {
+      console.error("EOS: la respuesta traía texto técnico y se limpió:", {
+        request_id: payload.request_id,
+        lineas: limpieza.lineasTecnicas,
+      });
+    }
 
     /*
      * ============================================================
@@ -1320,6 +1371,7 @@ export async function procesarMensajeEOS(
         worker_informado: evidencia.informado,
         tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
         enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
+        camino_accion: turnoDeAccion,
         solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,
       }),
