@@ -69,17 +69,97 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
   };
 }
 
+/*
+ * ============================================================
+ * QUE UN CORTE DE CONEXIÓN NO PIERDA LA RESPUESTA (24/09/2026)
+ * ============================================================
+ *
+ * En el celular, el sistema operativo corta el `fetch` si la respuesta tarda
+ * o si la app pasa a segundo plano, y el chat mostraba "Ahora mismo no pude
+ * conectarme" en medio de la conversación. Pero el servidor sigue trabajando
+ * aunque el teléfono haya cortado: la respuesta se generaba igual y se
+ * perdía, y si la persona reenviaba el mensaje arriesgaba cargar dos veces
+ * una venta.
+ *
+ * Ahora cada envío lleva su `request_id`, el servidor deja la respuesta en un
+ * buzón (v196), y si la conexión se cae se la pide a `/api/eos/resultado`
+ * hasta que aparece. El mensaje NUNCA se reenvía: se espera el que ya está en
+ * camino.
+ */
+const ESPERA_RECUPERACION_MS = 150_000;
+const INTERVALO_RECUPERACION_MS = 3_000;
+
+function nuevoRequestId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Respaldo para navegadores viejos: UUID v4 con Math.random.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+const dormir = (ms: number) => new Promise((resolver) => setTimeout(resolver, ms));
+
+async function recuperarRespuesta(requestId: string): Promise<RespuestaEOS | null> {
+  const limite = Date.now() + ESPERA_RECUPERACION_MS;
+
+  while (Date.now() < limite) {
+    await dormir(INTERVALO_RECUPERACION_MS);
+    try {
+      const r = await fetch(`/api/eos/resultado?request_id=${encodeURIComponent(requestId)}`, {
+        cache: "no-store",
+      });
+      if (r.status === 401) return null;
+      const data = (await r.json().catch(() => null)) as
+        | { listo?: boolean; estado_http?: number; cuerpo?: unknown }
+        | null;
+      if (!data?.listo) continue;
+
+      const resultado = normalizarRespuesta(data.cuerpo);
+      const estado = Number(data.estado_http) || 200;
+      if (estado < 200 || estado >= 300) throw new Error(resultado.respuesta || "Error en EOS");
+      return resultado;
+    } catch (error) {
+      // Un error de red al preguntar no es el final: se sigue esperando.
+      if (!(error instanceof TypeError)) throw error;
+    }
+  }
+
+  return null;
+}
+
 export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<RespuestaEOS>{
-  const response=await fetch("/api/eos",{
+  const requestId = nuevoRequestId();
+
+  let response: Response;
+  try {
+    response = await enviarAlServidor(params, requestId);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    // La conexión se cortó: la respuesta puede estar llegando igual.
+    const recuperada = await recuperarRespuesta(requestId);
+    if (recuperada) return recuperada;
+    throw error;
+  }
+
+  return await leerRespuesta(response);
+}
+
+function enviarAlServidor(params: EnviarEOSParams, requestId: string): Promise<Response>{
+  return fetch("/api/eos",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({
+      request_id:requestId,
       usuario_id:params.usuarioId,
       conversacion_id:params.conversacionId,
       nombre:params.nombre,
       plan:params.plan,
       mensaje:params.mensaje,
-      historial:params.historial.filter(m=>!m.texto.includes("Este es un nuevo chat")).slice(-10),
+      // Los avisos de error no son algo que EOS dijo: no van como contexto.
+      historial:params.historial.filter(m=>m.estado!=="error"&&!m.texto.includes("Este es un nuevo chat")).slice(-10),
       nuevo_chat:params.nuevoChat,
       /*
        * Los dos campos, y no uno.
@@ -105,12 +185,25 @@ export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<Respue
       origen:"eos-web"
     })
   });
+}
 
+async function leerRespuesta(response: Response): Promise<RespuestaEOS>{
   const raw=await response.text();
   if(!raw.trim()) throw new Error("EOS respondió vacío");
 
   let parsed:unknown=raw;
-  try{ parsed=JSON.parse(raw);}catch{}
+  let esJson=false;
+  try{ parsed=JSON.parse(raw); esJson=true; }catch{}
+
+  /*
+   * Un error que NO es JSON no lo escribió EOS: es la página de error de la
+   * plataforma (un corte por tiempo, un 502 del proxy). Mostrarla era mostrar
+   * HTML o un código interno en medio del chat.
+   */
+  if(!response.ok && !esJson){
+    throw new Error("EOS tardó más de lo esperado en responder. Probá de nuevo en unos segundos.");
+  }
+
   const resultado=normalizarRespuesta(parsed);
 
   if(!response.ok){
