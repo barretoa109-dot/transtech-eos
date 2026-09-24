@@ -217,3 +217,19 @@ La prueba se ajustó para aceptar los dos tipos de bloqueo.
 - [ ] `npm run certificar -- 3 6 11` — cobro, vencimiento y reversión con Bancard staging.
 - [ ] iPhone Safari + Android Chrome: registro, chat, micrófono (negar permiso, cancelar, volver a escribir), PWA.
 - [ ] Dos cuentas QA reales: A registra una venta por chat; B no la ve; A la ve en Negocios.
+
+## Certificación de cobros — 24/09/2026 17:46
+
+`npm run certificar -- 3 6 11` contra Bancard staging, cuenta `demo@transtech.com.py`:
+**17 de 19 en verde, 0 en rojo.**
+
+- Caso 11 (pago duplicado, demorado y reversado): **14/14**. Una confirmación
+  repetida no acredita dos veces, una tardía acredita los mismos días, la
+  reversión devuelve el vencimiento exacto y no se puede reconfirmar.
+- Caso 6 (vencimiento): un módulo vencido deja de funcionar, los datos quedan,
+  la API sin sesión da 401.
+- **Sin verificar (2):** el cobro con tarjeta guardada (caso 3) y la
+  recuperación con tarjeta (caso 6). La cuenta de certificación no tiene una
+  tarjeta de prueba catastrada. Es el camino que cambió en este ciclo (cobro
+  incierto), así que **es obligatorio antes del GO oficial**: catastrar la
+  tarjeta de prueba y volver a correr `npm run certificar -- 3 6`.
