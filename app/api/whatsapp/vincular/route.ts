@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { numeroWhatsappEOS } from "@/lib/whatsapp/numero-eos";
 
@@ -15,8 +16,9 @@ import { numeroWhatsappEOS } from "@/lib/whatsapp/numero-eos";
 const TABLA = "eos_whatsapp_vinculos_v162";
 const CODIGO_VIGENCIA_MS = 10 * 60 * 1000;
 
+// Criptográfico: el código es una credencial de un solo uso.
 function generarCodigo(): string {
-  return String(Math.floor(100_000 + Math.random() * 900_000));
+  return String(randomInt(100_000, 1_000_000));
 }
 
 function enmascarar(telefono: string | null): string | null {
