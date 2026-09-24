@@ -8,12 +8,28 @@ import {
   tokenListarTarjetas,
 } from "@/lib/bancard";
 import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
+import {
+  chargeSinRespuestaEsIncierto,
+  consultarCobroBancard,
+  interpretarConfirmacion,
+  marcarCobroIncierto,
+  tieneCobroIncierto,
+} from "@/lib/pagos/conciliacionBancard";
 
 export type ResultadoCobro =
   | { tipo: "pagado"; solicitudId: string; plan: string; diasAcreditados: number | null; renovacion: boolean }
   | { tipo: "3ds"; processId: string; solicitudId: string; shopProcessId: number }
   | { tipo: "rechazado"; motivo: string; solicitudId?: string }
-  | { tipo: "error"; motivo: string; codigo: number };
+  | { tipo: "error"; motivo: string; codigo: number }
+  /*
+   * El charge salió y no sabemos si Bancard cobró (timeout, 5xx, respuesta
+   * ilegible). La solicitud queda pendiente y marcada; la concilia el cron.
+   * Nadie tiene que volver a cobrar mientras tanto.
+   */
+  | { tipo: "incierto"; motivo: string; solicitudId: string };
+
+const MOTIVO_INCIERTO =
+  "No pudimos confirmar con el banco si el pago se procesó. Lo estamos verificando: no lo intentes de nuevo. Si se cobró, el plan se activa solo.";
 
 type Parametros = {
   admin: any;
@@ -65,6 +81,15 @@ export async function ejecutarCobroBancard({
 
   if (!mapeo?.bancard_user_id) {
     return { tipo: "error", motivo: "Todavía no tenés una tarjeta registrada.", codigo: 409 };
+  }
+
+  /*
+   * Si hay un cobro anterior con resultado desconocido, otro cobro podría ser
+   * el segundo sobre la misma tarjeta. Se espera a que la conciliación lo
+   * cierre.
+   */
+  if (await tieneCobroIncierto(admin, usuarioId)) {
+    return { tipo: "error", motivo: MOTIVO_INCIERTO, codigo: 409 };
   }
 
   const { data: creado, error: crearError } = armadoId
@@ -168,22 +193,29 @@ export async function ejecutarCobroBancard({
 
   const monto = formatearMontoBancard(cobro.monto);
 
-  const charge = await llamarBancard("/vpos/api/0.3/charge", {
-    public_key: publicKey,
-    operation: {
-      token: tokenCharge(privateKey, cobro.shop_process_id, monto, elegida.alias_token),
-      shop_process_id: cobro.shop_process_id,
-      amount: monto,
-      currency: "PYG",
-      number_of_payments: 1,
-      // El staging lo rechaza si falta, aunque la spec lo dé por opcional.
-      additional_data: "",
-      description: `EOS ${plan}`.slice(0, 20),
-      alias_token: elegida.alias_token,
-      return_url: `${baseUrlApp}/pago/resultado?ref=${cobro.shop_process_id}`,
-      extra_response_attributes: ["confirmation.process_id"],
-    },
-  });
+  let charge: Awaited<ReturnType<typeof llamarBancard>>;
+  try {
+    charge = await llamarBancard("/vpos/api/0.3/charge", {
+      public_key: publicKey,
+      operation: {
+        token: tokenCharge(privateKey, cobro.shop_process_id, monto, elegida.alias_token),
+        shop_process_id: cobro.shop_process_id,
+        amount: monto,
+        currency: "PYG",
+        number_of_payments: 1,
+        // El staging lo rechaza si falta, aunque la spec lo dé por opcional.
+        additional_data: "",
+        description: `EOS ${plan}`.slice(0, 20),
+        alias_token: elegida.alias_token,
+        return_url: `${baseUrlApp}/pago/resultado?ref=${cobro.shop_process_id}`,
+        extra_response_attributes: ["confirmation.process_id"],
+      },
+    });
+  } catch (error) {
+    // Timeout o red: el pedido pudo haber llegado y cobrado.
+    console.error("Bancard: el charge no respondió:", cobro.shop_process_id, error);
+    charge = { ok: false, status: 0, data: null };
+  }
 
   /*
    * charge responde bajo "confirmation", no bajo "operation" como
@@ -192,7 +224,24 @@ export async function ejecutarCobroBancard({
    */
   const operacion = charge.data?.confirmation || charge.data?.operation || {};
 
-  // Rechazo a nivel API (JSON inválido, parámetro faltante, etc.).
+  /*
+   * Sin `response` y sin un rechazo explícito de la API, no sabemos qué pasó.
+   * Se le pregunta a Bancard; si tampoco contesta, queda para la conciliación.
+   */
+  if (!charge.ok && !operacion.response && chargeSinRespuestaEsIncierto(charge.status, charge.data)) {
+    const consulta = await consultarCobroBancard(cobro.shop_process_id);
+    const veredicto = interpretarConfirmacion(consulta);
+
+    if (veredicto === "desconocido") {
+      await marcarCobroIncierto(admin, cobro.solicitud_id, `charge_http_${charge.status}`);
+      return { tipo: "incierto", motivo: MOTIVO_INCIERTO, solicitudId: cobro.solicitud_id };
+    }
+
+    const confirmacion = (consulta.data as { confirmation?: Record<string, unknown> } | null)?.confirmation ?? {};
+    Object.assign(operacion, confirmacion);
+  }
+
+  // Rechazo a nivel API (parámetro faltante, token inválido, etc.).
   if (!charge.ok && !operacion.response) {
     const { key, detalle } = describirErrorBancard(charge.data);
 
@@ -240,6 +289,12 @@ export async function ejecutarCobroBancard({
 
   if (confirmarError) {
     console.error("Bancard: cobro hecho pero no confirmado:", confirmarError);
+
+    // La solicitud sigue pendiente: que la conciliación la cierre y que nadie
+    // la vuelva a cobrar mientras tanto.
+    if (aprobado) {
+      await marcarCobroIncierto(admin, cobro.solicitud_id, "confirmacion_local_fallida");
+    }
 
     return {
       tipo: "error",

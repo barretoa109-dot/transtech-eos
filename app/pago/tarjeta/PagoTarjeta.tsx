@@ -493,6 +493,13 @@ export default function PagoTarjeta() {
         return;
       }
 
+      // El banco no contestó a tiempo: el cobro pudo haber salido. No es un
+      // error para reintentar; el servidor lo concilia y bloquea un segundo cobro.
+      if (data?.verificando) {
+        setAviso(data.error || "Estamos verificando el pago con el banco.");
+        return;
+      }
+
       if (!res.ok || data?.ok === false) {
         throw new Error(data?.error || "No pudimos procesar el pago.");
       }

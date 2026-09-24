@@ -67,6 +67,15 @@ export async function POST(request: Request) {
       );
     }
 
+    if (resultado.tipo === "incierto") {
+      // 202: el pedido quedó en manos del banco y no sabemos el resultado.
+      // La pantalla no debe ofrecer "reintentar": podría ser un segundo cobro.
+      return NextResponse.json(
+        { ok: false, verificando: true, error: resultado.motivo, solicitud_id: resultado.solicitudId },
+        { status: 202 },
+      );
+    }
+
     if (resultado.tipo === "3ds") {
       return NextResponse.json({
         ok: true,

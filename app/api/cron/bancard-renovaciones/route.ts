@@ -9,6 +9,8 @@ import {
   type MotivoRenovacion,
 } from "@/lib/pagos/avisoRenovacion";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
+import { conciliarPendientesBancard, tieneCobroIncierto } from "@/lib/pagos/conciliacionBancard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +97,23 @@ export async function GET(request: Request) {
 
   const admin = adminSinTipos();
   const ahora = new Date();
+
+  /*
+   * Primero se cierran los cobros que quedaron sin resultado: los que el
+   * webhook no pudo verificar, los que nunca notificó y los charges que se
+   * cortaron. Va antes de renovar por dos motivos: un cliente que ya pagó
+   * recupera su plan hoy, y el que tiene un cobro dudoso no recibe otro encima.
+   */
+  const conciliacion = await conciliarPendientesBancard(admin, {
+    ahora,
+    alAprobar: (fila, confirmado) =>
+      enviarConfirmacionPlan(admin, {
+        usuarioId: fila.usuario_id,
+        planCodigo: confirmado?.plan_codigo ?? fila.plan_codigo,
+        referencia: fila.id,
+        renovacion: Boolean(confirmado?.same_plan_renewal),
+      }),
+  });
 
   const hasta = new Date(ahora.getTime() + DIAS_ANTICIPACION * 86_400_000);
   const desde = new Date(ahora.getTime() - DIAS_GRACIA * 86_400_000);
@@ -209,6 +228,8 @@ export async function GET(request: Request) {
     /* Cuántas renovaciones caídas terminaron en un aviso entregado. */
     avisados: 0,
     sin_aviso: 0,
+    /* Charges cortados: no se sabe si cobraron. Los cierra la próxima conciliación. */
+    inciertos: 0,
   };
 
   const enviarCorreo = armarEnviarCorreo();
@@ -225,6 +246,12 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (!tarjeta?.id) {
+        resumen.omitidos += 1;
+        continue;
+      }
+
+      // Un cobro anterior que pudo haber salido: nunca cobrar encima.
+      if (await tieneCobroIncierto(admin, usuario.id, ahora)) {
         resumen.omitidos += 1;
         continue;
       }
@@ -322,6 +349,8 @@ export async function GET(request: Request) {
         resumen.rechazados += 1;
 
         pendiente = { motivo: "verificacion", solicitudId: resultado.solicitudId };
+      } else if (resultado.tipo === "incierto") {
+        resumen.inciertos += 1;
       } else {
         resumen.errores += 1;
       }
@@ -365,5 +394,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, ...resumen });
+  return NextResponse.json({ ok: true, ...resumen, conciliacion });
 }
