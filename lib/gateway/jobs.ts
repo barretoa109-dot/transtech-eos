@@ -228,13 +228,78 @@ export function metadataEstable(e: Entrada): Record<string, unknown> {
  * Worker solo hace un health ping— y por eso quien llama puede saltearlo. Se
  * arma igual para que la forma no dependa del caso.
  */
+/**
+ * El `request_id` de la N-ésima acción del MISMO tipo en un mensaje.
+ *
+ * ============================================================
+ * EL DEFECTO (24 de septiembre de 2026, usando EOS de verdad)
+ * ============================================================
+ *
+ * El Worker Gate identifica cada orden por (usuario, request_id, acción). Si
+ * el modelo pide dos acciones del mismo tipo en un mensaje —dos memorias, dos
+ * tarjetas, dos tareas— la segunda llega con la misma identidad que la
+ * primera y otro contenido, y el gate la rechaza como un replay alterado:
+ * `409 EOS_COMMAND_PAYLOAD_MISMATCH`. La persona leyó ese JSON en el chat.
+ *
+ * La primera de cada tipo conserva el `request_id` del mensaje (la traza por
+ * request_id sigue igual para el caso común). De la segunda en adelante se
+ * deriva uno determinístico: el mismo mensaje con las mismas acciones da
+ * siempre los mismos ids, así que un reintento sigue siendo reconocido como
+ * reintento. Conserva la versión y la variante del UUID original, que es lo
+ * que validan el Worker y el gate.
+ *
+ * El mismo cálculo vive en el nodo `06 GW Preparar Jobs Worker` de n8n
+ * (`n8n/parches/cambios-acciones-repetidas.mjs`); un test verifica que den lo
+ * mismo.
+ */
+export function requestIdDeAccion(requestId: string, ordinal: number): string {
+  if (!ordinal) return requestId;
+  const id = String(requestId).toLowerCase();
+  const nodo = parseInt(id.slice(-12), 16);
+  const derivado = (nodo + ordinal * 0x9e3779b1) % 0x1000000000000;
+  return id.slice(0, -12) + derivado.toString(16).padStart(12, "0");
+}
+
+/** Clave estable de una acción ya canonicalizada, para descartar las idénticas. */
+function claveDeAccion(tipo: string, datos: unknown): string {
+  const ordenar = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(ordenar);
+    if (!v || typeof v !== "object") return v;
+    return Object.keys(v as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = ordenar((v as Record<string, unknown>)[k]);
+        return acc;
+      }, {});
+  };
+  return `${tipo}|${JSON.stringify(ordenar(datos))}`;
+}
+
 export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
   const sinAcciones = r.acciones.length === 0;
-  const acciones: Accion[] = sinAcciones ? [{ tipo: "RESPONDER", datos: {} }] : r.acciones;
+  const pedidas: Accion[] = sinAcciones ? [{ tipo: "RESPONDER", datos: {} }] : r.acciones;
+
+  /*
+   * Dos acciones IDÉNTICAS (mismo tipo, mismos datos) son la misma: el modelo
+   * a veces repite la memoria que ya pidió. Se deja una sola, antes de numerar,
+   * para que la derivación de ids no la ejecute dos veces.
+   */
+  const vistas = new Set<string>();
+  const acciones = pedidas.filter((accion) => {
+    const tipo = String(accion.tipo || "RESPONDER").trim().toUpperCase();
+    const clave = claveDeAccion(tipo, normalizarDatos(tipo, accion.datos));
+    if (vistas.has(clave)) return false;
+    vistas.add(clave);
+    return true;
+  });
+
+  const porTipo = new Map<string, number>();
 
   return acciones.map((accion, index) => {
     const tipo = String(accion.tipo || "RESPONDER").trim().toUpperCase();
     const worker_path = RUTAS[tipo];
+    const ordinal = porTipo.get(tipo) ?? 0;
+    porTipo.set(tipo, ordinal + 1);
 
     if (!worker_path) {
       // No debería pasar: `prepararRespuesta` ya filtró por la lista blanca.
@@ -245,7 +310,7 @@ export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
     }
 
     return {
-      request_id: e.request_id,
+      request_id: requestIdDeAccion(e.request_id, ordinal),
       usuario_id: e.usuario_id,
       usuario_id_original: e.usuario_id,
       usuario_key: e.usuario_id,
