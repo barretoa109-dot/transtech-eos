@@ -20,8 +20,12 @@ Desde una carpeta limpia, **después** de unir:
 ```bash
 git checkout main && git pull
 npx supabase migration list --linked   # mirar qué falta: al menos v192–v197
-npx supabase db push
+npx supabase db push --include-all
 ```
+
+`--include-all` hace falta porque otra sesión ya aplicó una migración con
+fecha posterior (`20260924102000_eos_imagenes_leidas_v197`). Aplica solo lo
+que falta; se probó el orden completo desde cero (295 migraciones, 24/24).
 
 La v197 es la que impide que alguien se asigne un plan pago desde el
 navegador y enciende la protección por cuenta en las 40 tablas heredadas. Es
@@ -35,20 +39,25 @@ En el servicio de n8n en Railway, variable
 (La lista maestra registra que apuntaba a un preview de hace 185 commits).
 
 ### 4. Correr el verificador de GO (2 min)
-En `.env.local` de tu PC (nunca en el repo), las tres variables:
+Solo hace falta **un** valor en `.env.local` de tu PC (nunca en el repo):
 
 ```
-SUPABASE_ACCESS_TOKEN=...   # el mismo que usás para `npm run columnas`
-CRON_SECRET=...             # el de Vercel
-EOS_WORKER_GATE_SECRET=...  # el de Vercel (el mismo que usa n8n)
+SUPABASE_ACCESS_TOKEN=...   # supabase.com → Account → Access Tokens → Generate new token
 ```
+
+`CRON_SECRET` y `EOS_WORKER_GATE_SECRET` **no** hacen falta: Vercel los guarda
+como "Sensitive" y no se pueden volver a ver, y el verificador ya no los usa.
+**No los rotes**: `CRON_SECRET` también firma los enlaces de baja de los correos
+ya enviados, y cambiarlo los rompería.
 
 ```bash
 npm run go
 ```
 
 **Salió bien si** termina con `RESULTADO AUTOMÁTICO: GO`. Si algo sale en
-`FALLA`, pegame la salida completa (no tiene secretos) y lo arreglo.
+`FALLA`, pegame la salida completa (no tiene secretos) y lo arreglo. Si la
+salud sale en falla, abrí `https://www.transtech.com.py/api/admin/salud`
+con tu sesión de administrador y mandame captura: ahí está el detalle.
 
 ### 5. Certificación de cobros con Bancard staging (15 min)
 ```bash
@@ -92,7 +101,7 @@ próxima sesión:
 1. En la configuración del entorno (menú del entorno en la barra de título de
    la sesión → *Edit*): **Network access**, agregar `www.transtech.com.py`,
    `api.supabase.com` y `vpos.infonet.com.py`.
-2. En la misma pantalla, como variables de entorno: `SUPABASE_ACCESS_TOKEN`,
-   `CRON_SECRET` y `EOS_WORKER_GATE_SECRET`. **No las pegues en el chat.**
+2. En la misma pantalla, como variable de entorno: `SUPABASE_ACCESS_TOKEN`.
+   **No la pegues en el chat.**
 
 Una sesión nueva las toma.

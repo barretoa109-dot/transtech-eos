@@ -7,9 +7,8 @@
  * Corre desde la carpeta del repo, en la PC que tiene `supabase link` hecho.
  * Lee de .env.local (o del entorno):
  *
- *   SUPABASE_ACCESS_TOKEN   token personal de Supabase (el de `npm run columnas`)
- *   CRON_SECRET             el mismo de Vercel
- *   EOS_WORKER_GATE_SECRET  el mismo de Vercel y de n8n
+ *   SUPABASE_ACCESS_TOKEN   obligatorio: token personal de Supabase
+ *   CRON_SECRET             opcional: solo agrega el detalle de la salud
  *   EOS_GO_URL              opcional; por defecto https://www.transtech.com.py
  *
  * No escribe nada en producción: la prueba de aislamiento corre dentro de una
@@ -80,16 +79,9 @@ try {
 }
 
 await paso("Producción corre el último main", async () => {
-  const secreto = leer("EOS_WORKER_GATE_SECRET");
-  if (!secreto) throw new Error("falta EOS_WORKER_GATE_SECRET");
-  const r = await fetch(`${URL_BASE}/api/internal/worker-ping/v1`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${secreto}` },
-  });
-  const cuerpo = await r.json().catch(() => ({}));
-  if (!cuerpo.ok) throw new Error(`worker-ping respondió ${r.status}`);
-  const d = cuerpo.despliegue;
-  if (!d) throw new Error("el despliegue todavía no tiene la rama de Production GO (worker-ping sin 'despliegue')");
+  const r = await fetch(`${URL_BASE}/api/version`, { cache: "no-store" });
+  if (r.status === 404) throw new Error("producción todavía no tiene los cambios de Production GO (falta unir el PR)");
+  const d = await r.json();
   const coincide = commitMain ? commitMain.startsWith(String(d.commit)) : true;
   anotar(
     "Producción corre el último main",
@@ -105,7 +97,11 @@ await paso("v197 aplicada (el plan no se autoasigna)", async () => {
   const filas = await sql(
     "select count(*)::int as n from pg_trigger where tgname = 'usuarios_proteger_comercial_v197' and tgrelid = 'public.usuarios'::regclass",
   );
-  anotar("v197 aplicada (el plan no se autoasigna)", filas[0]?.n === 1, filas[0]?.n === 1 ? "" : "falta `supabase db push`");
+  anotar(
+    "v197 aplicada (el plan no se autoasigna)",
+    filas[0]?.n === 1,
+    filas[0]?.n === 1 ? "" : "falta `npx supabase db push --include-all`",
+  );
 });
 
 await paso("Toda tabla de public tiene RLS", async () => {
@@ -116,10 +112,11 @@ await paso("Toda tabla de public tiene RLS", async () => {
 });
 
 await paso("Aislamiento entre cuentas (24 comprobaciones)", async () => {
+  // En Windows el ejecutable es npx.cmd y Node no lo encuentra como "npx" (ENOENT).
   const salida = execFileSync(
-    "npx",
+    process.platform === "win32" ? "npx.cmd" : "npx",
     ["supabase", "db", "query", "--linked", "-f", "supabase/pruebas/aislamiento_rls_e2e.sql"],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" },
   );
   const json = JSON.parse(salida.slice(salida.indexOf("{")));
   const filas = json.rows ?? [];
@@ -153,15 +150,22 @@ await paso("n8n autoriza contra producción", async () => {
 // 4. Salud de producción
 // ------------------------------------------------------------------
 await paso("Salud de producción", async () => {
+  // Sin CRON_SECRET la salud contesta igual si está sana o no (200/503), sin
+  // el detalle. Con el secreto, dice qué chequeo falló.
   const secreto = leer("CRON_SECRET");
-  if (!secreto) throw new Error("falta CRON_SECRET");
-  const r = await fetch(`${URL_BASE}/api/internal/salud`, { headers: { Authorization: `Bearer ${secreto}` } });
+  const r = await fetch(`${URL_BASE}/api/internal/salud`, {
+    headers: secreto ? { Authorization: `Bearer ${secreto}` } : {},
+  });
   const cuerpo = await r.json().catch(() => ({}));
   const fallos = (cuerpo.chequeos ?? []).filter((c) => !c.ok);
   anotar(
     "Salud de producción",
-    r.ok && fallos.length === 0 && (cuerpo.chequeos ?? []).length > 0,
-    fallos.length ? fallos.map((c) => `${c.nombre}: ${c.detalle}`).join(" | ") : `${(cuerpo.chequeos ?? []).length} chequeos`,
+    r.ok && cuerpo.sano === true,
+    fallos.length
+      ? fallos.map((c) => `${c.nombre}: ${c.detalle}`).join(" | ")
+      : cuerpo.sano === true
+        ? "sana"
+        : `HTTP ${r.status}${secreto ? "" : " (el detalle se ve en /api/admin/salud con tu sesión de administrador)"}`,
   );
 });
 
