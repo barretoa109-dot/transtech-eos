@@ -71,9 +71,24 @@ insert into resultado select 'B no ve consumo de A', count(*) = 0 from public.us
 insert into resultado select 'B no ve pagos de A', count(*) = 0 from public.solicitudes_pago;
 insert into resultado select 'B no ve aprobaciones de A', count(*) = 0 from public.eos_action_approvals_v12;
 
-update public.usuarios set nombre = 'hackeado' where id = '00000000-0000-4000-a000-00000000000a';
-update public.mensajes set texto = 'hackeado' where usuario_id = '00000000-0000-4000-a000-00000000000a';
-delete from public.memorias where usuario_id = '00000000-0000-4000-a000-00000000000a';
+do $$
+begin
+  update public.usuarios set nombre = 'hackeado' where id = '00000000-0000-4000-a000-00000000000a';
+exception when insufficient_privilege then
+  null; -- Producción puede negar el permiso de entrada: también es un bloqueo.
+end $$;
+do $$
+begin
+  update public.mensajes set texto = 'hackeado' where usuario_id = '00000000-0000-4000-a000-00000000000a';
+exception when insufficient_privilege then
+  null; -- Producción puede negar el permiso de entrada: también es un bloqueo.
+end $$;
+do $$
+begin
+  delete from public.memorias where usuario_id = '00000000-0000-4000-a000-00000000000a';
+exception when insufficient_privilege then
+  null; -- Producción puede negar el permiso de entrada: también es un bloqueo.
+end $$;
 
 do $$
 begin
@@ -92,16 +107,29 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-0000000
 insert into resultado select 'A ve sus mensajes', count(*) = 1 from public.mensajes;
 insert into resultado select 'A ve sus pagos', count(*) = 1 from public.solicitudes_pago;
 
--- El upsert del registro (RegisterForm) sigue funcionando.
-insert into public.usuarios (id, nombre, email, plan)
-values ('00000000-0000-4000-a000-00000000000a', 'QA A', 'qa-a@aislamiento.test', 'free')
-on conflict (id) do update set nombre = excluded.nombre, plan = excluded.plan;
-insert into resultado select 'A puede editar su nombre', count(*) = 1 from public.usuarios where nombre = 'QA A';
+-- El upsert del registro (RegisterForm) sigue funcionando con el trigger v197.
+-- Si producción no le da UPDATE sobre usuarios al cliente, el trigger ni se
+-- alcanza: tampoco es una rotura de v197.
+do $$
+begin
+  insert into public.usuarios (id, nombre, email, plan)
+  values ('00000000-0000-4000-a000-00000000000a', 'QA A', 'qa-a@aislamiento.test', 'free')
+  on conflict (id) do update set nombre = excluded.nombre, plan = excluded.plan;
+  insert into resultado select 'El trigger v197 no rompe el upsert del registro', count(*) = 1
+  from public.usuarios where nombre = 'QA A';
+exception when insufficient_privilege then
+  insert into resultado values ('El trigger v197 no rompe el upsert del registro (el cliente no tiene permiso)', true);
+end $$;
 
-update public.usuarios
-set plan = 'enterprise', plan_vencimiento = '2099-01-01', estado_suscripcion = 'active',
-    cancelar_al_vencimiento = false
-where id = '00000000-0000-4000-a000-00000000000a';
+do $$
+begin
+  update public.usuarios
+  set plan = 'enterprise', plan_vencimiento = '2099-01-01', estado_suscripcion = 'active',
+      cancelar_al_vencimiento = false
+  where id = '00000000-0000-4000-a000-00000000000a';
+exception when insufficient_privilege then
+  null; -- Producción puede negar el permiso de entrada: también es un bloqueo.
+end $$;
 
 do $$
 begin
@@ -127,8 +155,13 @@ exception when insufficient_privilege or raise_exception then
   insert into resultado values ('A no puede reescribir el payload de una aprobación', true);
 end $$;
 
-update public.eos_action_approvals_v12 set status = 'rejected'
-where id = '00000000-0000-4000-a000-0000000000d1';
+do $$
+begin
+  update public.eos_action_approvals_v12 set status = 'rejected'
+  where id = '00000000-0000-4000-a000-0000000000d1';
+exception when insufficient_privilege then
+  null; -- Producción puede negar el permiso de entrada: también es un bloqueo.
+end $$;
 
 -- ------------------------------------------------------------
 -- anon

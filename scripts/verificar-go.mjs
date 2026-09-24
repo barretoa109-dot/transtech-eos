@@ -20,7 +20,7 @@
  * hecho.
  */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
 
 const REF = "dirugpkamzgvyshcnsxs";
@@ -112,12 +112,12 @@ await paso("Toda tabla de public tiene RLS", async () => {
 });
 
 await paso("Aislamiento entre cuentas (24 comprobaciones)", async () => {
-  // En Windows el ejecutable es npx.cmd y Node no lo encuentra como "npx" (ENOENT).
-  const salida = execFileSync(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["supabase", "db", "query", "--linked", "-f", "supabase/pruebas/aislamiento_rls_e2e.sql"],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" },
-  );
+  // Un solo comando fijo, sin argumentos que vengan de afuera: así funciona
+  // igual en Windows (npx es npx.cmd) sin el aviso DEP0190 de Node.
+  const salida = execSync("npx supabase db query --linked -f supabase/pruebas/aislamiento_rls_e2e.sql", {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const json = JSON.parse(salida.slice(salida.indexOf("{")));
   const filas = json.rows ?? [];
   const malas = filas.filter((f) => f.ok !== true && f.ok !== "t");
