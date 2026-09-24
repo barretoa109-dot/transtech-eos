@@ -256,3 +256,33 @@ tarjeta de prueba de Bancard se activaba un plan pago sin que entrara dinero
 prueba en `demo@transtech.com.py` y correr `npm run certificar -- 3 6`. Son los
 dos casos que hoy quedan sin verificar y cubren el cobro con tarjeta guardada
 que se modificó en esta auditoría.
+
+## Estado al cierre — 24/09/2026 20:52
+
+`npm run go` contra producción con el commit **`33c57cf`** (incluye el candado
+de tarjeta en staging): **9/9, GO automático.** n8n: 30 autorizaciones y 54
+mensajes en 72 h.
+
+| Área | Estado en producción |
+|---|---|
+| Aislamiento entre cuentas | 24/24 contra la base real |
+| Plan no autoasignable (v197) | aplicada y verificada |
+| Tarjeta de prueba no activa planes | publicado (`33c57cf`) |
+| Cobros: duplicado, demorado, reversión | certificados (caso 11, 14/14) |
+| n8n → producción | verificado con tráfico real |
+| Salud, webhooks, sin sesión | ok |
+| Tarjeta de crédito | fuera de alcance hasta octubre (decisión del dueño); transferencia es el camino comercial |
+
+### Veredicto
+
+**CONDITIONAL GO → piloto controlado habilitado desde hoy.** Ningún P0/P1
+conocido abierto en producción; todo lo que se puede medir con código está en
+verde contra producción real.
+
+**GO oficial** (venta abierta) se firma cuando se registre acá la prueba en
+teléfonos: iPhone Safari y Android Chrome, registro, venta por chat que aparece
+en Negocios, micrófono con permiso negado, PWA, Planes → transferencia, y una
+segunda cuenta que no ve nada de la primera.
+
+**Octubre, antes de `BANCARD_ENV=production`:** catastrar la tarjeta de prueba
+en `demo@transtech.com.py` y `npm run certificar -- 3 6`.
