@@ -21,7 +21,8 @@
     "respaldo": "node scripts/respaldo-de-datos.mjs",
     "siguiente-migracion": "node scripts/siguiente-migracion.mjs",
     "quien-toca": "node scripts/quien-toca.mjs",
-    "go": "node scripts/verificar-go.mjs"
+    "go": "node scripts/verificar-go.mjs",
+    "piloto": "node scripts/informe-piloto.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
