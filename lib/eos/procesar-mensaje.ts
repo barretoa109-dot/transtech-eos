@@ -36,6 +36,8 @@ import { after } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
 import { bloqueDeDocumento } from "@/lib/eos/adjuntos";
+import { dentroDeRafaga } from "@/lib/seguridad/rafaga";
+import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import type { Documento } from "@/lib/documentos/especificacion";
 import {
   extraerDocumento,
@@ -899,6 +901,20 @@ export async function procesarMensajeEOS(
     };
 
     const quotaAdmin = adminSinTipos();
+
+    // Antes del cupo del plan: un plan sin tope no frena un script. Ver `lib/seguridad/rafaga.ts`.
+    const rafaga = await dentroDeRafaga(quotaAdmin, usuarioId, secretoDelEntorno());
+    if (!rafaga.permitido) {
+      return {
+        status: 429,
+        body: {
+          respuesta: `Llegaron muchos mensajes seguidos. Esperá ${Math.max(1, Math.ceil(rafaga.faltanSegundos / 60))} minuto(s) y seguimos.`,
+          code: "EOS_MESSAGE_BURST_LIMIT",
+          reintentar_en: rafaga.faltanSegundos,
+        },
+      };
+    }
+
     const { data: quotaRaw, error: quotaError } = await quotaAdmin.rpc(
       "eos_reserve_message_quota_server_v75",
       {
