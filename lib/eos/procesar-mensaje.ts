@@ -35,6 +35,7 @@
 import { after } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
+import { bloqueDeDocumento } from "@/lib/eos/adjuntos";
 import type { Documento } from "@/lib/documentos/especificacion";
 import {
   extraerDocumento,
@@ -565,18 +566,8 @@ async function analizarArchivoSincrono(
       top_findings?: Array<{ title?: string; value_text?: string | null }>;
     };
 
-    const hallazgos = (analysis.top_findings || [])
-      .slice(0, 6)
-      .map((f) => `- ${f.title}${f.value_text ? `: ${f.value_text}` : ""}`)
-      .join("\n");
-
-    const partes = [
-      `[Documento adjunto: ${archivo.nombre}]`,
-      analysis.summary ? `Resumen: ${analysis.summary}` : "",
-      hallazgos ? `Hallazgos:\n${hallazgos}` : "",
-    ].filter(Boolean);
-
-    return partes.length > 1 ? partes.join("\n") : null;
+    // Citado como datos: lo escribió un tercero. Ver `bloqueDeDocumento`.
+    return bloqueDeDocumento(archivo.nombre, analysis.summary, analysis.top_findings || []);
   } catch (error) {
     console.error("No se pudo analizar el documento adjunto de forma sincrónica:", error);
     return null;
