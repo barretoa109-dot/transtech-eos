@@ -9,6 +9,7 @@ import {
   tokenSingleBuy,
 } from "@/lib/bancard";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { MOTIVO_TARJETA_NO_HABILITADA, tarjetaHabilitadaPara } from "@/lib/pagos/tarjetaHabilitada";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +54,15 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Debés iniciar sesión." }, { status: 401 });
+    }
+
+    // Bancard en staging: la tarjeta solo para certificación y administración.
+    // Ver `lib/pagos/tarjetaHabilitada.ts`.
+    if (!tarjetaHabilitadaPara(user.email)) {
+      return NextResponse.json(
+        { error: MOTIVO_TARJETA_NO_HABILITADA, tarjeta_habilitada: false },
+        { status: 403 },
+      );
     }
 
     const body = (await request.json().catch(() => null)) as Body | null;

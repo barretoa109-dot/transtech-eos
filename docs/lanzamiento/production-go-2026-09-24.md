@@ -188,3 +188,71 @@ al final.** Ver `pasos-del-dueno.md`.
 1. Calidad de memoria con datos reales (duplicadas, contradictorias,
    obsoletas): necesita leer producción.
 2. Con el resultado de `npm run go`, lo que salga en rojo.
+
+## Evidencia contra producción — 24/09/2026 17:41 (hora de Paraguay)
+
+`npm run go`, corrido por Augusto desde su PC contra `https://www.transtech.com.py`
+y la base de producción:
+
+| Chequeo | Resultado |
+|---|---|
+| Producción corre el último main | ok — `entorno=production`, commit `3ec29f476b15` |
+| v197 aplicada (el plan no se autoasigna) | ok — aplicada con `db push --include-all` |
+| Toda tabla de public tiene RLS | ok |
+| Aislamiento entre cuentas | **ok — 24/24 contra la base real**, con rollback forzado |
+| n8n autoriza contra producción | ok — 27 autorizaciones y 49 mensajes en 72 h (hallazgo −1 cerrado) |
+| Salud de producción | ok — sana |
+| Cobros sin resultado desconocido | ok — ninguno |
+| Webhook de Bancard rechaza basura | ok — HTTP 400 |
+| Sin sesión no hay datos | ok — HTTP 401 |
+
+**Resultado automático: GO (9/9).**
+
+Detalle encontrado al correrlo: producción es más estricta que la
+reconstrucción desde migraciones (el cliente no tiene UPDATE sobre `mensajes`).
+La prueba se ajustó para aceptar los dos tipos de bloqueo.
+
+### Pendiente para GO oficial (manual)
+
+- [ ] `npm run certificar -- 3 6 11` — cobro, vencimiento y reversión con Bancard staging.
+- [ ] iPhone Safari + Android Chrome: registro, chat, micrófono (negar permiso, cancelar, volver a escribir), PWA.
+- [ ] Dos cuentas QA reales: A registra una venta por chat; B no la ve; A la ve en Negocios.
+
+## Certificación de cobros — 24/09/2026 17:46
+
+`npm run certificar -- 3 6 11` contra Bancard staging, cuenta `demo@transtech.com.py`:
+**17 de 19 en verde, 0 en rojo.**
+
+- Caso 11 (pago duplicado, demorado y reversado): **14/14**. Una confirmación
+  repetida no acredita dos veces, una tardía acredita los mismos días, la
+  reversión devuelve el vencimiento exacto y no se puede reconfirmar.
+- Caso 6 (vencimiento): un módulo vencido deja de funcionar, los datos quedan,
+  la API sin sesión da 401.
+- **Sin verificar (2):** el cobro con tarjeta guardada (caso 3) y la
+  recuperación con tarjeta (caso 6). La cuenta de certificación no tiene una
+  tarjeta de prueba catastrada. Es el camino que cambió en este ciclo (cobro
+  incierto), así que **es obligatorio antes del GO oficial**: catastrar la
+  tarjeta de prueba y volver a correr `npm run certificar -- 3 6`.
+
+## Decisión del dueño — 24/09/2026 18:00: pagos con tarjeta fuera de alcance hasta octubre
+
+Augusto decide lanzar sin Bancard: el cobro con tarjeta se habilita en octubre,
+junto con la salida de la aplicación. El camino comercial de hoy es la
+**transferencia bancaria** (proceso manual, separado del automático, en
+`/api/admin/pagos`).
+
+Consecuencia que se corrigió antes de declarar GO: producción usaba Bancard
+**staging** y el checkout con tarjeta estaba abierto a cualquiera. Con una
+tarjeta de prueba de Bancard se activaba un plan pago sin que entrara dinero
+(P1, "plan activado sin pago"). Ahora (`lib/pagos/tarjetaHabilitada.ts`):
+
+- Mientras `BANCARD_ENV` no sea `production`, cobrar, pagar una vez, catastrar
+  y sincronizar tarjetas responden 403 salvo para la cuenta de certificación y
+  los administradores.
+- La pantalla de pago con tarjeta lleva directo a la transferencia.
+- El día que `BANCARD_ENV=production`, se abre para todos sin tocar código.
+
+**Para octubre (antes de prender Bancard producción):** catastrar la tarjeta de
+prueba en `demo@transtech.com.py` y correr `npm run certificar -- 3 6`. Son los
+dos casos que hoy quedan sin verificar y cubren el cobro con tarjeta guardada
+que se modificó en esta auditoría.
