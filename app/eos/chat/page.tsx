@@ -335,7 +335,7 @@ export default function EOSPage() {
       </button>
 
       <div className="main">
-        <TopBar tema={tema} />
+        <TopBar tema={tema} pantalla={vista} />
 
         {vista === "chat" && (
           <ChatView

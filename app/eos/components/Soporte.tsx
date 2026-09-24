@@ -26,8 +26,18 @@ import { LifeBuoy } from "lucide-react";
 
 const CORREO = "soporte@transtech.com.py";
 
-export default function Soporte({ pantalla }: { pantalla?: string }) {
-  const [abierto, setAbierto] = useState(false);
+export default function Soporte({
+  pantalla,
+  abiertoInicial = false,
+  onCerrar,
+}: {
+  pantalla?: string;
+  /** Arranca con el formulario abierto (el botón "Ayuda" de la barra de arriba). */
+  abiertoInicial?: boolean;
+  /** Se llama al cerrar o cancelar, para que quien lo contiene se cierre también. */
+  onCerrar?: () => void;
+}) {
+  const [abierto, setAbierto] = useState(abiertoInicial);
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
@@ -91,6 +101,7 @@ export default function Soporte({ pantalla }: { pantalla?: string }) {
             onClick={() => {
               setEnviado(false);
               setAbierto(false);
+              onCerrar?.();
             }}
           >
             Cerrar
@@ -130,6 +141,7 @@ export default function Soporte({ pantalla }: { pantalla?: string }) {
               onClick={() => {
                 setAbierto(false);
                 setError("");
+                onCerrar?.();
               }}
             >
               Cancelar
