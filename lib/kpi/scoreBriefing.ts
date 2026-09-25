@@ -131,7 +131,7 @@ export async function asegurarFotoDeHoy(
     errores: [],
   };
 
-  const [modulos, politica, deHoy] = await Promise.all([
+  const [modulos, politica, cuentas, deHoy] = await Promise.all([
     admin
       .from("eos_usuario_modulos")
       .select("modulo_codigo")
@@ -140,12 +140,23 @@ export async function asegurarFotoDeHoy(
       .eq("estado", "activo")
       .limit(1),
     admin.from("eos_finanzas_politica").select("usuario_id").eq("usuario_id", usuarioId).limit(1),
+    // Sin Constitución, las cuentas personales con saldo alcanzan (ver `politicasDesdeCuentas`).
+    admin
+      .from("eos_finanzas_cuentas")
+      .select("saldo_declarado")
+      .eq("usuario_id", usuarioId)
+      .eq("ambito", "personal")
+      .eq("activa", true),
     admin.from("eos_kpi_historia_v105").select("indicador").eq("usuario_id", usuarioId).eq("fecha", hoy).limit(1),
   ]);
 
-  for (const r of [modulos, politica, deHoy]) if (r.error) diag.errores.push(motivo(r.error));
+  for (const r of [modulos, politica, cuentas, deHoy]) if (r.error) diag.errores.push(motivo(r.error));
   diag.negocio.habilitado = (modulos.data ?? []).length > 0;
-  diag.personal.habilitado = (politica.data ?? []).length > 0;
+  diag.personal.habilitado =
+    (politica.data ?? []).length > 0 ||
+    ((cuentas.data ?? []) as { saldo_declarado: unknown }[]).some(
+      (c) => c.saldo_declarado !== null && c.saldo_declarado !== undefined,
+    );
 
   if ((deHoy.data ?? []).length > 0) return diag;
 
