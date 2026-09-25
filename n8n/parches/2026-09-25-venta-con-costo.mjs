@@ -103,18 +103,41 @@ async function escribir(id, flujo, etiqueta) {
 const gateway = await traer(GATEWAY);
 respaldar(gateway, "gateway");
 
+/*
+  Cada parte se salta si ya está: correr el parche dos veces (o después de un
+  corte a la mitad) termina en el mismo lugar, sin error.
+*/
+let cambiosGateway = 0;
+
 const http = nodo(gateway, "HTTP Request");
-http.parameters.jsonBody = aplicarPrompt(http.parameters.jsonBody, "prompt de n8n");
+if (http.parameters.jsonBody.includes("costo_unitario?")) {
+  console.log("prompt: ya tenía costo_unitario, no se toca.");
+} else {
+  http.parameters.jsonBody = aplicarPrompt(http.parameters.jsonBody, "prompt de n8n");
+  cambiosGateway += 1;
+}
 
 const g06 = nodo(gateway, "06 GW Preparar Jobs Worker");
-g06.parameters.jsCode = aplicarCostoDelTexto(g06.parameters.jsCode, "06 GW Preparar Jobs Worker");
+if (g06.parameters.jsCode.includes("function costoDesdeLaRespuesta")) {
+  console.log("nodo 06: ya copiaba el costo del texto, no se toca.");
+} else {
+  g06.parameters.jsCode = aplicarCostoDelTexto(g06.parameters.jsCode, "06 GW Preparar Jobs Worker");
+  cambiosGateway += 1;
+}
 
 // ------------------------------------------------------------------- worker
 const worker = await traer(WORKER);
 respaldar(worker, "worker");
 
 const w05 = nodo(worker, "05 INT Respuesta");
-w05.parameters.jsCode = aplicarWorker(w05.parameters.jsCode, "05 INT Respuesta");
+let cambiosWorker = 0;
+if (w05.parameters.jsCode.includes("le puse el costo de")) {
+  console.log("worker: la frase de la venta ya decía el costo, no se toca.");
+} else {
+  w05.parameters.jsCode = aplicarWorker(w05.parameters.jsCode, "05 INT Respuesta");
+  cambiosWorker += 1;
+}
 
-await escribir(GATEWAY, gateway, "gateway");
-await escribir(WORKER, worker, "worker");
+if (cambiosGateway) await escribir(GATEWAY, gateway, "gateway");
+if (cambiosWorker) await escribir(WORKER, worker, "worker");
+if (!cambiosGateway && !cambiosWorker) console.log("n8n ya tenía todo aplicado.");
