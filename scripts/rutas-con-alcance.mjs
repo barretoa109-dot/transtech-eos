@@ -118,6 +118,10 @@ const PERMITIDAS = new Map([
     "Webhook de Pagopar, mismo criterio: la firma del proveedor se verifica antes (401 si no coincide) y el `hash_pedido` es lo que identifica la solicitud.",
   ],
   [
+    "app/api/whatsapp/webhook/route.ts::eos_whatsapp_rafaga_v199",
+    "Webhook de Meta (firma verificada antes, 401 si no coincide). Solo INSERTA los mensajes que acaban de llegar, cada uno con el `telefono` de quien lo mandó y su `wa_id`; nunca lee ni cambia filas de otro. La tabla no es por usuario sino una sala de espera por número (v199), y lo único que la lee es `eos_whatsapp_rafaga_tomar_v199`, acotada por teléfono.",
+  ],
+  [
     "app/api/cron/bancard-renovaciones/route.ts::eos_usuario_modulos",
     "El cron busca los módulos que vencen hoy, de quien sean: recorrer a todos es lo que hace. Su puerta es `CRON_SECRET`, no una sesión.",
   ],
