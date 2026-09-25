@@ -90,19 +90,54 @@ export type Limpieza = {
  *
  * Si en la misma respuesta hay un costo puesto para ese producto, el pedido de
  * costo ya no es cierto y se saca.
+ *
+ * 25/09/2026: lo mismo con varios productos. "De 2 de esos productos no sé el
+ * costo" no decía cuáles y no se podía sacar; desde la v198 el worker los
+ * nombra, y acá se sacan los que sí tienen costo. Y un costo puesto se
+ * reconoce en las tres frases que lo dicen: la de CREAR_PRODUCTO, la de
+ * ACTUALIZAR_PRODUCTO ("“X”: costo 207.052 (no tenía)") y la de la venta que
+ * trae el costo ("A “X” le puse el costo de ₲ ...").
  */
-const COSTO_PUESTO = /A \u201C([^\u201D]+)\u201D, que ya estaba sin costo, le puse \u20B2 [\d.]+\./g;
+const COSTO_PUESTO = [
+  /A \u201C([^\u201D]+)\u201D, que ya estaba sin costo, le puse \u20B2 [\d.,]+\./g,
+  /\u201C([^\u201D]+)\u201D: (?:[^\u201C.]|\.\d)*?\bcosto (?:de )?[\d.,]+/g,
+  /A \u201C([^\u201D]+)\u201D le puse el costo de \u20B2 [\d.,]+/g,
+];
+/** La de la venta con varios: "Les puse el costo a “A” (₲ 1), “B” (₲ 2), así que...". */
+const COSTOS_PUESTOS = /Les puse el costo a ((?:\u201C[^\u201D]+\u201D \(\u20B2 [\d.,]+\)(?:, )?)+)/g;
 const PIDE_COSTO =
   /\s*Todav\u00eda no s\u00e9 cu\u00e1nto te cuesta \u201C([^\u201D]+)\u201D, as\u00ed que el margen queda pendiente: decime el costo y lo completo\./g;
+const PIDE_COSTOS =
+  /\s*Todav\u00eda no s\u00e9 cu\u00e1nto te cuestan ((?:\u201C[^\u201D]+\u201D(?:, | y )?)+), as\u00ed que sus m\u00e1rgenes quedan pendientes: pasame los costos y los completo\./g;
 
 function clave(nombre: string): string {
   return nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+function entreComillas(nombres: string[]): string {
+  const q = nombres.map((n) => `\u201C${n}\u201D`);
+  return q.length > 1 ? `${q.slice(0, -1).join(", ")} y ${q[q.length - 1]}` : q.join("");
+}
+
 export function quitarPedidosDeCostoResueltos(texto: string): string {
-  const conCosto = new Set([...texto.matchAll(COSTO_PUESTO)].map((m) => clave(m[1])));
+  const conCosto = new Set([
+    ...COSTO_PUESTO.flatMap((patron) => [...texto.matchAll(patron)].map((m) => m[1])),
+    ...[...texto.matchAll(COSTOS_PUESTOS)].flatMap((m) => [...m[1].matchAll(/\u201C([^\u201D]+)\u201D/g)].map((n) => n[1])),
+  ].map(clave));
   if (conCosto.size === 0) return texto;
-  return texto.replace(PIDE_COSTO, (frase, nombre: string) => (conCosto.has(clave(nombre)) ? "" : frase));
+
+  return texto
+    .replace(PIDE_COSTO, (frase, nombre: string) => (conCosto.has(clave(nombre)) ? "" : frase))
+    .replace(PIDE_COSTOS, (frase, lista: string) => {
+      const todos = [...lista.matchAll(/\u201C([^\u201D]+)\u201D/g)].map((m) => m[1]);
+      const faltan = todos.filter((n) => !conCosto.has(clave(n)));
+      if (faltan.length === todos.length) return frase;
+      if (faltan.length === 0) return "";
+      if (faltan.length === 1) {
+        return ` Todav\u00eda no s\u00e9 cu\u00e1nto te cuesta \u201C${faltan[0]}\u201D, as\u00ed que el margen queda pendiente: decime el costo y lo completo.`;
+      }
+      return ` Todav\u00eda no s\u00e9 cu\u00e1nto te cuestan ${entreComillas(faltan)}, as\u00ed que sus m\u00e1rgenes quedan pendientes: pasame los costos y los completo.`;
+    });
 }
 
 export function limpiarRespuestaVisible(texto: string, respaldo = "Listo."): Limpieza {

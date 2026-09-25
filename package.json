@@ -22,6 +22,7 @@
     "siguiente-migracion": "node scripts/siguiente-migracion.mjs",
     "quien-toca": "node scripts/quien-toca.mjs",
     "go": "node scripts/verificar-go.mjs",
+    "desplegar:costo": "node scripts/desplegar-venta-con-costo.mjs",
     "piloto": "node scripts/informe-piloto.mjs"
   },
   "dependencies": {
