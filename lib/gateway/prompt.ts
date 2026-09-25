@@ -103,7 +103,13 @@ explicá la cuenta; no la rehagas con otros datos.`;
 }
 
 export function armarPrompt(e: Entrada): Prompt {
-  const tieneImagen = e.tiene_archivo && e.archivo_categoria === "imagen" && e.imagen_data_url !== "";
+  // Todas las del mensaje, como el nodo 03 de n8n; la suelta queda de respaldo.
+  const imagenes = e.imagenes_data_url?.length
+    ? e.imagenes_data_url
+    : e.tiene_archivo && e.archivo_categoria === "imagen" && e.imagen_data_url !== ""
+      ? [e.imagen_data_url]
+      : [];
+  const tieneImagen = imagenes.length > 0;
 
   const prompt_eos = `
 Usuario: ${e.nombre || "Usuario"}
@@ -118,13 +124,15 @@ ${e.mensaje}
 
 ${
   tieneImagen
-    ? `El usuario adjuntó una imagen llamada "${e.archivo_nombre}". Analizá realmente el contenido visual de la imagen que acompaña este mensaje.`
+    ? imagenes.length > 1
+      ? `El usuario adjuntó ${imagenes.length} imágenes. Analizá realmente el contenido visual de TODAS las que acompañan este mensaje, y si se relacionan entre sí decilo.`
+      : `El usuario adjuntó una imagen llamada "${e.archivo_nombre}". Analizá realmente el contenido visual de la imagen que acompaña este mensaje.`
     : ""
 }
 `.trim();
 
   const contenido: ParteOpenAI[] = [{ type: "input_text", text: prompt_eos }];
-  if (tieneImagen) contenido.push({ type: "input_image", image_url: e.imagen_data_url });
+  for (const url of imagenes) contenido.push({ type: "input_image", image_url: url });
 
   return { prompt_eos, tiene_imagen: tieneImagen, contenido };
 }

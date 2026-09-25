@@ -7,6 +7,15 @@ import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
+import {
+  ESPERA_RAFAGA_MS,
+  avisoNoLegible,
+  entradaDeMensaje,
+  unirLote,
+  type FilaRafaga,
+  type Lote,
+  type MensajeWhatsapp,
+} from "@/lib/whatsapp/rafaga";
 import { puedeProbarCodigo } from "@/lib/whatsapp/intentos-codigo";
 import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import { atenderCanalEmpresa, buscarCanalEmpresa, type ValorWebhook } from "@/lib/whatsapp-crm/entrante";
@@ -30,16 +39,7 @@ import {
 
 const HISTORIAL_LIMITE = 10;
 
-type MensajeEntrante = {
-  id?: string;
-  from?: string;
-  type?: string;
-  text?: { body?: string };
-  image?: { id?: string; mime_type?: string; caption?: string };
-  document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
-  // Un audio no trae pie de foto: WhatsApp no lo ofrece para notas de voz.
-  audio?: { id?: string; mime_type?: string };
-};
+type MensajeEntrante = MensajeWhatsapp;
 
 type ContactoEntrante = { wa_id?: string; profile?: { name?: string } };
 
@@ -172,9 +172,18 @@ export async function POST(req: Request) {
         .map((c) => [c.wa_id, c.profile?.name?.trim() || ""]),
     );
 
-    for (const mensaje of cambio.value?.messages ?? []) {
+    const mensajes = cambio.value?.messages ?? [];
+
+    /*
+     * Todos a la sala de espera ANTES de atender ninguno (v199). Si Meta manda
+     * las fotos de un álbum en el mismo POST, atenderlas de a una haría que la
+     * primera se procese sola antes de que la segunda exista en la ráfaga.
+     */
+    const rafaga = await registrarRafaga(admin, mensajes);
+
+    for (const mensaje of mensajes) {
       try {
-        await procesarUnMensaje(admin, mensaje, nombresPorTelefono.get(mensaje.from || "") || "");
+        await procesarUnMensaje(admin, mensaje, nombresPorTelefono.get(mensaje.from || "") || "", rafaga);
       } catch (error) {
         console.error("WhatsApp: error procesando un mensaje entrante:", error);
       }
@@ -189,10 +198,81 @@ export async function POST(req: Request) {
   return new Response("OK", { status: 200 });
 }
 
+/**
+ * Qué se sabe de la sala de espera para los mensajes de este POST.
+ *
+ * `disponible` en false quiere decir que la tabla de la v199 no está (la
+ * migración todavía no se aplicó) o que la base falló: se atiende cada mensaje
+ * solo, como antes. Peor que juntar, mejor que no contestar.
+ */
+type EstadoRafaga = { disponible: boolean; nuevos: Set<string> };
+
+async function registrarRafaga(
+  admin: ReturnType<typeof adminSinTipos>,
+  mensajes: MensajeEntrante[],
+): Promise<EstadoRafaga> {
+  const entradas = mensajes.map(entradaDeMensaje).filter((e) => e !== null);
+  if (entradas.length === 0) return { disponible: true, nuevos: new Set() };
+
+  const { data, error } = await admin
+    .from("eos_whatsapp_rafaga_v199")
+    .upsert(entradas, { onConflict: "wa_id", ignoreDuplicates: true })
+    .select("wa_id");
+
+  if (error) {
+    console.error("WhatsApp: no se pudo anotar la ráfaga; cada mensaje va solo:", error);
+    return { disponible: false, nuevos: new Set() };
+  }
+
+  // Lo que no volvió ya estaba: es un reintento de Meta de algo ya anotado.
+  return { disponible: true, nuevos: new Set((data ?? []).map((f: { wa_id: string }) => f.wa_id)) };
+}
+
+/**
+ * Espera a que la ráfaga termine y, si este mensaje es el último, devuelve el
+ * lote entero. `null` si el lote lo toma otro webhook (llegó uno más nuevo) o
+ * si este mensaje es un reintento de algo que ya se atendió.
+ */
+async function esperarLote(
+  admin: ReturnType<typeof adminSinTipos>,
+  mensaje: MensajeEntrante,
+  rafaga: EstadoRafaga,
+): Promise<Lote | null> {
+  const entrada = entradaDeMensaje(mensaje);
+  if (!entrada) return null;
+
+  const solo = (): Lote => unirLote([{ ...entrada, id: 0, recibido_en: "" }]);
+
+  if (!rafaga.disponible) return solo();
+  if (!rafaga.nuevos.has(entrada.wa_id)) return null;
+
+  await new Promise((listo) => setTimeout(listo, ESPERA_RAFAGA_MS));
+
+  const { data, error } = await admin.rpc("eos_whatsapp_rafaga_tomar_v199", {
+    p_telefono: entrada.telefono,
+    p_wa_id: entrada.wa_id,
+  });
+
+  if (error) {
+    console.error("WhatsApp: no se pudo tomar el lote de la ráfaga; va solo:", error);
+    return solo();
+  }
+
+  const filas = (data ?? []) as FilaRafaga[];
+  if (filas.length === 0) return null;
+
+  if (filas.length > 1) {
+    console.log(`WhatsApp: ${filas.length} mensajes juntos en un pedido (${filas.map((f) => f.tipo).join(", ")}).`);
+  }
+
+  return unirLote(filas);
+}
+
 async function procesarUnMensaje(
   admin: ReturnType<typeof adminSinTipos>,
   mensaje: MensajeEntrante,
   nombrePerfil: string,
+  rafaga: EstadoRafaga,
 ) {
   const desde = String(mensaje.from || "").trim();
   if (!desde) return;
@@ -210,11 +290,11 @@ async function procesarUnMensaje(
   }
 
   if (!vinculo) {
-    await atenderNumeroSinVinculo(admin, desde, mensaje, nombrePerfil);
+    await atenderNumeroSinVinculo(admin, desde, mensaje, nombrePerfil, rafaga);
     return;
   }
 
-  await atenderMensajeVinculado(admin, vinculo, mensaje, desde);
+  await atenderMensajeVinculado(admin, vinculo, mensaje, desde, rafaga);
 }
 
 function sinAcentos(texto: string): string {
@@ -276,6 +356,7 @@ async function atenderNumeroSinVinculo(
   desde: string,
   mensaje: MensajeEntrante,
   nombrePerfil: string,
+  rafaga: EstadoRafaga,
 ) {
   const textoRecibido = mensaje.type === "text" ? String(mensaje.text?.body || "").trim() : "";
   const codigo = textoRecibido.replace(/\D/g, "");
@@ -297,7 +378,7 @@ async function atenderNumeroSinVinculo(
     return;
   }
 
-  await atenderMensajeVinculado(admin, vinculo, mensaje, desde);
+  await atenderMensajeVinculado(admin, vinculo, mensaje, desde, rafaga);
 }
 
 async function confirmarCodigo(admin: ReturnType<typeof adminSinTipos>, desde: string, codigo: string) {
@@ -408,39 +489,51 @@ async function atenderMensajeVinculado(
   vinculo: { usuario_id: string; conversacion_id: string | null },
   mensaje: MensajeEntrante,
   desde: string,
+  rafaga: EstadoRafaga,
 ) {
   const usuarioId = vinculo.usuario_id;
 
-  let mensajeTexto = "";
-  let archivos: ArchivoEOS[] = [];
+  /*
+   * Las fotos de un álbum, su pie de foto y el texto que venga pegado llegan
+   * como mensajes sueltos: se juntan en UN pedido (v199). Si este mensaje no
+   * es el último de la ráfaga, lo atiende el último.
+   */
+  const lote = await esperarLote(admin, mensaje, rafaga);
+  if (!lote) return;
 
-  if (mensaje.type === "text") {
-    mensajeTexto = String(mensaje.text?.body || "").trim();
-  } else if (mensaje.type === "image" || mensaje.type === "document" || mensaje.type === "audio") {
-    const media =
-      mensaje.type === "image" ? mensaje.image : mensaje.type === "document" ? mensaje.document : mensaje.audio;
+  let mensajeTexto = lote.texto;
 
-    // El audio no trae pie de foto: WhatsApp no lo ofrece para notas de voz.
-    mensajeTexto = mensaje.type === "audio" ? "" : String((media as { caption?: string })?.caption || "").trim();
+  const descargados = await Promise.all(
+    lote.medios.map((m) => descargarMedia(m.media_id, m.mime_type, m.nombre)),
+  );
+  const archivos: ArchivoEOS[] = descargados.filter((a): a is ArchivoEOS => a !== null);
 
-    if (media?.id) {
-      const archivo = await descargarMedia(
-        media.id,
-        media.mime_type || "",
-        (mensaje.type === "document" && "filename" in (media || {}) ? (media as { filename?: string }).filename : undefined) ||
-          `whatsapp-${mensaje.type}`,
-      );
-      if (archivo) archivos = [archivo];
-    }
-  } else {
-    await enviarTexto(
-      desde,
-      "Por ahora puedo leer texto, imágenes, documentos y audios. Probá mandarlo de otra forma.",
-    );
+  if (lote.noLegibles.length > 0) {
+    console.warn(`WhatsApp: llegaron tipos que no se leen (${lote.noLegibles.join(", ")}).`);
+  }
+
+  if (!mensajeTexto && archivos.length === 0) {
+    /*
+     * Nada que el motor pueda leer. Antes esto contestaba "puedo leer texto,
+     * imágenes..." aunque la persona acabara de mandar imágenes, o callaba si
+     * la foto no se pudo bajar. Se dice qué pasó de verdad.
+     */
+    const aviso =
+      lote.medios.length > 0
+        ? "No pude bajar la foto que me mandaste desde WhatsApp. Mandala de nuevo y la miro."
+        : avisoNoLegible(lote.noLegibles);
+    if (aviso) await enviarTexto(desde, aviso);
     return;
   }
 
-  if (!mensajeTexto && archivos.length === 0) return;
+  if (archivos.length < lote.medios.length) {
+    const faltan = lote.medios.length - archivos.length;
+    const aviso =
+      faltan === 1
+        ? "(Una de las fotos no me llegó bien desde WhatsApp: si falta algo, mandala de nuevo.)"
+        : `(${faltan} de las fotos no me llegaron bien desde WhatsApp: si falta algo, mandalas de nuevo.)`;
+    mensajeTexto = mensajeTexto ? `${mensajeTexto}\n\n${aviso}` : aviso;
+  }
 
   /*
    * Una imagen sin texto llega con `mensajeTexto` vacío, y el gateway exige
@@ -533,7 +626,7 @@ async function atenderMensajeVinculado(
     origen: "whatsapp",
     nuevoChat: false,
     cita: null,
-    requestId: idDeterministico(mensaje.id || `${usuarioId}:${Date.now()}`),
+    requestId: idDeterministico(lote.ultimoId || mensaje.id || `${usuarioId}:${Date.now()}`),
     requestOrigin: process.env.EOS_APP_BASE_URL || "https://www.transtech.com.py",
   });
 
