@@ -51,6 +51,8 @@ export type ResumenCaptura = {
   fallidos: number;
   /** Gemelos escritos. Menos que `usuarios` es lo normal: los sin cambios se saltean. */
   gemelos: number;
+  /** El motivo de cada fallo, para que quien acota a una cuenta pueda mostrarlo. */
+  errores: string[];
 };
 
 export async function capturarIndicadores(
@@ -62,7 +64,7 @@ export async function capturarIndicadores(
    */
   opciones: { hoy: string; usuarioId?: string },
 ): Promise<ResumenCaptura> {
-  const resumen: ResumenCaptura = { usuarios: 0, filas: 0, fallidos: 0, gemelos: 0 };
+  const resumen: ResumenCaptura = { usuarios: 0, filas: 0, fallidos: 0, gemelos: 0, errores: [] };
 
   let consulta = admin
     .from("eos_usuario_modulos")
@@ -75,6 +77,7 @@ export async function capturarIndicadores(
 
   if (error) {
     console.error("KPI: no se pudo listar a quién capturar:", error);
+    resumen.errores.push(`No se pudo listar los módulos: ${motivo(error)}`);
     return resumen;
   }
 
@@ -120,6 +123,7 @@ export async function capturarIndicadores(
       if (errorGuardar) {
         console.error(`KPI: no se pudo guardar la historia de ${usuarioId}:`, errorGuardar);
         resumen.fallidos++;
+        resumen.errores.push(`No se pudo guardar la foto: ${motivo(errorGuardar)}`);
         continue;
       }
 
@@ -170,8 +174,14 @@ export async function capturarIndicadores(
     } catch (e) {
       console.error(`KPI: falló la captura de ${usuarioId}:`, e);
       resumen.fallidos++;
+      resumen.errores.push(`Falló el cálculo de los indicadores: ${motivo(e)}`);
     }
   }
 
   return resumen;
+}
+
+export function motivo(e: unknown): string {
+  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  return String(e);
 }

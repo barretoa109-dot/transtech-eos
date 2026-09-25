@@ -46,6 +46,8 @@ export type BriefingApiResponse = {
   score_history?: ScorePunto[] | null;
   /** El score del negocio y el personal de cada día, rearmado desde los indicadores. */
   score_series?: SeriesScore | null;
+  /** Por qué hay o no hay score. Ver `lib/kpi/scoreBriefing.ts`. */
+  score_diagnostico?: DiagnosticoScore | null;
   is_stale: boolean;
   error?: string;
 };
@@ -53,3 +55,11 @@ export type BriefingApiResponse = {
 export type ScorePunto = { fecha: string; score: number };
 
 export type SeriesScore = { negocio: ScorePunto[]; personal: ScorePunto[] };
+
+export type DiagnosticoScore = {
+  foto_hoy: "ya_estaba" | "sacada" | "no_se_pudo";
+  filas_historia: number;
+  negocio: { habilitado: boolean; dias: number; errores: string[] };
+  personal: { habilitado: boolean; dias: number; errores: string[] };
+  errores: string[];
+};
