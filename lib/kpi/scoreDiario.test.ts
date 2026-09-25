@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scoresPorDia, type FilaHistoriaScore } from "./scoreDiario.ts";
+import { scoresEOSPorDia, scoresPorDia, type FilaHistoriaScore } from "./scoreDiario.ts";
 
 const DIMS = [
   { id: "a", nombre: "A", indicadores: ["x1", "x2"] },
@@ -61,4 +61,25 @@ test("puntúa en la moneda con más indicadores ese día", () => {
     UMBRALES,
   );
   assert.deepEqual(serie, [{ fecha: "2026-09-20", score: 100 }]);
+});
+
+test("el EOS Score del día promedia negocio y personal, o toma el único que haya", () => {
+  const eos = scoresEOSPorDia({
+    negocio: [
+      { fecha: "2026-09-20", score: 40 },
+      { fecha: "2026-09-21", score: 81 },
+    ],
+    personal: [
+      { fecha: "2026-09-21", score: 60 },
+      { fecha: "2026-09-22", score: 70 },
+    ],
+  });
+  assert.deepEqual(
+    [...eos],
+    [
+      ["2026-09-20", 40],
+      ["2026-09-21", 71],
+      ["2026-09-22", 70],
+    ],
+  );
 });
