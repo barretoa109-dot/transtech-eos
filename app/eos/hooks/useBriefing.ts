@@ -7,12 +7,15 @@ import type {
   Briefing,
   BriefingApiResponse,
   BriefingItem,
+  ScorePunto,
 } from "../types/briefing";
 
 export function useBriefing(nombre: string) {
   const supabase = useMemo(() => createClient(), []);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [history, setHistory] = useState<Briefing[]>([]);
+  // null = la API no mandó la serie; el Dashboard cae al historial corto.
+  const [scoreHistory, setScoreHistory] = useState<ScorePunto[] | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +38,13 @@ export function useBriefing(nombre: string) {
 
       setBriefing(data.briefing ? normalizeBriefing(data.briefing) : null);
       setHistory((data.history ?? []).map(normalizeBriefing));
+      setScoreHistory(
+        Array.isArray(data.score_history)
+          ? data.score_history
+              .filter((p) => p && typeof p.fecha === "string" && Number.isFinite(p.score))
+              .map((p) => ({ fecha: p.fecha, score: clampScore(p.score) }))
+          : null,
+      );
       setIsStale(Boolean(data.is_stale));
       setError(null);
     } catch (loadError) {
@@ -129,6 +139,7 @@ export function useBriefing(nombre: string) {
     briefing,
     briefingVisible,
     history,
+    scoreHistory,
     isStale,
     loading,
     refreshing,

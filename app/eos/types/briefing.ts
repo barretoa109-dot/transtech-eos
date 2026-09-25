@@ -42,6 +42,10 @@ export type Briefing = {
 export type BriefingApiResponse = {
   briefing: Briefing | null;
   history: Briefing[];
+  /** Fecha y score de cada briefing del último año, del más viejo al más nuevo. */
+  score_history?: ScorePunto[] | null;
   is_stale: boolean;
   error?: string;
 };
+
+export type ScorePunto = { fecha: string; score: number };

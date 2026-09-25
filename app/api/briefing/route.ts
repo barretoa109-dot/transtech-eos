@@ -41,10 +41,40 @@ export async function GET() {
   const briefings = data ?? [];
   const latest = briefings[0] ?? null;
 
+  /*
+   * La serie del gráfico va aparte y liviana.
+   *
+   * `history` trae los últimos 7 briefings completos —textos, riesgos,
+   * fuentes— y con eso el gráfico del Dashboard no podía mostrar más que una
+   * semana: los filtros de 30, 90 y 365 días recortaban una lista que nunca
+   * tuvo más de 7 filas. Subir el límite de `history` mandaría un año de
+   * textos para dibujar dos números por día; acá van solo la fecha y el score.
+   */
+  const desde = new Date();
+  desde.setDate(desde.getDate() - 366);
+  const { data: serie, error: errorSerie } = await supabase
+    .from("eos_daily_briefings")
+    .select("briefing_date,score,generated_at")
+    .eq("usuario_id", user.id)
+    .eq("estado", "listo")
+    .not("briefing_date", "is", null)
+    .not("score", "is", null)
+    .gte("briefing_date", desde.toISOString().slice(0, 10))
+    .order("briefing_date", { ascending: true })
+    .order("generated_at", { ascending: true })
+    .limit(800);
+
+  // Sin la serie el briefing sigue sirviendo: se loguea y el gráfico cae al
+  // historial corto en vez de tumbar toda la respuesta.
+  if (errorSerie) console.error("No se pudo cargar la serie del score:", errorSerie);
+
   return NextResponse.json(
     {
       briefing: latest,
       history: briefings,
+      score_history: errorSerie
+        ? null
+        : (serie ?? []).map((fila) => ({ fecha: fila.briefing_date as string, score: fila.score as number })),
       is_stale:
         latest?.briefing_date !== currentDateInParaguay(),
     },

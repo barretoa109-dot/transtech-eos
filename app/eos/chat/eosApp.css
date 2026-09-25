@@ -2120,48 +2120,317 @@
   background: var(--blue-solido);
   display: inline-block;
 }
-.eos-app .chart-svg {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-.eos-app .chart-svg .grid-line {
-  stroke: var(--line);
-  stroke-width: 1;
-}
-.eos-app .chart-svg .axis-label {
-  font-size: 10.5px;
-  fill: var(--muted);
-}
-.eos-app .chart-svg .area-fill {
-  fill: url(#eosAreaGrad);
-  stroke: none;
-}
-.eos-app .chart-svg .line-path {
-  fill: none;
-  stroke: var(--blue);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.eos-app .chart-svg .dot {
-  fill: #fff;
-  stroke: var(--blue);
-  stroke-width: 2.5;
-}
-.eos-app .chart-svg .dot.last {
-  fill: var(--blue);
-}
-.eos-app .chart-svg .val-label {
-  font-size: 11px;
-  font-weight: 700;
-  fill: var(--blue-dark);
-}
 .eos-app .chart-empty {
   font-size: 13px;
   color: var(--muted);
   text-align: center;
   padding: 30px 0;
+}
+
+/* ---- Evolución del EOS Score ---- */
+.eos-app .evo-card {
+  position: relative;
+}
+.eos-app .evo-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.eos-app .evo-sub {
+  margin-bottom: 0;
+}
+.eos-app .evo-periodos {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 10px;
+  background: var(--line-soft);
+  border: 1px solid var(--line);
+}
+.eos-app .evo-periodos button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+.eos-app .evo-periodos button:hover {
+  color: var(--ink);
+}
+.eos-app .evo-periodos button.activo {
+  background: var(--panel);
+  color: var(--blue);
+  box-shadow: 0 1px 3px var(--sombra);
+}
+.eos-app .evo-periodos button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+.eos-app .evo-resumen {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 16px 0 8px;
+}
+.eos-app .evo-actual {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.eos-app .evo-numero {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .evo-de {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.eos-app .evo-zona {
+  margin-left: 8px;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.eos-app .evo-zona.alto {
+  background: var(--green-light);
+  color: var(--green-texto);
+}
+.eos-app .evo-zona.medio {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+.eos-app .evo-zona.bajo {
+  background: var(--red-light);
+  color: var(--red-texto);
+}
+.eos-app .evo-cambio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  padding-bottom: 3px;
+}
+.eos-app .evo-cambio span {
+  font-weight: 500;
+  color: var(--muted);
+}
+.eos-app .evo-cambio.sube,
+.eos-app .evo-tt-delta.sube {
+  color: var(--green-texto);
+}
+.eos-app .evo-cambio.baja,
+.eos-app .evo-tt-delta.baja {
+  color: var(--red-texto);
+}
+.eos-app .evo-cambio.igual,
+.eos-app .evo-tt-delta.igual {
+  color: var(--muted);
+}
+.eos-app .evo-stats {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 0 auto;
+}
+.eos-app .evo-stats div {
+  text-align: right;
+}
+.eos-app .evo-stats dt {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.eos-app .evo-stats dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .evo-lienzo {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin-top: 6px;
+}
+/* La regla global `.eos-app svg` (la de los iconos de lucide) fija 18x18 y le
+   pone `stroke` a todo lo de adentro, texto incluido: sin estas tres líneas el
+   gráfico colapsa a un cuadradito y las fechas salen con contorno, borroneadas. */
+.eos-app .evo-svg {
+  display: block;
+  width: auto;
+  height: auto;
+  stroke: none;
+  max-width: 100%;
+  overflow: visible;
+  color: var(--blue);
+  touch-action: pan-y;
+  cursor: crosshair;
+  outline: none;
+}
+.eos-app .evo-svg:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+.eos-app .evo-franja {
+  opacity: 0.06;
+}
+.eos-app .evo-franja.alto {
+  fill: var(--green);
+}
+.eos-app .evo-franja.medio {
+  fill: var(--amber);
+}
+.eos-app .evo-franja.bajo {
+  fill: var(--red);
+}
+.eos-app .evo-grilla {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.eos-app .evo-grilla.base {
+  stroke-dasharray: none;
+}
+.eos-app .evo-eje-y,
+.eos-app .evo-eje-x {
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .evo-linea {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: evo-trazo 0.9s var(--ease) both;
+}
+.eos-app .evo-area {
+  animation: evo-aparecer 0.9s var(--ease) both;
+}
+@keyframes evo-trazo {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+@keyframes evo-aparecer {
+  from {
+    opacity: 0;
+  }
+}
+.eos-app .evo-guia {
+  stroke: var(--blue);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.6;
+}
+.eos-app .evo-punto {
+  fill: var(--panel);
+  stroke: var(--blue);
+  stroke-width: 2;
+  transition: r 0.15s var(--ease);
+}
+.eos-app .evo-punto.ultimo,
+.eos-app .evo-punto.activo {
+  fill: var(--blue);
+  stroke: var(--panel);
+  stroke-width: 2.5;
+}
+.eos-app .evo-halo {
+  fill: var(--blue);
+  opacity: 0.15;
+}
+.eos-app .evo-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 16px));
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px var(--sombra);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 120px;
+  text-align: center;
+  z-index: 2;
+}
+.eos-app .evo-tt-fecha {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.eos-app .evo-tt-valor {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.eos-app .evo-tt-valor strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.eos-app .evo-tt-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.eos-app .evo-nota {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.eos-app .evo-nota.aviso {
+  color: var(--amber);
+  background: var(--amber-light);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+@media (max-width: 520px) {
+  .eos-app .evo-periodos {
+    width: 100%;
+  }
+  .eos-app .evo-periodos button {
+    flex: 1;
+    padding: 6px 4px;
+  }
+  .eos-app .evo-stats {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 10px;
+  }
+  .eos-app .evo-stats div {
+    text-align: left;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eos-app .evo-linea,
+  .eos-app .evo-area {
+    animation: none;
+  }
 }
 
 /* ---- priority list ---- */
