@@ -115,6 +115,7 @@ export default function EOSPage() {
   const {
     briefingVisible,
     history: briefingHistory,
+    scoreHistory,
     isStale: briefingIsStale,
     loading: briefingLoading,
     refreshing: briefingRefreshing,
@@ -382,6 +383,7 @@ export default function EOSPage() {
             key={`${usuarioId}-${nombre}`}
             briefing={briefingVisible}
             briefingHistory={briefingHistory}
+            scoreHistory={scoreHistory}
             plan={plan}
             totalConversations={conversaciones.length}
             totalMessages={historial.length}

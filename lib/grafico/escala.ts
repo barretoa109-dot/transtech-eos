@@ -5,7 +5,7 @@
  * POR QUÉ ESTO Y NO UN <Grafico /> QUE LO HAGA TODO
  * ============================================================
  *
- * `ScoreChart`, `Historia` (FinanzasDestino) y el de FinanzasTrayectoria
+ * `LineaSVG`, `Historia` (FinanzasDestino) y el de FinanzasTrayectoria
  * comparten el andamiaje —constantes de tamaño, escalas x/y, armado del
  * atributo `d`— pero NO comparten las marcas: uno dibuja línea con área, otro
  * barras con una línea de neto encima, y el tercero además pinta la franja de
