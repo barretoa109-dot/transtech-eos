@@ -4,7 +4,9 @@
  *     SECO=1 node n8n/parches/2026-09-25-venta-con-costo.mjs   (prueba: no escribe)
  *     node n8n/parches/2026-09-25-venta-con-costo.mjs          (escribe)
  *
- * gateway: el prompt (nodo HTTP Request).
+ * gateway: el prompt (nodo HTTP Request) y el nodo "06 GW Preparar Jobs Worker",
+ *          que copia a la venta el costo que el modelo escribió en el texto
+ *          si se olvidó de mandarlo (`cambios-costo-del-texto.mjs`).
  * worker:  la frase de la venta (nodo "05 INT Respuesta").
  *
  * El porqué está en `cambios-venta-con-costo.mjs` y en la migración v198.
@@ -23,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { verificarFlujo } from "./verificar.mjs";
+import { aplicar as aplicarCostoDelTexto } from "./cambios-costo-del-texto.mjs";
 import { aplicarPrompt, aplicarWorker } from "./cambios-venta-con-costo.mjs";
 
 const RAIZ = path.resolve(
@@ -102,6 +105,9 @@ respaldar(gateway, "gateway");
 
 const http = nodo(gateway, "HTTP Request");
 http.parameters.jsonBody = aplicarPrompt(http.parameters.jsonBody, "prompt de n8n");
+
+const g06 = nodo(gateway, "06 GW Preparar Jobs Worker");
+g06.parameters.jsCode = aplicarCostoDelTexto(g06.parameters.jsCode, "06 GW Preparar Jobs Worker");
 
 // ------------------------------------------------------------------- worker
 const worker = await traer(WORKER);

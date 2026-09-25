@@ -319,6 +319,70 @@ export function costoDespuesDeCrear(acciones: Accion[]): Accion[] {
   return [...resto.slice(0, corte), ...diferidas, ...resto.slice(corte)];
 }
 
+/**
+ * El costo que el modelo ESCRIBIÓ en la respuesta viaja con la venta
+ * (25/09/2026, v198).
+ *
+ * Caso real: "Zapatos Mary Jane: venta ₲180.000, costo ₲146.473,876, margen
+ * 18,63%" en el texto, y la venta sin `costo_unitario`. El prompt ya le pide
+ * que lo mande, pero eso es "casi siempre". Si el texto le muestra a la persona
+ * un costo para un producto de la venta, ese costo va en el ítem: lo que se le
+ * dice y lo que queda guardado no pueden ser dos cosas distintas.
+ *
+ * Solo completa, nunca pisa: un `costo_unitario` que el modelo mandó gana. Solo
+ * mira la MISMA línea que nombra al producto, y solo un número pegado a la
+ * palabra "costo". En el texto del modelo la coma es decimal y el punto es de
+ * miles (así escribe los guaraníes). La base igual descarta un costo absurdo.
+ * Mismo cálculo en el nodo 06 de n8n (`n8n/parches/cambios-costo-del-texto.mjs`).
+ */
+export function costoDesdeLaRespuesta(acciones: Accion[], respuesta: string): Accion[] {
+  const plano = (t: string) =>
+    String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+  const lineas = String(respuesta ?? "").split("\n").map(plano);
+  if (!lineas.some((l) => l.includes("costo"))) return acciones;
+
+  const leer = (t: string): number | null => {
+    const limpio = t.replace(/[.,]+$/, "");
+    let n: number;
+    if (limpio.includes(",")) n = Number(limpio.replace(/\./g, "").replace(",", "."));
+    else if (/^\d{1,3}(\.\d{3})+$/.test(limpio)) n = Number(limpio.replace(/\./g, ""));
+    else n = Number(limpio);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  const costoDe = (producto: string): number | null => {
+    const nombre = plano(producto);
+    if (nombre.length < 3) return null;
+    for (const linea of lineas) {
+      const desde = linea.indexOf(nombre);
+      if (desde < 0) continue;
+      const m = linea.slice(desde + nombre.length).match(/\bcosto(?: unitario)?:? (?:de )?(?:(?:₲|gs\.?) ?)?(\d[\d.,]*)/);
+      if (m) return leer(m[1]);
+    }
+    return null;
+  };
+
+  return acciones.map((a) => {
+    if (String(a.tipo || "").trim().toUpperCase() !== "REGISTRAR_VENTA") return a;
+    const datos = (a.datos && typeof a.datos === "object" ? a.datos : {}) as Record<string, unknown>;
+    if (!Array.isArray(datos.items)) return a;
+
+    let cambio = false;
+    const items = datos.items.map((item) => {
+      if (!item || typeof item !== "object") return item;
+      const r = item as Record<string, unknown>;
+      if (r.costo_unitario != null || r.costo != null) return item;
+      const costo = costoDe(String(r.producto ?? r.nombre ?? r.descripcion ?? ""));
+      if (costo === null) return item;
+      cambio = true;
+      return { ...r, costo_unitario: costo };
+    });
+
+    return cambio ? { ...a, datos: { ...datos, items } } : a;
+  });
+}
+
 export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
   const sinAcciones = r.acciones.length === 0;
   const pedidas: Accion[] = sinAcciones ? [{ tipo: "RESPONDER", datos: {} }] : r.acciones;
@@ -337,7 +401,7 @@ export function armarJobs(e: Entrada, r: RespuestaGateway): Job[] {
     return true;
   });
 
-  const acciones = costoDespuesDeCrear(unicas);
+  const acciones = costoDesdeLaRespuesta(costoDespuesDeCrear(unicas), r.respuesta);
 
   const porTipo = new Map<string, number>();
 
