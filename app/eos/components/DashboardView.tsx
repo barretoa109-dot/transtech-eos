@@ -4,14 +4,16 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } from "lucide-react";
 import PanelIndicadores from "./PanelIndicadores";
 import Hallazgos from "./Hallazgos";
-import EvolucionScore from "./graficos/EvolucionScore";
-import type { Briefing, ScorePunto } from "../types/briefing";
+import EvolucionScore, { type FuenteScore } from "./graficos/EvolucionScore";
+import type { Briefing, ScorePunto, SeriesScore } from "../types/briefing";
 
 type DashboardViewProps = {
   briefing: Briefing;
   briefingHistory: Briefing[];
   /** La serie de un año del score. null si la API no la mandó. */
   scoreHistory: ScorePunto[] | null;
+  /** El score del negocio y el personal de cada día. null si la API no lo mandó. */
+  scoreSeries: SeriesScore | null;
   plan: string;
   totalConversations: number;
   totalMessages: number;
@@ -22,6 +24,7 @@ export default function DashboardView({
   briefing,
   briefingHistory,
   scoreHistory,
+  scoreSeries,
   totalConversations,
   totalMessages,
   onOpenChat,
@@ -49,6 +52,34 @@ export default function DashboardView({
         .reverse(),
     [scoreHistory, briefingHistory],
   );
+
+  /*
+   * Qué se grafica.
+   *
+   * El score de cada día rearmado desde los indicadores —el del negocio y el
+   * personal, cada uno por separado— es el que se mueve con los datos. El del
+   * briefing queda solo como último recurso: para casi todas las cuentas es un
+   * 0 de relleno (ver `lib/kpi/scoreDiario.ts`).
+   */
+  const fuentesScore = useMemo<FuenteScore[]>(() => {
+    const fuentes: FuenteScore[] = [];
+    if (scoreSeries?.negocio.length) {
+      fuentes.push({ clave: "negocio", label: "Negocio", puntos: scoreSeries.negocio, unidad: "día" });
+    }
+    if (scoreSeries?.personal.length) {
+      fuentes.push({ clave: "personal", label: "Personal", puntos: scoreSeries.personal, unidad: "día" });
+    }
+    if (fuentes.length === 0) {
+      fuentes.push({ clave: "briefing", label: "Briefing", puntos: puntosScore, unidad: "briefing" });
+    }
+    return fuentes;
+  }, [scoreSeries, puntosScore]);
+
+  // La tarjeta de arriba muestra el último punto de la misma serie que abre el
+  // gráfico, para que los dos números no se contradigan.
+  const ultimoScore = fuentesScore[0].puntos.length
+    ? [...fuentesScore[0].puntos].sort((a, b) => (a.fecha < b.fecha ? -1 : 1)).at(-1)!.score
+    : (briefing.score ?? 0);
 
   return (
     <div className="view" id="view-dashboard">
@@ -89,9 +120,9 @@ export default function DashboardView({
         <div className="kpi-grid">
           <div className="kpi-card" style={{ animationDelay: ".04s" }}>
             <div className="l">EOS Score</div>
-            <div className="v">{briefing.score ?? 0}</div>
-            <div className={`d ${(briefing.score ?? 0) >= 50 ? "up" : "warn"}`}>
-              {(briefing.score ?? 0) >= 50 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+            <div className="v">{ultimoScore}</div>
+            <div className={`d ${ultimoScore >= 50 ? "up" : "warn"}`}>
+              {ultimoScore >= 50 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
               sobre 100
             </div>
           </div>
@@ -114,7 +145,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        <EvolucionScore puntos={puntosScore} />
+        <EvolucionScore fuentes={fuentesScore} />
 
         <div className="card">
           <div className="card-title">Prioridades de hoy</div>

@@ -8,6 +8,7 @@ import type {
   BriefingApiResponse,
   BriefingItem,
   ScorePunto,
+  SeriesScore,
 } from "../types/briefing";
 
 export function useBriefing(nombre: string) {
@@ -16,6 +17,7 @@ export function useBriefing(nombre: string) {
   const [history, setHistory] = useState<Briefing[]>([]);
   // null = la API no mandó la serie; el Dashboard cae al historial corto.
   const [scoreHistory, setScoreHistory] = useState<ScorePunto[] | null>(null);
+  const [scoreSeries, setScoreSeries] = useState<SeriesScore | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -43,6 +45,11 @@ export function useBriefing(nombre: string) {
           ? data.score_history
               .filter((p) => p && typeof p.fecha === "string" && Number.isFinite(p.score))
               .map((p) => ({ fecha: p.fecha, score: clampScore(p.score) }))
+          : null,
+      );
+      setScoreSeries(
+        data.score_series
+          ? { negocio: limpiarSerie(data.score_series.negocio), personal: limpiarSerie(data.score_series.personal) }
           : null,
       );
       setIsStale(Boolean(data.is_stale));
@@ -140,6 +147,7 @@ export function useBriefing(nombre: string) {
     briefingVisible,
     history,
     scoreHistory,
+    scoreSeries,
     isStale,
     loading,
     refreshing,
@@ -185,6 +193,13 @@ function normalizeItems(value: unknown): BriefingItem[] {
     })
     .filter((item): item is BriefingItem => Boolean(item))
     .slice(0, 5);
+}
+
+function limpiarSerie(serie: unknown): ScorePunto[] {
+  if (!Array.isArray(serie)) return [];
+  return serie
+    .filter((p) => p && typeof p.fecha === "string" && Number.isFinite(p.score))
+    .map((p) => ({ fecha: p.fecha as string, score: clampScore(p.score as number) }));
 }
 
 function clampScore(value?: number) {

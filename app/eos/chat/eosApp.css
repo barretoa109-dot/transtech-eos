@@ -2141,6 +2141,11 @@
 .eos-app .evo-sub {
   margin-bottom: 0;
 }
+.eos-app .evo-controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .eos-app .evo-periodos {
   display: inline-flex;
   padding: 3px;
@@ -2408,6 +2413,9 @@
   padding: 10px 12px;
 }
 @media (max-width: 520px) {
+  .eos-app .evo-controles {
+    width: 100%;
+  }
   .eos-app .evo-periodos {
     width: 100%;
   }
