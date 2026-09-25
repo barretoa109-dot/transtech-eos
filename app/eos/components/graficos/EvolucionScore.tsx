@@ -46,8 +46,22 @@ const ZONA_TEXTO = { bajo: "Crítico", medio: "En desarrollo", alto: "Saludable"
  * - Los filtros de período recortaban un historial que la API cortaba en 7
  *   filas. La serie ahora llega aparte, con un año de datos.
  */
-export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
+export type FuenteScore = {
+  clave: string;
+  /** Lo que dice el selector cuando hay más de una fuente. */
+  label: string;
+  puntos: PuntoScore[];
+  /** "día" para los scores rearmados desde indicadores, "briefing" para los del briefing. */
+  unidad: "día" | "briefing";
+};
+
+export default function EvolucionScore({ fuentes }: { fuentes: FuenteScore[] }) {
   const [dias, setDias] = useState<number>(30);
+  const [claveFuente, setClaveFuente] = useState<string | null>(null);
+  const fuente = fuentes.find((f) => f.clave === claveFuente) ?? fuentes[0];
+  const puntos = useMemo(() => fuente?.puntos ?? [], [fuente]);
+  const unidad = fuente?.unidad ?? "briefing";
+  const plural = unidad === "día" ? "días con datos" : "briefings";
   const [activo, setActivo] = useState<number | null>(null);
   const idGradiente = useId().replace(/:/g, "");
 
@@ -92,7 +106,9 @@ export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
 
   const etiquetas = indicesDeEtiquetas(serie.length, utilAncho, 58);
   const mostrarPuntos = serie.length <= 31;
-  const todoCero = serie.length > 0 && serie.every((p) => p.score === 0);
+  // Solo el score del briefing tiene ceros de relleno; uno rearmado desde los
+  // indicadores que da 0 es un 0 de verdad y no lleva este aviso.
+  const todoCero = unidad === "briefing" && serie.length > 0 && serie.every((p) => p.score === 0);
 
   const iActivo = activo !== null && activo < serie.length ? activo : null;
   const puntoActivo = iActivo !== null ? serie[iActivo] : null;
@@ -126,10 +142,29 @@ export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
           <div className="card-title">Evolución del EOS Score</div>
           <div className="card-sub evo-sub">
             {serie.length === 0
-              ? "Sin briefings en este período"
-              : `${serie.length} ${serie.length === 1 ? "briefing" : "briefings"} en los últimos ${dias} días`}
+              ? "Sin datos en este período"
+              : `${serie.length} ${serie.length === 1 ? (unidad === "día" ? "día con datos" : "briefing") : plural} en los últimos ${dias} días`}
           </div>
         </div>
+        <div className="evo-controles">
+        {fuentes.length > 1 && (
+          <div className="evo-periodos evo-fuentes" role="group" aria-label="Qué score mirar">
+            {fuentes.map((f) => (
+              <button
+                key={f.clave}
+                type="button"
+                className={fuente?.clave === f.clave ? "activo" : ""}
+                aria-pressed={fuente?.clave === f.clave}
+                onClick={() => {
+                  setClaveFuente(f.clave);
+                  setActivo(null);
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="evo-periodos" role="group" aria-label="Período del gráfico">
           {PERIODOS.map((p) => (
             <button
@@ -145,6 +180,7 @@ export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
               {p.label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -183,19 +219,19 @@ export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
         {serie.length === 0 ? (
           <div className="chart-empty">
             {hayMasViejos
-              ? "No hubo briefings en este período. Probá con un período más largo."
-              : "Todavía no hay historial. Cada briefing diario suma un punto a este gráfico."}
+              ? "No hay datos en este período. Probá con un período más largo."
+              : "Todavía no hay historial. Cada día EOS suma un punto a este gráfico."}
           </div>
         ) : (
           <>
             <svg
-              key={dias}
+              key={`${fuente?.clave}-${dias}`}
               className="evo-svg"
               width={ancho}
               height={ALTO}
               viewBox={`0 0 ${ancho} ${ALTO}`}
               role="img"
-              aria-label={`Evolución del EOS Score: ${serie.length} briefings, score actual ${resumen?.actual ?? 0} sobre 100.`}
+              aria-label={`Evolución del EOS Score: ${serie.length} ${plural}, score actual ${resumen?.actual ?? 0} sobre 100.`}
               tabIndex={0}
               onPointerDown={elegirPorPuntero}
               onPointerMove={elegirPorPuntero}
@@ -301,7 +337,7 @@ export default function EvolucionScore({ puntos }: { puntos: PuntoScore[] }) {
       </div>
 
       {serie.length === 1 && (
-        <p className="evo-nota">Con el próximo briefing vas a ver hacia dónde va la tendencia.</p>
+        <p className="evo-nota">Mañana se suma otro punto y vas a ver hacia dónde va la tendencia.</p>
       )}
       {todoCero && (
         <p className="evo-nota aviso">

@@ -44,8 +44,12 @@ export type BriefingApiResponse = {
   history: Briefing[];
   /** Fecha y score de cada briefing del último año, del más viejo al más nuevo. */
   score_history?: ScorePunto[] | null;
+  /** El score del negocio y el personal de cada día, rearmado desde los indicadores. */
+  score_series?: SeriesScore | null;
   is_stale: boolean;
   error?: string;
 };
 
 export type ScorePunto = { fecha: string; score: number };
+
+export type SeriesScore = { negocio: ScorePunto[]; personal: ScorePunto[] };
