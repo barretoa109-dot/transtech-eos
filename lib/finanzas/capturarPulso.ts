@@ -68,12 +68,49 @@ export async function capturarPulsoPersonal(
     .select("usuario_id,moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro");
   if (opciones.usuarioId) consulta = consulta.eq("usuario_id", opciones.usuarioId);
 
-  const { data: politicas, error } = await consulta;
+  const { data: politicasDeclaradas, error } = await consulta;
 
   if (error) {
     console.error("Pulso: no se pudo listar a quién capturar:", error);
+    resumen.errores.push(`No se pudo leer la Constitución Financiera: ${motivo(error)}`);
     return resumen;
   }
+
+  /*
+   * Y quien no definió su Constitución pero SÍ cargó el saldo de sus cuentas.
+   *
+   * Antes quedaba afuera, y con eso sin score personal aunque el briefing ya
+   * usara sus cuentas, tarjetas y deudas para darle prioridades: una cuenta
+   * real tenía "Gs. 5.000.000 intocables" y una tarjeta con vencimiento en el
+   * briefing, y un 0 en el score todos los días.
+   *
+   * No se inventa nada. El saldo es el que declaró en cada cuenta, y lo que
+   * solo la Constitución dice —la reserva mínima, el porcentaje de ahorro— va
+   * en 0 porque no lo declaró: el disponible real es entonces lo que tiene
+   * menos lo que ya está comprometido. Sin saldo declarado no se fotografía:
+   * sin él, el disponible sería "menos todo lo comprometido", una alarma falsa.
+   */
+  const conPolitica = new Set(((politicasDeclaradas ?? []) as Record<string, unknown>[]).map((p) => p.usuario_id as string));
+
+  let consultaCuentas = admin
+    .from("eos_finanzas_cuentas")
+    .select("usuario_id,moneda,saldo_declarado,saldo_declarado_el")
+    .eq("ambito", "personal")
+    .eq("activa", true);
+  if (opciones.usuarioId) consultaCuentas = consultaCuentas.eq("usuario_id", opciones.usuarioId);
+
+  const { data: cuentas, error: errorCuentas } = await consultaCuentas;
+  if (errorCuentas) {
+    console.error("Pulso: no se pudo leer las cuentas personales:", errorCuentas);
+    resumen.errores.push(`No se pudo leer tus cuentas personales: ${motivo(errorCuentas)}`);
+  }
+
+  const politicas = [
+    ...((politicasDeclaradas ?? []) as Record<string, unknown>[]),
+    ...politicasDesdeCuentas((cuentas ?? []) as Record<string, unknown>[], hoy).filter(
+      (p) => !conPolitica.has(p.usuario_id as string),
+    ),
+  ];
 
   const inicioDelMes = `${hoy.slice(0, 7)}-01`;
   const [anio, mes] = hoy.split("-").map(Number);
@@ -173,8 +210,9 @@ async function fotoDe(
   }));
 
   // Sin un solo movimiento no hay pulso que fotografiar: sería una fila de
-  // ceros que después se lee como un mes malo.
-  if (movimientos.length === 0) return [];
+  // ceros que después se lee como un mes malo. Con el saldo de sus cuentas
+  // declarado sí lo hay: el disponible real sale de ese saldo.
+  if (movimientos.length === 0 && !politica.desde_cuentas) return [];
 
   const deudas = (filas(deudasRes.data) as unknown as Deuda[]).map((d) => ({
     ...d,
@@ -253,6 +291,47 @@ async function fotoDe(
   });
 
   return resultados.map((r) => filaDesdeResultado(usuarioId, hoy, r));
+}
+
+/**
+ * Una política mínima armada desde las cuentas personales con saldo declarado,
+ * para quien no definió su Constitución Financiera.
+ *
+ * La moneda es la de más cuentas; el saldo, la suma de las de esa moneda; la
+ * fecha, la declaración más reciente —los movimientos anteriores a ella ya
+ * están en el saldo, y contarlos de nuevo inflaría o vaciaría el disponible—.
+ * Reserva y ahorro en 0: no los declaró, y ponerles otro número sería elegir
+ * por la persona.
+ */
+export function politicasDesdeCuentas(cuentas: Record<string, unknown>[], hoy: string): Record<string, unknown>[] {
+  const porUsuario = new Map<string, Record<string, unknown>[]>();
+  for (const c of cuentas) {
+    if (c.saldo_declarado === null || c.saldo_declarado === undefined) continue;
+    const lista = porUsuario.get(c.usuario_id as string) ?? [];
+    lista.push(c);
+    porUsuario.set(c.usuario_id as string, lista);
+  }
+
+  return [...porUsuario].map(([usuarioId, suyas]) => {
+    const cuenta = new Map<string, number>();
+    for (const c of suyas) {
+      const m = codigoMoneda(c.moneda as string | null, "PYG");
+      cuenta.set(m, (cuenta.get(m) ?? 0) + 1);
+    }
+    const moneda = [...cuenta].sort((a, b) => b[1] - a[1])[0][0];
+    const deEsa = suyas.filter((c) => codigoMoneda(c.moneda as string | null, "PYG") === moneda);
+    const fechas = deEsa.map((c) => String(c.saldo_declarado_el ?? "").slice(0, 10)).filter(Boolean).sort();
+
+    return {
+      usuario_id: usuarioId,
+      moneda,
+      saldo_inicial: deEsa.reduce((t, c) => t + num(c.saldo_declarado), 0),
+      saldo_inicial_fecha: fechas[fechas.length - 1] ?? hoy,
+      reserva_minima: 0,
+      porcentaje_ahorro: 0,
+      desde_cuentas: true,
+    };
+  });
 }
 
 /** La mediana de gasto de los meses anteriores completos. */

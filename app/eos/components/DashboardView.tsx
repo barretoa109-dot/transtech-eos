@@ -236,7 +236,7 @@ function motivosSinScore(d: DiagnosticoScore | null): string[] {
   }
 
   if (!d.personal.habilitado) {
-    motivos.push("Personal: todavía no definiste tu Constitución Financiera en Personal.");
+    motivos.push("Personal: no hay Constitución Financiera ni cuentas personales con saldo cargado. Cargá el saldo de tus cuentas en Personal.");
   } else if (d.personal.dias === 0) {
     motivos.push(
       d.personal.errores.length
