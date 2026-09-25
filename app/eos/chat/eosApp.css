@@ -4247,6 +4247,168 @@
 .eos-app .neg-module-note strong { color: var(--blue-dark); font-size: 13px; }
 .eos-app .neg-module-note p { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; }
 
+/* ------------------------------------------------------------------
+   NAVEGACIÓN DE NEGOCIO Y PERSONAL (`SeccionNav.tsx`)
+
+   Las dos secciones con el mismo esqueleto: resumen, "EOS te avisa", una
+   línea para anotar, pestañas con verbos y la configuración aparte en el
+   engranaje. Solo tokens del tema: nada acá tiene un color propio, así que
+   el modo noche sale solo.
+   ------------------------------------------------------------------ */
+
+/* Las cuatro tarjetas de Negocio llenan la fila (la grilla base es de cinco). */
+.eos-app .neg-resumen.is-negocio { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.eos-app .sec-nav {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 20px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.eos-app .sec-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.eos-app .sec-tabs::-webkit-scrollbar { display: none; }
+.eos-app .sec-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: -1px;
+  padding: 10px 14px 11px;
+  border: 0;
+  border-bottom: 2.5px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.eos-app .sec-tab:hover { color: var(--ink); }
+.eos-app .sec-tab.active {
+  border-bottom-color: var(--blue);
+  color: var(--blue);
+}
+.eos-app .sec-tab.is-ajuste { font-size: 13px; }
+.eos-app .sec-tab-aviso {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red-light);
+  color: var(--red);
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 17px;
+  text-align: center;
+}
+.eos-app .sec-subs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.eos-app .sec-subs .chip { cursor: pointer; }
+.eos-app .sec-sub-detalle {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.eos-app .sec-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--linea-azul);
+  border-radius: 14px;
+  background: var(--panel-suave);
+}
+.eos-app .sec-avisos-titulo {
+  color: var(--blue);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.eos-app .sec-aviso {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.eos-app .sec-aviso .chip { cursor: pointer; padding: 4px 12px; }
+.eos-app .sec-aviso-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.eos-app .sec-aviso-punto.is-mal { background: var(--red); }
+
+.eos-app .sec-decile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+  padding: 7px 7px 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.eos-app .sec-decile:focus-within { border-color: var(--blue); }
+.eos-app .sec-decile-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--blue-light);
+  color: var(--blue);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+.eos-app .sec-decile-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+.eos-app .sec-decile-input::placeholder { color: var(--muted); }
+.eos-app .sec-decile .reco-btn { margin-top: 0; }
+
+@media (max-width: 760px) {
+  .eos-app .neg-resumen.is-negocio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eos-app .sec-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+  .eos-app .sec-tab { position: relative; justify-content: center; padding: 11px 2px 10px; font-size: 12.5px; }
+  .eos-app .sec-tab-aviso {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    min-width: 15px;
+    padding: 0 4px;
+    font-size: 9.5px;
+    line-height: 15px;
+  }
+  .eos-app .sec-tab.is-ajuste .sec-tab-texto { display: none; }
+  .eos-app .sec-sub-detalle { flex-basis: 100%; margin-left: 2px; }
+}
+
 @media (max-width: 760px) {
   .eos-app .neg-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eos-app .neg-nav {

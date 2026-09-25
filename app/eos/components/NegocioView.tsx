@@ -10,6 +10,7 @@ import { pendientes, vigentes } from "@/lib/erp/pendientes";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
+import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
 import Pronostico from "./negocio/Pronostico";
 import Inventario from "./negocio/Inventario";
 import ResultadoView from "./negocio/Resultado";
@@ -111,8 +112,9 @@ function loVendido(items: VentaItem[] | undefined): string {
 
 type Pestania =
   | "ventas"
+  | "cobrar"
   | "compras"
-  | "cartera"
+  | "pagar"
   | "pronostico"
   | "resultado"
   | "rentabilidad"
@@ -120,58 +122,129 @@ type Pestania =
   | "inventario"
   | "emisor";
 
+type SeccionNegocio = "vender" | "comprar" | "catalogo" | "numeros" | "ajustes";
+
 /*
+ * Cuatro pestañas con verbos y la facturación aparte, en el engranaje.
+ *
  * El orden es el del día de trabajo, no el del organigrama: primero lo que
  * entra, después lo que sale, después el catálogo, y al final lo que se mira
  * de vez en cuando.
+ *
+ * Hasta esta reorganización eran nueve pestañas en cuatro bloques ("Operar",
+ * "Catálogo", "Analizar", "Configurar") que ocupaban media pantalla antes de
+ * la primera venta. Ninguna pantalla cambió: cada `clave` sigue renderizando
+ * el mismo panel. Lo único que se movió es Cartera, que se partió en las dos
+ * mitades que ya tenía por dentro —"Me deben" y "Debo"— para que cada una
+ * quede donde se la busca: lo que te deben al lado de lo que vendiste, lo que
+ * debés al lado de lo que compraste.
  *
  * Las tres primeras viven en este archivo porque comparten el estado de la
  * carga; las demás son pantallas propias en `./negocio`, que es lo que
  * mantiene este archivo legible.
  */
-const PESTANIAS: { clave: Pestania; etiqueta: string; detalle: string }[] = [
-  { clave: "ventas", etiqueta: "Ventas", detalle: "Ingresos y cobros" },
-  { clave: "compras", etiqueta: "Compras", detalle: "Gastos y proveedores" },
-  { clave: "cartera", etiqueta: "Cartera", detalle: "Lo que te deben y lo que debés" },
-  { clave: "pronostico", etiqueta: "Pronóstico", detalle: "La caja de los próximos 90 días" },
-  { clave: "resultado", etiqueta: "Resultado", detalle: "Qué quedó y con qué contás" },
-  { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
-  { clave: "productos", etiqueta: "Productos", detalle: "Catálogo y stock" },
-  { clave: "inventario", etiqueta: "Inventario", detalle: "Valor, rotación y stock quieto" },
-  { clave: "emisor", etiqueta: "Facturación", detalle: "Datos del emisor" },
+const SECCIONES: Seccion<SeccionNegocio, Pestania>[] = [
+  {
+    clave: "vender",
+    etiqueta: "Vender",
+    subs: [
+      { clave: "ventas", etiqueta: "Ventas", detalle: "Lo que vendiste y cobraste" },
+      { clave: "cobrar", etiqueta: "Por cobrar", detalle: "Lo que te deben, del atraso más viejo al más nuevo" },
+    ],
+  },
+  {
+    clave: "comprar",
+    etiqueta: "Comprar",
+    subs: [
+      { clave: "compras", etiqueta: "Compras", detalle: "Facturas de proveedores y gastos" },
+      { clave: "pagar", etiqueta: "Por pagar", detalle: "Lo que les debés a tus proveedores" },
+    ],
+  },
+  {
+    clave: "catalogo",
+    etiqueta: "Catálogo",
+    subs: [
+      { clave: "productos", etiqueta: "Productos", detalle: "Precios, costos, margen y stock" },
+      { clave: "inventario", etiqueta: "Inventario", detalle: "Valor, rotación y stock quieto" },
+    ],
+  },
+  {
+    clave: "numeros",
+    etiqueta: "Números",
+    subs: [
+      { clave: "resultado", etiqueta: "Resultado", detalle: "Qué quedó y con qué contás" },
+      { clave: "pronostico", etiqueta: "Pronóstico", detalle: "La caja de los próximos 90 días" },
+      { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
+    ],
+  },
+  {
+    clave: "ajustes",
+    etiqueta: "Facturación",
+    ajuste: true,
+    subs: [{ clave: "emisor", etiqueta: "Datos del emisor", detalle: "Lo que va impreso en cada comprobante" }],
+  },
 ];
 
-/*
- * Ocho pestañas en una sola grilla ya se leen como un menú largo. Agruparlas
- * no cambia ninguna pestaña, ni el estado, ni qué pantalla se renderiza con
- * cada `clave` — solo cómo se presenta la misma lista.
- */
-const GRUPOS_NAV: { etiqueta: string; claves: Pestania[] }[] = [
-  { etiqueta: "Operar", claves: ["ventas", "compras", "cartera"] },
-  { etiqueta: "Catálogo", claves: ["productos", "inventario"] },
-  { etiqueta: "Analizar", claves: ["pronostico", "resultado", "rentabilidad"] },
-  { etiqueta: "Configurar", claves: ["emisor"] },
-];
+/** Hoy en el reloj de quien mira, como `YYYY-MM-DD`: el mismo formato de `vence_el`. */
+function hoyIso(): string {
+  const d = new Date();
+  const dos = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+}
+
+/** Un renglón de "EOS te avisa": qué pasa y a qué pantalla lleva. */
+type Aviso = { clave: string; tono: "mal" | "atencion"; texto: string; accion: string; ir: Pestania };
 
 type NegocioViewProps = {
   /** Abre el chat completo — ver la misma nota en GastosView. */
   onOpenChat?: () => void;
   /** Lleva a la sección de CRM — ver el comentario de cabecera del archivo. */
   onOpenCRM?: () => void;
+  /**
+   * Manda una frase al chat, que es quien sabe registrar ventas, compras y
+   * cobros hablando. Esta pantalla no tiene un intérprete propio como el de
+   * Personal (`/api/finanzas/rapido`): duplicar el del chat sería tener dos
+   * formas de entender "vendí 3 cajas a Juan" que tarde o temprano difieren.
+   */
+  onDecirleAEOS?: (texto: string) => void;
 };
 
-export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps) {
+export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: NegocioViewProps) {
   const [pestania, setPestania] = useState<Pestania>("ventas");
+  /** La última subpestaña abierta de cada sección, para volver a donde estaba. */
+  const [ultima, setUltima] = useState<Partial<Record<SeccionNegocio, Pestania>>>({});
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
+  const [comprasVencidas, setComprasVencidas] = useState(0);
   const [sinModulo, setSinModulo] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
+  const [frase, setFrase] = useState("");
+
+  function irA(destino: Pestania) {
+    setPestania(destino);
+    setUltima((u) => ({ ...u, [seccionDe(SECCIONES, destino)]: destino }));
+  }
+
+  function abrirSeccion(seccion: SeccionNegocio) {
+    const conf = SECCIONES.find((s) => s.clave === seccion)!;
+    irA(ultima[seccion] ?? conf.subs[0].clave);
+  }
+
+  function decirle() {
+    const texto = frase.trim();
+    if (!texto || !onDecirleAEOS) return;
+    onDecirleAEOS(texto);
+    setFrase("");
+  }
 
   const resumen = useMemo(() => {
     const porCobrar = pendientes(ventas);
     const bajoMinimo = productos.filter((producto) => producto.bajo_minimo);
+    const hoy = hoyIso();
+    const vencidas = porCobrar.filter((v) => v.vence_el && v.vence_el < hoy);
+    const sobrepedidos = productos.filter((p) => p.controla_stock && p.stock_actual < 0);
 
     return {
       ventas: vigentes(ventas).length,
@@ -179,8 +252,93 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
       productos: productos.length,
       bajoMinimo: bajoMinimo.length,
       contactos: contactos.length,
+      vencidas,
+      sobrepedidos: sobrepedidos.length,
+      /** Productos que piden atención, sin contar dos veces al que está en las dos listas. */
+      catalogoAtencion: productos.filter((p) => p.bajo_minimo || (p.controla_stock && p.stock_actual < 0)).length,
     };
   }, [contactos, productos, ventas]);
+
+  /*
+   * "EOS te avisa": lo que pide atención, con el botón que lleva a resolverlo.
+   *
+   * Todo sale de datos que esta pantalla ya tenía —las ventas, el catálogo— más
+   * los vencidos de Cartera. Nada se calcula distinto de como lo calcula la
+   * pantalla a la que lleva el botón: si acá dice "2 vencidas", allá hay dos.
+   * Cuando no hay nada, el bloque no aparece: un "todo en orden" fijo termina
+   * siendo ruido que nadie lee.
+   */
+  const avisos = useMemo<Aviso[]>(() => {
+    const lista: Aviso[] = [];
+    const { vencidas } = resumen;
+
+    if (vencidas.length > 0) {
+      const nombre = vencidas[0].contacto?.nombre ?? "Un consumidor final";
+      lista.push({
+        clave: "cobrar",
+        tono: "mal",
+        texto:
+          vencidas.length === 1
+            ? `${nombre} tiene una venta a crédito vencida sin cobrar.`
+            : `${nombre} y ${vencidas.length - 1} más tienen ventas a crédito vencidas sin cobrar.`,
+        accion: "Cobrar",
+        ir: "cobrar",
+      });
+    }
+    if (comprasVencidas > 0) {
+      lista.push({
+        clave: "pagar",
+        tono: "mal",
+        texto:
+          comprasVencidas === 1
+            ? "Tenés un pago a un proveedor vencido."
+            : `Tenés ${comprasVencidas} pagos a proveedores vencidos.`,
+        accion: "Ver",
+        ir: "pagar",
+      });
+    }
+    if (resumen.sobrepedidos > 0) {
+      lista.push({
+        clave: "sobrepedidos",
+        tono: "atencion",
+        texto:
+          resumen.sobrepedidos === 1
+            ? "Vendiste un producto por encima del stock que tenías."
+            : `Vendiste ${resumen.sobrepedidos} productos por encima del stock que tenías.`,
+        accion: "Ver",
+        ir: "productos",
+      });
+    }
+    if (resumen.bajoMinimo > 0) {
+      lista.push({
+        clave: "stock",
+        tono: "atencion",
+        texto:
+          resumen.bajoMinimo === 1
+            ? "Un producto quedó por debajo de su stock mínimo."
+            : `${resumen.bajoMinimo} productos quedaron por debajo de su stock mínimo.`,
+        accion: "Ver",
+        ir: "productos",
+      });
+    }
+    return lista.slice(0, 3);
+  }, [resumen, comprasVencidas]);
+
+  const secciones = useMemo(
+    () =>
+      SECCIONES.map((s) => ({
+        ...s,
+        aviso:
+          s.clave === "vender"
+            ? resumen.vencidas.length
+            : s.clave === "comprar"
+              ? comprasVencidas
+              : s.clave === "catalogo"
+                ? resumen.catalogoAtencion
+                : 0,
+      })),
+    [resumen, comprasVencidas],
+  );
 
   /*
    * No prende el cartel de "cargando" al empezar.
@@ -199,6 +357,13 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
    * la carga — que es exactamente lo que hace, y lo que la regla quiere.
    */
   const cargar = useCallback(() => {
+    // Los pagos vencidos a proveedores solo alimentan el aviso de arriba. Van
+    // por su lado y en silencio: si fallan, falta un aviso, no la pantalla.
+    fetch("/api/erp/cartera?tipo=pagar", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { vencidos?: unknown[] } | null) => setComprasVencidas(d?.vencidos?.length ?? 0))
+      .catch(() => setComprasVencidas(0));
+
     return Promise.all([
       fetch("/api/erp/contactos", { cache: "no-store" }),
       fetch("/api/erp/productos", { cache: "no-store" }),
@@ -298,14 +463,14 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
         </div>
 
         {!cargando && !error && (
-          <div className="neg-resumen" aria-label="Resumen operativo del negocio">
-            <button type="button" className="neg-resumen-card" onClick={() => setPestania("ventas")}>
+          <div className="neg-resumen is-negocio" aria-label="Resumen operativo del negocio">
+            <button type="button" className="neg-resumen-card" onClick={() => irA("ventas")}>
               <ShoppingCart size={17} />
               <span>Ventas</span>
               <strong>{resumen.ventas}</strong>
               <small>{resumen.porCobrar ? `${resumen.porCobrar} por cobrar` : "Cobros al día"}</small>
             </button>
-            <button type="button" className="neg-resumen-card" onClick={() => setPestania("productos")}>
+            <button type="button" className="neg-resumen-card" onClick={() => irA("productos")}>
               <Package size={17} />
               <span>Productos</span>
               <strong>{resumen.productos}</strong>
@@ -321,7 +486,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
                 <small>Oportunidades y seguimiento</small>
               </button>
             )}
-            <button type="button" className="neg-resumen-card" onClick={() => setPestania("rentabilidad")}>
+            <button type="button" className="neg-resumen-card" onClick={() => irA("rentabilidad")}>
               <BadgeDollarSign size={17} />
               <span>Rentabilidad</span>
               <strong>Ver márgenes</strong>
@@ -330,31 +495,49 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
           </div>
         )}
 
-        <div className="neg-nav-groups" role="navigation" aria-label="Áreas del negocio">
-          {GRUPOS_NAV.map((grupo) => {
-            const disponibles = grupo.claves.map((clave) => PESTANIAS.find((p) => p.clave === clave)!);
-
-            return (
-              <div className="neg-nav-group" key={grupo.etiqueta}>
-                <div className="neg-nav-group-label">{grupo.etiqueta}</div>
-                <div className="neg-nav">
-                  {disponibles.map((p) => (
-                    <button
-                      key={p.clave}
-                      type="button"
-                      className={`neg-nav-item ${pestania === p.clave ? "active" : ""}`}
-                      onClick={() => setPestania(p.clave)}
-                      aria-current={pestania === p.clave ? "page" : undefined}
-                    >
-                      <span>{p.etiqueta}</span>
-                      <small>{p.detalle}</small>
-                    </button>
-                  ))}
-                </div>
+        {!cargando && !error && avisos.length > 0 && (
+          <div className="sec-avisos" role="region" aria-label="EOS te avisa">
+            <div className="sec-avisos-titulo">EOS te avisa</div>
+            {avisos.map((a) => (
+              <div className="sec-aviso" key={a.clave}>
+                <span className={`sec-aviso-punto is-${a.tono}`} aria-hidden="true" />
+                <span className="sec-aviso-texto">{a.texto}</span>
+                <button type="button" className="chip" onClick={() => irA(a.ir)}>
+                  {a.accion}
+                </button>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {onDecirleAEOS && !error && (
+          <div className="sec-decile">
+            <span className="sec-decile-ico" aria-hidden="true">EOS</span>
+            <input
+              className="sec-decile-input"
+              aria-label="Contale a EOS lo que pasó en el negocio"
+              placeholder="«vendí 3 cajas de agua a Juan, me paga el 30»"
+              value={frase}
+              maxLength={500}
+              onChange={(e) => setFrase(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") decirle();
+              }}
+            />
+            <button type="button" className="reco-btn" disabled={!frase.trim()} onClick={decirle}>
+              Anotar
+            </button>
+          </div>
+        )}
+
+        <SeccionNav
+          secciones={secciones}
+          seccion={seccionDe(SECCIONES, pestania)}
+          sub={pestania}
+          onSeccion={abrirSeccion}
+          onSub={irA}
+          ariaLabel="Áreas del negocio"
+        />
 
         {error && (
           <div className="neg-load-error" role="alert">
@@ -384,8 +567,8 @@ export default function NegocioView({ onOpenChat, onOpenCRM }: NegocioViewProps)
             productos={productos}
             onCambio={() => void cargar()}
           />
-        ) : pestania === "cartera" ? (
-          <Cartera onCambio={() => void cargar()} />
+        ) : pestania === "cobrar" || pestania === "pagar" ? (
+          <Cartera key={pestania} tipo={pestania} onCambio={() => void cargar()} />
         ) : pestania === "pronostico" ? (
           <Pronostico />
         ) : pestania === "inventario" ? (
@@ -649,7 +832,7 @@ function Ventas({
 
         {productos.length === 0 ? (
           <p className="empty-note">
-            Primero cargá al menos un producto o servicio en la pestaña Productos.
+            Primero cargá al menos un producto o servicio en Catálogo › Productos.
           </p>
         ) : !abierto ? (
           <button type="button" className="reco-btn" onClick={() => setAbierto(true)}>

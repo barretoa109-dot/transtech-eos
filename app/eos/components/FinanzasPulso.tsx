@@ -84,7 +84,18 @@ type Respuesta = {
  * Preguntar "¿puedo comprar una notebook?" no puede dejar rastro de una
  * notebook que nadie compró. El POST calcula sobre una copia del estado.
  */
-export default function FinanzasPulso({ moneda = "PYG" }: { moneda?: string }) {
+export default function FinanzasPulso({
+  moneda = "PYG",
+  conEscenario = true,
+}: {
+  moneda?: string;
+  /**
+   * Personal muestra "¿Puedo comprarlo?" en su propia subpestaña
+   * (`FinanzasPuedoComprar`): escondido al pie de esta tarjeta, quien venía
+   * a preguntar eso no lo encontraba.
+   */
+  conEscenario?: boolean;
+}) {
   const [datos, setDatos] = useState<Respuesta | null>(null);
 
   const cargar = useCallback(() => {
@@ -221,6 +232,21 @@ export default function FinanzasPulso({ moneda = "PYG" }: { moneda?: string }) {
         </div>
       )}
 
+      {conEscenario && <Escenario moneda={moneda} />}
+    </div>
+  );
+}
+
+/** "¿Puedo comprar esto?" en su propia tarjeta. Es el mismo cálculo y no toca ningún dato. */
+export function FinanzasPuedoComprar({ moneda = "PYG" }: { moneda?: string }) {
+  return (
+    <div className="card fin-card">
+      <div className="fin-head">
+        <span className="fin-badge fin-badge-neutral">
+          <Sparkles size={14} />
+          ¿PUEDO COMPRARLO?
+        </span>
+      </div>
       <Escenario moneda={moneda} />
     </div>
   );
