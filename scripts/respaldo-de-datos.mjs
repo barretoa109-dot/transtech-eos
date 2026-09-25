@@ -34,6 +34,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { consultar } from "./lib/api-supabase.mjs";
+
 const REF = "dirugpkamzgvyshcnsxs";
 
 function token() {
@@ -52,25 +54,7 @@ if (!t) {
 }
 
 async function sql(consulta) {
-  const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ query: consulta }),
-  });
-
-  const texto = await r.text();
-  let cuerpo;
-  try {
-    cuerpo = JSON.parse(texto);
-  } catch {
-    throw new Error(`Respuesta no válida (${r.status}): ${texto.slice(0, 200)}`);
-  }
-
-  if (!r.ok || !Array.isArray(cuerpo)) {
-    throw new Error(cuerpo?.message ?? `Error ${r.status}`);
-  }
-
-  return cuerpo;
+  return consultar(REF, t, consulta);
 }
 
 const argumentos = process.argv.slice(2);
@@ -129,7 +113,9 @@ if (aVerificar) {
   process.exit(problemas === 0 ? 0 : 1);
 }
 
-const hoy = new Date().toISOString().slice(0, 10);
+// La fecha de acá, no la de Greenwich: a las 22 h de Asunción UTC ya es mañana.
+const local = new Date().toLocaleDateString("sv-SE");
+const hoy = /^\d{4}-\d{2}-\d{2}$/.test(local) ? local : new Date().toISOString().slice(0, 10);
 const carpeta = path.resolve(valor("--carpeta") ?? path.join("..", "respaldos-eos", hoy));
 fs.mkdirSync(carpeta, { recursive: true });
 
@@ -149,6 +135,9 @@ for (const x of tablas) {
   manifiesto.filas_totales += datos.length;
 
   process.stdout.write(`${x.esquema}.${x.tabla}: ${datos.length}\n`);
+
+  // Una pausa corta entre tablas: la API limita las consultas por minuto.
+  await new Promise((resolver) => setTimeout(resolver, 400));
 }
 
 fs.writeFileSync(path.join(carpeta, "manifiesto.json"), JSON.stringify(manifiesto, null, 2));
