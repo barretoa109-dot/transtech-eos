@@ -56,14 +56,18 @@ export type ResumenPulso = { usuarios: number; filas: number; fallidos: number }
 
 export async function capturarPulsoPersonal(
   admin: ClienteSinTipos,
-  opciones: { hoy: string },
+  /** Acota la foto a una sola cuenta. Ver el mismo parámetro en `capturarIndicadores`. */
+  opciones: { hoy: string; usuarioId?: string },
 ): Promise<ResumenPulso> {
   const resumen: ResumenPulso = { usuarios: 0, filas: 0, fallidos: 0 };
   const { hoy } = opciones;
 
-  const { data: politicas, error } = await admin
+  let consulta = admin
     .from("eos_finanzas_politica")
     .select("usuario_id,moneda,saldo_inicial,saldo_inicial_fecha,reserva_minima,porcentaje_ahorro");
+  if (opciones.usuarioId) consulta = consulta.eq("usuario_id", opciones.usuarioId);
+
+  const { data: politicas, error } = await consulta;
 
   if (error) {
     console.error("Pulso: no se pudo listar a quién capturar:", error);

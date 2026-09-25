@@ -3,10 +3,12 @@ import { NextResponse } from "next/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
-import { DIMENSIONES } from "@/lib/kpi/score";
-import { CON_UMBRALES } from "@/lib/kpi/registro";
-import { DIMENSIONES_PERSONALES, CON_UMBRALES_PERSONALES } from "@/lib/finanzas/pulso";
-import { scoresPorDia, type FilaHistoriaScore } from "@/lib/kpi/scoreDiario";
+import {
+  asegurarFotoDeHoy,
+  leerSeriesDeScore,
+  sincronizarScoreDeBriefings,
+  type SeriesDeScore,
+} from "@/lib/kpi/scoreBriefing";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,13 @@ export async function GET() {
 
   const supabase = await createClient();
   const user = { id: puerta.usuarioId };
+
+  /*
+   * El score real va ANTES de leer los briefings: se escribe en
+   * `eos_daily_briefings.score` y la lectura de abajo ya lo trae corregido.
+   * Ver `lib/kpi/scoreBriefing.ts` para por qué el score guardado era un 0.
+   */
+  const series = await scoreReal(user.id);
 
   const { data, error } = await supabase
     .from("eos_daily_briefings")
@@ -74,8 +83,6 @@ export async function GET() {
   // historial corto en vez de tumbar toda la respuesta.
   if (errorSerie) console.error("No se pudo cargar la serie del score:", errorSerie);
 
-  const series = await seriesDeScore(user.id);
-
   return NextResponse.json(
     {
       briefing: latest,
@@ -91,68 +98,32 @@ export async function GET() {
   );
 }
 
-/** Filas por página: el techo que PostgREST aplica por defecto a cada respuesta. */
-const PAGINA = 1000;
-/** Techo de páginas: ~30 indicadores por día durante un año entran holgados. */
-const MAX_PAGINAS = 15;
-
 /**
- * El score del negocio y el personal de cada día del último año, rearmados
- * desde la foto diaria de los indicadores (ver `lib/kpi/scoreDiario.ts`).
+ * Saca la foto de hoy si falta, arma las series del último año y corrige los
+ * briefings cuyo día tiene foto.
  *
- * Van separados y no promediados: son dos preguntas distintas —¿cómo está el
- * negocio?, ¿cómo estoy yo?— y la v136 separó sus datos a propósito.
- *
- * null si la lectura falla: el gráfico cae entonces al score de los briefings
- * en vez de mostrar una serie vacía que se leería como "no hay historia".
+ * null si algo falla: el briefing sigue sirviendo y el gráfico cae al score
+ * guardado, en vez de tumbar toda la respuesta por un gráfico.
  */
-async function seriesDeScore(
-  usuarioId: string,
-): Promise<{ negocio: { fecha: string; score: number }[]; personal: { fecha: string; score: number }[] } | null> {
-  const ids = [...DIMENSIONES, ...DIMENSIONES_PERSONALES].flatMap((d) => d.indicadores);
-  const desde = sumarDias(hoyEnParaguay(), -365);
-  const filas: FilaHistoriaScore[] = [];
+async function scoreReal(usuarioId: string): Promise<SeriesDeScore | null> {
+  const admin = adminSinTipos();
+  const hoy = hoyEnParaguay();
 
   try {
-    for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-      /*
-       * Cliente admin filtrado a mano por el usuario de la sesión, igual que
-       * `GET /api/kpi/historia`: service_role no pasa por RLS, así que este
-       * `.eq("usuario_id")` es el candado que no se puede olvidar.
-       */
-      const { data, error } = await adminSinTipos()
-        .from("eos_kpi_historia_v105")
-        .select("indicador,moneda,fecha,estado,confianza")
-        .eq("usuario_id", usuarioId)
-        .in("indicador", ids)
-        .gte("fecha", desde)
-        .order("fecha", { ascending: true })
-        .order("indicador", { ascending: true })
-        .range(pagina * PAGINA, pagina * PAGINA + PAGINA - 1);
-
-      if (error) throw error;
-
-      const lote = (data ?? []) as Record<string, unknown>[];
-      for (const f of lote) {
-        filas.push({
-          indicador: String(f.indicador),
-          moneda: String(f.moneda),
-          fecha: String(f.fecha),
-          estado: (f.estado as FilaHistoriaScore["estado"]) ?? null,
-          confianza: f.confianza === null || f.confianza === undefined ? null : Number(f.confianza),
-        });
-      }
-      if (lote.length < PAGINA) break;
-    }
+    await asegurarFotoDeHoy(admin, usuarioId, hoy);
   } catch (error) {
-    console.error("No se pudo leer la historia de indicadores para el score:", error);
-    return null;
+    // Sin la foto de hoy igual hay historia que mostrar: se sigue.
+    console.error("No se pudo sacar la foto de indicadores de hoy:", error);
   }
 
-  return {
-    negocio: scoresPorDia(filas, DIMENSIONES, CON_UMBRALES),
-    personal: scoresPorDia(filas, DIMENSIONES_PERSONALES, CON_UMBRALES_PERSONALES),
-  };
+  try {
+    const series = await leerSeriesDeScore(admin, usuarioId, sumarDias(hoy, -365));
+    await sincronizarScoreDeBriefings(admin, usuarioId, series);
+    return series;
+  } catch (error) {
+    console.error("No se pudo calcular el score real del briefing:", error);
+    return null;
+  }
 }
 
 function currentDateInParaguay() {

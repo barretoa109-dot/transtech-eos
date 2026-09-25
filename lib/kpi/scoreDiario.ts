@@ -103,3 +103,29 @@ function comoResultado(f: FilaHistoriaScore): ResultadoKPI {
     confianza: { nivel: f.confianza ?? 1, motivos: [] },
   } as unknown as ResultadoKPI;
 }
+
+/**
+ * El EOS Score del día: el promedio de los que se pudieron calcular.
+ *
+ * El briefing es UN resumen de la persona —su negocio y su plata— y lleva UN
+ * número. Se promedian los dos scores en vez de mezclar sus indicadores en una
+ * sola cuenta: cada uno sigue calculándose con sus propias dimensiones (la
+ * separación de la v136 queda intacta) y solo el resultado se junta. Sin pesos
+ * inventados, por la misma razón que `calcularScore` no pesa dimensiones.
+ *
+ * Un día con uno solo vale ese; un día sin ninguno no aparece.
+ */
+export function scoresEOSPorDia(series: {
+  negocio: PuntoScoreDiario[];
+  personal: PuntoScoreDiario[];
+}): Map<string, number> {
+  const porFecha = new Map<string, number[]>();
+  for (const p of [...series.negocio, ...series.personal]) {
+    const lista = porFecha.get(p.fecha) ?? [];
+    lista.push(p.score);
+    porFecha.set(p.fecha, lista);
+  }
+  return new Map(
+    [...porFecha].map(([fecha, valores]) => [fecha, Math.round(valores.reduce((a, b) => a + b, 0) / valores.length)]),
+  );
+}

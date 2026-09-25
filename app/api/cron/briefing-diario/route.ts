@@ -13,6 +13,7 @@ import { avisarSeguimientosCRM } from "@/lib/crm/avisar-crm";
 import { enviarMotivacionales } from "@/lib/email/motivacionales";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
+import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -262,23 +263,30 @@ export async function GET(request: Request) {
     } catch (error) {
       console.error("KPI: falló la captura diaria de indicadores:", error);
     }
-  });
 
-  /*
-   * Y la foto del pulso PERSONAL, en su propio `after`.
-   *
-   * Separada de la del negocio y no dentro del mismo try: si la del negocio
-   * falla, quien solo lleva sus finanzas personales igual tiene que quedarse
-   * con su serie. Son dos poblaciones distintas —una necesita ERP o CRM, la
-   * otra solo Constitución Financiera— y un fallo de una no es motivo para
-   * perder el día de la otra.
-   */
-  after(async () => {
+    /*
+     * Y la foto del pulso PERSONAL, en la misma cola pero en su propio try:
+     * si la del negocio falla, quien solo lleva sus finanzas personales igual
+     * tiene que quedarse con su serie (son dos poblaciones distintas).
+     *
+     * Iban en dos `after` separados. Ahora van uno detrás del otro porque el
+     * score del briefing (abajo) necesita las DOS fotos de hoy: corriendo en
+     * paralelo no habría forma de saber cuándo terminaron las dos.
+     */
     try {
       const pulso = await capturarPulsoPersonal(adminSinTipos(), { hoy: hoyEnParaguay() });
       console.log("Pulso: foto diaria personal", pulso);
     } catch (error) {
       console.error("Pulso: falló la captura diaria personal:", error);
+    }
+
+    // El EOS Score real en el briefing de hoy, en vez del 0 de relleno que
+    // escribe la base. Ver `lib/kpi/scoreBriefing.ts`.
+    try {
+      const score = await puntuarBriefingsDeHoy(adminSinTipos(), hoyEnParaguay());
+      console.log("Score: briefings de hoy puntuados", score);
+    } catch (error) {
+      console.error("Score: falló el score de los briefings de hoy:", error);
     }
   });
 

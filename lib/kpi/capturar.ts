@@ -55,15 +55,23 @@ export type ResumenCaptura = {
 
 export async function capturarIndicadores(
   admin: ClienteSinTipos,
-  opciones: { hoy: string },
+  /**
+   * `usuarioId` acota la foto a una sola cuenta: la usa `GET /api/briefing`
+   * para sacar la de hoy cuando el cron todavía no la sacó (o nunca la sacó,
+   * en una cuenta nueva). Sin eso el score del día no tiene de dónde salir.
+   */
+  opciones: { hoy: string; usuarioId?: string },
 ): Promise<ResumenCaptura> {
   const resumen: ResumenCaptura = { usuarios: 0, filas: 0, fallidos: 0, gemelos: 0 };
 
-  const { data: activos, error } = await admin
+  let consulta = admin
     .from("eos_usuario_modulos")
     .select("usuario_id,modulo_codigo")
     .in("modulo_codigo", ["erp", "crm"])
     .eq("estado", "activo");
+  if (opciones.usuarioId) consulta = consulta.eq("usuario_id", opciones.usuarioId);
+
+  const { data: activos, error } = await consulta;
 
   if (error) {
     console.error("KPI: no se pudo listar a quién capturar:", error);
