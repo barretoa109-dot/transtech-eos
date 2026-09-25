@@ -117,6 +117,7 @@ export default function EOSPage() {
     history: briefingHistory,
     scoreHistory,
     scoreSeries,
+    scoreDiagnostico,
     isStale: briefingIsStale,
     loading: briefingLoading,
     refreshing: briefingRefreshing,
@@ -386,6 +387,7 @@ export default function EOSPage() {
             briefingHistory={briefingHistory}
             scoreHistory={scoreHistory}
             scoreSeries={scoreSeries}
+            scoreDiagnostico={scoreDiagnostico}
             plan={plan}
             totalConversations={conversaciones.length}
             totalMessages={historial.length}

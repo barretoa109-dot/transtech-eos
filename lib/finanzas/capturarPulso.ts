@@ -5,6 +5,7 @@ import { indicadoresPersonales } from "./pulso.ts";
 import { leerTarjetas } from "./leerTarjetas.ts";
 import { sumarDias } from "../fecha.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { motivo } from "../kpi/capturar.ts";
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
 
@@ -52,14 +53,14 @@ const MESES_DE_HISTORIA = 6;
 /** Horizonte del panorama, el mismo que usa el panel. */
 const HORIZONTE_DIAS = 90;
 
-export type ResumenPulso = { usuarios: number; filas: number; fallidos: number };
+export type ResumenPulso = { usuarios: number; filas: number; fallidos: number; errores: string[] };
 
 export async function capturarPulsoPersonal(
   admin: ClienteSinTipos,
   /** Acota la foto a una sola cuenta. Ver el mismo parámetro en `capturarIndicadores`. */
   opciones: { hoy: string; usuarioId?: string },
 ): Promise<ResumenPulso> {
-  const resumen: ResumenPulso = { usuarios: 0, filas: 0, fallidos: 0 };
+  const resumen: ResumenPulso = { usuarios: 0, filas: 0, fallidos: 0, errores: [] };
   const { hoy } = opciones;
 
   let consulta = admin
@@ -102,6 +103,7 @@ export async function capturarPulsoPersonal(
       if (errorGuardar) {
         console.error(`Pulso: no se pudo guardar la foto de ${usuarioId}:`, errorGuardar);
         resumen.fallidos++;
+        resumen.errores.push(`No se pudo guardar la foto: ${motivo(errorGuardar)}`);
         continue;
       }
 
@@ -113,6 +115,7 @@ export async function capturarPulsoPersonal(
       // en la de todos.
       console.error(`Pulso: falló la captura de ${usuarioId}:`, e);
       resumen.fallidos++;
+      resumen.errores.push(`Falló el cálculo de tu situación personal: ${motivo(e)}`);
     }
   }
 

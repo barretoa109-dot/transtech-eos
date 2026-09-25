@@ -2406,6 +2406,12 @@
   color: var(--muted);
   margin: 10px 0 0;
 }
+.eos-app .evo-motivos {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
 .eos-app .evo-nota.aviso {
   color: var(--amber);
   background: var(--amber-light);

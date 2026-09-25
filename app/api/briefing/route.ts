@@ -7,8 +7,10 @@ import {
   asegurarFotoDeHoy,
   leerSeriesDeScore,
   sincronizarScoreDeBriefings,
+  type DiagnosticoScore,
   type SeriesDeScore,
 } from "@/lib/kpi/scoreBriefing";
+import { motivo } from "@/lib/kpi/capturar";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,7 @@ export async function GET() {
    * `eos_daily_briefings.score` y la lectura de abajo ya lo trae corregido.
    * Ver `lib/kpi/scoreBriefing.ts` para por qué el score guardado era un 0.
    */
-  const series = await scoreReal(user.id);
+  const { series, diagnostico } = await scoreReal(user.id);
 
   const { data, error } = await supabase
     .from("eos_daily_briefings")
@@ -87,6 +89,7 @@ export async function GET() {
     {
       briefing: latest,
       score_series: series,
+      score_diagnostico: diagnostico,
       history: briefings,
       score_history: errorSerie
         ? null
@@ -102,28 +105,52 @@ export async function GET() {
  * Saca la foto de hoy si falta, arma las series del último año y corrige los
  * briefings cuyo día tiene foto.
  *
- * null si algo falla: el briefing sigue sirviendo y el gráfico cae al score
- * guardado, en vez de tumbar toda la respuesta por un gráfico.
+ * Cada paso tiene su propio try: que falle la escritura en los briefings no
+ * puede tirar las series (la primera versión lo hacía, y el gráfico caía al 0
+ * guardado aunque el score estuviera calculado). Todo lo que falla queda en el
+ * diagnóstico, que la pantalla muestra cuando no hay score.
  */
-async function scoreReal(usuarioId: string): Promise<SeriesDeScore | null> {
+async function scoreReal(
+  usuarioId: string,
+): Promise<{ series: SeriesDeScore | null; diagnostico: DiagnosticoScore }> {
   const admin = adminSinTipos();
   const hoy = hoyEnParaguay();
 
+  let base: Omit<DiagnosticoScore, "filas_historia">;
   try {
-    await asegurarFotoDeHoy(admin, usuarioId, hoy);
+    base = await asegurarFotoDeHoy(admin, usuarioId, hoy);
   } catch (error) {
-    // Sin la foto de hoy igual hay historia que mostrar: se sigue.
     console.error("No se pudo sacar la foto de indicadores de hoy:", error);
+    base = {
+      foto_hoy: "no_se_pudo",
+      negocio: { habilitado: false, dias: 0, errores: [] },
+      personal: { habilitado: false, dias: 0, errores: [] },
+      errores: [motivo(error)],
+    };
+  }
+  const diagnostico: DiagnosticoScore = { ...base, filas_historia: 0 };
+
+  let series: SeriesDeScore | null = null;
+  try {
+    const leido = await leerSeriesDeScore(admin, usuarioId, sumarDias(hoy, -365));
+    series = { negocio: leido.negocio, personal: leido.personal };
+    diagnostico.filas_historia = leido.filas;
+    diagnostico.negocio.dias = leido.negocio.length;
+    diagnostico.personal.dias = leido.personal.length;
+  } catch (error) {
+    console.error("No se pudo leer la historia de indicadores:", error);
+    diagnostico.errores.push(`No se pudo leer la historia: ${motivo(error)}`);
+    return { series: null, diagnostico };
   }
 
   try {
-    const series = await leerSeriesDeScore(admin, usuarioId, sumarDias(hoy, -365));
     await sincronizarScoreDeBriefings(admin, usuarioId, series);
-    return series;
   } catch (error) {
-    console.error("No se pudo calcular el score real del briefing:", error);
-    return null;
+    console.error("No se pudo escribir el score en los briefings:", error);
+    diagnostico.errores.push(`No se pudo guardar el score en el briefing: ${motivo(error)}`);
   }
+
+  return { series, diagnostico };
 }
 
 function currentDateInParaguay() {

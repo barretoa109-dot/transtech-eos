@@ -55,7 +55,14 @@ export type FuenteScore = {
   unidad: "día" | "briefing";
 };
 
-export default function EvolucionScore({ fuentes }: { fuentes: FuenteScore[] }) {
+export default function EvolucionScore({
+  fuentes,
+  motivosSinScore = [],
+}: {
+  fuentes: FuenteScore[];
+  /** Por qué no se pudo calcular el score real, cuando el gráfico cae al del briefing. */
+  motivosSinScore?: string[];
+}) {
   const [dias, setDias] = useState<number>(30);
   const [claveFuente, setClaveFuente] = useState<string | null>(null);
   const fuente = fuentes.find((f) => f.clave === claveFuente) ?? fuentes[0];
@@ -339,11 +346,22 @@ export default function EvolucionScore({ fuentes }: { fuentes: FuenteScore[] }) 
       {serie.length === 1 && (
         <p className="evo-nota">Mañana se suma otro punto y vas a ver hacia dónde va la tendencia.</p>
       )}
-      {todoCero && (
-        <p className="evo-nota aviso">
-          Todos los briefings de este período tienen score 0: EOS todavía no tuvo datos suficientes para puntuar tu
-          situación. Registrá objetivos, tareas y movimientos para que el score empiece a reflejarla.
-        </p>
+      {unidad === "briefing" && motivosSinScore.length > 0 ? (
+        <div className="evo-nota aviso">
+          <strong>Por qué el score no se puede calcular todavía:</strong>
+          <ul className="evo-motivos">
+            {motivosSinScore.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        todoCero && (
+          <p className="evo-nota aviso">
+            Todos los briefings de este período tienen score 0: EOS todavía no tuvo datos suficientes para puntuar tu
+            situación. Registrá objetivos, tareas y movimientos para que el score empiece a reflejarla.
+          </p>
+        )
       )}
     </div>
   );

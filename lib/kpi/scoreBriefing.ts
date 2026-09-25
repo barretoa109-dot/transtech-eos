@@ -1,4 +1,4 @@
-import { capturarIndicadores } from "./capturar.ts";
+import { capturarIndicadores, motivo } from "./capturar.ts";
 import { capturarPulsoPersonal } from "../finanzas/capturarPulso.ts";
 import { DIMENSIONES_PERSONALES, CON_UMBRALES_PERSONALES } from "../finanzas/pulso.ts";
 import { DIMENSIONES } from "./score.ts";
@@ -43,6 +43,22 @@ const MAX_CORRECCIONES = 400;
 
 export type SeriesDeScore = { negocio: PuntoScoreDiario[]; personal: PuntoScoreDiario[] };
 
+/**
+ * Por qué una cuenta tiene (o no tiene) score, en datos.
+ *
+ * Existe porque "sigue en 0" no dice nada: puede faltar el módulo, la
+ * Constitución Financiera, datos que puntuar, o puede haber fallado algo. La
+ * pantalla lo traduce a una frase y así la persona —y quien la ayuda— ve la
+ * causa real en vez de adivinarla.
+ */
+export type DiagnosticoScore = {
+  foto_hoy: "ya_estaba" | "sacada" | "no_se_pudo";
+  filas_historia: number;
+  negocio: { habilitado: boolean; dias: number; errores: string[] };
+  personal: { habilitado: boolean; dias: number; errores: string[] };
+  errores: string[];
+};
+
 const IDS = [...DIMENSIONES, ...DIMENSIONES_PERSONALES].flatMap((d) => d.indicadores);
 
 /**
@@ -55,7 +71,7 @@ export async function leerSeriesDeScore(
   admin: ClienteSinTipos,
   usuarioId: string,
   desde: string,
-): Promise<SeriesDeScore> {
+): Promise<SeriesDeScore & { filas: number }> {
   const filas: FilaHistoriaScore[] = [];
 
   for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
@@ -87,6 +103,7 @@ export async function leerSeriesDeScore(
   return {
     negocio: scoresPorDia(filas, DIMENSIONES, CON_UMBRALES),
     personal: scoresPorDia(filas, DIMENSIONES_PERSONALES, CON_UMBRALES_PERSONALES),
+    filas: filas.length,
   };
 }
 
@@ -98,22 +115,53 @@ export async function leerSeriesDeScore(
  * que el cron falló. Es el mismo código del cron acotado a una persona, así que
  * la foto es idéntica a la que habría sacado él (y el `upsert` del cron la pisa
  * sin conflicto si corre después).
+ *
+ * Devuelve, además, qué tiene habilitado la cuenta y qué falló: es la materia
+ * prima del diagnóstico que se muestra cuando no hay score.
  */
-export async function asegurarFotoDeHoy(admin: ClienteSinTipos, usuarioId: string, hoy: string): Promise<void> {
-  const { data, error } = await admin
-    .from("eos_kpi_historia_v105")
-    .select("indicador")
-    .eq("usuario_id", usuarioId)
-    .eq("fecha", hoy)
-    .limit(1);
+export async function asegurarFotoDeHoy(
+  admin: ClienteSinTipos,
+  usuarioId: string,
+  hoy: string,
+): Promise<Omit<DiagnosticoScore, "filas_historia">> {
+  const diag: Omit<DiagnosticoScore, "filas_historia"> = {
+    foto_hoy: "ya_estaba",
+    negocio: { habilitado: false, dias: 0, errores: [] },
+    personal: { habilitado: false, dias: 0, errores: [] },
+    errores: [],
+  };
 
-  if (error) throw error;
-  if ((data ?? []).length > 0) return;
+  const [modulos, politica, deHoy] = await Promise.all([
+    admin
+      .from("eos_usuario_modulos")
+      .select("modulo_codigo")
+      .eq("usuario_id", usuarioId)
+      .in("modulo_codigo", ["erp", "crm"])
+      .eq("estado", "activo")
+      .limit(1),
+    admin.from("eos_finanzas_politica").select("usuario_id").eq("usuario_id", usuarioId).limit(1),
+    admin.from("eos_kpi_historia_v105").select("indicador").eq("usuario_id", usuarioId).eq("fecha", hoy).limit(1),
+  ]);
 
-  await Promise.allSettled([
+  for (const r of [modulos, politica, deHoy]) if (r.error) diag.errores.push(motivo(r.error));
+  diag.negocio.habilitado = (modulos.data ?? []).length > 0;
+  diag.personal.habilitado = (politica.data ?? []).length > 0;
+
+  if ((deHoy.data ?? []).length > 0) return diag;
+
+  const [negocio, personal] = await Promise.allSettled([
     capturarIndicadores(admin, { hoy, usuarioId }),
     capturarPulsoPersonal(admin, { hoy, usuarioId }),
   ]);
+
+  if (negocio.status === "rejected") diag.negocio.errores.push(motivo(negocio.reason));
+  else diag.negocio.errores.push(...negocio.value.errores);
+  if (personal.status === "rejected") diag.personal.errores.push(motivo(personal.reason));
+  else diag.personal.errores.push(...personal.value.errores);
+
+  const fallo = diag.negocio.errores.length + diag.personal.errores.length > 0;
+  diag.foto_hoy = fallo ? "no_se_pudo" : "sacada";
+  return diag;
 }
 
 /**

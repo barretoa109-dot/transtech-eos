@@ -9,6 +9,7 @@ import type {
   BriefingItem,
   ScorePunto,
   SeriesScore,
+  DiagnosticoScore,
 } from "../types/briefing";
 
 export function useBriefing(nombre: string) {
@@ -18,6 +19,7 @@ export function useBriefing(nombre: string) {
   // null = la API no mandó la serie; el Dashboard cae al historial corto.
   const [scoreHistory, setScoreHistory] = useState<ScorePunto[] | null>(null);
   const [scoreSeries, setScoreSeries] = useState<SeriesScore | null>(null);
+  const [scoreDiagnostico, setScoreDiagnostico] = useState<DiagnosticoScore | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +49,7 @@ export function useBriefing(nombre: string) {
               .map((p) => ({ fecha: p.fecha, score: clampScore(p.score) }))
           : null,
       );
+      setScoreDiagnostico(data.score_diagnostico ?? null);
       setScoreSeries(
         data.score_series
           ? { negocio: limpiarSerie(data.score_series.negocio), personal: limpiarSerie(data.score_series.personal) }
@@ -148,6 +151,7 @@ export function useBriefing(nombre: string) {
     history,
     scoreHistory,
     scoreSeries,
+    scoreDiagnostico,
     isStale,
     loading,
     refreshing,

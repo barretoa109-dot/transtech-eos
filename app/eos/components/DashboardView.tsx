@@ -5,7 +5,7 @@ import { AlertTriangle, Check, Lightbulb, Target, TrendingDown, TrendingUp } fro
 import PanelIndicadores from "./PanelIndicadores";
 import Hallazgos from "./Hallazgos";
 import EvolucionScore, { type FuenteScore } from "./graficos/EvolucionScore";
-import type { Briefing, ScorePunto, SeriesScore } from "../types/briefing";
+import type { Briefing, DiagnosticoScore, ScorePunto, SeriesScore } from "../types/briefing";
 
 type DashboardViewProps = {
   briefing: Briefing;
@@ -14,6 +14,8 @@ type DashboardViewProps = {
   scoreHistory: ScorePunto[] | null;
   /** El score del negocio y el personal de cada día. null si la API no lo mandó. */
   scoreSeries: SeriesScore | null;
+  /** Por qué hay o no hay score, para decirlo en pantalla en vez de mostrar un 0 mudo. */
+  scoreDiagnostico: DiagnosticoScore | null;
   plan: string;
   totalConversations: number;
   totalMessages: number;
@@ -25,6 +27,7 @@ export default function DashboardView({
   briefingHistory,
   scoreHistory,
   scoreSeries,
+  scoreDiagnostico,
   totalConversations,
   totalMessages,
   onOpenChat,
@@ -145,7 +148,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        <EvolucionScore fuentes={fuentesScore} />
+        <EvolucionScore fuentes={fuentesScore} motivosSinScore={motivosSinScore(scoreDiagnostico)} />
 
         <div className="card">
           <div className="card-title">Prioridades de hoy</div>
@@ -209,4 +212,39 @@ export default function DashboardView({
       </div>
     </div>
   );
+}
+
+/**
+ * Por qué no hay score, en frases.
+ *
+ * Solo se muestra cuando el gráfico cae al score del briefing (ni negocio ni
+ * personal pudieron puntuarse). Cada frase dice qué falta y dónde se carga,
+ * o el error tal cual si algo falló: "sigue en 0" sin causa no le sirve a nadie.
+ */
+function motivosSinScore(d: DiagnosticoScore | null): string[] {
+  if (!d) return [];
+  const motivos: string[] = [];
+
+  if (!d.negocio.habilitado) {
+    motivos.push("Negocio: no tenés el ERP ni el CRM activos, así que no hay indicadores del negocio que puntuar.");
+  } else if (d.negocio.dias === 0) {
+    motivos.push(
+      d.negocio.errores.length
+        ? `Negocio: ${d.negocio.errores[0]}`
+        : "Negocio: tus indicadores todavía no tienen datos que se puedan puntuar (por ejemplo, ventas, cobros o stock registrados).",
+    );
+  }
+
+  if (!d.personal.habilitado) {
+    motivos.push("Personal: todavía no definiste tu Constitución Financiera en Personal.");
+  } else if (d.personal.dias === 0) {
+    motivos.push(
+      d.personal.errores.length
+        ? `Personal: ${d.personal.errores[0]}`
+        : "Personal: tus indicadores todavía no tienen datos que se puedan puntuar (saldo conciliado, gastos, deudas o tarjetas).",
+    );
+  }
+
+  for (const e of d.errores) motivos.push(`Error: ${e}`);
+  return motivos;
 }
