@@ -6437,3 +6437,55 @@
 .eos-app .neg-tabla-mas > .anular-caja,
 .eos-app .neg-tabla-mas > .neg-costos { flex-basis: 100%; }
 .eos-app .neg-tabla-vacia { padding: 18px 14px; color: var(--muted); font-size: 13px; }
+.eos-app .neg-tabla-extra { grid-column: 1 / -1; }
+.eos-app .neg-tabla-perdida { color: var(--red-texto, var(--red)); font-weight: 700; }
+.eos-app .neg-tabla-codigo { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12.5px; }
+
+.eos-app .neg-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.eos-app .neg-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.eos-app .neg-kpi span { color: var(--muted); font-size: 12.5px; }
+.eos-app .neg-kpi strong { color: var(--ink); font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.eos-app .neg-kpi strong.is-bien { color: var(--green-texto, var(--green)); }
+.eos-app .neg-kpi strong.is-mal { color: var(--red-texto, var(--red)); }
+
+/* La subpestaña elegida en tinta, no en azul: el azul queda para la pestaña y la acción. */
+.eos-app .sec-subs .chip.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--panel);
+}
+
+/* La línea para hablarle a EOS: el ícono y el botón en azul lleno. */
+.eos-app .sec-decile-ico {
+  background: var(--blue-solido);
+  color: #fff;
+}
+.eos-app .neg-posicion { margin-bottom: 16px; }
+.eos-app .neg-posicion .neg-kpis { margin-bottom: 8px; }
+.eos-app .neg-posicion-lectura { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--muted); font-size: 12.5px; }
+.eos-app .neg-resultado .card-title { display: flex; align-items: center; gap: 6px; }
+.eos-app .sec-decile-ayuda { margin: 6px 4px 0; color: var(--muted); font-size: 12px; }
+.eos-app .sec-decile + .sec-decile-ayuda + .gastos-entendido,
+.eos-app .sec-decile + .sec-decile-ayuda + .neg-error { margin-top: 10px; }
+.eos-app .sec-decile .btn-pri:disabled { opacity: 0.55; cursor: default; }
+.eos-app .card + .neg-tabla,
+.eos-app .card + .card + .neg-tabla { margin-top: 14px; }
+.eos-app .neg-tabla + .card { margin-top: 14px; }
+.eos-app .neg-resumen.is-personal .neg-resumen-card.is-primary strong { font-size: 22px; color: var(--blue-dark); }
+.eos-app .neg-resumen.is-personal { margin-bottom: 14px; }
+@media (max-width: 420px) {
+  .eos-app .neg-resumen.is-personal .neg-resumen-card.is-primary strong { font-size: 17px; }
+}

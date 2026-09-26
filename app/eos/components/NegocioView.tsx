@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, BadgeDollarSign, Handshake, MoreHorizontal, Package, Pencil, Plus, ShoppingCart } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { useEscape } from "./useEscape";
@@ -8,10 +8,11 @@ import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import { pendientes, vigentes } from "@/lib/erp/pendientes";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
+import { proyectarAgotamiento } from "@/lib/erp/agotamiento";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
 import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
-import { diaMes } from "./negocio/fecha";
+import { diaMes, hoyIso } from "./negocio/fecha";
 import Pronostico from "./negocio/Pronostico";
 import Inventario from "./negocio/Inventario";
 import ResultadoView from "./negocio/Resultado";
@@ -186,15 +187,12 @@ const SECCIONES: Seccion<SeccionNegocio, Pestania>[] = [
   },
 ];
 
-/** Hoy en el reloj de quien mira, como `YYYY-MM-DD`: el mismo formato de `vence_el`. */
-function hoyIso(): string {
-  const d = new Date();
-  const dos = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
-}
 
 /** Un renglón de "EOS te avisa": qué pasa y a qué pantalla lleva. */
-type Aviso = { clave: string; tono: "mal" | "atencion"; texto: string; accion: string; ir: Pestania };
+type Aviso = { clave: string; tono: "mal" | "atencion"; texto: ReactNode; accion: string; ir: Pestania };
+
+/** Un pago a proveedor vencido, como lo devuelve Cartera. */
+type PagoVencido = { id: string; saldo: number; moneda: string; vence_el: string | null; contacto_nombre: string | null };
 
 type NegocioViewProps = {
   /** Abre el chat completo — ver la misma nota en GastosView. */
@@ -217,7 +215,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
-  const [comprasVencidas, setComprasVencidas] = useState(0);
+  const [pagosVencidos, setPagosVencidos] = useState<PagoVencido[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -244,86 +242,172 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
     const porCobrar = pendientes(ventas);
     const bajoMinimo = productos.filter((producto) => producto.bajo_minimo);
     const hoy = hoyIso();
-    const vencidas = porCobrar.filter((v) => v.vence_el && v.vence_el < hoy);
+    const vencidas = porCobrar
+      .filter((v) => v.vence_el && v.vence_el < hoy)
+      .sort((a, b) => String(a.vence_el).localeCompare(String(b.vence_el)));
     const sobrepedidos = productos.filter((p) => p.controla_stock && p.stock_actual < 0);
+
+    /*
+     * El margen del catálogo: el promedio de los productos que tienen costo.
+     * Los que no lo tienen no entran —no se inventa su margen— y si ninguno
+     * lo tiene, la tarjeta lo dice en vez de mostrar un cero.
+     */
+    const margenes = productos
+      .map((p) => calcularMargen({ costo: p.costo, precio_venta: p.precio_venta, iva: tasaValida(p.iva) }))
+      .filter((m): m is Extract<typeof m, { conocido: true }> => m.conocido);
+    const margenCatalogo =
+      margenes.length === 0 ? null : margenes.reduce((suma, m) => suma + m.margen, 0) / margenes.length;
 
     return {
       ventas: vigentes(ventas).length,
       porCobrar: porCobrar.length,
       productos: productos.length,
-      bajoMinimo: bajoMinimo.length,
+      bajoMinimo,
       contactos: contactos.length,
       vencidas,
-      sobrepedidos: sobrepedidos.length,
+      sobrepedidos,
+      margenCatalogo,
       /** Productos que piden atención, sin contar dos veces al que está en las dos listas. */
       catalogoAtencion: productos.filter((p) => p.bajo_minimo || (p.controla_stock && p.stock_actual < 0)).length,
     };
   }, [contactos, productos, ventas]);
 
   /*
-   * "EOS te avisa": lo que pide atención, con el botón que lleva a resolverlo.
+   * Cuántos días alcanza el stock al ritmo de venta del último mes.
+   *
+   * Es la misma cuenta que usa el aviso de stock del servidor
+   * (`lib/erp/agotamiento`), hecha con las ventas que esta pantalla ya trajo.
+   * Solo devuelve los que se acaban pronto: del resto no se dice un número.
+   */
+  const diasRestantes = useMemo(() => {
+    const proyeccion = proyectarAgotamiento({
+      hoy: hoyIso(),
+      productos: productos.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        stock_actual: p.stock_actual,
+        stock_minimo: p.stock_minimo,
+        controla_stock: p.controla_stock,
+        activo: true,
+      })),
+      salidas: vigentes(ventas).flatMap((v) =>
+        (v.items ?? [])
+          .filter((i) => i.producto_id)
+          .map((i) => ({ producto_id: i.producto_id as string, fecha: v.fecha, cantidad: Number(i.cantidad) })),
+      ),
+    });
+    return new Map(proyeccion.map((p) => [p.id, p.dias_restantes]));
+  }, [productos, ventas]);
+
+  /*
+   * "EOS te avisa": lo que pide atención, con nombre, monto y fecha, y el
+   * botón que lleva a resolverlo.
    *
    * Todo sale de datos que esta pantalla ya tenía —las ventas, el catálogo— más
    * los vencidos de Cartera. Nada se calcula distinto de como lo calcula la
-   * pantalla a la que lleva el botón: si acá dice "2 vencidas", allá hay dos.
-   * Cuando no hay nada, el bloque no aparece: un "todo en orden" fijo termina
-   * siendo ruido que nadie lee.
+   * pantalla a la que lleva el botón. Cuando no hay nada, el bloque no
+   * aparece: un "todo en orden" fijo termina siendo ruido que nadie lee.
    */
   const avisos = useMemo<Aviso[]>(() => {
     const lista: Aviso[] = [];
     const { vencidas } = resumen;
 
     if (vencidas.length > 0) {
-      const nombre = vencidas[0].contacto?.nombre ?? "Un consumidor final";
+      const v = vencidas[0];
+      const nombre = v.contacto?.nombre ?? "Un consumidor final";
       lista.push({
         clave: "cobrar",
         tono: "mal",
         texto:
-          vencidas.length === 1
-            ? `${nombre} tiene una venta a crédito vencida sin cobrar.`
-            : `${nombre} y ${vencidas.length - 1} más tienen ventas a crédito vencidas sin cobrar.`,
+          vencidas.length === 1 ? (
+            <>
+              <strong>{nombre}</strong> te debe {formatearMonto(v.total, v.moneda)} desde el {diaMes(v.vence_el as string)}
+            </>
+          ) : (
+            <>
+              <strong>{nombre}</strong> y {vencidas.length - 1} más tienen ventas vencidas sin cobrar
+            </>
+          ),
         accion: "Cobrar",
         ir: "cobrar",
       });
     }
-    if (comprasVencidas > 0) {
+
+    if (pagosVencidos.length > 0) {
+      const p = pagosVencidos[0];
+      const proveedor = p.contacto_nombre ?? "un proveedor";
       lista.push({
         clave: "pagar",
         tono: "mal",
         texto:
-          comprasVencidas === 1
-            ? "Tenés un pago a un proveedor vencido."
-            : `Tenés ${comprasVencidas} pagos a proveedores vencidos.`,
+          pagosVencidos.length === 1 ? (
+            <>
+              Pago a <strong>{proveedor}</strong> de {formatearMonto(p.saldo, p.moneda)}
+              {p.vence_el ? ` venció el ${diaMes(p.vence_el)}` : " vencido"}
+            </>
+          ) : (
+            <>
+              {pagosVencidos.length} pagos a proveedores vencidos, el más viejo a <strong>{proveedor}</strong>
+            </>
+          ),
         accion: "Ver",
         ir: "pagar",
       });
     }
-    if (resumen.sobrepedidos > 0) {
+
+    const seAcaba = productos
+      .filter((p) => diasRestantes.has(p.id))
+      .sort((a, b) => (diasRestantes.get(a.id) ?? 0) - (diasRestantes.get(b.id) ?? 0))[0];
+    if (seAcaba) {
+      const dias = diasRestantes.get(seAcaba.id) ?? 0;
+      lista.push({
+        clave: "agota",
+        tono: "atencion",
+        texto: (
+          <>
+            <strong>{seAcaba.nombre}</strong> se acaba en {dias} {dias === 1 ? "día" : "días"} al ritmo de ventas del
+            último mes
+          </>
+        ),
+        accion: "Ver",
+        ir: "productos",
+      });
+    }
+
+    if (resumen.sobrepedidos.length > 0) {
+      const p = resumen.sobrepedidos[0];
       lista.push({
         clave: "sobrepedidos",
         tono: "atencion",
-        texto:
-          resumen.sobrepedidos === 1
-            ? "Vendiste un producto por encima del stock que tenías."
-            : `Vendiste ${resumen.sobrepedidos} productos por encima del stock que tenías.`,
+        texto: (
+          <>
+            Vendiste {Math.abs(p.stock_actual)} <strong>{p.nombre}</strong> más de lo que tenías en stock
+            {resumen.sobrepedidos.length > 1 ? ` (y ${resumen.sobrepedidos.length - 1} productos más)` : ""}
+          </>
+        ),
         accion: "Ver",
         ir: "productos",
       });
     }
-    if (resumen.bajoMinimo > 0) {
+
+    const bajos = resumen.bajoMinimo.filter((p) => !(p.controla_stock && p.stock_actual < 0));
+    if (bajos.length > 0) {
       lista.push({
         clave: "stock",
         tono: "atencion",
-        texto:
-          resumen.bajoMinimo === 1
-            ? "Un producto quedó por debajo de su stock mínimo."
-            : `${resumen.bajoMinimo} productos quedaron por debajo de su stock mínimo.`,
+        texto: (
+          <>
+            <strong>{bajos[0].nombre}</strong> quedó por debajo de su stock mínimo
+            {bajos.length > 1 ? ` (y ${bajos.length - 1} más)` : ""}
+          </>
+        ),
         accion: "Ver",
         ir: "productos",
       });
     }
+
     return lista.slice(0, 3);
-  }, [resumen, comprasVencidas]);
+  }, [resumen, pagosVencidos, productos, diasRestantes]);
 
   const secciones = useMemo(
     () =>
@@ -333,12 +417,12 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
           s.clave === "vender"
             ? resumen.vencidas.length
             : s.clave === "comprar"
-              ? comprasVencidas
+              ? pagosVencidos.length
               : s.clave === "catalogo"
                 ? resumen.catalogoAtencion
                 : 0,
       })),
-    [resumen, comprasVencidas],
+    [resumen, pagosVencidos],
   );
 
   /*
@@ -362,8 +446,8 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
     // por su lado y en silencio: si fallan, falta un aviso, no la pantalla.
     fetch("/api/erp/cartera?tipo=pagar", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { vencidos?: unknown[] } | null) => setComprasVencidas(d?.vencidos?.length ?? 0))
-      .catch(() => setComprasVencidas(0));
+      .then((d: { vencidos?: PagoVencido[] } | null) => setPagosVencidos(d?.vencidos ?? []))
+      .catch(() => setPagosVencidos([]));
 
     return Promise.all([
       fetch("/api/erp/contactos", { cache: "no-store" }),
@@ -475,8 +559,8 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
               <Package size={17} />
               <span>Productos</span>
               <strong>{resumen.productos}</strong>
-              <small className={resumen.bajoMinimo ? "is-alert" : ""}>
-                {resumen.bajoMinimo ? `${resumen.bajoMinimo} con stock bajo` : "Stock controlado"}
+              <small className={resumen.bajoMinimo.length ? "is-alert" : ""}>
+                {resumen.bajoMinimo.length ? `${resumen.bajoMinimo.length} con stock bajo` : "Stock controlado"}
               </small>
             </button>
             {onOpenCRM && (
@@ -490,8 +574,8 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
             <button type="button" className="neg-resumen-card" onClick={() => irA("rentabilidad")}>
               <BadgeDollarSign size={17} />
               <span>Rentabilidad</span>
-              <strong>Ver márgenes</strong>
-              <small>Ganancia por producto</small>
+              <strong>{resumen.margenCatalogo === null ? "Ver márgenes" : `${Math.round(resumen.margenCatalogo)}%`}</strong>
+              <small>{resumen.margenCatalogo === null ? "Cargá los costos para verlo" : "Margen del catálogo"}</small>
             </button>
           </div>
         )}
@@ -517,7 +601,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
             <input
               className="sec-decile-input"
               aria-label="Contale a EOS lo que pasó en el negocio"
-              placeholder="«vendí 3 cajas de agua a Juan, me paga el 30»"
+              placeholder="Decile a EOS: «vendí 3 cajas de agua a Juan, me paga el 30»"
               value={frase}
               maxLength={500}
               onChange={(e) => setFrase(e.target.value)}
@@ -525,7 +609,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
                 if (e.key === "Enter") decirle();
               }}
             />
-            <button type="button" className="reco-btn" disabled={!frase.trim()} onClick={decirle}>
+            <button type="button" className="btn-pri" disabled={!frase.trim()} onClick={decirle}>
               Anotar
             </button>
           </div>
@@ -579,7 +663,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
         ) : pestania === "rentabilidad" ? (
           <Rentabilidad productos={productos} />
         ) : pestania === "productos" ? (
-          <Productos productos={productos} onCambio={() => void cargar()} />
+          <Productos productos={productos} diasRestantes={diasRestantes} onCambio={() => void cargar()} />
         ) : (
           <Emisor />
         )}
@@ -1275,7 +1359,19 @@ function Facturar({ ventaId }: { ventaId: string }) {
    PRODUCTOS
    ============================================================ */
 
-function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: () => void }) {
+function Productos({
+  productos,
+  diasRestantes,
+  onCambio,
+}: {
+  productos: Producto[];
+  /** Cuántos días alcanza el stock al ritmo de venta, de los que se acaban pronto. */
+  diasRestantes: Map<string, number>;
+  onCambio: () => void;
+}) {
+  /** `null`: lo decide si hay catálogo o no. Con catálogo, cerrados hasta que se pidan. */
+  const [formularioAbierto, setFormularioAbierto] = useState<boolean | null>(null);
+  const [importarAbierto, setImportarAbierto] = useState<boolean | null>(null);
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [costo, setCosto] = useState("");
@@ -1327,6 +1423,7 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
       setPrecio("");
       setCosto("");
       setStock("");
+      setFormularioAbierto(null);
       onCambio();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar.");
@@ -1335,8 +1432,32 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
     }
   }
 
+  /*
+   * Dos puertas arriba —cargar uno o traer la planilla— y el catálogo como
+   * tabla. Quien llega sin productos las ve abiertas: tiene su catálogo en una
+   * planilla, no en la cabeza, y ofrecerle primero cargar de a uno es hacerle
+   * empezar por el camino largo.
+   */
+  const vacio = productos.length === 0;
+  const verFormulario = formularioAbierto ?? vacio;
+  const verImportar = importarAbierto ?? vacio;
+
   return (
     <>
+      <div className="neg-barra">
+        <div className="neg-barra-izq">
+          <button type="button" className="btn-pri" onClick={() => setFormularioAbierto(!verFormulario)}>
+            <Plus size={14} /> Nuevo producto o servicio
+          </button>
+          <button type="button" className="btn-sec" onClick={() => setImportarAbierto(!verImportar)}>
+            Traer desde una planilla
+          </button>
+        </div>
+      </div>
+
+      {verImportar && <ImportarProductos onImportado={onCambio} />}
+
+      {verFormulario && (
       <div className="card">
         <div className="card-title">Nuevo producto o servicio</div>
         <div className="card-sub">El precio va como se lo decís al cliente: con IVA adentro. Si cargás el costo, EOS te dice el margen antes de guardar.</div>
@@ -1406,33 +1527,40 @@ function Productos({ productos, onCambio }: { productos: Producto[]; onCambio: (
 
         {error && <p className="neg-error" role="alert">{error}</p>}
 
-        <button type="button" className="reco-btn" disabled={guardando} onClick={guardar}>
-          {guardando ? "Guardando…" : "Agregar"}
-        </button>
+        <div className="chip-row" style={{ marginTop: 12, marginBottom: 0 }}>
+          <button type="button" className="btn-pri" disabled={guardando} onClick={guardar}>
+            {guardando ? "Guardando…" : "Guardar"}
+          </button>
+          {!vacio && (
+            <button type="button" className="chip" onClick={() => setFormularioAbierto(false)}>
+              Cancelar
+            </button>
+          )}
+        </div>
       </div>
+      )}
 
-      {/*
-        Importar va ANTES del catálogo.
-
-        Quien llega a esta pestaña por primera vez tiene su catálogo en una
-        planilla, no en la cabeza. Ofrecerle cargar de a uno primero y la
-        importación al final es hacerle empezar por el camino largo.
-      */}
-      <ImportarProductos onImportado={onCambio} />
-
-      <div className="card">
-        <div className="card-title">Tu catálogo</div>
-
-        {productos.length === 0 ? (
+      {vacio ? (
+        <div className="card">
           <p className="empty-note">Todavía no cargaste productos.</p>
-        ) : (
-          <div className="neg-lista">
+        </div>
+      ) : (
+        <div className="neg-tabla" role="table" aria-label="Tu catálogo">
+          <div className="neg-tabla-scroll">
+            <div className="neg-tabla-fila neg-tabla-cab es-productos" role="row">
+              <span>Producto</span>
+              <span className="n">Precio</span>
+              <span className="n">Margen</span>
+              <span className="n">Stock</span>
+              <span>Te alcanza</span>
+              <span className="n">Acciones</span>
+            </div>
             {productos.map((p) => (
-              <FilaProducto key={p.id} producto={p} onCambio={onCambio} />
+              <FilaProducto key={p.id} producto={p} diasRestantes={diasRestantes.get(p.id)} onCambio={onCambio} />
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

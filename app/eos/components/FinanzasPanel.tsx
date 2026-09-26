@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, ChevronDown, Lock, Receipt, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasCandidatos from "./FinanzasCandidatos";
 import FinanzasBuzon from "./FinanzasBuzon";
@@ -132,9 +132,30 @@ type FinanzasPanelProps = {
   sinAjustes?: boolean;
   /** Lo que Ajustes necesita del estado para mostrar los fijos igual que acá. */
   onEstado?: (estado: { moneda: string; fijosConfirmados: number }) => void;
+  /**
+   * Cómo se muestra.
+   *
+   * - `completo` (el de siempre): la tarjeta entera con lo que EOS necesita
+   *   confirmar arriba.
+   * - `resumen`: cuatro tarjetas chicas —disponible real, para el día a día,
+   *   lo que viene y la reserva— y lo que EOS necesita confirmar. Es la cabeza
+   *   de Personal: la respuesta en una mirada.
+   * - `detalle`: solo la tarjeta entera, con la traza de cada cifra y los
+   *   detalles. Vive en Hoy › ¿Cómo estoy?, debajo de un resumen que ya dijo
+   *   si falta configurar, así que en ese caso se calla.
+   */
+  modo?: "completo" | "resumen" | "detalle";
+  /** En `resumen`, lleva al detalle completo. */
+  onVerDetalle?: () => void;
 };
 
-export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false, onEstado }: FinanzasPanelProps = {}) {
+export default function FinanzasPanel({
+  onConfiguradoChange,
+  sinAjustes = false,
+  onEstado,
+  modo = "completo",
+  onVerDetalle,
+}: FinanzasPanelProps = {}) {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
   /*
@@ -204,6 +225,10 @@ export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false,
       />
     );
   }
+
+  // El detalle vive debajo del resumen, que ya dice si falta configurar o si
+  // algo no se pudo leer. Repetirlo acá sería decir lo mismo dos veces.
+  if (modo === "detalle" && (sinModulo || error || data === null || !data.configurado)) return null;
 
   if (sinModulo) {
     return (
@@ -297,9 +322,33 @@ export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false,
     />
   );
 
+  /** Lo que EOS necesita que la persona confirme. Aparece solo cuando hay algo. */
+  const necesitaDeVos = (
+    <>
+      {data.conciliacion?.conviene_preguntar && (
+        <FinanzasConciliar
+          moneda={data.moneda}
+          saldoCalculado={data.saldo_estimado}
+          vecesConciliado={data.conciliacion.veces}
+          onListo={() => void cargar()}
+        />
+      )}
+      <FinanzasCandidatos onImportado={() => void cargar()} />
+    </>
+  );
+
+  if (modo === "resumen" && !data.sin_datos) {
+    return (
+      <>
+        {necesitaDeVos}
+        <ResumenPersonal data={data} fmt={fmt} onVerDetalle={onVerDetalle} />
+      </>
+    );
+  }
+
   return (
     <>
-    {data.conciliacion?.conviene_preguntar && (
+    {modo !== "detalle" && data.conciliacion?.conviene_preguntar && (
       <FinanzasConciliar
         moneda={data.moneda}
         saldoCalculado={data.saldo_estimado}
@@ -307,7 +356,7 @@ export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false,
         onListo={() => void cargar()}
       />
     )}
-    {!sinAjustes && (
+    {!sinAjustes && modo !== "detalle" && (
       <>
         <FinanzasFijos
           moneda={data.moneda}
@@ -317,7 +366,7 @@ export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false,
         <FinanzasBuzon />
       </>
     )}
-    <FinanzasCandidatos onImportado={() => void cargar()} />
+    {modo !== "detalle" && <FinanzasCandidatos onImportado={() => void cargar()} />}
 
     <div className="card fin-card">
       <div className="fin-head">
@@ -722,4 +771,85 @@ function formatearFecha(iso: string) {
   const [anio, mes, dia] = iso.slice(0, 10).split("-").map(Number);
   if (!anio || !mes || !dia || mes < 1 || mes > 12) return iso;
   return `${dia} de ${MESES_ES[mes - 1]}`;
+}
+
+/**
+ * La cabeza de Personal: cuatro tarjetas con la respuesta del día.
+ *
+ * Mismo formato que el resumen de Negocio, a propósito: las dos secciones se
+ * leen igual. Cada número sale del mismo estado que la tarjeta completa —que
+ * sigue entera en Hoy › ¿Cómo estoy?, con la traza de cada cifra—, así que
+ * acá no se calcula nada distinto. Lo único que se deriva es el "por día":
+ * el disponible real repartido en los días que faltan hasta el próximo
+ * ingreso que EOS ya estimó. Sin ese ingreso, no se inventa un plazo.
+ */
+function ResumenPersonal({
+  data,
+  fmt,
+  onVerDetalle,
+}: {
+  data: EstadoFinanciero;
+  fmt: (valor: number) => string;
+  onVerDetalle?: () => void;
+}) {
+  const ingreso = data.prevision.proximo_ingreso;
+  const dias = ingreso ? diasHasta(ingreso.fecha) : null;
+  const porDia = dias !== null && dias > 0 ? Math.max(0, data.disponible_real) / dias : null;
+  const porPagar = data.compromisos.total + data.prevision.gastos_previsibles.total;
+  const cuantos = data.compromisos.cantidad + data.prevision.gastos_previsibles.cantidad;
+  const estado =
+    data.estado === "seguro"
+      ? { texto: "Vas bien", tono: "ok" }
+      : data.estado === "atencion"
+        ? { texto: "En observación", tono: "av" }
+        : { texto: "Necesita una decisión", tono: "mal" };
+
+  return (
+    <div className="neg-resumen is-negocio is-personal" aria-label="Resumen de tus finanzas">
+      <button type="button" className="neg-resumen-card is-primary" onClick={onVerDetalle}>
+        <ShieldCheck size={17} />
+        <span>Disponible real</span>
+        <strong>{fmt(data.disponible_real)}</strong>
+        <small>
+          <span className={`neg-pill is-${estado.tono}`}>{estado.texto}</span>
+        </small>
+      </button>
+      <button type="button" className="neg-resumen-card" onClick={onVerDetalle}>
+        <CalendarDays size={17} />
+        <span>Para el día a día</span>
+        <strong>{porDia === null ? fmt(data.saldo_estimado) : fmt(Math.floor(porDia))}</strong>
+        <small>
+          {porDia === null || !ingreso
+            ? "Saldo estimado de hoy"
+            : `por día hasta el ${formatearFecha(ingreso.fecha)}`}
+        </small>
+      </button>
+      <button type="button" className="neg-resumen-card" onClick={onVerDetalle}>
+        <Receipt size={17} />
+        <span>Lo que viene</span>
+        <strong>{fmt(porPagar)}</strong>
+        <small>
+          {cuantos === 0
+            ? "Nada por pagar a la vista"
+            : `${cuantos} ${cuantos === 1 ? "pago" : "pagos"} ya contemplado${cuantos === 1 ? "" : "s"}`}
+        </small>
+      </button>
+      <button type="button" className="neg-resumen-card" onClick={onVerDetalle}>
+        <Lock size={17} />
+        <span>Reserva mínima</span>
+        <strong>{fmt(data.reserva_minima)}</strong>
+        <small className={data.reserva_protegida ? "" : "is-alert"}>
+          {data.reserva_protegida ? "Protegida, no se toca" : "Por debajo del mínimo"}
+        </small>
+      </button>
+    </div>
+  );
+}
+
+/** Días enteros desde hoy (reloj de quien mira) hasta una fecha `YYYY-MM-DD`. */
+function diasHasta(iso: string): number {
+  const hoy = new Date();
+  const desde = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const [a, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return Math.round((Date.UTC(a, m - 1, d) - desde) / 86_400_000);
 }

@@ -148,14 +148,19 @@ export default function ResultadoView() {
 
   return (
     <div className="neg-resultado">
-      {fijosDelNegocio}
+      {/* Los fijos van al final cuando ya hay resultado: primero lo que quedó, después de qué se compone. */}
 
       {datos.aviso && <p className="neg-error" role="alert">{datos.aviso}</p>}
 
       {datos.resultados.map((r) => (
         <div key={`res-${r.moneda}`} className="card" style={{ marginBottom: 16 }}>
           <div className="card-title">
-            <FileText size={15} /> Resultado del período en {r.moneda}
+            <FileText size={15} /> Qué quedó{datos.resultados.length > 1 ? ` en ${r.moneda}` : ""}
+            {r.resultado_operativo !== null && (
+              <span className={`neg-pill ${r.resultado_operativo < 0 ? "is-mal" : "is-ok"}`} style={{ marginLeft: "auto" }}>
+                {r.resultado_operativo < 0 ? "Pérdida" : "Ganancia"}
+              </span>
+            )}
           </div>
           <div className="card-sub">
             Del {formatearDia(datos.periodo.desde)} al {formatearDia(datos.periodo.hasta)}
@@ -227,28 +232,25 @@ export default function ResultadoView() {
       ))}
 
       {datos.posiciones.map((p) => (
-        <div key={`pos-${p.moneda}`} className="card" style={{ marginBottom: 16 }}>
-          <div className="card-title">
-            <Scale size={15} /> Con qué contás en {p.moneda}
-          </div>
-          <div className="card-sub">{p.lectura}</div>
-
-          <div className="neg-metricas">
-            <div className="neg-metrica">
+        <section key={`pos-${p.moneda}`} className="neg-posicion" aria-label={`Con qué contás en ${p.moneda}`}>
+          <div className="neg-kpis">
+            <div className="neg-kpi">
               <span>Te deben</span>
               <strong>{formatearMonto(p.por_cobrar, p.moneda)}</strong>
             </div>
-            <div className="neg-metrica">
+            <div className="neg-kpi">
               <span>En mercadería</span>
               <strong>{formatearMonto(p.inventario, p.moneda)}</strong>
             </div>
-            <div className="neg-metrica">
+            <div className="neg-kpi">
               <span>Debés</span>
               <strong>{formatearMonto(p.pasivo_conocido, p.moneda)}</strong>
             </div>
-            <div className={`neg-metrica${p.capital_de_trabajo < 0 ? " is-danger" : ""}`}>
+            <div className="neg-kpi">
               <span>Capital de trabajo</span>
-              <strong>{formatearMonto(p.capital_de_trabajo, p.moneda)}</strong>
+              <strong className={p.capital_de_trabajo < 0 ? "is-mal" : undefined}>
+                {formatearMonto(p.capital_de_trabajo, p.moneda)}
+              </strong>
               {p.liquidez !== null && (
                 <small className="neg-metrica-nota">
                   Liquidez{p.liquidez_es_piso ? ": al menos " : ": "}
@@ -257,10 +259,14 @@ export default function ResultadoView() {
               )}
             </div>
           </div>
-
+          <p className="neg-posicion-lectura">
+            <Scale size={13} /> {p.lectura}
+          </p>
           <Notas advertencias={p.advertencias} faltantes={p.faltantes} />
-        </div>
+        </section>
       ))}
+
+      {fijosDelNegocio}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Pencil, Scale } from "lucide-react";
+import { Check, MoreHorizontal, Scale } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import { tasaValida } from "@/lib/erp/impuestos";
@@ -31,10 +31,32 @@ import type { Producto } from "./tipos";
  * el producto no puede escribir `stock_actual`.
  */
 
-type Props = { producto: Producto; onCambio: () => void };
+type Props = {
+  producto: Producto;
+  /** Días que alcanza el stock al ritmo de venta. Solo llega para los que se acaban pronto. */
+  diasRestantes?: number;
+  onCambio: () => void;
+};
 
-export default function FilaProducto({ producto, onCambio }: Props) {
+/**
+ * Cuánto alcanza el stock, en una palabra y con el color de lo que pide.
+ *
+ * Los días salen de `lib/erp/agotamiento` y solo existen para lo que se acaba
+ * en las próximas dos semanas. Del resto no se dice un número que no se
+ * calculó: se dice el estado.
+ */
+function alcance(p: Producto, dias: number | undefined): { texto: string; tono: "ok" | "mal" | "av" | "neutro" } {
+  if (!p.controla_stock) return { texto: "Servicio", tono: "neutro" };
+  if (p.stock_actual < 0) return { texto: "Sobrepedido", tono: "mal" };
+  if (p.stock_actual === 0) return { texto: "Sin stock", tono: "mal" };
+  if (dias !== undefined) return { texto: `${dias} ${dias === 1 ? "día" : "días"}`, tono: dias <= 7 ? "mal" : "av" };
+  if (p.bajo_minimo) return { texto: "Bajo mínimo", tono: "av" };
+  return { texto: "Alcanza", tono: "ok" };
+}
+
+export default function FilaProducto({ producto, diasRestantes, onCambio }: Props) {
   const [modo, setModo] = useState<"ver" | "editar" | "ajustar">("ver");
+  const [masAbierto, setMasAbierto] = useState(false);
 
   /** La baja es lógica: las ventas que ya lo nombran no se tocan. */
   async function darDeBaja() {
@@ -55,32 +77,31 @@ export default function FilaProducto({ producto, onCambio }: Props) {
     precio_venta: producto.precio_venta,
     iva: tasaValida(producto.iva),
   });
+  const estado = alcance(producto, diasRestantes);
 
   function listo(mensaje: string) {
     setModo("ver");
+    setMasAbierto(false);
     setAviso(mensaje);
     onCambio();
     window.setTimeout(() => setAviso(""), 4000);
   }
 
   return (
-    <div className="neg-fila">
-      <div className="neg-fila-texto">
-        <strong>{producto.nombre}</strong>
+    <div className="neg-tabla-fila es-productos" role="row">
+      <span className="neg-tabla-principal">
+        {producto.nombre}
         <small>
           {producto.codigo ? `${producto.codigo} · ` : ""}
           {producto.iva === 0 ? "Exenta" : `IVA ${producto.iva}%`}
-          {producto.controla_stock ? ` · ${producto.stock_actual} en stock` : " · servicio"}
           {producto.costo != null && producto.costo > 0
             ? ` · costo ${formatearMonto(producto.costo, producto.moneda)}`
             : ""}
         </small>
         {aviso && <span className="neg-inline-success" role="status"><Check size={12} /> {aviso}</span>}
-      </div>
-
-      <span className="neg-fila-monto">
-        {formatearMonto(producto.precio_venta, producto.moneda)}
       </span>
+
+      <span className="n neg-tabla-monto">{formatearMonto(producto.precio_venta, producto.moneda)}</span>
 
       {/*
         Cuánto se gana con este producto, calculado solo.
@@ -90,50 +111,66 @@ export default function FilaProducto({ producto, onCambio }: Props) {
         sacarlo a mano — mal, casi siempre, porque la resta obvia no descuenta
         el IVA y da una ganancia que no existe.
       */}
-      {margen.conocido && (
-        <span
-          className={`neg-margen${margen.pierde ? " is-perdida" : ""}`}
-          title={
-            `Ganás ${formatearMonto(margen.ganancia, producto.moneda)} por unidad, ` +
-            `ya descontado el IVA de las dos puntas.`
-          }
-        >
-          {textoMargen(margen)}
-        </span>
-      )}
+      <span
+        className={`n${margen.conocido && margen.pierde ? " neg-tabla-perdida" : ""}`}
+        title={
+          margen.conocido
+            ? `Ganás ${formatearMonto(margen.ganancia, producto.moneda)} por unidad, ya descontado el IVA de las dos puntas.`
+            : textoMargen(margen)
+        }
+      >
+        {margen.conocido ? `${Math.round(margen.margen)}%` : "—"}
+      </span>
 
-      {producto.bajo_minimo && (
-        <span className="neg-estado is-mal">
-          <AlertTriangle size={12} /> bajo mínimo
-        </span>
-      )}
+      <span className={`n${producto.controla_stock && producto.stock_actual < 0 ? " neg-tabla-perdida" : ""}`}>
+        {producto.controla_stock ? producto.stock_actual : "—"}
+      </span>
 
-      {modo === "ver" && (
-        <>
-          <button type="button" className="chip" onClick={() => setModo("editar")}>
-            <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-            Editar
-          </button>
+      <span>
+        <span className={`neg-pill is-${estado.tono}`}>{estado.texto}</span>
+      </span>
 
+      <div className="neg-tabla-acciones">
+        {modo === "ver" && (
+          <>
+            <button type="button" className="chip" onClick={() => setModo("editar")}>
+              Editar
+            </button>
+            <button
+              type="button"
+              className="chip"
+              aria-expanded={masAbierto}
+              aria-label="Más acciones"
+              onClick={() => setMasAbierto((v) => !v)}
+            >
+              <MoreHorizontal size={13} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/*
+        Ajustar y dar de baja, detrás de "⋯": lo que se usa cuando el depósito
+        no coincide o un producto se cargó por error.
+
+        Dar de baja, con la consecuencia adentro. La ruta existía desde siempre
+        y ninguna pantalla la llamaba: un catálogo del que no se puede sacar
+        nada junta duplicados hasta que el informe de ventas deja de significar
+        algo. La baja es lógica, no un borrado: las ventas viejas apuntan acá y
+        borrarlo dejaría el historial sin nombres. Eso se dice, porque es la
+        diferencia entre "lo perdí" y "lo saqué de la lista".
+
+        Llevar inventario o no se cambia en Editar, junto con el resto de lo
+        que el producto ES.
+      */}
+      {modo === "ver" && masAbierto && (
+        <div className="neg-tabla-mas">
           {producto.controla_stock && (
             <button type="button" className="chip" onClick={() => setModo("ajustar")}>
               <Scale size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-              Ajustar
+              Ajustar stock
             </button>
           )}
-
-          {/*
-            Dar de baja, con la consecuencia adentro.
-
-            La ruta existía desde siempre y ninguna pantalla la llamaba: no
-            había forma de sacar un producto cargado por error, y un catálogo
-            del que no se puede sacar nada junta duplicados hasta que el
-            informe de ventas deja de significar algo.
-
-            La baja es lógica, no un borrado: las ventas viejas apuntan acá y
-            borrarlo dejaría el historial sin nombres. Eso se dice, porque es
-            la diferencia entre "lo perdí" y "lo saqué de la lista".
-          */}
           <Confirmar
             etiqueta="Dar de baja"
             peligro
@@ -145,27 +182,31 @@ export default function FilaProducto({ producto, onCambio }: Props) {
             confirmar="Sí, darlo de baja"
             onConfirmar={() => void darDeBaja()}
           />
-        </>
+        </div>
       )}
 
       {modo === "editar" && (
-        <Editar
-          producto={producto}
-          onCerrar={() => setModo("ver")}
-          onListo={() => {
-            listo("Cambios guardados");
-          }}
-        />
+        <div className="neg-tabla-extra">
+          <Editar
+            producto={producto}
+            onCerrar={() => setModo("ver")}
+            onListo={() => {
+              listo("Cambios guardados");
+            }}
+          />
+        </div>
       )}
 
       {modo === "ajustar" && (
-        <Ajustar
-          producto={producto}
-          onCerrar={() => setModo("ver")}
-          onListo={() => {
-            listo("Stock actualizado");
-          }}
-        />
+        <div className="neg-tabla-extra">
+          <Ajustar
+            producto={producto}
+            onCerrar={() => setModo("ver")}
+            onListo={() => {
+              listo("Stock actualizado");
+            }}
+          />
+        </div>
       )}
     </div>
   );

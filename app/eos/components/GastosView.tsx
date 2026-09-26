@@ -8,7 +8,6 @@ import {
   Lock,
   MessageCircle,
   Pencil,
-  Plus,
   RefreshCw,
   Trash2,
   Wallet,
@@ -519,28 +518,23 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         */}
         <FinanzasPanel
           key={versionPanel}
+          modo="resumen"
           sinAjustes
           onConfiguradoChange={setFinanzasConfigurada}
           onEstado={setEstadoPanel}
+          onVerDetalle={() => irA("estoy")}
         />
 
-        <div className="card">
-        <div className="neg-section-heading">
-          <div>
-            <div className="card-title">Anotá un gasto o un ingreso</div>
-            <div className="card-sub">
-              Escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo 3.500.000».
-              EOS entiende el monto, la fecha y en qué fue.
-            </div>
-          </div>
-          <Wallet size={24} />
-        </div>
-
-        <div className="gastos-alta">
+        {/*
+          La línea para anotar, en una sola fila como en Negocio: el ícono de
+          EOS, la frase y el botón. Lo que EOS entendió aparece abajo.
+        */}
+        <div className="sec-decile">
+          <span className="sec-decile-ico" aria-hidden="true">EOS</span>
           <input
-            className="neg-input"
-            aria-label="Anotar un gasto"
-            placeholder="gasté 35 mil en el almuerzo"
+            className="sec-decile-input"
+            aria-label="Anotar un gasto o un ingreso"
+            placeholder="Anotá un gasto: «gasté 35 mil en el almuerzo»"
             value={texto}
             maxLength={200}
             onChange={(e) => setTexto(e.target.value)}
@@ -548,10 +542,14 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
               if (e.key === "Enter") void anotar();
             }}
           />
-          <button type="button" className="reco-btn" disabled={guardando} onClick={() => void anotar()}>
-            <Plus size={14} /> {guardando ? "Anotando…" : "Anotar"}
+          <button type="button" className="btn-pri" disabled={guardando} onClick={() => void anotar()}>
+            {guardando ? "Anotando…" : "Anotar"}
           </button>
         </div>
+        <p className="sec-decile-ayuda">
+          Escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo 3.500.000». EOS entiende el monto, la
+          fecha y en qué fue.
+        </p>
 
         {/*
           Lo que EOS entendió se queda hasta la próxima carga a propósito: es la
@@ -560,7 +558,6 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         */}
         {entendido && <p className="gastos-entendido">{entendido}</p>}
         {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
-      </div>
 
       <SeccionNav
         secciones={SECCIONES}
@@ -572,7 +569,12 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
       />
 
       <div className="sec-contenido">
-      {subarea === "estoy" && <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />}
+      {subarea === "estoy" && (
+        <>
+          <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />
+          <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />
+        </>
+      )}
 
       {subarea === "comprar" &&
         (finanzasConfigurada === false ? (
