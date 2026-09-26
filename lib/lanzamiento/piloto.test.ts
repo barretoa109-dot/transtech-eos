@@ -61,6 +61,15 @@ test("un alta de hace días sin ninguna acción es INTERVENIR, aunque la fecha v
   assert.match(r.motivo, /7 días/);
 });
 
+test("sin mensajes guardados pero con una acción vieja, se enfrió: no es 'ok'", () => {
+  const r = evaluarCuenta(
+    { registro: "2026-08-04 23:38:00+00", primera_accion_ok: "2026-08-05 10:00:00+00", ultimo_mensaje: null, acciones_ok_7d: 0 },
+    AHORA,
+  );
+  assert.equal(r.estado, "SE ENFRIÓ");
+  assert.match(r.motivo, /no usa EOS hace 50 días/);
+});
+
 test("las fechas sin zona de Postgres se leen como UTC", () => {
   assert.equal(fecha("2026-09-24 20:00:00.123"), Date.parse("2026-09-24T20:00:00.123Z"));
   assert.equal(fecha("2026-09-24T20:00:00+00:00"), AHORA);
