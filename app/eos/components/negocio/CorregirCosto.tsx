@@ -88,12 +88,15 @@ export default function CorregirCosto({
   moneda,
   items,
   onCorregido,
+  etiqueta,
 }: {
   modo: keyof typeof MODOS;
   documentoId: string;
   moneda: string;
   items: Item[];
   onCorregido: () => void;
+  /** El texto del botón, cuando el lugar pide uno más explícito que el de siempre. */
+  etiqueta?: string;
 }) {
   const config = MODOS[modo];
 
@@ -153,7 +156,7 @@ export default function CorregirCosto({
   if (!abierto) {
     return (
       <button type="button" className="chip" onClick={abrir}>
-        <Pencil size={13} /> {config.boton}
+        <Pencil size={13} /> {etiqueta ?? config.boton}
       </button>
     );
   }

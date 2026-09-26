@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeDollarSign, Check, Handshake, MoreHorizontal, Package, Pencil, Plus, ShoppingCart, Undo2 } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, Handshake, MoreHorizontal, Package, Pencil, Plus, ShoppingCart } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { useEscape } from "./useEscape";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
@@ -11,6 +11,7 @@ import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
 import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
+import { diaMes } from "./negocio/fecha";
 import Pronostico from "./negocio/Pronostico";
 import Inventario from "./negocio/Inventario";
 import ResultadoView from "./negocio/Resultado";
@@ -825,22 +826,52 @@ function Ventas({
     }
   }
 
+  const hoy = hoyIso();
+
+  /*
+   * La lista es una tabla: fecha, cliente, qué, total, estado y acciones, una
+   * columna para cada cosa. Antes cada venta era un renglón con todo en una
+   * línea de texto y cinco botones, y había que leer la frase entera para
+   * saber si estaba cobrada.
+   */
   return (
     <>
-      <div className="card">
-        <div className="card-title">{editandoId ? "Corregir venta" : "Cargar una venta"}</div>
+      <div className="neg-barra">
+        {productos.length > 0 && !abierto ? (
+          <button type="button" className="btn-pri" onClick={() => setAbierto(true)}>
+            <Plus size={14} /> Nueva venta
+          </button>
+        ) : (
+          <span />
+        )}
+        {/*
+          Lo anulado NO se queda en la lista.
 
-        {productos.length === 0 ? (
+          Antes se mostraba tachado, y el pedido fue explícito: cuando alguien
+          elimina algo tiene que desaparecer de la pantalla, no quedar con una
+          raya encima. Pero no se borra del registro: una venta anulada es parte
+          de la contabilidad. Por eso se esconde y se puede volver a mirar en un
+          clic.
+        */}
+        {anuladas.length > 0 && (
+          <button type="button" className="btn-link" onClick={() => setVerAnuladas((v) => !v)}>
+            {verAnuladas ? "Ocultar anuladas" : `Ver anuladas (${anuladas.length})`}
+          </button>
+        )}
+      </div>
+
+      {productos.length === 0 && (
+        <div className="card">
+          <div className="card-title">Cargar una venta</div>
           <p className="empty-note">
             Primero cargá al menos un producto o servicio en Catálogo › Productos.
           </p>
-        ) : !abierto ? (
-          <button type="button" className="reco-btn" onClick={() => setAbierto(true)}>
-            <Plus size={13} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />
-            Nueva venta
-          </button>
-        ) : (
-          <>
+        </div>
+      )}
+
+      {abierto && (
+        <div className="card">
+          <div className="card-title">{editandoId ? "Corregir venta" : "Cargar una venta"}</div>
             <div className="field-row">
               <span className="field-label">Cliente</span>
               <select
@@ -1016,172 +1047,146 @@ function Ventas({
                 Cancelar
               </button>
             </div>
-          </>
-        )}
-      </div>
-
-      {/*
-        Solo aparece si hay algo que mostrar: para quien nunca vende de más,
-        una tarjeta vacía todo el tiempo es ruido, no información.
-      */}
-      {sobrepedidos.length > 0 && (
-        <div className="card">
-          <div className="card-title">Sobrepedidos</div>
-          <div className="neg-lista">
-            {sobrepedidos.map((p) => (
-              <div className="neg-fila" key={p.id}>
-                <div className="neg-fila-texto">
-                  <strong>{p.nombre}</strong>
-                  <small>El sistema dice {p.stock_actual}</small>
-                </div>
-                <span className="neg-estado is-mal">
-                  <AlertTriangle size={12} /> {Math.abs(p.stock_actual)} de sobrepedido
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">
-          Últimas ventas
-          {/*
-            Lo anulado NO se queda en la lista.
-
-            Antes se mostraba tachado, y el pedido fue explícito: cuando alguien
-            elimina algo tiene que desaparecer de la pantalla, no quedar con una
-            raya encima. Una lista donde lo borrado sigue ocupando lugar obliga
-            a leer dos veces cada renglón para saber cuál cuenta.
-
-            Pero no se borra del registro: una venta anulada es parte de la
-            contabilidad y de lo que después mira un contador. Por eso se
-            esconde y se puede volver a mirar en un clic, en vez de tacharse.
-          */}
-          {anuladas.length > 0 && (
-            <button
-              type="button"
-              className="chip"
-              style={{ marginLeft: 8 }}
-              onClick={() => setVerAnuladas((v) => !v)}
-            >
-              {verAnuladas
-                ? "Ocultar anuladas"
-                : `Ver ${anuladas.length} ${anuladas.length === 1 ? "anulada" : "anuladas"}`}
-            </button>
-          )}
+      {/*
+        Solo aparece si hay algo que mostrar: para quien nunca vende de más,
+        un aviso fijo es ruido, no información.
+      */}
+      {sobrepedidos.length > 0 && (
+        <div className="neg-banner" role="status">
+          <span className="neg-pill is-av">Sobrepedido</span>
+          <span>
+            {sobrepedidos.map((p, i) => (
+              <span key={p.id}>
+                {i > 0 && " · "}
+                Vendiste {Math.abs(p.stock_actual)} <strong>{p.nombre}</strong> más de lo que tenías en stock
+              </span>
+            ))}
+            .
+          </span>
         </div>
+      )}
 
-        {ventasVisibles.length === 0 ? (
+      {ventasVisibles.length === 0 ? (
+        <div className="card">
           <p className="empty-note">
             {ventas.length === 0
               ? "Todavía no cargaste ninguna venta."
               : "Todas tus ventas de este período están anuladas."}
           </p>
-        ) : (
-          <div className="neg-lista">
+        </div>
+      ) : (
+        <div className="neg-tabla" role="table" aria-label="Ventas">
+          <div className="neg-tabla-scroll">
+            <div className="neg-tabla-fila neg-tabla-cab es-ventas" role="row">
+              <span>Fecha</span>
+              <span>Cliente</span>
+              <span>Qué</span>
+              <span className="n">Total</span>
+              <span>Estado</span>
+              <span className="n">Acciones</span>
+            </div>
+
             {ventasVisibles.map((v) => {
               /*
                * Una venta anulada tiene que VERSE anulada. Ver el comentario
-               * largo en `negocio/Compras.tsx`: es el mismo error, reportado
-               * por una clienta usando EOS de verdad. Anular borra el
-               * movimiento, así que la fila volvía a ofrecer "Cobrar" y
-               * "Anular" y parecía que el botón no había hecho nada.
-               *
-               * Acá solo se ve cuando la persona pidió ver las anuladas: en la
-               * lista normal ya no aparecen.
+               * largo en `negocio/Compras.tsx`: anular borra el movimiento, así
+               * que la fila volvía a ofrecer "Cobrar" y parecía que el botón no
+               * había hecho nada. Solo se ve cuando la persona pidió ver las
+               * anuladas.
                */
               const anulada = v.estado === "anulada";
+              const estado = estadoDeVenta(v, hoy);
 
               return (
-                <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={v.id}>
-                  <div className="neg-fila-texto">
-                    <strong>{loVendido(v.items)}</strong>
-                    <small>
-                      {v.fecha} · {v.contacto?.nombre ?? "Consumidor final"} ·{" "}
-                      {v.condicion === "credito" ? "a crédito" : "contado"}
-                      {v.condicion === "credito" && v.vence_el ? ` · vence ${v.vence_el}` : ""}
-                    </small>
+                <div className={`neg-tabla-fila es-ventas${anulada ? " is-anulada" : ""}`} role="row" key={v.id}>
+                  <span className="neg-tabla-fecha">{diaMes(v.fecha)}</span>
+                  <span className="neg-tabla-principal">
+                    {v.contacto?.nombre ?? "Consumidor final"}
+                    <small>{v.condicion === "credito" ? "Crédito" : "Contado"}</small>
+                  </span>
+                  <span className="neg-tabla-sec">{loVendido(v.items)}</span>
+                  <span className="n neg-tabla-monto">{formatearMonto(v.total, v.moneda)}</span>
+                  <span>
+                    <span className={`neg-pill is-${estado.tono}`}>{estado.texto}</span>
+                  </span>
+
+                  <div className="neg-tabla-acciones">
+                    {!anulada && (
+                      <>
+                        {!v.movimiento_id && (
+                          <Confirmar
+                            etiqueta="Cobrar"
+                            clase="chip is-primario"
+                            consecuencia={
+                              `Se registra un ingreso de ${formatearMonto(v.total, v.moneda)} en tu panel, ` +
+                              "con la fecha de hoy. Si te equivocaste de venta, se corrige anulándola."
+                            }
+                            confirmar="Sí, cobrar"
+                            onConfirmar={() => void cobrar(v)}
+                          />
+                        )}
+
+                        <Facturar ventaId={v.id} />
+
+                        <button
+                          type="button"
+                          className="chip"
+                          aria-expanded={masAbiertoId === v.id}
+                          aria-label="Más acciones"
+                          onClick={() => setMasAbiertoId((actual) => (actual === v.id ? null : v.id))}
+                        >
+                          <MoreHorizontal size={13} />
+                        </button>
+                      </>
+                    )}
                   </div>
 
-                  <span className="neg-fila-monto">{formatearMonto(v.total, v.moneda)}</span>
+                  {/*
+                    Corregir, corregir el costo y anular: lo que se usa cuando
+                    algo se cargó mal, que no es lo normal. A un clic, debajo de
+                    la fila, y no compitiendo con Cobrar en cada renglón.
 
-                  {anulada ? (
-                    <span className="neg-estado is-anulada">
-                      <Undo2 size={12} /> anulada
-                    </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="chip"
-                        aria-expanded={masAbiertoId === v.id}
-                        aria-label="Más acciones"
-                        onClick={() => setMasAbiertoId((actual) => (actual === v.id ? null : v.id))}
-                      >
-                        <MoreHorizontal size={13} />
+                    El costo se corrige en la venta y no sólo en el producto
+                    porque el de una venta ya hecha quedó congelado: arreglar la
+                    ficha no arregla el margen de lo que ya se vendió.
+                  */}
+                  {masAbiertoId === v.id && !anulada && (
+                    <div className="neg-tabla-mas">
+                      <button type="button" className="chip" onClick={() => editar(v)}>
+                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                        Corregir venta
                       </button>
-
-                      {masAbiertoId === v.id && (
-                        <>
-                          {/*
-                            Corregir el costo se ofrece en la venta y no sólo
-                            en el producto, porque el costo de una venta ya
-                            hecha quedó congelado: arreglar la ficha no
-                            arregla el margen de lo que ya se vendió.
-                          */}
-                          <CorregirCosto
-                            modo="venta"
-                            documentoId={v.id}
-                            moneda={v.moneda}
-                            items={v.items ?? []}
-                            onCorregido={onCambio}
-                          />
-
-                          {/*
-                            Cantidad, precio, producto — lo que "Corregir
-                            costo" no toca. Si la venta tiene una factura
-                            activa, el servidor lo rechaza con el mismo
-                            mensaje que ya usa Anular: no hace falta duplicar
-                            ese chequeo acá.
-                          */}
-                          <button type="button" className="chip" onClick={() => editar(v)}>
-                            <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-                            Corregir
-                          </button>
-                        </>
-                      )}
-
-                      {v.movimiento_id ? (
-                        <span className="neg-estado is-ok">
-                          <Check size={12} /> cobrada
-                        </span>
-                      ) : (
-                        <Confirmar
-                          etiqueta="Cobrar"
-                          consecuencia={
-                            `Se registra un ingreso de ${formatearMonto(v.total, v.moneda)} en tu panel, ` +
-                            "con la fecha de hoy. Si te equivocaste de venta, se corrige anulándola."
-                          }
-                          confirmar="Sí, cobrar"
-                          onConfirmar={() => void cobrar(v)}
-                        />
-                      )}
-
-                      <Facturar ventaId={v.id} />
-
-                      {/* Anular va al final: se lee después de las acciones normales. */}
+                      <CorregirCosto
+                        modo="venta"
+                        etiqueta="Corregir costo"
+                        documentoId={v.id}
+                        moneda={v.moneda}
+                        items={v.items ?? []}
+                        onCorregido={onCambio}
+                      />
                       <Anular recurso="ventas" id={v.id} onAnulado={onCambio} />
-                    </>
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
+}
+
+/** El estado de una venta en una palabra, con el color de lo que pide. */
+function estadoDeVenta(v: Venta, hoy: string): { texto: string; tono: "ok" | "mal" | "av" | "neutro" } {
+  if (v.estado === "anulada") return { texto: "Anulada", tono: "neutro" };
+  if (v.movimiento_id) return { texto: "Cobrada", tono: "ok" };
+  if (v.vence_el && v.vence_el < hoy) return { texto: `Venció el ${diaMes(v.vence_el)}`, tono: "mal" };
+  if (v.vence_el) return { texto: `Vence el ${diaMes(v.vence_el)}`, tono: "av" };
+  return { texto: "Por cobrar", tono: "av" };
 }
 
 /**
