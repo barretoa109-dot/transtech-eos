@@ -50,10 +50,8 @@ import { textoMemoria } from "@/lib/eos/memoria-contexto";
 import { contextoDeSeguimientos } from "@/lib/crm/contexto-chat";
 import { hoyEnParaguay } from "@/lib/fecha";
 import {
-  avisoDeVerificacion,
-  corregirAfirmacionFallida,
   corregirAfirmacionSinAccion,
-  corregirAfirmacionSoloMemoria,
+  respuestaTrasVerificar,
 } from "@/lib/eos/acciones-chat";
 import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
 import { limpiarSeleccion } from "@/lib/eos/cita";
@@ -1241,35 +1239,25 @@ export async function procesarMensajeEOS(
       }
     }
 
-    // Si el texto habla en pasado y ninguna acción quedó escrita, se corrige
-    // antes que nada: el resto del mensaje se lee después de la advertencia.
-    resultado.respuesta = corregirAfirmacionFallida(resultado.respuesta, verificaciones);
-
     /*
-     * La tercera forma: la única acción fue GUARDAR_MEMORIA, que nunca falla, y
-     * el usuario había pedido cargar productos, costos o compras. La nota
-     * quedó; el catálogo no. Ver `corregirAfirmacionSoloMemoria`.
+     * Una vez que se sabe qué pasó con cada acción: si el texto habla en pasado
+     * y la acción falló, quedó solo como nota o espera aprobación, se corrige
+     * antes que nada; después va el aviso o el enlace que corresponda. Ver
+     * `respuestaTrasVerificar`, que corren también los evals de `honestidad`.
+     *
+     * `soloMemoria`, para el piloto (docs/estrategia/piloto-comercial-plan.md,
+     * "Qué instrumentar", punto 2): cada vez que un pedido operativo terminó
+     * como una nota, queda marcado en el log.
      */
-    const antesDeSoloMemoria = resultado.respuesta;
-    resultado.respuesta = corregirAfirmacionSoloMemoria(
-      resultado.respuesta,
-      resultado.acciones,
+    const verificada = respuestaTrasVerificar({
+      respuesta: resultado.respuesta,
+      acciones: resultado.acciones,
       mensaje,
       verificaciones,
-    );
-    /*
-     * Para el piloto (docs/estrategia/piloto-comercial-plan.md, "Qué
-     * instrumentar", punto 2): cada vez que un pedido operativo terminó como
-     * una nota, queda marcado en el log. Contarlas cada semana dice qué verbo
-     * de negocio falta, antes de que un cliente lo descubra.
-     */
-    const soloMemoria = resultado.respuesta !== antesDeSoloMemoria;
-
-    resultado.respuesta = avisoDeVerificacion(
-      resultado.respuesta,
-      verificaciones,
-      entrada.requestOrigin,
-    );
+      origen: entrada.requestOrigin,
+    });
+    resultado.respuesta = verificada.respuesta;
+    const soloMemoria = verificada.soloMemoria;
 
     /*
      * Lo último antes de que la vea la persona: nada de JSON de error, códigos
