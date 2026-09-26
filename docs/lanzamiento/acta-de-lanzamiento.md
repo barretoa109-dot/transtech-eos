@@ -36,7 +36,7 @@ conocidos · venta abierta.
 | Cobro con tarjeta apagado | Octubre, con Bancard en producción |
 | El WhatsApp de empresa recibe pero no envía | Cuando Meta habilite el envío |
 | Términos y privacidad sin revisión de un abogado | ____________ |
-| El chat depende de n8n (Railway) para ejecutar las acciones | Etapa 3 del gateway en TypeScript |
+| Los mensajes con foto, el briefing diario y el registro de decisiones siguen pasando por n8n (Railway); el resto del chat ya corre en Vercel (etapa 3) | Cuando las fotos pasen al gateway en TypeScript |
 
 ## Qué frena el lanzamiento
 

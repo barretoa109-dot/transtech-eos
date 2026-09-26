@@ -83,6 +83,38 @@ export function tarifasDelEntorno(env: Record<string, string | undefined> = proc
   };
 }
 
+/**
+ * Las tarifas del modelo que contestó.
+ *
+ * Con el paso 4 del enrutamiento (`lib/eos/enrutamiento-modelo.ts`) un turno
+ * simple lo puede contestar otro modelo, más barato, que tiene sus propias
+ * tarifas: `EOS_USD_POR_MTOK_ENTRADA_SIMPLE`, `..._ENTRADA_CACHEADA_SIMPLE` y
+ * `..._SALIDA_SIMPLE`. Si falta la de entrada o la de salida, se cobra a las
+ * del modelo completo:
+ * el consumo queda por encima del real, que es el lado seguro para el aviso de
+ * los Gs. 70.000, y nunca se inventa un descuento que nadie configuró.
+ *
+ * `modelo` es el que se le pidió a OpenAI (`metadata.modelo` del gateway). Lo
+ * que atiende n8n no lo trae y va a las tarifas de siempre.
+ */
+export function tarifasDelModelo(
+  modelo: unknown,
+  env: Record<string, string | undefined> = process.env,
+): TarifasUsd {
+  const simple = String(env.EOS_MODELO_SIMPLE ?? "").trim();
+  const pedido = typeof modelo === "string" ? modelo.trim() : "";
+  // Entrada y salida, las dos: con una sola, la otra se cobraría a cero.
+  const configuradas =
+    tarifa(env.EOS_USD_POR_MTOK_ENTRADA_SIMPLE) > 0 && tarifa(env.EOS_USD_POR_MTOK_SALIDA_SIMPLE) > 0;
+  if (!simple || pedido !== simple || !configuradas) return tarifasDelEntorno(env);
+
+  return tarifasDelEntorno({
+    EOS_USD_POR_MTOK_ENTRADA: env.EOS_USD_POR_MTOK_ENTRADA_SIMPLE,
+    EOS_USD_POR_MTOK_ENTRADA_CACHEADA: env.EOS_USD_POR_MTOK_ENTRADA_CACHEADA_SIMPLE,
+    EOS_USD_POR_MTOK_SALIDA: env.EOS_USD_POR_MTOK_SALIDA_SIMPLE,
+  });
+}
+
 /** El costo del mensaje en USD. Siempre finito y nunca negativo. */
 export function costoDelMensaje(tokens: TokensMensaje, tarifas: TarifasUsd): number {
   const sinCache = Math.max(0, tokens.entrada - tokens.entradaCacheada);

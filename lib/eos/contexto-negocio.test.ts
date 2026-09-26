@@ -270,6 +270,21 @@ test("el catálogo se escribe con el nombre exacto y el precio", () => {
   assert.match(texto, /₲\s?185\.000/);
 });
 
+test("cada precio va en su moneda: un producto en dólares no se lee como guaraníes", () => {
+  const texto = textoCatalogo([
+    { nombre: "Vestido azul", precio: 120, moneda: "USD" },
+    { nombre: "Blush rhode", precio: 230000, moneda: "PYG" },
+    { nombre: "Campera", precio: 250000 },
+  ]);
+
+  const vestido = texto.split("\n").find((l) => l.includes("Vestido azul")) ?? "";
+  assert.match(vestido, /US\$|USD/);
+  assert.doesNotMatch(vestido, /₲|Gs/);
+  assert.match(texto, /₲\s?230\.000/);
+  // Sin moneda (una base sin la v204), se asume guaraníes como antes.
+  assert.match(texto, /₲\s?250\.000/);
+});
+
 test("un producto sin costo se marca, para que EOS no invente el margen", () => {
   const texto = textoCatalogo([{ nombre: "Campera de lino", precio: 250000, sin_costo: true }]);
 

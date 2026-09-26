@@ -7,8 +7,9 @@
  *
  * Clasifica cada mensaje entrante como `simple` o `completo` con una regla
  * determinística y barata (sin otra llamada a un modelo), y el motor lo
- * REGISTRA en la línea "EOS mensaje" del log. No cambia qué modelo responde:
- * todo sigue yendo a `gpt-5.5` (`lib/gateway/sistema.ts`).
+ * REGISTRA en la línea "EOS mensaje" del log. Mientras el paso 4 esté apagado
+ * (`modeloSimple`, más abajo) no cambia qué modelo responde: todo sigue yendo a
+ * `gpt-5.5` (`lib/gateway/sistema.ts`).
  *
  * Es el paso 3 de docs/estrategia/enrutamiento-modelo-diseno.md: medir en
  * producción qué HABRÍA pasado, antes de comprometer calidad. Con una semana de
@@ -223,4 +224,29 @@ export function pareceAccion(turno: TurnoParaClasificar): boolean {
   if (NEGOCIO.test(texto)) return true;
 
   return AFIRMACION.has(texto) && eosPreguntoAlgo(turno.historial);
+}
+
+/**
+ * Paso 4: el modelo barato, de verdad. APAGADO por defecto.
+ *
+ * Hacen falta las dos variables: `EOS_ENRUTAR_MODELO=1` y
+ * `EOS_MODELO_SIMPLE=<modelo>`. Sin cualquiera de ellas todo sigue en el modelo
+ * de siempre. `EOS_ENRUTAR_MODELO` es el interruptor único del diseño: borrarla
+ * en Vercel devuelve el 100 % del tráfico al modelo completo desde el próximo
+ * despliegue, sin tocar código.
+ *
+ * Solo lo usa el gateway en TypeScript: lo que atiende n8n sigue con su modelo.
+ */
+export function modeloSimple(env: Record<string, string | undefined> = process.env): string | null {
+  if (env.EOS_ENRUTAR_MODELO !== "1") return null;
+  const modelo = String(env.EOS_MODELO_SIMPLE ?? "").trim();
+  return modelo || null;
+}
+
+/** El modelo barato si este turno va a él; `null` si va al de siempre. */
+export function modeloDelTurno(
+  clasificacion: Clasificacion,
+  env: Record<string, string | undefined> = process.env,
+): string | null {
+  return clasificacion.clase === "simple" ? modeloSimple(env) : null;
 }

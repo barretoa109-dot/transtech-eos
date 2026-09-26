@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   avisoDeVerificacion,
   AVISO_SOLO_MEMORIA,
+  respuestaTrasVerificar,
   corregirAfirmacionFallida,
   corregirAfirmacionSoloMemoria,
   corregirAfirmacionSinAccion,
@@ -398,11 +399,39 @@ test("no se duplica la advertencia", () => {
   assert.equal(una, dos);
 });
 
-test("el guarda de 'solo memoria' está conectado al flujo real del chat", async () => {
+test("los guardas posteriores a la verificación están conectados al flujo real del chat", async () => {
   const { readFileSync } = await import("node:fs");
   const flujo = readFileSync(new URL("./procesar-mensaje.ts", import.meta.url), "utf8");
+  const guardas = readFileSync(new URL("./acciones-chat.ts", import.meta.url), "utf8");
 
   // Un guarda que nadie llama no protege a nadie: pasó con el aviso de
-  // aprobación, que existió meses sin estar conectado a la ruta.
-  assert.match(flujo, /resultado\.respuesta = corregirAfirmacionSoloMemoria\(/);
+  // aprobación, que existió meses sin estar conectado a la ruta. Desde el
+  // 26/09/2026 el motor los corre a través de `respuestaTrasVerificar`, que
+  // usan también los evals: el motor tiene que llamarla y quedarse con lo que
+  // devuelve, y ella tiene que llamar a los cuatro.
+  assert.match(flujo, /respuestaTrasVerificar\(\{/);
+  assert.match(flujo, /resultado\.respuesta = verificada\.respuesta;/);
+
+  const cuerpo = guardas.slice(guardas.indexOf("export function respuestaTrasVerificar"));
+  for (const guarda of [
+    "corregirAfirmacionFallida(",
+    "corregirAfirmacionSoloMemoria(",
+    "corregirAfirmacionPendiente(",
+    "avisoDeVerificacion(",
+  ]) {
+    assert.ok(cuerpo.includes(guarda), `respuestaTrasVerificar no llama a ${guarda}`);
+  }
+});
+
+test("respuestaTrasVerificar marca solo_memoria cuando el pedido terminó como una nota", () => {
+  const { respuesta, soloMemoria } = respuestaTrasVerificar({
+    respuesta: "Listo, lo cargué.",
+    acciones: [{ tipo: "GUARDAR_MEMORIA" }],
+    mensaje: "cargá el producto campera a 250 mil, costo 150 mil",
+    verificaciones: [{ accion: "GUARDAR_MEMORIA", estado: "ejecutada", motivo: "" }],
+    origen: "https://eos.test",
+  });
+
+  assert.equal(soloMemoria, true);
+  assert.ok(respuesta.startsWith(AVISO_SOLO_MEMORIA));
 });
