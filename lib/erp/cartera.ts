@@ -29,6 +29,29 @@ export type DocumentoCartera = {
 
 export const SALDO_CERO = 1;
 
+/**
+ * Lo cobrado de verdad contra un documento.
+ *
+ * Hay dos caminos para saldar una venta o una compra, y la cartera solo miraba
+ * uno. Los pagos parciales (v107) dejan una fila por pago. Pero lo que se
+ * salda de una sola vez —una compra al contado, o "Cobrar"/"Pagar" por el
+ * total— NO deja esas filas: queda en estado `cobrada`/`pagada` con su
+ * movimiento financiero. Sumando solo las filas, cada compra al contado
+ * aparecía como deuda entera con el proveedor (lo encontró el usuario el
+ * 2026-09-25: tres compras pagadas en efectivo figuraban en "Por pagar").
+ *
+ * Un documento saldado cuenta como cobrado por su total, tenga filas o no.
+ */
+export function cobradoEfectivo(d: {
+  estado?: string | null;
+  movimiento_id?: string | null;
+  total: number;
+  cobrado: number;
+}): number {
+  const saldado = d.estado === "cobrada" || d.estado === "pagada" || Boolean(d.movimiento_id);
+  return saldado ? Math.max(d.cobrado, d.total) : d.cobrado;
+}
+
 /** Lo que falta cobrar. Nunca negativo: la base impide cobrar de más. */
 export function saldoDe(d: DocumentoCartera): number {
   return Math.max(0, d.total - d.cobrado);

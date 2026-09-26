@@ -89,11 +89,28 @@ export default function FinanzasCuentas({ moneda }: { moneda: string }) {
   const [cuentas, setCuentas] = useState<Cuenta[] | null>(null);
   const [cobertura, setCobertura] = useState<Cobertura | null>(null);
   const [desdeCuando, setDesdeCuando] = useState<string | null>(null);
+  /** El saldo de hoy, cuando EOS lo calcula desde estas mismas cuentas (sin Constitución). */
+  const [estimadoHoy, setEstimadoHoy] = useState<{ monto: number; moneda: string } | null>(null);
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
   const cargar = useCallback(() => {
+    // Lo declarado es una foto del día que se cargó. Si EOS parte de estas
+    // cuentas para calcular, el saldo de hoy ya descuenta lo anotado desde
+    // entonces: sin esta línea, la persona anotaba gastos y el número de acá
+    // no se movía nunca.
+    fetch("/api/finanzas/estado", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((e: { configurado?: boolean; desde_cuentas?: boolean; saldo_estimado?: number; moneda?: string } | null) =>
+        setEstimadoHoy(
+          e?.configurado && e.desde_cuentas && typeof e.saldo_estimado === "number"
+            ? { monto: e.saldo_estimado, moneda: e.moneda ?? moneda }
+            : null,
+        ),
+      )
+      .catch(() => setEstimadoHoy(null));
+
     return fetch("/api/finanzas/cuentas", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
       .then((payload) => {
@@ -125,7 +142,7 @@ export default function FinanzasCuentas({ moneda }: { moneda: string }) {
         setDesdeCuando(fechas[0] ?? null);
       })
       .catch(() => setCuentas([]));
-  }, []);
+  }, [moneda]);
 
   useEffect(() => {
     void cargar();
@@ -204,6 +221,11 @@ export default function FinanzasCuentas({ moneda }: { moneda: string }) {
                   <div className="prose" style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
                     Según lo que cargaste, lo más viejo del {desdeCuando}. No es una lectura del
                     banco.
+                  </div>
+                )}
+                {estimadoHoy && (
+                  <div className="fin-estimado-hoy">
+                    Hoy, restando lo que anotaste: <strong>{formatearMonto(estimadoHoy.monto, estimadoHoy.moneda)}</strong>
                   </div>
                 )}
               </div>

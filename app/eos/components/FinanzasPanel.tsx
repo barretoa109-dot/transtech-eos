@@ -17,6 +17,8 @@ type Estado = "seguro" | "atencion" | "accion";
 type EstadoFinanciero = {
   configurado: true;
   sin_datos: boolean;
+  /** Sin Constitución: el punto de partida es el saldo declarado de las cuentas, con reserva y ahorro en cero. */
+  desde_cuentas?: boolean;
   moneda: string;
   estado: Estado;
   disponible_real: number;
@@ -205,7 +207,9 @@ export default function FinanzasPanel({
   }, [cargar]);
 
   useEffect(() => {
-    if (data) onConfiguradoChange?.(data.configurado === true);
+    // Calculado desde las cuentas no es "configurado": lo que depende de la
+    // Constitución (presupuesto, proyección, fondo) todavía no tiene con qué.
+    if (data) onConfiguradoChange?.(data.configurado === true && !data.desde_cuentas);
   }, [data, onConfiguradoChange]);
 
   useEffect(() => {
@@ -322,6 +326,23 @@ export default function FinanzasPanel({
     />
   );
 
+  /*
+   * Cuando el número sale del saldo de las cuentas y no de la Constitución,
+   * se dice: la reserva y el ahorro están en cero porque nadie los declaró, y
+   * la persona tiene que saberlo antes de gastar lo que dice "disponible".
+   */
+  const avisoDesdeCuentas = data.desde_cuentas ? (
+    <div className="fin-desde-cuentas">
+      <p>
+        Calculado con el saldo que cargaste en tus cuentas, menos lo que fuiste anotando. Todavía no separa una
+        reserva ni un ahorro: para eso, configurá tus finanzas.
+      </p>
+      <button type="button" className="reco-btn" onClick={() => setConfigurando(true)}>
+        Configurar mis finanzas
+      </button>
+    </div>
+  ) : null;
+
   /** Lo que EOS necesita que la persona confirme. Aparece solo cuando hay algo. */
   const necesitaDeVos = (
     <>
@@ -342,6 +363,7 @@ export default function FinanzasPanel({
       <>
         {necesitaDeVos}
         <ResumenPersonal data={data} fmt={fmt} onVerDetalle={onVerDetalle} />
+        {avisoDesdeCuentas}
       </>
     );
   }
@@ -385,6 +407,7 @@ export default function FinanzasPanel({
         </button>
       </div>
       <div className="fin-sub">{copy.sub}</div>
+      {modo !== "detalle" && avisoDesdeCuentas}
 
       {data.sin_datos ? (
         <p className="prose" style={{ marginTop: 14 }}>
@@ -839,7 +862,11 @@ function ResumenPersonal({
         <span>Reserva mínima</span>
         <strong>{fmt(data.reserva_minima)}</strong>
         <small className={data.reserva_protegida ? "" : "is-alert"}>
-          {data.reserva_protegida ? "Protegida, no se toca" : "Por debajo del mínimo"}
+          {data.desde_cuentas
+            ? "Todavía sin definir"
+            : data.reserva_protegida
+              ? "Protegida, no se toca"
+              : "Por debajo del mínimo"}
         </small>
       </button>
     </div>

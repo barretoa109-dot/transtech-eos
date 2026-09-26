@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   antiguedad,
+  cobradoEfectivo,
   diasDeAtraso,
   diasPromedioDeCobro,
   estaPendiente,
@@ -153,4 +154,12 @@ test("el DSO tampoco mezcla monedas", () => {
     "PYG",
   );
   assert.equal(d, 10);
+});
+
+test("cobradoEfectivo: lo saldado de una vez cuenta entero; lo parcial, lo que se pagó", () => {
+  assert.equal(cobradoEfectivo({ estado: "pagada", total: 3_204_000, cobrado: 0 }), 3_204_000);
+  assert.equal(cobradoEfectivo({ estado: "cobrada", total: 500_000, cobrado: 0 }), 500_000);
+  assert.equal(cobradoEfectivo({ estado: "registrada", movimiento_id: "m1", total: 90_000, cobrado: 0 }), 90_000);
+  assert.equal(cobradoEfectivo({ estado: "emitida", total: 1_000_000, cobrado: 400_000 }), 400_000);
+  assert.equal(cobradoEfectivo({ estado: "registrada", movimiento_id: null, total: 1_000, cobrado: 0 }), 0);
 });

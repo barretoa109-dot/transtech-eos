@@ -160,3 +160,15 @@ test("los días de pago son neutros: pagar más tarde no es bueno ni malo sin pl
   const [r] = calcular([DIAS_DE_PAGO], hechos, SEPTIEMBRE);
   assert.equal(r.valor, 29);
 });
+
+test("lo pagado de una vez no es cartera aunque no tenga pagos parciales", () => {
+  // Contado, o "Cobrar"/"Pagar" por el total: queda en cobrada/pagada con su
+  // movimiento y SIN filas de pagos parciales. Antes contaba como deuda entera.
+  const hechos: Hechos = {
+    ventas: [venta({ id: "v1", total: 700_000, cobrado: 0, estado: "cobrada" })],
+    compras: [compra({ id: "c1", total: 3_204_000, cobrado: 0, estado: "pagada" })],
+  };
+  const [cobrar, pagar] = calcular([CUENTAS_POR_COBRAR, CUENTAS_POR_PAGAR], hechos, SEPTIEMBRE);
+  assert.equal(cobrar.valor, 0);
+  assert.equal(pagar.valor, 0);
+});
