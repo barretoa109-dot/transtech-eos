@@ -203,7 +203,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
               {uso?.memoria_dias === null || uso?.memoria_dias === undefined
                 ? "Según tu plan"
                 : uso.memoria_dias < 0
-                  ? "Ilimitada"
+                  ? "Incluida en tu plan"
                   : `${uso.memoria_dias} días`}
             </span>
           </div>
@@ -231,14 +231,14 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           {uso === null ? (
             <p className="empty-note">Cargando uso del plan…</p>
           ) : ilimitado ? (
-            <>
-              <div className="usage-text">
-                {usados} {usados === 1 ? "mensaje usado" : "mensajes usados"} este mes · sin límite en tu plan
-              </div>
-              <div className="usage-bar">
-                <div className="usage-fill" style={{ width: "100%" }} />
-              </div>
-            </>
+            /*
+              Sin barra y sin decir "sin límite": todo plan tiene un tope, que el
+              cliente no ve pero que tampoco se le niega (regla del dueño,
+              26/09/2026). Una barra llena al 100 % además se leía como agotado.
+            */
+            <div className="usage-text">
+              {usados} {usados === 1 ? "mensaje usado" : "mensajes usados"} este mes · incluidos en tu plan
+            </div>
           ) : (
             <>
               <div className="usage-text">

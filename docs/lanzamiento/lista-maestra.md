@@ -96,7 +96,7 @@ de lanzamiento.
 | 7 | Compra real controlada | **cerrado** (con reserva) | Los siete finales cubiertos y **verdes contra la base real**: aprobado, rechazado y abandonado en el caso 03; duplicado, demorado y reversado en el 11. La reversión deshace plan, módulos, solicitud e historial, y repetirla no descuenta dos veces. **Reservas:** el 3DS se completa en el navegador y la suite no puede recorrerlo sola, y el cobro con tarjeta queda en amarillo hasta catastrar una de prueba. |
 | 8 | Requisitos de publicación | **externo** | D-U-N-S, cuentas de tienda, políticas y verificaciones sin empezar. El alcance congelado saca las apps del lanzamiento: se sale por web. |
 | 9 | Revisión legal | **externo** | Existen `/terminos` y `/privacidad`. Ningún profesional los revisó. |
-| 10 | Decisión formal de lanzamiento | **abierto** | La regla está escrita en el alcance congelado; falta el acta. |
+| 10 | Decisión formal de lanzamiento | **parcial** | La regla está escrita en el alcance congelado. Borrador del acta en `docs/lanzamiento/acta-de-lanzamiento.md` (26 de septiembre): falta completarla y firmarla. |
 
 ### La nota de infraestructura que ordena A — RESUELTA
 
@@ -417,7 +417,13 @@ conversaciones antes y después.
 Cosas concretas encontradas mientras se recorría la lista. No son opiniones:
 cada una tiene el archivo y la línea.
 
-### -1. n8n le hablaba a un despliegue de hace 185 commits — ABIERTO, BLOQUEANTE
+### -1. n8n le hablaba a un despliegue de hace 185 commits — CERRADO
+
+**Cerrado el 24 de septiembre de 2026.** `npm run go` contra producción:
+"n8n autoriza contra producción — 27 autorizaciones y 49 mensajes en 72 h"
+(`docs/lanzamiento/production-go-2026-09-24.md`). Y `worker-ping` dice de qué
+despliegue es cada respuesta, que es la alarma que este hallazgo pedía. Lo que
+sigue es el registro de cómo se encontró.
 
 Está numerado con un negativo a propósito: es anterior a todos los demás y
 los explica. El hallazgo 0, el de la lista de acciones del worker y cualquier
@@ -519,7 +525,14 @@ le mandó un nivel distinto a propósito — no se movió, `updated_at` incluido
 aparezca la aprobación. Es lo único que cierra el punto según la definición de
 terminado, y no lo puedo hacer yo: necesita una sesión de usuario real.
 
-### 1. `eos_contexto_negocio` (v82) suma monedas distintas — ABIERTO
+### 1. `eos_contexto_negocio` (v82) suma monedas distintas — CERRADO
+
+**Cerrado por la v94** (`20260831160000_eos_contexto_negocio_por_moneda_v94.sql`):
+ventas, por cobrar, por pagar y oportunidades salen con una cifra por moneda, y
+`lib/eos/contexto-negocio.ts` las imprime cada una con la suya. **Queda un
+resto menor:** el catálogo de productos que recibe el modelo imprime todo
+precio en guaraníes (`textoCatalogo`), porque la función no manda la moneda del
+producto. Solo pesa si hay productos cargados en otra moneda.
 
 La función que le arma a EOS el contexto del negocio calcula:
 

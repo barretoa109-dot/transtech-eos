@@ -24,21 +24,37 @@ puede equivocarse" y el disponible real es estimación, no estado de cuenta.
   ¿caen en alguna categoría de dato sensible bajo la ley paraguaya que exija
   un tratamiento distinto del que ya tienen?
 
-## 2. Cláusula de "uso razonable" para los planes sin tope de mensajes
+## 2. Cláusula de "uso razonable": todo plan tiene tope
 
-El plan "EOS Conversacional" (Gs. 60.000/mes) se vende explícitamente **sin
-tope visible de mensajes** — es la promesa central del plan. Internamente
-hay una alarma a los 400 mensajes/mes (correo interno, no restricción al
-usuario), calibrada contra el costo real de IA por mensaje (~USD 0,02-0,07).
-Falta la cláusula contractual que permita, en el caso extremo de una cuenta
-muy por encima de ese uso normal, tener una base legal para conversar con
-esa cuenta sin que sea un incumplimiento de "sin tope" de nuestro lado.
+**Criterio del dueño (26/09/2026), que manda sobre cualquier redacción:**
+todo plan tiene un tope de uso. El cliente no ve el número, y **nunca** se le
+dice que el plan no tiene tope: ni en la pantalla, ni en los términos, ni en
+el material comercial. Las palabras "ilimitado", "sin tope" y "sin límite"
+no se usan para ningún plan.
 
-**Pregunta concreta:** redactar una cláusula de "uso razonable" que sea
-compatible con la promesa comercial de "nunca te quedás sin poder operar" —
-es decir, que no le dé a EOS la posibilidad de cortar el servicio sin aviso,
-pero sí la de tener una conversación comercial con una cuenta de uso
-extremo antes de que la relación se vuelva estructuralmente deficitaria.
+Hoy, antes de esta revisión:
+
+- `/terminos` ya dice que "hay un plan gratuito con límites de uso y planes
+  pagos con límites mayores". Es coherente con el criterio y conviene
+  conservarlo.
+- La descripción del plan "EOS Conversacional" (Gs. 60.000/mes) y la
+  pantalla de Perfil decían "sin tope" / "sin límite". Se corrigieron (v200 y
+  `ProfileView.tsx`).
+- Internamente hay un aviso a los 400 mensajes por mes (correo a los dueños,
+  no restricción al usuario), calibrado contra el costo real de IA por
+  mensaje (~USD 0,02-0,07).
+
+**Preguntas concretas para el abogado:**
+
+- Redactar una cláusula de uso razonable **sin cifras publicadas** que dé
+  base para limitar o conversar con una cuenta de uso muy por encima de lo
+  normal. Que no permita cortar sin aviso, pero sí actuar antes de que la
+  cuenta dé pérdida sostenida.
+- ¿Tener un tope interno que no se publica es compatible con la Ley 1334/98
+  de Defensa del Consumidor, siempre que no se anuncie "ilimitado"? ¿Hace
+  falta decir en los términos que el tope existe aunque no se diga el número?
+- ¿Qué tiene que ver el cliente cuando llega al tope: un mensaje neutro y la
+  posibilidad de contactar a soporte alcanza?
 
 ## 3. Retención de datos de facturación al borrar una cuenta
 

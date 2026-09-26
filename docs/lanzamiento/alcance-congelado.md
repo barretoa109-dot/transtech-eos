@@ -1,7 +1,8 @@
 # Alcance congelado de lanzamiento
 
 Estado: **borrador para firma**. Fecha: 31 de agosto de 2026, **corregido el
-6 de septiembre** contra lo que el producto hace hoy.
+6 de septiembre** contra lo que el producto hace hoy, y el **26 de septiembre**
+con el precio actual de las conversaciones (v184) y la regla del tope.
 
 La corrección no agrega promesas: saca de la lista de "no existe" cinco cosas
 que se construyeron entre el 2 y el 4 de septiembre y que el documento seguía
@@ -29,15 +30,19 @@ recorrido está cerrado de punta a punta.
 | --- | --- | --- |
 | Conversaciones | Gs. 45.000 | Hablar con EOS, 300 mensajes por mes, con memoria y contexto. |
 | Conversaciones sin freno | Gs. 90.000 | 1.000 mensajes por mes. |
-| Conversaciones ilimitadas | Gs. 150.000 | Sin tope de mensajes. |
+| EOS Conversacional | Gs. 60.000 | Para hablar con EOS todos los días, con memoria y contexto. Tiene tope, como todo plan; el número no se publica. |
 | Panel financiero | Gs. 20.000 | Disponible real, ingresos y egresos, en cada moneda que tengas. |
 | Briefing diario | Gs. 25.000 | El resumen del día por correo, en horario de Paraguay. |
 | Documentos a pedido | Gs. 25.000 | Balance, cuadro o informe en Excel, PDF o Word. |
 | Decisiones y aprendizajes | Gs. 15.000 | Lo que decidiste, cómo salió, qué aprendió EOS. |
 
-Tope del armado: **Gs. 500.000**, prendiendo todo. El catálogo está calibrado
-para que la suma dé exactamente eso; agregar un módulo con precio obliga a
-rebalancear (ver v73).
+Tope del armado: **Gs. 500.000**, prendiendo todo. Desde la v184 la suma de
+todo da Gs. 440.000 (de las conversaciones se cuenta la opción más cara, hoy
+la de Gs. 90.000), así que el tope sigue siendo un techo y ya no hace falta
+que sea exacto.
+
+**Regla del tope de uso (26/09/2026):** todo plan tiene un tope de mensajes.
+El cliente no ve el número, y nunca se le dice que no existe. Ver la sección 4.
 
 ### Condición para que esta lista quede firme
 
@@ -72,9 +77,10 @@ ERP es el segundo más caro del catálogo. Se decidió rotularlos, igual que
 comprobantes en la v87. La migración `20260831120000_..._v92.sql` renombra a
 "ERP (beta)" y "CRM (beta)" y pone en la descripción qué no hay todavía.
 
-Los precios no se tocan: el tope de Gs. 500.000 está calibrado con ellos
-adentro (150.000 de conversaciones ilimitadas + 20.000 + 25.000 + 25.000 +
-35.000 + 20.000 + 15.000 + 120.000 + 90.000 = 500.000 exacto).
+Los precios no se tocaron en esa decisión: el tope de Gs. 500.000 estaba
+calibrado con ellos adentro (150.000 de conversaciones + 20.000 + 25.000 +
+25.000 + 35.000 + 20.000 + 15.000 + 120.000 + 90.000 = 500.000 exacto). La
+v184 bajó después el tramo alto de conversaciones a Gs. 60.000.
 
 ---
 
@@ -116,6 +122,10 @@ Frases prohibidas hasta que la sección 3 se mueva:
   a la vez ni se cambia de una a otra como en un ERP multiempresa. Lo que sí se
   puede decir es "para tu equipo": los miembros con roles existen y la empresa
   es la frontera de los datos desde el 4 de septiembre.
+- "ilimitado" / "sin tope" / "sin límite" — para ningún plan, nunca, aunque la
+  sección 3 se mueva. Todo plan tiene un tope que el cliente no ve (regla del
+  dueño, 26/09/2026). Se puede decir para qué alcanza un plan, no que no se
+  termina.
 - Cualquier cifra de ahorro, rendimiento o resultado que no salga de un dato
   medido y citable.
 
