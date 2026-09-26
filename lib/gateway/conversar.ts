@@ -126,6 +126,23 @@ export function atiendeTypeScript(turnoDeAccion: boolean): boolean {
   return !turnoDeAccion || accionesEnTypeScript();
 }
 
+/**
+ * Qué etapa del gateway en TypeScript está atendiendo de verdad: 0 (todo en
+ * n8n), 1 (conversación pura), 2 (también las acciones) o 3 (también el
+ * worker). No la bandera que alguien cargó, sino lo que queda con todas las
+ * variables que cada etapa necesita.
+ *
+ * Existe porque ninguna sesión de trabajo ve el entorno de Vercel: el 26/09
+ * los documentos daban la etapa 1 por apagada cuando estaba prendida, y la
+ * etapa 2 tenía sus variables cargadas sin atender una sola venta. Lo publica
+ * `/api/version` y lo muestra `npm run go`.
+ */
+export function etapaDelGateway(): 0 | 1 | 2 | 3 {
+  if (!gatewayEnTypeScript()) return 0;
+  if (!accionesEnTypeScript()) return 1;
+  return workerEnProceso() ? 3 : 2;
+}
+
 export type Resultado =
   | { estado: "respondido"; cuerpo: RespuestaGateway }
   /** Terminó también las acciones: el cuerpo ya trae lo que hizo el worker. */

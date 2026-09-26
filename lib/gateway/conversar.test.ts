@@ -6,6 +6,7 @@ import {
   adjuntosEnTypeScript,
   atiendeTypeScript,
   conversar,
+  etapaDelGateway,
   gatewayEnTypeScript,
 } from "./conversar.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
@@ -409,6 +410,46 @@ test("un turno de negocio saltea la etapa 1 sola, pero entra con la etapa 2", as
     else process.env.EOS_GATEWAY_TS_ACCIONES = previo.acciones;
     if (previo.clave === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previo.clave;
+  }
+});
+
+test("la etapa que se publica es la que atiende, no la bandera suelta", async () => {
+  const previo = {
+    acciones: process.env.EOS_GATEWAY_TS_ACCIONES,
+    worker: process.env.EOS_GATEWAY_TS_WORKER,
+    clave: process.env.OPENAI_API_KEY,
+  };
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+  delete process.env.EOS_GATEWAY_TS_WORKER;
+
+  try {
+    await conEtapa2(async () => {
+      assert.equal(etapaDelGateway(), 2);
+
+      process.env.EOS_GATEWAY_TS_WORKER = "1";
+      assert.equal(etapaDelGateway(), 3);
+      delete process.env.EOS_GATEWAY_TS_WORKER;
+
+      // La bandera de la etapa 2 sin la URL de n8n no atiende: se publica 1.
+      delete process.env.EOS_N8N_BASE_URL;
+      assert.equal(etapaDelGateway(), 1);
+      process.env.EOS_N8N_BASE_URL = "https://n8n.ejemplo";
+
+      process.env.EOS_GATEWAY_TS_ACCIONES = "0";
+      assert.equal(etapaDelGateway(), 1);
+
+      delete process.env.OPENAI_API_KEY;
+      assert.equal(etapaDelGateway(), 0);
+    });
+  } finally {
+    for (const [nombre, valor] of [
+      ["EOS_GATEWAY_TS_ACCIONES", previo.acciones],
+      ["EOS_GATEWAY_TS_WORKER", previo.worker],
+      ["OPENAI_API_KEY", previo.clave],
+    ] as const) {
+      if (valor === undefined) delete process.env[nombre];
+      else process.env[nombre] = valor;
+    }
   }
 });
 
