@@ -32,11 +32,21 @@ export function lineaDeConsumo(costoUsd, mensajes, pygPorUsd = PYG_POR_USD_POR_D
 const HORA = 3_600_000;
 const DIA = 24 * HORA;
 
-/** Postgres devuelve `timestamp without time zone` sin zona: es UTC. */
+/**
+ * Una fecha de Postgres, en milisegundos.
+ *
+ * `timestamp without time zone` llega sin zona: es UTC. `timestamptz` llega
+ * con la zona CORTA —"2026-09-16 23:56:12.345+00"—, que `Date.parse` no
+ * entiende: hasta el 26/09/2026 esas fechas salían nulas, y como el alta es
+ * `timestamptz`, ninguna cuenta llegaba nunca a INTERVENIR. Se completa a "+00:00".
+ */
 export function fecha(valor) {
   if (!valor) return null;
-  const t = String(valor);
-  const ms = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : `${t.replace(" ", "T")}Z`);
+  const t = String(valor)
+    .trim()
+    .replace(" ", "T")
+    .replace(/(\d\d:\d\d(?::\d\d(?:\.\d+)?)?)([+-]\d\d)$/, "$1$2:00");
+  const ms = Date.parse(/[zZ]$|[+-]\d\d:?\d\d$/.test(t) ? t : `${t}Z`);
   return Number.isFinite(ms) ? ms : null;
 }
 
