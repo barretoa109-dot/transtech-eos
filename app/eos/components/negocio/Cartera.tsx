@@ -68,8 +68,27 @@ const ETIQUETA_TRAMO: Record<Tramo, string> = {
  * "cargando" sin que el efecto tenga que resetearlo con un setState síncrono,
  * que dispara renders en cascada y que el lint del proyecto marca como error.
  */
-export default function Cartera({ onCambio }: { onCambio?: () => void }) {
+export default function Cartera({
+  tipo: fijo,
+  onCambio,
+}: {
+  /**
+   * Un solo lado, sin el selector. Negocio muestra "Por cobrar" dentro de
+   * Vender y "Por pagar" dentro de Comprar, cada mitad donde se la busca.
+   * Sin esto, la cartera completa con sus dos chips, como antes.
+   */
+  tipo?: "cobrar" | "pagar";
+  onCambio?: () => void;
+}) {
   const [tipo, setTipo] = useState<"cobrar" | "pagar">("cobrar");
+
+  if (fijo) {
+    return (
+      <div className="neg-cartera">
+        <Lista key={fijo} tipo={fijo} onCambio={onCambio} />
+      </div>
+    );
+  }
 
   return (
     <div className="neg-cartera">
