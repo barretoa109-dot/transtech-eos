@@ -7,6 +7,23 @@ Este documento existe porque la migración **no es una función más**: es el
 camino crítico del producto. Todo lo que sigue está medido sobre los backups
 del repo, no estimado.
 
+## Estado al 26 de septiembre de 2026: las tres etapas prendidas
+
+`npm run go` contra producción dice **"Gateway en TypeScript: etapa 3
+(conversación, acciones y worker)"**. La conversación, la decisión de acciones
+y su ejecución corren en Vercel; los tres saltos a n8n del camino de una venta
+ya no existen.
+
+- La etapa 2 tenía sus variables cargadas y no atendía nada: el arreglo del
+  24/09 (`97161b7`) mandaba a n8n todo turno que parecía acción sin mirar la
+  bandera. Lo corrigió el PR #136 (`atiendeTypeScript`).
+- **Siguen pasando por n8n:** los mensajes con foto (`EOS_GATEWAY_TS_IMAGENES`
+  apagada hasta que la imagen de WhatsApp llegue achicada), el registro de
+  decisiones (`N8N_DECISION_CAPTURE_URL`) y los workflows programados (briefing,
+  aprendizaje). Si algo del gateway TS falla antes de ejecutar, cae a n8n.
+- Lo que sigue en este documento es el plan y la historia de cada etapa; los
+  "construida, apagada" de los títulos describen cómo estaban antes de prenderse.
+
 ## Qué hay que mover, exactamente
 
 Dos workflows, no uno:
@@ -41,7 +58,7 @@ tocar el cliente, sin cambiar contratos y con vuelta atrás inmediata.
 
 ## Plan por etapas
 
-### Etapa 1 — La conversación pura, con red · **construida, apagada**
+### Etapa 1 — La conversación pura, con red · **prendida** (desde el 24/09/2026)
 
 > **Estado (2026-09-03).** El código está escrito, con 74 tests, y **la bandera
 > está apagada**. Vive en `lib/gateway/`:
@@ -92,7 +109,7 @@ mensajes reales antes de sacar la bandera.
 rápido. El beneficio no es latencia sino dejar de depender de Railway para lo
 que más se usa.
 
-### Etapa 2 — La decisión de acciones · **construida, apagada**
+### Etapa 2 — La decisión de acciones · **prendida** (atiende desde el 26/09/2026)
 
 `06 GW Preparar Jobs Worker`, 11 KB. Es la pieza que traduce lo que pide el
 modelo a jobs para el Worker Gate. Acá sí hay efectos durables, así que
@@ -138,7 +155,7 @@ esperada (no la prosa), corridas contra los dos caminos hasta que coincidan.
 > corpus sirva de verdad — la primera versión no servía, ver el encabezado de
 > `evals/casos/acciones.ts`.
 
-### Etapa 3 — El Background Worker · **construida, apagada**
+### Etapa 3 — El Background Worker · **prendida** (26/09/2026)
 
 El último y el más delicado: es el que ejecuta. Tiene fencing, leases e
 idempotencia ya probados en producción ([eos_rc1_status]). No tocar hasta que

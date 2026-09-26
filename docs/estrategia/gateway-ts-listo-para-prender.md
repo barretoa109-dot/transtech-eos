@@ -1,5 +1,10 @@
 # Gateway TS: confirmado listo, solo falta la variable de entorno (punto 1)
 
+> **Actualización 26/09/2026: ya está prendido, en etapa 3.** `npm run go` lo
+> confirma contra producción. Este documento queda como historia del llamado a
+> prenderlo; el estado vigente está en `docs/salida-de-n8n.md`.
+
+
 **No duplica `docs/salida-de-n8n.md`** — ese documento es el runbook técnico
 completo (qué porta cada etapa, qué variables hacen falta, qué se degrada si
 algo falla). Esto es la confirmación de que sigue vigente hoy y el llamado a
