@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { accionesEnTypeScript, adjuntosEnTypeScript, conversar, gatewayEnTypeScript } from "./conversar.ts";
+import {
+  accionesEnTypeScript,
+  adjuntosEnTypeScript,
+  atiendeTypeScript,
+  conversar,
+  gatewayEnTypeScript,
+} from "./conversar.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
@@ -367,6 +373,42 @@ test("la bandera de acciones es aparte de la de la etapa 1", async () => {
   } finally {
     if (clave === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = clave;
+  }
+});
+
+test("un turno de negocio saltea la etapa 1 sola, pero entra con la etapa 2", async () => {
+  const previo = { acciones: process.env.EOS_GATEWAY_TS_ACCIONES, clave: process.env.OPENAI_API_KEY };
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  try {
+    await conEtapa2(async () => {
+      // Con la etapa 2 prendida entran los dos. Antes del arreglo el de negocio
+      // iba a n8n igual, y la etapa 2 nunca atendía una venta.
+      assert.equal(atiendeTypeScript(false), true);
+      assert.equal(atiendeTypeScript(true), true);
+
+      // Con la etapa 1 sola, el de negocio va directo a n8n: evita la doble
+      // llamada a OpenAI que cortó el chat el 24/09/2026.
+      process.env.EOS_GATEWAY_TS_ACCIONES = "0";
+      assert.equal(atiendeTypeScript(false), true);
+      assert.equal(atiendeTypeScript(true), false);
+
+      // La bandera de la etapa 2 sin las variables del worker no alcanza.
+      process.env.EOS_GATEWAY_TS_ACCIONES = "1";
+      delete process.env.EOS_N8N_BASE_URL;
+      assert.equal(atiendeTypeScript(true), false);
+
+      // Sin la etapa 1, nada entra, esté como esté la 2.
+      process.env.EOS_N8N_BASE_URL = "https://n8n.ejemplo";
+      process.env.EOS_GATEWAY_TS = "0";
+      assert.equal(atiendeTypeScript(false), false);
+      assert.equal(atiendeTypeScript(true), false);
+    });
+  } finally {
+    if (previo.acciones === undefined) delete process.env.EOS_GATEWAY_TS_ACCIONES;
+    else process.env.EOS_GATEWAY_TS_ACCIONES = previo.acciones;
+    if (previo.clave === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previo.clave;
   }
 });
 

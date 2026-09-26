@@ -61,7 +61,7 @@ import { transcribirAudio } from "@/lib/eos/transcribir-audio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { conversar, gatewayEnTypeScript } from "@/lib/gateway/conversar";
+import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
 import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
@@ -1037,9 +1037,9 @@ export async function procesarMensajeEOS(
      *
      * Toda la migración cabe acá adentro porque n8n entra por un solo `fetch`.
      * `conversar` devuelve `null` ante cualquier problema y `delegar` cuando
-     * el modelo pidió acciones —el nodo que las arma sigue en n8n— así que en
-     * los dos casos sigue de largo y el código de abajo es exactamente el de
-     * siempre.
+     * el modelo pidió acciones y la etapa 2 está apagada —el nodo que las arma
+     * sigue en n8n— así que en los dos casos sigue de largo y el código de
+     * abajo es exactamente el de siempre.
      *
      * La bandera es `EOS_GATEWAY_TS=1`. Sin ella, o sin `OPENAI_API_KEY`, este
      * bloque no hace nada.
@@ -1065,7 +1065,9 @@ export async function procesarMensajeEOS(
      * iba a terminar en n8n igual, después de una primera llamada a OpenAI
      * que se descartaba: el 24/09/2026 esa espera doble superó lo que el
      * celular deja abierta la conexión y el chat "se cayó" en medio de una
-     * conversación. Esos turnos van directo a n8n, como antes de la bandera.
+     * conversación. Con la etapa 1 sola, esos turnos van directo a n8n, como
+     * antes de la bandera. Con la etapa 2 prendida entran: ya no hay doble
+     * llamada. Ver `atiendeTypeScript`.
      */
     const turnoDeAccion = pareceAccion({
       mensaje,
@@ -1074,7 +1076,7 @@ export async function procesarMensajeEOS(
       historial: payload.historial,
     });
 
-    if (gatewayEnTypeScript() && !turnoDeAccion) {
+    if (atiendeTypeScript(turnoDeAccion)) {
       const propio = await conversar(payload);
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {

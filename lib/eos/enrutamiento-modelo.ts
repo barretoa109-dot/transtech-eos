@@ -209,7 +209,8 @@ export function registroDeEnrutamiento(
  * La usa el motor para no pasar por la etapa 1 del gateway en TypeScript
  * cuando el turno igual va a terminar en n8n: con `EOS_GATEWAY_TS=1`, esos
  * mensajes llamaban a OpenAI dos veces (Vercel y después n8n), y el 24/09/2026
- * la espera sumada superó lo que el celular deja abierta la conexión.
+ * la espera sumada superó lo que el celular deja abierta la conexión. Con la
+ * etapa 2 prendida no terminan en n8n y sí entran (`atiendeTypeScript`).
  */
 export function pareceAccion(turno: TurnoParaClasificar): boolean {
   if (turno.adjuntos > 0 || turno.conCita) return true;
