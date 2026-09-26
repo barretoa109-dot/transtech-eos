@@ -48,6 +48,12 @@ export type Entrada = {
   /** Data URL lista para mandar a OpenAI. Vacía si no hay imagen. */
   imagen_data_url: string;
   /**
+   * TODAS las imágenes del mensaje (hasta 10), como el nodo 01 de n8n. Sin
+   * esto, de un álbum de WhatsApp el modelo veía solo la primera foto
+   * (25/09/2026, v199).
+   */
+  imagenes_data_url: string[];
+  /**
    * Cuándo llegó el pedido. Es para trazar y NO forma parte de la huella
    * durable del Worker Gate: si lo fuera, cada reintento se vería como un
    * comando nuevo.
@@ -170,6 +176,17 @@ export function prepararEntrada(body: Record<string, unknown>): Entrada {
         : `data:${archivo.tipo};base64,${archivo.base64}`
       : "";
 
+  const dataUrl = (a: { tipo: string; base64: string }) =>
+    a.base64.startsWith("data:") ? a.base64 : `data:${a.tipo};base64,${a.base64}`;
+
+  const lista = Array.isArray(body.archivos) ? (body.archivos as unknown[]) : archivo ? [archivo] : [];
+  const imagenes_data_url = lista
+    .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object" && !Array.isArray(x))
+    .map((x) => ({ tipo: limpio(x.tipo), base64: limpio(x.base64) }))
+    .filter((x) => x.tipo.startsWith("image/") && x.base64)
+    .slice(0, 10)
+    .map(dataUrl);
+
   return {
     request_id,
     usuario_id,
@@ -194,6 +211,7 @@ export function prepararEntrada(body: Record<string, unknown>): Entrada {
         : "") ?? "",
     ).slice(0, TOPE_CITA),
     imagen_data_url,
+    imagenes_data_url,
     /*
      * n8n fabrica este valor nuevo en cada pasada. Acá se prefiere la `fecha`
      * que ya trae el payload de la ruta: al ser la misma en un reintento, el
