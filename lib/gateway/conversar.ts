@@ -53,9 +53,11 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
  * Era 60 s. Con esa espera, un turno que terminaba delegando sumaba los 60 s
  * más lo que tarda n8n, y el celular corta la conexión mucho antes: el
  * 24/09/2026 el chat mostró "no pude conectarme" en medio de una
- * conversación. La etapa 1 atiende solo conversación pura (el motor ya
- * manda directo a n8n lo que parece una acción), que contesta en 2-4 s
- * medidos: 20 s es de sobra, y si se pasa, n8n todavía tiene tiempo.
+ * conversación. Con la etapa 1 sola, lo que parece una acción ni llega acá
+ * (`atiendeTypeScript`) y la conversación pura contesta en 2-4 s medidos. Con
+ * la etapa 2, los turnos de negocio sí llegan: el modelo tardó 6,8 s de
+ * mediana y 11,2 s en la respuesta más larga medida (docs/latencia-del-chat.md).
+ * 20 s sigue sobrando, y si se pasa, n8n todavía tiene tiempo.
  */
 export const TIMEOUT_MS = 20_000;
 
@@ -104,6 +106,41 @@ export function accionesEnTypeScript(): boolean {
   if (workerEnProceso()) return Boolean((process.env.EOS_WORKER_GATE_SECRET ?? "").trim());
 
   return configDelWorker() !== null;
+}
+
+/**
+ * ¿Este turno lo atiende el gateway en TypeScript, o va directo a n8n?
+ *
+ * Un turno que parece acción (`pareceAccion`: números, plata, negocio,
+ * adjuntos) no pasa por la etapa 1 sola: iba a terminar en n8n igual, después
+ * de una llamada a OpenAI que se tiraba, y el 24/09/2026 esa espera doble cortó
+ * el chat en el celular.
+ *
+ * Con la etapa 2 prendida esa doble llamada no existe —el gateway arma y manda
+ * las acciones él mismo—, así que el turno entra. Antes se lo salteaba igual,
+ * y la etapa 2 quedaba sin nada que atender aunque sus variables estuvieran
+ * cargadas: las ventas, compras y stock son justo los turnos que parecen acción.
+ */
+export function atiendeTypeScript(turnoDeAccion: boolean): boolean {
+  if (!gatewayEnTypeScript()) return false;
+  return !turnoDeAccion || accionesEnTypeScript();
+}
+
+/**
+ * Qué etapa del gateway en TypeScript está atendiendo de verdad: 0 (todo en
+ * n8n), 1 (conversación pura), 2 (también las acciones) o 3 (también el
+ * worker). No la bandera que alguien cargó, sino lo que queda con todas las
+ * variables que cada etapa necesita.
+ *
+ * Existe porque ninguna sesión de trabajo ve el entorno de Vercel: el 26/09
+ * los documentos daban la etapa 1 por apagada cuando estaba prendida, y la
+ * etapa 2 tenía sus variables cargadas sin atender una sola venta. Lo publica
+ * `/api/version` y lo muestra `npm run go`.
+ */
+export function etapaDelGateway(): 0 | 1 | 2 | 3 {
+  if (!gatewayEnTypeScript()) return 0;
+  if (!accionesEnTypeScript()) return 1;
+  return workerEnProceso() ? 3 : 2;
 }
 
 export type Resultado =

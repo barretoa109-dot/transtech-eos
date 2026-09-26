@@ -90,6 +90,12 @@ await paso("Producción corre el último main", async () => {
     d.entorno === "production" && coincide,
     `entorno=${d.entorno} commit=${d.commit}${commitMain ? ` · main=${commitMain.slice(0, 12)}` : ""}`,
   );
+
+  // Informativo, no cambia el GO: qué etapa del gateway en TypeScript atiende.
+  if (typeof d.gateway === "number") {
+    const que = ["todo en n8n", "conversación pura", "conversación y acciones", "conversación, acciones y worker"];
+    console.log(`       Gateway en TypeScript: etapa ${d.gateway} (${que[d.gateway] ?? "?"})`);
+  }
 });
 
 // ------------------------------------------------------------------
