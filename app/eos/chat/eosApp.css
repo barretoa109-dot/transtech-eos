@@ -6284,3 +6284,208 @@
 }
 .eos-app .fila-editor-campo.is-corto { flex: 0 1 130px; }
 .eos-app .fila-editor-campos .fila-editor-campo .neg-input { width: 100%; }
+
+/* ------------------------------------------------------------------
+   NEGOCIO — tablas, botón principal y estados (maqueta del 2026-09-25)
+
+   Ventas, Compras y Productos como tablas: una columna para cada cosa, las
+   acciones a la derecha, y lo que se usa poco detrás de "⋯". Cada fila es su
+   propia grilla con la misma plantilla que el encabezado, así las columnas
+   quedan alineadas. Cuando una acción se abre para confirmar, ocupa el ancho
+   de la fila en vez de apretarse en su celda.
+   ------------------------------------------------------------------ */
+.eos-app .btn-pri {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--blue-solido);
+  border-radius: 9px;
+  background: var(--blue-solido);
+  color: var(--on-blue, #fff);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.eos-app .btn-pri:hover { background: var(--blue-solido-fuerte, var(--blue-solido)); }
+.eos-app .btn-sec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.eos-app .btn-link {
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.eos-app .chip.is-primario {
+  border-color: var(--blue-solido);
+  background: var(--blue-solido);
+  color: var(--on-blue, #fff);
+  cursor: pointer;
+}
+
+.eos-app .neg-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.eos-app .neg-barra-izq { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.eos-app .neg-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  background: var(--amber-light);
+  color: var(--amber);
+  font-size: 13px;
+}
+
+.eos-app .neg-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.eos-app .neg-pill.is-ok { background: var(--green-light); color: var(--green-texto, var(--green)); }
+.eos-app .neg-pill.is-mal { background: var(--red-light); color: var(--red-texto, var(--red)); }
+.eos-app .neg-pill.is-av { background: var(--amber-light); color: var(--amber); }
+.eos-app .neg-pill.is-neutro { background: var(--line-soft); color: var(--muted); }
+
+.eos-app .neg-tabla {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.eos-app .neg-tabla-scroll { overflow-x: auto; }
+.eos-app .neg-tabla-fila {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  min-width: 660px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.eos-app .neg-tabla-cab {
+  border-top: 0;
+  background: var(--bg-sidebar);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.eos-app .neg-tabla-fila.es-ventas { grid-template-columns: 52px minmax(110px, 1.1fr) minmax(110px, 1.2fr) 110px 120px minmax(210px, auto); }
+.eos-app .neg-tabla-fila.es-compras { grid-template-columns: 52px minmax(120px, 1.3fr) minmax(100px, 1fr) 110px 120px minmax(150px, auto); }
+.eos-app .neg-tabla-fila.es-productos { grid-template-columns: minmax(150px, 1.6fr) 100px 70px 70px 110px minmax(150px, auto); }
+.eos-app .neg-tabla .n { text-align: right; }
+.eos-app .neg-tabla-fecha { color: var(--ink); font-weight: 600; }
+.eos-app .neg-tabla-principal { display: flex; flex-direction: column; color: var(--ink); font-weight: 600; min-width: 0; }
+.eos-app .neg-tabla-principal small { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+.eos-app .neg-tabla-sec { min-width: 0; color: var(--muted); }
+.eos-app .neg-tabla-monto { color: var(--ink); font-weight: 650; white-space: nowrap; }
+.eos-app .neg-tabla-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.eos-app .neg-tabla-acciones .chip,
+.eos-app .neg-tabla-mas .chip { cursor: pointer; }
+.eos-app .neg-tabla-fila.is-anulada > span { opacity: 0.6; }
+/* Una acción que se abre para confirmar ocupa el ancho de la fila. */
+.eos-app .neg-tabla-fila:has(.neg-tabla-acciones > .confirmar-caja, .neg-tabla-acciones > .anular-caja, .neg-tabla-acciones > .neg-costos) .neg-tabla-acciones {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+.eos-app .neg-tabla-mas {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+}
+.eos-app .neg-tabla-mas > .confirmar-caja,
+.eos-app .neg-tabla-mas > .anular-caja,
+.eos-app .neg-tabla-mas > .neg-costos { flex-basis: 100%; }
+.eos-app .neg-tabla-vacia { padding: 18px 14px; color: var(--muted); font-size: 13px; }
+.eos-app .neg-tabla-extra { grid-column: 1 / -1; }
+.eos-app .neg-tabla-perdida { color: var(--red-texto, var(--red)); font-weight: 700; }
+.eos-app .neg-tabla-codigo { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12.5px; }
+
+.eos-app .neg-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.eos-app .neg-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.eos-app .neg-kpi span { color: var(--muted); font-size: 12.5px; }
+.eos-app .neg-kpi strong { color: var(--ink); font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.eos-app .neg-kpi strong.is-bien { color: var(--green-texto, var(--green)); }
+.eos-app .neg-kpi strong.is-mal { color: var(--red-texto, var(--red)); }
+
+/* La subpestaña elegida en tinta, no en azul: el azul queda para la pestaña y la acción. */
+.eos-app .sec-subs .chip.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--panel);
+}
+
+/* La línea para hablarle a EOS: el ícono y el botón en azul lleno. */
+.eos-app .sec-decile-ico {
+  background: var(--blue-solido);
+  color: #fff;
+}
+.eos-app .neg-posicion { margin-bottom: 16px; }
+.eos-app .neg-posicion .neg-kpis { margin-bottom: 8px; }
+.eos-app .neg-posicion-lectura { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--muted); font-size: 12.5px; }
+.eos-app .neg-resultado .card-title { display: flex; align-items: center; gap: 6px; }
+.eos-app .sec-decile-ayuda { margin: 6px 4px 0; color: var(--muted); font-size: 12px; }
+.eos-app .sec-decile + .sec-decile-ayuda + .gastos-entendido,
+.eos-app .sec-decile + .sec-decile-ayuda + .neg-error { margin-top: 10px; }
+.eos-app .sec-decile .btn-pri:disabled { opacity: 0.55; cursor: default; }
+.eos-app .card + .neg-tabla,
+.eos-app .card + .card + .neg-tabla { margin-top: 14px; }
+.eos-app .neg-tabla + .card { margin-top: 14px; }
+.eos-app .neg-resumen.is-personal .neg-resumen-card.is-primary strong { font-size: 22px; color: var(--blue-dark); }
+.eos-app .neg-resumen.is-personal { margin-bottom: 14px; }
+@media (max-width: 420px) {
+  .eos-app .neg-resumen.is-personal .neg-resumen-card.is-primary strong { font-size: 17px; }
+}

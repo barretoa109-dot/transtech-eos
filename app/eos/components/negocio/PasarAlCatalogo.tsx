@@ -112,7 +112,7 @@ export default function PasarAlCatalogo({
     <div className="neg-empty-state" style={{ alignItems: "stretch", textAlign: "left" }}>
       <strong>
         <PackagePlus size={16} style={{ display: "inline", marginRight: 6, verticalAlign: -3 }} />
-        Compraste {conceptos.length} {conceptos.length === 1 ? "cosa" : "cosas"} que no están en tu catálogo
+        Compraste {conceptos.length} {conceptos.length === 1 ? "cosa que no está" : "cosas que no están"} en tu catálogo
       </strong>
       <p>
         Pasalas al catálogo para ver su stock y su margen. Ya sabemos el costo y cuánto compraste:

@@ -5,13 +5,14 @@ import Confirmar from "./Confirmar";
 import Anular from "./Anular";
 import PasarAlCatalogo from "./PasarAlCatalogo";
 import CorregirCosto from "./CorregirCosto";
-import { AlertCircle, Check, MoreHorizontal, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, Undo2, UserPlus } from "lucide-react";
+import { AlertCircle, Check, MoreHorizontal, PackagePlus, Pencil, Plus, ReceiptText, Search, ShoppingCart, UserPlus } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularVenta, tasaValida, type LineaVenta } from "@/lib/erp/impuestos";
 import { avisoMonedasMezcladas, monedaDelDocumento } from "@/lib/erp/moneda-documento";
 import { pendientes, vigentes } from "@/lib/erp/pendientes";
 import type { Compra, Contacto, CompraItem, Producto } from "./tipos";
 import { useEscape } from "../useEscape";
+import { diaMes, hoyIso } from "./fecha";
 
 /**
  * Qué se compró, para el renglón de la lista.
@@ -411,37 +412,61 @@ export default function Compras({
     }
   }
 
+  const hoy = hoyIso();
+
+  /*
+   * Arriba la acción y el resumen; abajo la tabla. Mismo esqueleto que
+   * Ventas: una columna para cada cosa, "Pagar" a la vista y lo que se usa
+   * cuando algo se cargó mal detrás de "⋯".
+   */
   return (
     <>
-      <div className="card">
-        <div className="neg-section-heading">
-          <div>
-            <div className="card-title">{editandoId ? "Corregir compra" : "Compras y abastecimiento"}</div>
-            <div className="card-sub">
-              {editandoId
-                ? "Se anula la compra vieja y se registra de nuevo con tus cambios."
-                : "Registrá facturas, actualizá costos y mantené el stock al día."}
+      <div className="neg-barra">
+        {!abierto ? (
+          <button type="button" className="btn-pri" onClick={() => { setAbierto(true); setExito(""); }}>
+            <Plus size={14} /> Nueva compra
+          </button>
+        ) : (
+          <span />
+        )}
+        {/*
+          Lo anulado no se queda tachado en la lista: se esconde. Mismo
+          criterio que las ventas. Una compra anulada sigue siendo parte del
+          registro —por eso se puede volver a mirar— pero no tiene por qué
+          ocupar un renglón en la lista de todos los días.
+        */}
+        <button
+          type="button"
+          className="btn-link"
+          disabled={anuladas.length === 0}
+          onClick={() => setVerAnuladas((v) => !v)}
+        >
+          {verAnuladas ? "Ocultar anuladas" : `Ver anuladas (${anuladas.length})`}
+        </button>
+      </div>
+
+      {!cargando && compras.length > 0 && (
+        <div className="neg-kpis" aria-label="Resumen de compras">
+          <div className="neg-kpi"><span>Compras registradas</span><strong>{resumen.registradas}</strong></div>
+          <div className="neg-kpi"><span>Pagos pendientes</span><strong>{resumen.pendientes}</strong></div>
+          <div className="neg-kpi"><span>Saldo pendiente</span><strong>{resumen.montoPendiente === null ? "Varias monedas" : formatearMonto(resumen.montoPendiente, resumen.moneda)}</strong></div>
+        </div>
+      )}
+
+      {exito && <p className="neg-feedback is-ok" role="status"><Check size={15} /> {exito}</p>}
+
+      {abierto && (
+        <div className="card">
+          <div className="neg-section-heading">
+            <div>
+              <div className="card-title">{editandoId ? "Corregir compra" : "Nueva compra"}</div>
+              <div className="card-sub">
+                {editandoId
+                  ? "Se anula la compra vieja y se registra de nuevo con tus cambios."
+                  : "Registrá la factura: se actualizan los costos y el stock."}
+              </div>
             </div>
           </div>
-          {!abierto && (
-            <button type="button" className="reco-btn" onClick={() => { setAbierto(true); setExito(""); }}>
-              <Plus size={16} /> Nueva compra
-            </button>
-          )}
-        </div>
-
-        {!cargando && compras.length > 0 && (
-          <div className="neg-metricas" aria-label="Resumen de compras">
-            <div className="neg-metrica"><span>Compras registradas</span><strong>{resumen.registradas}</strong></div>
-            <div className="neg-metrica"><span>Pagos pendientes</span><strong>{resumen.pendientes}</strong></div>
-            <div className="neg-metrica"><span>Saldo pendiente</span><strong>{resumen.montoPendiente === null ? "Varias monedas" : formatearMonto(resumen.montoPendiente, resumen.moneda)}</strong></div>
-          </div>
-        )}
-
-        {exito && <p className="neg-feedback is-ok" role="status"><Check size={15} /> {exito}</p>}
-
-        {abierto ? (
-          <>
             <div className="neg-form-title"><ReceiptText size={17} /> Datos de la factura</div>
             <div className="neg-form">
               <label className="neg-field"><span>Proveedor</span><select className="neg-input" value={contactoId} onChange={(e) => setContactoId(e.target.value)}><option value="">Sin proveedor asignado</option>{proveedores.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.es_proveedor ? "" : " · contacto existente"}</option>)}</select></label>
@@ -599,162 +624,146 @@ export default function Compras({
                 Cancelar
               </button>
             </div>
-          </>
-        ) : productos.length === 0 && compras.length === 0 ? (
+        </div>
+      )}
+
+      {!abierto && !cargando && productos.length === 0 && compras.length === 0 && (
+        <div className="card">
           <div className="neg-empty-state">
             <PackagePlus size={28} />
             <strong>Podés registrar una compra aunque todavía no tengas catálogo</strong>
             <p>Agregá el proveedor y escribí cada concepto con su costo. Después vas a poder pasar lo comprado al catálogo para ver su stock y su margen.</p>
-            <button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button>
+            <button type="button" className="btn-pri" onClick={() => setAbierto(true)}>Registrar primera compra</button>
           </div>
-        ) : null}
-
-        {!abierto && !cargando && (
-          <PasarAlCatalogo
-            compras={compras}
-            nombresDelCatalogo={productos.map((p) => p.nombre)}
-            onCambio={() => { onCambio(); void cargar(); }}
-          />
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">
-          Últimas compras
-          {/*
-            Lo anulado no se queda tachado en la lista: se esconde.
-
-            Mismo criterio que las ventas. Una compra anulada sigue siendo
-            parte del registro —por eso se puede volver a mirar— pero no tiene
-            por qué ocupar un renglón en la lista de todos los días.
-          */}
-          {anuladas.length > 0 && (
-            <button
-              type="button"
-              className="chip"
-              style={{ marginLeft: 8 }}
-              onClick={() => setVerAnuladas((v) => !v)}
-            >
-              {verAnuladas
-                ? "Ocultar anuladas"
-                : `Ver ${anuladas.length} ${anuladas.length === 1 ? "anulada" : "anuladas"}`}
-            </button>
-          )}
         </div>
+      )}
 
-        {cargando ? (
-          <div className="neg-loading" role="status"><span /> Cargando compras…</div>
-        ) : errorCarga ? (
-          <div className="neg-empty-state is-error"><AlertCircle size={25} /><strong>No pudimos cargar las compras</strong><p>{errorCarga}</p><button type="button" className="chip active" onClick={() => void cargar()}>Reintentar</button></div>
-        ) : comprasVisibles.length === 0 && compras.length > 0 ? (
-          <p className="empty-note">Todas tus compras de este período están anuladas.</p>
-        ) : compras.length === 0 ? (
-          <div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p><button type="button" className="chip active" onClick={() => setAbierto(true)}>Registrar primera compra</button></div>
-        ) : (
-          <div className="neg-lista">
+      {!abierto && !cargando && (
+        <PasarAlCatalogo
+          compras={compras}
+          nombresDelCatalogo={productos.map((p) => p.nombre)}
+          onCambio={() => { onCambio(); void cargar(); }}
+        />
+      )}
+
+      {cargando ? (
+        <div className="card"><div className="neg-loading" role="status"><span /> Cargando compras…</div></div>
+      ) : errorCarga ? (
+        <div className="card"><div className="neg-empty-state is-error"><AlertCircle size={25} /><strong>No pudimos cargar las compras</strong><p>{errorCarga}</p><button type="button" className="chip active" onClick={() => void cargar()}>Reintentar</button></div></div>
+      ) : comprasVisibles.length === 0 && compras.length > 0 ? (
+        <div className="card"><p className="empty-note">Todas tus compras de este período están anuladas.</p></div>
+      ) : compras.length === 0 ? (
+        productos.length > 0 && !abierto ? (
+          <div className="card"><div className="neg-empty-state"><ReceiptText size={28} /><strong>Tu historial empieza con la primera factura</strong><p>Las compras registradas aparecerán acá con su proveedor, condición de pago y total.</p><button type="button" className="btn-pri" onClick={() => setAbierto(true)}>Registrar primera compra</button></div></div>
+        ) : null
+      ) : (
+        <div className="neg-tabla" role="table" aria-label="Compras">
+          <div className="neg-tabla-scroll">
+            <div className="neg-tabla-fila neg-tabla-cab es-compras" role="row">
+              <span>Fecha</span>
+              <span>Proveedor</span>
+              <span>Factura</span>
+              <span className="n">Total</span>
+              <span>Estado</span>
+              <span className="n">Acciones</span>
+            </div>
+
             {comprasVisibles.map((c) => {
               /*
                * Una compra anulada tiene que VERSE anulada.
                *
-               * Hasta ahora la lista la mostraba igual que una viva. Y como
-               * anular borra el movimiento financiero, la fila volvía a
+               * Como anular borra el movimiento financiero, la fila volvía a
                * ofrecer "Pagar" y "Anular" — así que después de anular no
                * cambiaba nada en pantalla y la conclusión razonable era que
-               * el botón no funcionaba. Funcionaba: no se veía.
-               *
-               * Lo reportó una clienta usando EOS de verdad, y es el tipo de
-               * error que ninguna prueba de base detecta, porque en la base
-               * estaba todo bien.
+               * el botón no funcionaba. Lo reportó una clienta usando EOS de
+               * verdad. Y no se le ofrece nada más que hacer: la base rechaza
+               * pagar una compra anulada con EOS_COMPRA_ANULADA.
                */
               const anulada = c.estado === "anulada";
+              const estado = estadoDeCompra(c, hoy);
 
               return (
-                <div className={`neg-fila${anulada ? " neg-fila-anulada" : ""}`} key={c.id}>
-                  <div className="neg-fila-texto">
-                    <strong>{loComprado(c.items)}</strong>
-                    <small>
-                      {c.fecha} · {c.contacto?.nombre ?? "Sin proveedor"}
-                      {c.numero_comprobante ? ` · ${c.numero_comprobante}` : ""} ·{" "}
-                      {c.condicion === "credito" ? "a crédito" : "contado"}{c.condicion === "credito" && c.vence_el ? ` · vence ${c.vence_el}` : ""}
-                    </small>
+                <div className={`neg-tabla-fila es-compras${anulada ? " is-anulada" : ""}`} role="row" key={c.id}>
+                  <span className="neg-tabla-fecha">{diaMes(c.fecha)}</span>
+                  <span className="neg-tabla-principal">
+                    {c.contacto?.nombre ?? "Sin proveedor"}
+                    <small>{loComprado(c.items)}</small>
+                  </span>
+                  <span className="neg-tabla-sec neg-tabla-codigo">{c.numero_comprobante || "—"}</span>
+                  <span className="n neg-tabla-monto">{formatearMonto(c.total, c.moneda)}</span>
+                  <span>
+                    <span className={`neg-pill is-${estado.tono}`}>{estado.texto}</span>
+                  </span>
+
+                  <div className="neg-tabla-acciones">
+                    {!anulada && (
+                      <>
+                        {!c.movimiento_id && (
+                          <Confirmar
+                            etiqueta="Pagar"
+                            clase="chip is-primario"
+                            consecuencia={
+                              `Se registra un egreso de ${formatearMonto(c.total, c.moneda)} en tu panel, ` +
+                              "con la fecha de hoy. Si te equivocaste de compra, se corrige anulándola."
+                            }
+                            confirmar="Sí, pagar"
+                            onConfirmar={() => void pagar(c)}
+                            ocupado={pagandoId === c.id}
+                            ocupadoTexto="Registrando…"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          className="chip"
+                          aria-expanded={masAbiertoId === c.id}
+                          aria-label="Más acciones"
+                          onClick={() => setMasAbiertoId((actual) => (actual === c.id ? null : c.id))}
+                        >
+                          <MoreHorizontal size={13} />
+                        </button>
+                      </>
+                    )}
                   </div>
 
-                  <span className="neg-fila-monto">{formatearMonto(c.total, c.moneda)}</span>
-
-                  {anulada ? (
-                    /*
-                     * Y no se le ofrece nada más que hacer. La base rechaza
-                     * pagar una compra anulada con EOS_COMPRA_ANULADA, así
-                     * que el botón solo servía para llevarla a un error.
-                     */
-                    <span className="neg-estado is-anulada">
-                      <Undo2 size={12} /> anulada
-                    </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="chip"
-                        aria-expanded={masAbiertoId === c.id}
-                        aria-label="Más acciones"
-                        onClick={() => setMasAbiertoId((actual) => (actual === c.id ? null : c.id))}
-                      >
-                        <MoreHorizontal size={13} />
+                  {/*
+                    Corregir se ofrece acá porque la compra es donde entra el
+                    costo: un número mal tipeado se vuelve el costo del
+                    producto, el margen de todo lo que se venda después y un
+                    gasto del panel. "Corregir compra" cambia cantidad, costo o
+                    producto; "Corregir precios" solo lo que se pagó por unidad.
+                  */}
+                  {masAbiertoId === c.id && !anulada && (
+                    <div className="neg-tabla-mas">
+                      <button type="button" className="chip" onClick={() => editar(c)}>
+                        <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
+                        Corregir compra
                       </button>
-
-                      {masAbiertoId === c.id && (
-                        <>
-                          {/*
-                            Corregir se ofrece acá porque la compra es donde
-                            entra el costo: un número mal tipeado se vuelve
-                            el costo del producto, el margen de todo lo que
-                            se venda después y un gasto del panel. Antes la
-                            única salida era anular la compra entera y
-                            volver a cargarla.
-                          */}
-                          <CorregirCosto
-                            modo="compra"
-                            documentoId={c.id}
-                            moneda={c.moneda}
-                            items={c.items ?? []}
-                            onCorregido={cargar}
-                          />
-
-                          {/* Cantidad, costo, producto — lo que Corregir costo no toca. */}
-                          <button type="button" className="chip" onClick={() => editar(c)}>
-                            <Pencil size={11} style={{ display: "inline", marginRight: 3, verticalAlign: -1 }} />
-                            Corregir
-                          </button>
-                        </>
-                      )}
-
-                      {c.movimiento_id ? (
-                        <span className="neg-estado is-ok">
-                          <Check size={12} /> pagada
-                        </span>
-                      ) : (
-                        <Confirmar
-                          etiqueta="Pagar"
-                          consecuencia={
-                            `Se registra un egreso de ${formatearMonto(c.total, c.moneda)} en tu panel, ` +
-                            "con la fecha de hoy. Si te equivocaste de compra, se corrige anulándola."
-                          }
-                          confirmar="Sí, pagar"
-                          onConfirmar={() => void pagar(c)}
-                          ocupado={pagandoId === c.id}
-                          ocupadoTexto="Registrando…"
-                        />
-                      )}
-
+                      <CorregirCosto
+                        modo="compra"
+                        etiqueta="Corregir precios"
+                        documentoId={c.id}
+                        moneda={c.moneda}
+                        items={c.items ?? []}
+                        onCorregido={cargar}
+                      />
                       <Anular recurso="compras" id={c.id} onAnulado={cargar} />
-                    </>
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
+}
+
+/** El estado de una compra en una palabra, con el color de lo que pide. */
+function estadoDeCompra(c: Compra, hoy: string): { texto: string; tono: "ok" | "mal" | "av" | "neutro" } {
+  if (c.estado === "anulada") return { texto: "Anulada", tono: "neutro" };
+  if (c.movimiento_id) return { texto: "Pagada", tono: "ok" };
+  if (c.vence_el && c.vence_el < hoy) return { texto: `Venció el ${diaMes(c.vence_el)}`, tono: "mal" };
+  if (c.vence_el) return { texto: `Vence el ${diaMes(c.vence_el)}`, tono: "av" };
+  return { texto: "Por pagar", tono: "av" };
 }

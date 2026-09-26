@@ -40,6 +40,7 @@ export default function Confirmar({
   peligro = false,
   ocupado = false,
   ocupadoTexto,
+  clase,
 }: {
   /** El texto del botón que abre la confirmación. */
   etiqueta: string;
@@ -51,6 +52,8 @@ export default function Confirmar({
   peligro?: boolean;
   ocupado?: boolean;
   ocupadoTexto?: string;
+  /** Clase del botón que abre la confirmación ("Cobrar" va como acción principal de la fila). */
+  clase?: string;
 }) {
   const [abierto, setAbierto] = useState(false);
 
@@ -62,7 +65,7 @@ export default function Confirmar({
     return (
       <button
         type="button"
-        className={`chip${peligro ? " is-danger" : ""}`}
+        className={clase ?? `chip${peligro ? " is-danger" : ""}`}
         disabled={ocupado}
         onClick={() => setAbierto(true)}
       >
