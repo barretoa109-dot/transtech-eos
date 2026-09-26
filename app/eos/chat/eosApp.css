@@ -6238,3 +6238,49 @@
 .eos-app .cal-sinfecha:last-child { border-bottom: 0; }
 .eos-app .cal-sinfecha-texto { display: grid; min-width: 0; gap: 2px; }
 .eos-app .cal-sinfecha-texto small { color: var(--muted); overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------------
+   PERSONAL — subpestaña vacía, categoría y editor de movimientos
+   ------------------------------------------------------------------ */
+
+/*
+  El aviso de "todavía no hay nada acá" solo existe cuando el contenido de la
+  subpestaña quedó vacío. Aparece con una demora: mientras las tarjetas cargan
+  también están vacías, y un aviso que asoma y desaparece en medio segundo
+  confunde más que la espera.
+*/
+.eos-app .sec-vacio { display: none; }
+.eos-app .sec-contenido:empty + .sec-vacio {
+  display: block;
+  animation: sec-vacio-aparece 0.3s ease 1.2s both;
+}
+@keyframes sec-vacio-aparece {
+  from { opacity: 0; visibility: hidden; }
+  to { opacity: 1; visibility: visible; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eos-app .sec-contenido:empty + .sec-vacio { animation-duration: 0s; }
+}
+
+/*
+  El desplegable de categoría vive en una columna flexible y heredaba
+  `flex: 1 1 160px` de `.neg-input`. En una columna esa base es el ALTO: salía
+  una caja de 160 píxeles por movimiento.
+*/
+.eos-app .neg-fila-texto .gastos-categoria {
+  flex: none;
+  align-self: flex-start;
+}
+
+/* Cada campo del editor con su nombre arriba. */
+.eos-app .fila-editor-campo {
+  display: grid;
+  flex: 1 1 180px;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.eos-app .fila-editor-campo.is-corto { flex: 0 1 130px; }
+.eos-app .fila-editor-campos .fila-editor-campo .neg-input { width: 100%; }

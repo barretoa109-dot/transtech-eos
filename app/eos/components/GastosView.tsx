@@ -16,6 +16,7 @@ import {
 
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { DESTINOS } from "@/lib/finanzas/destinos";
+import { numeroEscrito } from "@/lib/finanzas/gastoRapido";
 
 /*
   El bloque financiero personal vivía en Dashboard y esta pantalla era una
@@ -219,6 +220,29 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
     ],
   },
 ];
+
+/**
+ * Qué decir cuando una subpestaña queda en blanco.
+ *
+ * Varias tarjetas se callan solas cuando no tienen nada que decir, a
+ * propósito: así una cuenta nueva no ve cajas vacías. Pero cuando una
+ * subpestaña tiene una sola tarjeta y esa se calla, no queda nada, y una
+ * pantalla vacía se lee como algo roto. Esto dice qué va a aparecer ahí y
+ * cómo llegar. Las subpestañas que siempre muestran algo no están.
+ */
+const VACIO: Partial<Record<Subarea, string>> = {
+  estoy: "Acá vas a ver tu puntaje financiero, qué cambió y por qué.",
+  presupuesto: "Acá vas a ver cuánto te queda para el día a día hasta tu próximo cobro.",
+  fue: "Acá vas a ver a dónde va tu plata, agrupada por destino y comparada con el mes anterior.",
+  curva: "Acá vas a ver cómo va a quedar tu saldo en los próximos 45 días.",
+  calendario: "Acá vas a ver lo que vence y lo que cobrás, en orden, con el saldo que va quedando.",
+  cuentas: "Acá vas a ver tus cuentas: bancos, billeteras, cooperativas y efectivo.",
+  patrimonio: "Acá vas a ver lo que tenés menos lo que debés.",
+  deudas: "Acá vas a ver a quién le debés y en qué orden conviene pagar.",
+  tarjetas: "Acá vas a ver tus tarjetas: cuánto usaste, cuándo cierran y cuándo vencen.",
+  fondo: "Acá vas a ver tu fondo de emergencia: cuánto tenés, cuánto te falta y a qué ritmo llegás.",
+  objetivos: "Acá vas a ver lo que querés lograr, dicho en plata por mes.",
+};
 
 function dia(iso: string): string {
   const [, mes, numero] = iso.split("-");
@@ -547,6 +571,7 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         ariaLabel="Secciones de Personal"
       />
 
+      <div className="sec-contenido">
       {subarea === "estoy" && <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />}
 
       {subarea === "comprar" &&
@@ -870,6 +895,24 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         </>
       )}
       </div>
+
+      {/*
+        Lo que se muestra si la subpestaña quedó en blanco. Solo CSS: aparece
+        cuando `.sec-contenido` está vacío (`:empty`) y con un momento de
+        demora, para no asomar mientras las tarjetas todavía cargan.
+      */}
+      {VACIO[subarea] && (
+        <div className="card sec-vacio" key={subarea}>
+          <div className="card-title">Todavía no hay nada que mostrar acá</div>
+          <p className="prose">{VACIO[subarea]}</p>
+          <p className="prose" style={{ marginTop: 8 }}>
+            {finanzasConfigurada === false
+              ? "Para empezar, tocá «Configurar mis finanzas» en el panel de arriba: son unas pocas preguntas, una sola vez."
+              : "Anotá tus movimientos arriba o contáselos a EOS en el chat, y esto se completa solo."}
+          </p>
+        </div>
+      )}
+      </div>
     </div>
   );
 }
@@ -913,20 +956,32 @@ function EditarMovimiento({
   onCancelar: () => void;
   onGuardar: (cambios: Record<string, unknown>) => Promise<boolean>;
 }) {
-  const [monto, setMonto] = useState(String(Math.abs(movimiento.monto)));
+  /*
+   * El monto se muestra y se escribe como en Paraguay: "14.550", con punto de
+   * miles. Antes era un campo numérico del navegador, que en español leía
+   * "14.550" como 14,55 y guardaba catorce guaraníes.
+   */
+  const [monto, setMonto] = useState(
+    new Intl.NumberFormat("es-PY", { maximumFractionDigits: 2 }).format(Math.abs(movimiento.monto)),
+  );
   const [descripcion, setDescripcion] = useState(movimiento.descripcion);
   const [fecha, setFecha] = useState(movimiento.fecha.slice(0, 10));
   const [tipo, setTipo] = useState<"ingreso" | "gasto">(movimiento.tipo);
   const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState("");
 
   /** Era una devolución: el monto guardado es negativo y así tiene que seguir. */
   const esDevolucion = movimiento.monto < 0;
 
   async function guardar() {
-    const valor = Number(monto);
+    const valor = numeroEscrito(monto.replace(/[^\d.,]/g, ""));
 
-    if (!Number.isFinite(valor) || valor <= 0) return;
+    if (valor === null || valor <= 0) {
+      setAviso("Escribí el monto en números, por ejemplo 14.550.");
+      return;
+    }
 
+    setAviso("");
     setGuardando(true);
 
     await onGuardar({
@@ -941,33 +996,36 @@ function EditarMovimiento({
 
   return (
     <div className="fila-editor">
+      {/* Cada campo con su nombre: sin eso no se sabía cuál era el monto. */}
       <div className="fila-editor-campos">
-        <input
-          className="neg-input"
-          value={descripcion}
-          maxLength={200}
-          autoFocus
-          placeholder="En qué fue"
-          onChange={(e) => setDescripcion(e.target.value)}
-        />
+        <label className="fila-editor-campo">
+          <span>En qué fue</span>
+          <input
+            className="neg-input"
+            value={descripcion}
+            maxLength={200}
+            autoFocus
+            placeholder="Punto Farma"
+            onChange={(e) => setDescripcion(e.target.value)}
+          />
+        </label>
 
-        <input
-          className="neg-input neg-cantidad"
-          type="number"
-          min={0}
-          value={monto}
-          placeholder="Monto"
-          title="El monto, sin signo: el signo lo pone el tipo"
-          onChange={(e) => setMonto(e.target.value)}
-        />
+        <label className="fila-editor-campo is-corto">
+          <span>Monto ({movimiento.moneda === "USD" ? "US$" : "₲"})</span>
+          <input
+            className="neg-input"
+            inputMode="decimal"
+            value={monto}
+            placeholder="14.550"
+            title="El monto, sin signo: el signo lo pone el tipo"
+            onChange={(e) => setMonto(e.target.value)}
+          />
+        </label>
 
-        <input
-          className="neg-input neg-cantidad"
-          type="date"
-          value={fecha}
-          title="Cuándo pasó"
-          onChange={(e) => setFecha(e.target.value)}
-        />
+        <label className="fila-editor-campo is-corto">
+          <span>Fecha</span>
+          <input className="neg-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+        </label>
 
         {/*
           El tipo se puede cambiar, y hace falta: "cobré" e "invertí" se
@@ -979,17 +1037,21 @@ function EditarMovimiento({
           convertirla desde acá sería cambiar dos cosas con un solo clic.
         */}
         {!esDevolucion && (
-          <select
-            className="neg-input neg-cantidad"
-            value={tipo}
-            aria-label="Tipo de movimiento"
-            onChange={(e) => setTipo(e.target.value as "ingreso" | "gasto")}
-          >
-            <option value="gasto">Gasto</option>
-            <option value="ingreso">Ingreso</option>
-          </select>
+          <label className="fila-editor-campo is-corto">
+            <span>Tipo</span>
+            <select
+              className="neg-input"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value as "ingreso" | "gasto")}
+            >
+              <option value="gasto">Gasto</option>
+              <option value="ingreso">Ingreso</option>
+            </select>
+          </label>
         )}
       </div>
+
+      {aviso && <p className="neg-error" role="alert">{aviso}</p>}
 
       {/* La misma clase que usa el editor de productos: dos botones en fila. */}
       <div className="anular-acciones">
