@@ -1,5 +1,11 @@
 import { monedaConocida } from "../../finanzas/monedas.ts";
-import { antiguedad, diasPromedioDeCobro, type CobroConDocumento, type DocumentoCartera } from "../../erp/cartera.ts";
+import {
+  antiguedad,
+  cobradoEfectivo,
+  diasPromedioDeCobro,
+  type CobroConDocumento,
+  type DocumentoCartera,
+} from "../../erp/cartera.ts";
 import { valorConocido, valorDesconocido } from "../tipos.ts";
 import type { CompraHecho, DefinicionKPI, Periodo, ValorKPI, VentaHecho } from "../tipos.ts";
 
@@ -27,7 +33,9 @@ function comoDocumento(d: VentaHecho | CompraHecho): DocumentoCartera {
     vence_el: d.vence_el,
     moneda: monedaConocida(d.moneda),
     total: d.total,
-    cobrado: d.cobrado,
+    // El estado dice si se saldó de una vez (contado, o cobrado entero), que no
+    // deja filas de pagos parciales. Ver `cobradoEfectivo`.
+    cobrado: cobradoEfectivo({ estado: d.estado, total: d.total, cobrado: d.cobrado }),
     contacto_id: esVenta ? (d as VentaHecho).contacto_id : (d as CompraHecho).proveedor_id,
     contacto_nombre: esVenta ? (d as VentaHecho).contacto_nombre : (d as CompraHecho).proveedor_nombre,
   };

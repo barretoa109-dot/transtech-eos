@@ -20,6 +20,7 @@ import {
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { MovimientoProyectado } from "@/lib/finanzas/recurrencia";
 import { NextResponse } from "next/server";
+import { politicasDesdeCuentas } from "@/lib/finanzas/capturarPulso";
 import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
@@ -148,10 +149,43 @@ export async function GET() {
     console.error("No se pudo leer la política financiera:", politicaRes.error);
   }
 
-  const politica = (politicaRes.data ?? null) as Politica | null;
+  const declarada = (politicaRes.data ?? null) as Politica | null;
 
-  // Sin Constitución Financiera todavía no hay nada que calcular: EOS no
-  // inventa un estado, informa que falta configurarse.
+  /*
+   * Sin Constitución Financiera pero CON saldo declarado en sus cuentas.
+   *
+   * Antes esto respondía "sin configurar" y no calculaba nada: quien cargó
+   * "tengo 8.450.000 en la caja de ahorro" y después anotaba sus gastos veía
+   * el mismo número para siempre, como si EOS no los registrara (lo reportó
+   * el usuario el 2026-09-25). El saldo de las cuentas ES un punto de partida
+   * declarado por la persona: se usa, con reserva y ahorro en cero porque no
+   * los declaró. Es la misma regla que ya usa el score personal
+   * (`politicasDesdeCuentas`), así que el panel y el score no discrepan.
+   * La respuesta lo dice con `desde_cuentas` para que la pantalla lo aclare.
+   *
+   * Sin Constitución y sin saldo declarado sigue sin haber nada que calcular:
+   * EOS no inventa un estado, informa que falta configurarse.
+   */
+  const [provisoria] = declarada
+    ? []
+    : politicasDesdeCuentas(
+        ((cuentasRes.data ?? []) as CuentaFila[]).map((c) => ({ ...c, usuario_id: user.id })),
+        hoyEnParaguay(),
+      );
+  const desdeCuentas = !declarada && Boolean(provisoria);
+  const politica: Politica | null =
+    declarada ??
+    (provisoria
+      ? {
+          moneda: String(provisoria.moneda),
+          saldo_inicial: Number(provisoria.saldo_inicial),
+          saldo_inicial_fecha: String(provisoria.saldo_inicial_fecha),
+          reserva_minima: 0,
+          porcentaje_ahorro: 0,
+          umbral_autorizacion: null,
+        }
+      : null);
+
   if (!politica) {
     return NextResponse.json({ configurado: false }, { headers: noStore() });
   }
@@ -310,7 +344,10 @@ export async function GET() {
   return NextResponse.json(
     {
       configurado: true,
-      sin_datos: movimientos.length === 0,
+      /** Calculado desde el saldo de las cuentas, sin Constitución: reserva y ahorro en cero. */
+      desde_cuentas: desdeCuentas,
+      // Con el saldo de las cuentas ya hay con qué calcular, aunque no haya movimientos.
+      sin_datos: movimientos.length === 0 && !desdeCuentas,
       moneda: principal,
       estado,
       // ---- La moneda principal, en la raíz, como siempre ----

@@ -7,6 +7,7 @@ import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import {
   antiguedad,
+  cobradoEfectivo,
   diasPromedioDeCobro,
   estaPendiente,
   saldoDe,
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
   const [documentosRes, cobranzasRes] = await Promise.all([
     admin
       .from(tabla)
-      .select("id,fecha,vence_el,moneda,total,estado,contacto:eos_crm_contactos(id,nombre)")
+      .select("id,fecha,vence_el,moneda,total,estado,movimiento_id,contacto:eos_crm_contactos(id,nombre)")
       .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
       .neq("estado", "anulada")
       .order("fecha", { ascending: false })
@@ -91,7 +92,14 @@ export async function GET(request: Request) {
       vence_el: (d.vence_el as string | null) ?? null,
       moneda: monedaConocida(d.moneda as string | null),
       total: Number(d.total ?? 0),
-      cobrado: cobradoPorDocumento.get(String(d.id)) ?? 0,
+      // Lo saldado de una vez (contado, o cobrado/pagado entero) no deja filas
+      // de pagos parciales: ver `cobradoEfectivo`.
+      cobrado: cobradoEfectivo({
+        estado: d.estado as string | null,
+        movimiento_id: d.movimiento_id as string | null,
+        total: Number(d.total ?? 0),
+        cobrado: cobradoPorDocumento.get(String(d.id)) ?? 0,
+      }),
       contacto_id: (d.contacto as { id?: string } | null)?.id ?? null,
       contacto_nombre: (d.contacto as { nombre?: string } | null)?.nombre ?? null,
     }),

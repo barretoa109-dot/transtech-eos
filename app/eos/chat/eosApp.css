@@ -4395,7 +4395,22 @@
 @media (max-width: 760px) {
   .eos-app .neg-resumen.is-negocio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .eos-app .sec-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
-  .eos-app .sec-tab { position: relative; justify-content: center; padding: 11px 2px 10px; font-size: 12.5px; }
+  /*
+    Cada pestaña en su columna y el nombre en hasta dos líneas: con cinco
+    pestañas (Personal) "Tengo y debo" no entra en una, y con `nowrap` se
+    montaba encima de la de al lado.
+  */
+  .eos-app .sec-tab {
+    position: relative;
+    justify-content: center;
+    min-width: 0;
+    padding: 10px 2px 9px;
+    font-size: 12.5px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+  .eos-app .sec-tab-texto { overflow-wrap: break-word; }
   .eos-app .sec-tab-aviso {
     position: absolute;
     top: 1px;
@@ -6489,3 +6504,22 @@
 @media (max-width: 420px) {
   .eos-app .neg-resumen.is-personal .neg-resumen-card.is-primary strong { font-size: 17px; }
 }
+.eos-app .fin-desde-cuentas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--linea-azul);
+  border-radius: 12px;
+  background: var(--panel-suave);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.eos-app .fin-desde-cuentas p { flex: 1 1 260px; margin: 0; }
+.eos-app .fin-desde-cuentas .reco-btn { margin-top: 0; }
+.eos-app .fin-card .fin-desde-cuentas { margin: 12px 0 0; }
+.eos-app .fin-estimado-hoy { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: var(--blue-light); color: var(--ink); font-size: 13px; }
+.eos-app .fin-estimado-hoy strong { color: var(--blue); white-space: nowrap; }

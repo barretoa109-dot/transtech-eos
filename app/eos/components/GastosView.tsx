@@ -369,6 +369,9 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
       setEntendido(String(datos?.entendido ?? "Anotado."));
       setTexto("");
       await cargar();
+      // El panel de arriba y las tarjetas de la pestaña también cambian con este
+      // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
+      setVersionPanel((v) => v + 1);
     } catch (err) {
       setErrorAlta(err instanceof Error ? err.message : "No pudimos anotarlo.");
     } finally {
@@ -442,6 +445,9 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
 
     setEditando(null);
     await cargar();
+    // El panel de arriba y las tarjetas de la pestaña también cambian con este
+    // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
+    setVersionPanel((v) => v + 1);
     return true;
   }
 
@@ -455,6 +461,9 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
     }
 
     await cargar();
+    // El panel de arriba y las tarjetas de la pestaña también cambian con este
+    // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
+    setVersionPanel((v) => v + 1);
   }
 
   /*
@@ -568,7 +577,7 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         ariaLabel="Secciones de Personal"
       />
 
-      <div className="sec-contenido">
+      <div className="sec-contenido" key={versionPanel}>
       {subarea === "estoy" && (
         <>
           <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />
@@ -904,7 +913,7 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         demora, para no asomar mientras las tarjetas todavía cargan.
       */}
       {VACIO[subarea] && (
-        <div className="card sec-vacio" key={subarea}>
+        <div className="card sec-vacio" key={`${subarea}-${versionPanel}`}>
           <div className="card-title">Todavía no hay nada que mostrar acá</div>
           <p className="prose">{VACIO[subarea]}</p>
           <p className="prose" style={{ marginTop: 8 }}>
