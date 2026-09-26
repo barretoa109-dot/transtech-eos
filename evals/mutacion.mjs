@@ -25,6 +25,7 @@ const MOVIMIENTOS = "lib/finanzas/extraerMovimientos.ts";
 const CORREO = "lib/finanzas/extraerDeCorreo.ts";
 const JOBS = "lib/gateway/jobs.ts";
 const RESPUESTA = "lib/gateway/respuesta.ts";
+const ACCIONES_CHAT = "lib/eos/acciones-chat.ts";
 
 /** [nombre, archivo, fragmento a romper, con qué reemplazarlo] */
 const MUTACIONES = [
@@ -93,10 +94,33 @@ const MUTACIONES = [
     "const finales = documento ? acciones.filter((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo)) : acciones;",
     "const finales = acciones;",
   ],
+
+  /*
+   * Honestidad (26/09/2026). Si alguna de estas se rompe sin que la suite lo
+   * note, EOS vuelve a poder decir "ya cobré" sobre algo que no pasó.
+   */
+  [
+    "la corrección de lo que quedó pendiente de aprobación",
+    ACCIONES_CHAT,
+    'if (!verificaciones.some((v) => v.estado === "pendiente_aprobacion")) return respuesta;',
+    "return respuesta;",
+  ],
+  [
+    "los verbos de plata cuentan como afirmación",
+    ACCIONES_CHAT,
+    'ANTES + HECHO_PLATA + "é" + DESPUES +',
+    '"(?!)" +',
+  ],
+  [
+    "cobrar cuenta como pedido de registrar",
+    ACCIONES_CHAT,
+    '"cobr[aá]|cobrar|pag[aá]|pagar|',
+    '"pag[aá]|pagar|',
+  ],
 ];
 
 const original = new Map(
-  [MOVIMIENTOS, CORREO, JOBS, RESPUESTA].map((archivo) => [archivo, readFileSync(archivo, "utf8")]),
+  [MOVIMIENTOS, CORREO, JOBS, RESPUESTA, ACCIONES_CHAT].map((archivo) => [archivo, readFileSync(archivo, "utf8")]),
 );
 
 let problemas = 0;

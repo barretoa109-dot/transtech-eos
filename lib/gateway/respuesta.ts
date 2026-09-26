@@ -107,6 +107,9 @@ export type RespuestaGateway = {
 export const SIN_INTERPRETAR =
   "Recibí tu mensaje, pero no pude interpretar correctamente la respuesta.";
 
+/** Lo que se contesta cuando el modelo devolvió un JSON sin `respuesta`. */
+export const SIN_RESPUESTA = "Recibí tu solicitud.";
+
 /**
  * Encuentra el texto adentro de la respuesta de la Responses API.
  *
@@ -214,7 +217,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
   const respuesta =
     typeof resultado.respuesta === "string" && resultado.respuesta.trim()
       ? resultado.respuesta.trim()
-      : "Recibí tu solicitud.";
+      : SIN_RESPUESTA;
 
   const acciones: Accion[] = Array.isArray(resultado.acciones)
     ? (resultado.acciones as unknown[])

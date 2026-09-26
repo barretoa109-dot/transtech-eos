@@ -101,7 +101,7 @@ export type ContextoNegocio = {
      * guardado —y la venta moría al resolverlo— o preguntaba cuál de todos
      * cuando había uno solo.
      */
-    catalogo?: Array<{ nombre: string; precio?: number; sin_costo?: boolean }>;
+    catalogo?: Array<{ nombre: string; precio?: number; sin_costo?: boolean; moneda?: string | null }>;
     /** Cuántos hay en total. La lista viene recortada a 40; ver la v158. */
     catalogo_total?: number;
   };
@@ -181,6 +181,8 @@ export type ProductoDelCatalogo = {
    * afirmar un número inventado ahí es peor que no decir nada.
    */
   stock?: number | null;
+  /** La moneda del precio (v204). Sin ella se asume guaraníes, como antes. */
+  moneda?: string | null;
 };
 
 export function textoCatalogo(catalogo: unknown, total?: number): string {
@@ -191,7 +193,9 @@ export function textoCatalogo(catalogo: unknown, total?: number): string {
 
   const lineas = items.map((p) => {
     const precio = Number(p.precio ?? 0);
-    const detalle = precio > 0 ? ` — ${formatearMonto(precio, "PYG")}` : "";
+    // Cada precio en su moneda: un producto a USD 120 no es "Gs. 120" (v204).
+    const moneda = typeof p.moneda === "string" && p.moneda.trim() ? p.moneda.trim().toUpperCase() : "PYG";
+    const detalle = precio > 0 ? ` — ${formatearMonto(precio, moneda)}` : "";
     const stock = typeof p.stock === "number" ? ` (quedan ${p.stock})` : "";
     // "sin costo" y no "costo: null": el modelo lee castellano, no esquemas.
     return `  ${p.nombre}${detalle}${stock}${p.sin_costo ? " (sin costo cargado)" : ""}`;

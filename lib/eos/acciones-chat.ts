@@ -159,7 +159,10 @@ const PIDE_ESCRIBIR = new RegExp(
     "(anot[aá]|anotar|registr[aá]|registrar|guard[aá]|guardar|carg[aá]|cargar|" +
     "agreg[aá]|agregar|sum[aá]|añad[ií]|modific[aá]|modificar|cambi[aá]|cambiar|" +
     "actualiz[aá]|actualizar|corregi|borr[aá]|borrar|elimin[aá]|eliminar|" +
-    "pon[eé]|poner|cre[aá]|crear)" +
+    "pon[eé]|poner|cre[aá]|crear|" +
+    // La plata y los documentos (26/09/2026): "cobrá", "pagá", "anulá", "emití", y
+    // lo que se cuenta en pasado para que se registre: "vendí", "compré".
+    "cobr[aá]|cobrar|pag[aá]|pagar|anul[aá]|anular|emit[ií]|emitir|vend[ií]|compr[eé])" +
     DESPUES,
   "i",
 );
@@ -172,6 +175,12 @@ const PIDE_ESCRIBIR = new RegExp(
  * puede dispararse una corrección sobre ella.
  */
 const HECHO = "(registr|anot|guard|carg|agreg|actualic|actualiz|modific|modifiqu|cre)";
+
+/** Cobrar, pagar, anular, ajustar, descontar: primera persona del pasado ("cobré", "pagué"). */
+const HECHO_PLATA = "(cobr|pagu|anul|ajust|descont)";
+
+/** "cobrado", "pagadas", "emitido": lo que sigue a "quedó" o "está". */
+const HECHO_PLATA_PARTICIPIO = "(cobrad|pagad|anulad|emitid|ajustad|descontad)(o|a|os|as)" + DESPUES;
 
 const AFIRMA_HABERLO_HECHO = new RegExp(
   "(" +
@@ -189,6 +198,17 @@ const AFIRMA_HABERLO_HECHO = new RegExp(
     "|" +
     // "listo, lo agregué a tus productos"
     ANTES + "listo" + "[^.!\\n]{0,40}" + HECHO +
+    "|" +
+    // La plata (26/09/2026): "cobré", "ya lo pagué", "anulé la venta". Solo con
+    // tilde: "cobre" es un metal y "que lo cobre" es un subjuntivo, no un hecho.
+    ANTES + HECHO_PLATA + "é" + DESPUES +
+    "|" +
+    // "quedó cobrado", "está pagado", "quedó emitido"
+    ANTES + "(qued[óo]|est[áa])\\s+" + HECHO_PLATA_PARTICIPIO +
+    "|" +
+    // "ya lo emití". Sin "ya" o un pronombre adelante no cuenta: en voseo,
+    // "emití el comprobante desde Negocio" es una indicación, no un pasado.
+    ANTES + "(ya|lo|la|los|las)\\s+(lo\\s+|la\\s+)?emit[íi]" + DESPUES +
     ")",
   "i",
 );
@@ -331,4 +351,64 @@ export function corregirAfirmacionSoloMemoria(
   if (respuesta.includes(AVISO_SOLO_MEMORIA)) return respuesta;
 
   return `${AVISO_SOLO_MEMORIA}\n\n${respuesta}`;
+}
+
+export const AVISO_PENDIENTE =
+  "⚠️ **Todavía no está hecho.** Te lo dije como si ya estuviera, pero falta " +
+  "que lo apruebes: hasta entonces no quedó registrado nada.\n\n" +
+  "Esto es lo que te había contestado:";
+
+/**
+ * La cuarta forma: la acción existe, pero quedó esperando que la persona la
+ * apruebe, y el texto habla en pasado.
+ *
+ * `avisoDeVerificacion` agrega el enlace para aprobar, pero al final: arriba
+ * quedaba "Listo, ya cobré" y abajo "aprobá la operación pendiente". Dos
+ * finales contradictorios para lo mismo, y la persona le cree al primero. Es
+ * el caso que más importa en la plata —cobrar, pagar, anular—, que es justo
+ * donde una aprobación existe para que nada pase sin que alguien lo mire.
+ *
+ * Como las otras, no corrige si algo sí se ejecutó: "lo registré" puede
+ * referirse a esa otra acción.
+ */
+export function corregirAfirmacionPendiente(
+  respuesta: string,
+  verificaciones: VerificacionDeAccion[],
+): string {
+  if (verificaciones.length === 0) return respuesta;
+  if (huboEfecto(verificaciones)) return respuesta;
+  if (!verificaciones.some((v) => v.estado === "pendiente_aprobacion")) return respuesta;
+  if (!AFIRMA_HABERLO_HECHO.test(respuesta)) return respuesta;
+  if (respuesta.includes(AVISO_PENDIENTE)) return respuesta;
+
+  return `${AVISO_PENDIENTE}\n\n${respuesta}`;
+}
+
+/**
+ * Todo lo que se le hace a la respuesta una vez que se sabe qué pasó con cada
+ * acción, en el orden en que lo lee la persona: primero la corrección si
+ * afirmó algo falso, después el aviso o el enlace que corresponda.
+ *
+ * Vive junto para que el motor (`procesar-mensaje.ts`) y los evals
+ * (`evals/casos/honestidad.ts`) corran exactamente lo mismo.
+ * `corregirAfirmacionSinAccion` va aparte y antes, porque no necesita saber
+ * qué informó el worker.
+ */
+export function respuestaTrasVerificar(datos: {
+  respuesta: string;
+  acciones: AccionEOS[];
+  mensaje: string;
+  verificaciones: VerificacionDeAccion[];
+  origen: string;
+}): { respuesta: string; soloMemoria: boolean } {
+  let respuesta = corregirAfirmacionFallida(datos.respuesta, datos.verificaciones);
+
+  const antesDeSoloMemoria = respuesta;
+  respuesta = corregirAfirmacionSoloMemoria(respuesta, datos.acciones, datos.mensaje, datos.verificaciones);
+  const soloMemoria = respuesta !== antesDeSoloMemoria;
+
+  respuesta = corregirAfirmacionPendiente(respuesta, datos.verificaciones);
+  respuesta = avisoDeVerificacion(respuesta, datos.verificaciones, datos.origen);
+
+  return { respuesta, soloMemoria };
 }
