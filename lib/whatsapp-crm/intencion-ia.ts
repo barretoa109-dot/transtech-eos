@@ -1,4 +1,5 @@
 import type { Intencion } from "./intencion.ts";
+import { costoDelMensaje, tarifasDelEntorno, tokensDeUsage } from "../eos/costo-mensaje.ts";
 
 /**
  * Qué quiere el cliente, leído por un modelo — POR ENCIMA de las reglas.
@@ -110,10 +111,18 @@ export function leerRespuesta(cuerpo: unknown): Lectura | null {
   return { intencion: intencion as Intencion, confianza };
 }
 
+export type OpcionesModelo = {
+  fetcher?: Fetcher;
+  env?: Record<string, string | undefined>;
+  plazoMs?: number;
+  /** Lo que costó la consulta en dólares, para sumarlo al consumo del dueño del canal (v202). */
+  alCosto?: (usd: number) => void;
+};
+
 /** El modelo. Devuelve null ante CUALQUIER problema: nunca lanza, nunca deja esperando al webhook. */
 export async function preguntarAlModelo(
   texto: string,
-  opciones: { fetcher?: Fetcher; env?: Record<string, string | undefined>; plazoMs?: number } = {},
+  opciones: OpcionesModelo = {},
 ): Promise<Lectura | null> {
   const env = opciones.env ?? process.env;
   const fetcher = opciones.fetcher ?? fetch;
@@ -144,7 +153,13 @@ export async function preguntarAlModelo(
       return null;
     }
 
-    return leerRespuesta(await respuesta.json());
+    const datos = (await respuesta.json()) as { usage?: unknown };
+    // A cuenta del dueño del canal (v202). Con otro modelo en EOS_INTENCION_MODELO, las
+    // tarifas son las del modelo del chat: si el otro es más barato, esto sobreestima.
+    const costo = costoDelMensaje(tokensDeUsage(datos?.usage), tarifasDelEntorno(env));
+    if (costo > 0) opciones.alCosto?.(costo);
+
+    return leerRespuesta(datos);
   } catch (error) {
     console.error("Intención IA: no se pudo consultar:", error instanceof Error && error.name === "AbortError" ? "timeout" : "error de red");
     return null;
@@ -181,7 +196,7 @@ export function combinarIntencion(regla: Intencion, lectura: Lectura | null): In
 export async function refinarIntencion(
   texto: string,
   regla: Intencion,
-  opciones: { fetcher?: Fetcher; env?: Record<string, string | undefined>; plazoMs?: number } = {},
+  opciones: OpcionesModelo = {},
 ): Promise<Intencion> {
   if (!iaHabilitada(opciones.env)) return regla;
   // Lo que las reglas ya resolvieron como legal/reputación no se consulta: no hay nada que subir.

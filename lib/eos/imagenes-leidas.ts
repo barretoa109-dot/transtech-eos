@@ -21,6 +21,7 @@
  */
 
 import { MODELO } from "../gateway/sistema.ts";
+import { costoDelMensaje, tarifasDelEntorno, tokensDeUsage } from "./costo-mensaje.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = 25_000;
@@ -42,7 +43,14 @@ export const INSTRUCCION_LECTURA = [
   "Solo el texto, sin comentarios ni introducción.",
 ].join("\n");
 
-export async function leerImagen(imagen: ImagenParaLeer): Promise<string | null> {
+/**
+ * `alCosto` recibe lo que costó la lectura en dólares, para sumarlo al consumo
+ * del mes (v202): es una llamada al modelo aparte del mensaje.
+ */
+export async function leerImagen(
+  imagen: ImagenParaLeer,
+  opciones: { alCosto?: (usd: number) => void } = {},
+): Promise<string | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave || !imagen.tipo.startsWith("image/") || !imagen.base64) return null;
 
@@ -74,7 +82,11 @@ export async function leerImagen(imagen: ImagenParaLeer): Promise<string | null>
       return null;
     }
 
-    return textoDeRespuesta(await respuesta.json());
+    const datos = (await respuesta.json()) as { usage?: unknown };
+    const costo = costoDelMensaje(tokensDeUsage(datos?.usage), tarifasDelEntorno());
+    if (costo > 0) opciones.alCosto?.(costo);
+
+    return textoDeRespuesta(datos);
   } catch (error) {
     console.error(
       "Imagen: no se pudo leer:",

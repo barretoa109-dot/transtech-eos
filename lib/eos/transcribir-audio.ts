@@ -1,3 +1,5 @@
+import { costoDeAudio } from "./costo-mensaje.ts";
+
 const OPENAI_TRANSCRIBE_URL = "https://api.openai.com/v1/audio/transcriptions";
 const MODELO_TRANSCRIPCION = "whisper-1";
 
@@ -29,8 +31,15 @@ export function extensionDe(tipo: string): string {
  * que la API falle—: quien llama sigue con el mensaje de texto que haya, si
  * lo hay, igual que con el análisis de documentos adjuntos
  * (`analizarArchivoSincrono` en `procesar-mensaje.ts`).
+ *
+ * `alCosto` recibe lo que costó en dólares, para sumarlo al consumo del mes
+ * (v202). Whisper cobra por duración: por eso se pide `verbose_json`, que la
+ * trae junto con el texto.
  */
-export async function transcribirAudio(archivo: ArchivoParaTranscribir): Promise<string | null> {
+export async function transcribirAudio(
+  archivo: ArchivoParaTranscribir,
+  opciones: { alCosto?: (usd: number) => void } = {},
+): Promise<string | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
 
@@ -40,6 +49,7 @@ export async function transcribirAudio(archivo: ArchivoParaTranscribir): Promise
 
     const formulario = new FormData();
     formulario.append("model", MODELO_TRANSCRIPCION);
+    formulario.append("response_format", "verbose_json");
     formulario.append("file", new Blob([new Uint8Array(bytes)], { type: archivo.tipo }), nombre);
 
     const respuesta = await fetch(OPENAI_TRANSCRIBE_URL, {
@@ -53,7 +63,10 @@ export async function transcribirAudio(archivo: ArchivoParaTranscribir): Promise
       return null;
     }
 
-    const datos = (await respuesta.json()) as { text?: string };
+    const datos = (await respuesta.json()) as { text?: string; duration?: number };
+    const costo = costoDeAudio(datos.duration);
+    if (costo > 0) opciones.alCosto?.(costo);
+
     const texto = (datos.text || "").trim();
 
     return texto || null;

@@ -9,12 +9,21 @@ import { UMBRAL_COSTO_PYG, aGuaranies, formatearGs, umbralCosto } from "./umbral
  * lo que da pérdida es la plata, y dos mensajes no cuestan lo mismo: uno con
  * una foto cuesta un orden de magnitud más que un "hola".
  *
+ * El consumo incluye, además de cada mensaje, lo que cuestan las llamadas al
+ * modelo que corren por fuera: la lectura de imágenes, los audios y el
+ * clasificador de WhatsApp del CRM (`lib/eos/costo-ia.ts`, v202).
+ *
  * Vale para toda cuenta real, con cualquier plan. Sale una vez por cuenta y
  * por mes: en el momento en que el mensaje la hace pasar el umbral
  * (`procesar-mensaje.ts`) y, como respaldo, en el cron diario.
  *
  * NUNCA se le muestra ni se le menciona a la persona, y no corta nada.
  */
+
+/** La dirección de EOS que va en el correo del aviso. */
+export function baseUrlDeLaApp(env: Record<string, string | undefined> = process.env): string {
+  return (env.EOS_APP_BASE_URL || env.NEXT_PUBLIC_SITE_URL || "https://www.transtech.com.py").replace(/\/$/, "");
+}
 
 export type CuentaUsoAlto = {
   usuario_id: string;
