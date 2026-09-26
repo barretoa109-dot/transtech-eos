@@ -207,6 +207,125 @@ test("sin acciones responde acá mismo", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// El modelo barato (paso 4 del enrutamiento)
+// ---------------------------------------------------------------------------
+
+const BARATO = "modelo-barato-de-prueba";
+
+/** Como `conFetchFalso`, pero con una respuesta por llamada y guardando cada modelo pedido. */
+async function conVariasRespuestas(
+  respuestas: Array<() => Promise<Response> | Response>,
+  modelo: string | null = BARATO,
+): Promise<{ resultado: Awaited<ReturnType<typeof conversar>>; modelos: string[] }> {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  const modelos: string[] = [];
+  globalThis.fetch = (async (_url: unknown, opciones?: { body?: string }) => {
+    modelos.push(String(JSON.parse(opciones?.body ?? "{}").model));
+    const responder = respuestas[modelos.length - 1];
+    if (!responder) throw new Error("llamada de más");
+    return responder();
+  }) as unknown as typeof fetch;
+
+  try {
+    return { resultado: await conversar(payload({ mensaje: "hola" }), { modelo }), modelos };
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+}
+
+const charla = (texto: string) => () => ok(respuestaDeOpenAI(JSON.stringify({ respuesta: texto, acciones: [] })));
+
+test("sin modelo barato pregunta una sola vez al de siempre y lo anota", async () => {
+  const { resultado, modelos } = await conVariasRespuestas([charla("Hola.")], null);
+  assert.deepEqual(modelos, [MODELO]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.metadata.modelo, MODELO);
+  assert.equal(resultado.cuerpo.metadata.enrutado, undefined);
+});
+
+test("con modelo barato, un saludo lo contesta el barato con una sola llamada", async () => {
+  const { resultado, modelos } = await conVariasRespuestas([charla("¡Hola! ¿En qué te ayudo?")]);
+  assert.deepEqual(modelos, [BARATO]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.respuesta, "¡Hola! ¿En qué te ayudo?");
+  assert.equal(resultado.cuerpo.metadata.modelo, BARATO);
+  assert.equal(resultado.cuerpo.metadata.enrutado, "simple");
+});
+
+test("si el barato pide una acción, se descarta y el turno lo decide el de siempre", async () => {
+  const pideVenta = () =>
+    ok(
+      respuestaDeOpenAI(
+        JSON.stringify({ respuesta: "Listo.", acciones: [{ tipo: "REGISTRAR_VENTA", datos: {} }] }),
+      ),
+    );
+  const { resultado, modelos } = await conVariasRespuestas([pideVenta, charla("Hola, ¿qué necesitás?")]);
+  assert.deepEqual(modelos, [BARATO, MODELO]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.respuesta, "Hola, ¿qué necesitás?");
+  assert.equal(resultado.cuerpo.metadata.modelo, MODELO);
+  assert.equal(resultado.cuerpo.metadata.enrutado, "volvio_por_accion");
+});
+
+test("si el barato arma un documento, también vuelve al de siempre", async () => {
+  const conDocumento = () =>
+    ok(respuestaDeOpenAI(JSON.stringify({ respuesta: "Acá está.", acciones: [], documento: { titulo: "x", bloques: [] } })));
+  const { modelos } = await conVariasRespuestas([conDocumento, charla("Hola.")]);
+  assert.deepEqual(modelos, [BARATO, MODELO]);
+});
+
+test("si el barato no devuelve una respuesta usable, vuelve al de siempre", async () => {
+  for (const vacio of [() => ok(respuestaDeOpenAI(JSON.stringify({ acciones: [] }))), () => ok({ sin: "texto" })]) {
+    const { resultado, modelos } = await conVariasRespuestas([vacio, charla("Hola.")]);
+    assert.deepEqual(modelos, [BARATO, MODELO]);
+    assert.ok(resultado?.estado === "respondido" && resultado.cuerpo.respuesta === "Hola.");
+  }
+});
+
+test("un nombre de modelo barato que OpenAI no conoce no le cuesta nada a la persona", async () => {
+  const { resultado, modelos } = await conVariasRespuestas([
+    () => new Response("", { status: 404 }),
+    charla("Hola."),
+  ]);
+  assert.deepEqual(modelos, [BARATO, MODELO]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.metadata.modelo, MODELO);
+  assert.equal(resultado.cuerpo.metadata.enrutado, "volvio_por_error");
+});
+
+test("si el barato se pasa del tiempo, no se pregunta otra vez: n8n, como cualquier timeout", async () => {
+  const { resultado, modelos } = await conVariasRespuestas([
+    () => {
+      const error = new Error("abortado");
+      error.name = "AbortError";
+      throw error;
+    },
+  ]);
+  assert.deepEqual(modelos, [BARATO]);
+  assert.equal(resultado, null);
+});
+
+test("si fallan los dos, se cae a n8n", async () => {
+  const { resultado } = await conVariasRespuestas([
+    () => new Response("", { status: 500 }),
+    () => new Response("", { status: 500 }),
+  ]);
+  assert.equal(resultado, null);
+});
+
+test("pedir como barato el mismo modelo de siempre no hace dos llamadas", async () => {
+  const { resultado, modelos } = await conVariasRespuestas([charla("Hola.")], MODELO);
+  assert.deepEqual(modelos, [MODELO]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.metadata.enrutado, undefined);
+});
+
+// ---------------------------------------------------------------------------
 // La red: todo lo que sale mal termina en n8n
 // ---------------------------------------------------------------------------
 

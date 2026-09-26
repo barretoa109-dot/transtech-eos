@@ -38,8 +38,8 @@
  */
 
 import { EntradaInvalida, prepararEntrada } from "./entrada.ts";
-import { armarPrompt } from "./prompt.ts";
-import { prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
+import { armarPrompt, type Prompt } from "./prompt.ts";
+import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
@@ -150,14 +150,85 @@ export type Resultado =
   /** Hay acciones y la etapa 2 está apagada: las arma n8n. */
   | { estado: "delegar"; motivo: string };
 
+type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red" };
+
+/** Una llamada a la Responses API. Nunca lanza. */
+async function preguntarAlModelo(clave: string, modelo: string, contenido: Prompt["contenido"]): Promise<Llamada> {
+  const controlador = new AbortController();
+  const reloj = setTimeout(() => controlador.abort(), TIMEOUT_MS);
+
+  try {
+    const respuesta = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${clave}`,
+      },
+      body: JSON.stringify({
+        model: modelo,
+        input: [
+          { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
+          { role: "user", content: contenido },
+        ],
+      }),
+      signal: controlador.signal,
+      cache: "no-store",
+    });
+
+    if (!respuesta.ok) {
+      /*
+       * El cuerpo NO se registra: puede traer de vuelta el mensaje que
+       * escribió la persona, y el log de Vercel queda guardado, lo ve
+       * cualquiera con acceso al panel y no se borra cuando el usuario pide
+       * que lo borren. Misma regla que la ruta usa con n8n.
+       */
+      if (modelo === MODELO) console.error("Gateway TS: OpenAI respondió", respuesta.status);
+      else console.error("Gateway TS: el modelo simple respondió", respuesta.status);
+      return { ok: false, motivo: "http" };
+    }
+
+    return { ok: true, ai: await respuesta.json() };
+  } catch (error) {
+    const timeout = error instanceof Error && error.name === "AbortError";
+    console.error("Gateway TS: no se pudo llamar a OpenAI:", timeout ? "timeout" : "error de red");
+    return { ok: false, motivo: timeout ? "timeout" : "red" };
+  } finally {
+    clearTimeout(reloj);
+  }
+}
+
+/**
+ * ¿Lo que contestó el modelo barato se le puede mandar a la persona?
+ *
+ * Solo una respuesta de conversación, sin acciones ni documento, y que no sea
+ * uno de los textos de relleno de `prepararRespuesta`. Una acción la decide
+ * siempre el modelo completo: si el barato pidió una, la regla se equivocó y
+ * el turno se vuelve a preguntar entero (`simple_con_accion` en el log).
+ */
+export function sirveRespuestaSimple(cuerpo: RespuestaGateway): boolean {
+  if (cuerpo.requiere_worker || cuerpo.documento !== null) return false;
+  return cuerpo.respuesta !== SIN_INTERPRETAR && cuerpo.respuesta !== SIN_RESPUESTA;
+}
+
+/** Qué pasó con el modelo barato en este turno; va a la metadata y al log. */
+export type Enrutado = "simple" | "volvio_por_accion" | "volvio_por_error";
+
 /**
  * Atiende un mensaje de punta a punta cuando no hay acciones de por medio.
  *
  * Devuelve `null` ante cualquier problema —falta la clave, OpenAI falló, el
  * cuerpo vino raro— para que quien llama use n8n. Nunca lanza: una excepción
  * acá dejaría a la persona sin respuesta cuando existe un camino que funciona.
+ *
+ * Con `modelo`, el turno se le pregunta primero a ese modelo (el barato del
+ * paso 4 del enrutamiento, `lib/eos/enrutamiento-modelo.ts`). Si falla o su
+ * respuesta no sirve (`sirveRespuestaSimple`), se vuelve a preguntar al de
+ * siempre ANTES de hacer nada: con el barato no sale ninguna acción.
  */
-export async function conversar(payload: Record<string, unknown>): Promise<Resultado | null> {
+export async function conversar(
+  payload: Record<string, unknown>,
+  opciones: { modelo?: string | null } = {},
+): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
 
@@ -182,51 +253,45 @@ export async function conversar(payload: Record<string, unknown>): Promise<Resul
 
   const { contenido } = armarPrompt(entrada);
 
-  const controlador = new AbortController();
-  const reloj = setTimeout(() => controlador.abort(), TIMEOUT_MS);
+  const pedido = opciones.modelo?.trim() ?? "";
+  const barato = pedido && pedido !== MODELO ? pedido : null;
+  let cuerpo: RespuestaGateway | null = null;
+  let modelo = MODELO;
+  let enrutado: Enrutado | null = null;
 
-  let ai: unknown;
-  try {
-    const respuesta = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${clave}`,
-      },
-      body: JSON.stringify({
-        model: MODELO,
-        input: [
-          { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
-          { role: "user", content: contenido },
-        ],
-      }),
-      signal: controlador.signal,
-      cache: "no-store",
-    });
+  if (barato) {
+    const intento = await preguntarAlModelo(clave, barato, contenido);
 
-    if (!respuesta.ok) {
-      /*
-       * El cuerpo NO se registra: puede traer de vuelta el mensaje que
-       * escribió la persona, y el log de Vercel queda guardado, lo ve
-       * cualquiera con acceso al panel y no se borra cuando el usuario pide
-       * que lo borren. Misma regla que la ruta usa con n8n.
-       */
-      console.error("Gateway TS: OpenAI respondió", respuesta.status);
-      return null;
+    // Un timeout ya gastó los 20 s: preguntar otra vez dejaría a la persona
+    // esperando el doble. n8n, como cualquier otro timeout de acá.
+    if (!intento.ok && intento.motivo === "timeout") return null;
+
+    const propuesta = intento.ok ? prepararRespuesta(entrada, intento.ai) : null;
+    if (propuesta && sirveRespuestaSimple(propuesta)) {
+      cuerpo = propuesta;
+      modelo = barato;
+      enrutado = "simple";
+    } else {
+      // Un nombre de modelo mal escrito cae acá en cada turno simple: cuesta
+      // una llamada fallida y rápida, y la persona no se entera.
+      enrutado = propuesta ? "volvio_por_accion" : "volvio_por_error";
+      console.info("Gateway TS: el modelo simple no alcanzó, vuelve al de siempre:", enrutado);
     }
-
-    ai = await respuesta.json();
-  } catch (error) {
-    console.error(
-      "Gateway TS: no se pudo llamar a OpenAI:",
-      error instanceof Error && error.name === "AbortError" ? "timeout" : "error de red",
-    );
-    return null;
-  } finally {
-    clearTimeout(reloj);
   }
 
-  const cuerpo = prepararRespuesta(entrada, ai);
+  if (!cuerpo) {
+    const llamada = await preguntarAlModelo(clave, MODELO, contenido);
+    if (!llamada.ok) return null;
+    cuerpo = prepararRespuesta(entrada, llamada.ai);
+  }
+
+  /*
+   * El modelo que se PIDIÓ, no `openai_model` (que OpenAI devuelve con la
+   * fecha de la versión): es lo que decide con qué tarifa se cobra el
+   * mensaje (`tarifasDelModelo`).
+   */
+  cuerpo.metadata.modelo = modelo;
+  if (enrutado) cuerpo.metadata.enrutado = enrutado;
 
   if (!cuerpo.requiere_worker) {
     return { estado: "respondido", cuerpo };

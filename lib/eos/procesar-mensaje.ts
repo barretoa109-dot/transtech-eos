@@ -61,8 +61,8 @@ import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route"
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
-import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
-import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/costo-mensaje";
+import { clasificarTurno, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
@@ -1074,10 +1074,12 @@ export async function procesarMensajeEOS(
     let n8nResponse: Response | null = null;
 
     /*
-     * Punto 10, en MODO SOMBRA: qué modelo HABRÍA atendido este turno. Solo va
-     * al log de abajo; no cambia a quién se le pregunta. Se clasifica con el
-     * mensaje ORIGINAL de la persona, no con el que ya trae el análisis de un
-     * adjunto pegado. Ver `lib/eos/enrutamiento-modelo.ts`.
+     * Punto 10: qué modelo atiende este turno. Siempre va al log de abajo; con
+     * el paso 4 apagado (lo normal) no cambia a quién se le pregunta. Prendido
+     * (`EOS_ENRUTAR_MODELO=1` + `EOS_MODELO_SIMPLE`), un turno `simple` que
+     * atiende el gateway en TypeScript va primero al modelo barato. Se
+     * clasifica con el mensaje ORIGINAL de la persona, no con el que ya trae el
+     * análisis de un adjunto pegado. Ver `lib/eos/enrutamiento-modelo.ts`.
      */
     const enrutamiento = clasificarTurno({
       mensaje,
@@ -1104,7 +1106,7 @@ export async function procesarMensajeEOS(
     });
 
     if (atiendeTypeScript(turnoDeAccion)) {
-      const propio = await conversar(payload);
+      const propio = await conversar(payload, { modelo: modeloDelTurno(enrutamiento) });
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
         n8nResponse = Response.json(propio.cuerpo);
@@ -1305,7 +1307,11 @@ export async function procesarMensajeEOS(
     const tokensEntrada = tokens.entrada;
     const tokensSalida = tokens.salida;
 
-    const costoEstimado = costoDelMensaje(tokens, tarifasDelEntorno());
+    // Las tarifas del modelo barato solo si fue él quien contestó.
+    const costoEstimado = costoDelMensaje(
+      tokens,
+      tarifasDelModelo(resultado.metadata?.enrutado === "simple" ? resultado.metadata?.modelo : null),
+    );
 
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
@@ -1457,6 +1463,8 @@ export async function procesarMensajeEOS(
         worker_informado: evidencia.informado,
         tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
         enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
+        modelo: typeof resultado.metadata?.modelo === "string" ? resultado.metadata.modelo : null,
+        enrutado: typeof resultado.metadata?.enrutado === "string" ? resultado.metadata.enrutado : null,
         camino_accion: turnoDeAccion,
         solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,

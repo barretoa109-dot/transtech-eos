@@ -96,6 +96,9 @@ await paso("Producción corre el último main", async () => {
     const que = ["todo en n8n", "conversación pura", "conversación y acciones", "conversación, acciones y worker"];
     console.log(`       Gateway en TypeScript: etapa ${d.gateway} (${que[d.gateway] ?? "?"})`);
   }
+  if (typeof d.modelo_simple === "boolean") {
+    console.log(`       Modelo barato para mensajes simples: ${d.modelo_simple ? "prendido" : "apagado"}`);
+  }
 });
 
 // ------------------------------------------------------------------

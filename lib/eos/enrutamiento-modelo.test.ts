@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import {
   clasificarTurno,
+  modeloDelTurno,
+  modeloSimple,
   pareceAccion,
   registroDeEnrutamiento,
   type TurnoParaClasificar,
@@ -95,4 +97,32 @@ test("pareceAccion: un sí con pregunta pendiente es acción", () => {
   const historial = [{ rol: "eos" as const, texto: "¿Registro la venta?" }];
   assert.equal(pareceAccion(turno("sí", { historial })), true);
   assert.equal(pareceAccion(turno("sí")), false);
+});
+
+// ---------------------------------------------------------------------------
+// Paso 4: el interruptor
+// ---------------------------------------------------------------------------
+
+test("el modelo barato está apagado salvo con las dos variables", () => {
+  assert.equal(modeloSimple({}), null);
+  assert.equal(modeloSimple({ EOS_MODELO_SIMPLE: "barato" }), null, "sin EOS_ENRUTAR_MODELO no enruta");
+  assert.equal(modeloSimple({ EOS_ENRUTAR_MODELO: "1" }), null, "sin modelo no hay a dónde enrutar");
+  assert.equal(modeloSimple({ EOS_ENRUTAR_MODELO: "1", EOS_MODELO_SIMPLE: "  " }), null);
+  assert.equal(modeloSimple({ EOS_ENRUTAR_MODELO: "0", EOS_MODELO_SIMPLE: "barato" }), null);
+  assert.equal(modeloSimple({ EOS_ENRUTAR_MODELO: "1", EOS_MODELO_SIMPLE: " barato " }), "barato");
+});
+
+test("prendido, solo los turnos simples van al barato", () => {
+  const env = { EOS_ENRUTAR_MODELO: "1", EOS_MODELO_SIMPLE: "barato" };
+  assert.equal(modeloDelTurno(clasificarTurno(turno("hola")), env), "barato");
+  assert.equal(modeloDelTurno(clasificarTurno(turno("vendí 3 panes a Ana")), env), null);
+  // El "sí" que confirma una venta propuesta nunca va al barato.
+  const confirma = clasificarTurno(
+    turno("sí", { historial: [{ rol: "eos", texto: "¿Registro la venta de 3 panes?" }] }),
+  );
+  assert.equal(modeloDelTurno(confirma, env), null);
+});
+
+test("apagado, ningún turno va al barato", () => {
+  assert.equal(modeloDelTurno(clasificarTurno(turno("hola")), {}), null);
 });

@@ -7,6 +7,7 @@ import {
   costoDelMensaje,
   normalizarTokens,
   tarifasDelEntorno,
+  tarifasDelModelo,
   tokensDeUsage,
 } from "./costo-mensaje.ts";
 
@@ -105,4 +106,39 @@ test("un audio cuesta por minuto: 0,006 por defecto y la tarifa configurada si e
   assert.equal(costoDeAudio(120, { EOS_USD_POR_MINUTO_AUDIO: "0.01" }), 0.02);
   assert.equal(costoDeAudio(undefined, {}), 0);
   assert.equal(costoDeAudio(-5, {}), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Las tarifas del modelo barato
+// ---------------------------------------------------------------------------
+
+const CON_BARATO = {
+  ...GPT55,
+  EOS_MODELO_SIMPLE: "barato",
+  EOS_USD_POR_MTOK_ENTRADA_SIMPLE: "0.25",
+  EOS_USD_POR_MTOK_ENTRADA_CACHEADA_SIMPLE: "0.025",
+  EOS_USD_POR_MTOK_SALIDA_SIMPLE: "2",
+};
+
+test("un turno que contestó el modelo barato se cobra a sus tarifas", () => {
+  assert.deepEqual(tarifasDelModelo("barato", CON_BARATO), { entrada: 0.25, entradaCacheada: 0.025, salida: 2 });
+});
+
+test("cualquier otro modelo, o ninguno, va a las tarifas de siempre", () => {
+  const siempre = tarifasDelEntorno(GPT55);
+  assert.deepEqual(tarifasDelModelo("gpt-5.5", CON_BARATO), siempre);
+  assert.deepEqual(tarifasDelModelo(null, CON_BARATO), siempre);
+  assert.deepEqual(tarifasDelModelo(undefined, CON_BARATO), siempre);
+  assert.deepEqual(tarifasDelModelo("", { ...CON_BARATO, EOS_MODELO_SIMPLE: "" }), siempre);
+});
+
+test("sin la tarifa de entrada o de salida del barato, se cobra a la completa: nunca de menos", () => {
+  const siempre = tarifasDelEntorno(GPT55);
+  assert.deepEqual(tarifasDelModelo("barato", { ...CON_BARATO, EOS_USD_POR_MTOK_SALIDA_SIMPLE: undefined }), siempre);
+  assert.deepEqual(tarifasDelModelo("barato", { ...CON_BARATO, EOS_USD_POR_MTOK_ENTRADA_SIMPLE: "" }), siempre);
+});
+
+test("sin tarifa cacheada del barato, sus cacheados se cobran a su entrada completa", () => {
+  const sinCacheada = { ...CON_BARATO, EOS_USD_POR_MTOK_ENTRADA_CACHEADA_SIMPLE: undefined };
+  assert.deepEqual(tarifasDelModelo("barato", sinCacheada), { entrada: 0.25, entradaCacheada: 0.25, salida: 2 });
 });
