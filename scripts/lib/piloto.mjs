@@ -79,9 +79,14 @@ export function evaluarCuenta(f, ahora = Date.now()) {
     };
   }
 
-  if (ultimo !== null && ahora - ultimo > DIAS_SIN_VOLVER * DIA) {
-    const dias = Math.floor((ahora - ultimo) / DIA);
-    return { nivel: 2, estado: "SE ENFRIÓ", motivo: `no escribe hace ${dias} días` };
+  // La última señal de vida: el último mensaje o, si no hay ninguno guardado, la
+  // primera acción. Sin esto, una cuenta con una acción de agosto y ningún mensaje
+  // no llegaba nunca a SE ENFRIÓ y terminaba en "ok".
+  const actividad = ultimo ?? primeraOk;
+  if (actividad !== null && ahora - actividad > DIAS_SIN_VOLVER * DIA) {
+    const dias = Math.floor((ahora - actividad) / DIA);
+    const motivo = ultimo !== null ? `no escribe hace ${dias} días` : `no usa EOS hace ${dias} días`;
+    return { nivel: 2, estado: "SE ENFRIÓ", motivo };
   }
 
   if (errores > 0) {
