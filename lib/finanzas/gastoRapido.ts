@@ -65,6 +65,40 @@ function sumarDias(iso: string, dias: number): string {
 }
 
 /**
+ * Separa la moneda pegada al número: "14.550gs" → "14.550 gs".
+ *
+ * Así se escribe en Paraguay, y sin el espacio el número no tenía dónde
+ * terminar: la búsqueda retrocedía hasta "14." y guardaba ₲ 14 con "550gs"
+ * como descripción. La "k" no se separa: "50k" ya se entiende sola.
+ */
+function separarUnidad(texto: string): string {
+  return texto.replace(/(\d)(gs|g|₲|pyg|guaranies|guaraníes|usd)(?![a-z])/gi, "$1 $2");
+}
+
+/**
+ * Un número como se escribe en Paraguay: el punto separa miles y la coma es
+ * decimal. "14.550" son catorce mil quinientos cincuenta, no 14,55.
+ *
+ * La coma seguida de exactamente tres dígitos, sin multiplicador, también se
+ * lee como miles ("14,550"): nadie anota un gasto en guaraníes con tres
+ * decimales. Con multiplicador sigue siendo decimal ("1,5 millones").
+ */
+export function numeroEscrito(crudo: string, conMultiplicador = false): number | null {
+  const texto = crudo.trim();
+  if (!/^\d[\d.,]*$/.test(texto)) return null;
+
+  let normalizado: string;
+  if (!conMultiplicador && /^\d{1,3}(,\d{3})+$/.test(texto)) {
+    normalizado = texto.replace(/,/g, "");
+  } else {
+    normalizado = texto.replace(/\./g, "").replace(",", ".");
+  }
+
+  const valor = Number(normalizado);
+  return Number.isFinite(valor) ? valor : null;
+}
+
+/**
  * Encuentra el importe, resolviendo los multiplicadores hablados.
  *
  * Devuelve también el tramo de texto que ocupó, para poder sacarlo de la
@@ -72,19 +106,19 @@ function sumarDias(iso: string, dias: number): string {
  * "50 mil nafta".
  */
 export function leerMonto(texto: string): { monto: number; moneda: "PYG" | "USD"; tramo: string } | null {
-  const plano = sinAcentos(texto);
+  const plano = sinAcentos(separarUnidad(texto));
 
   // Número, con o sin separadores, seguido opcionalmente de un multiplicador.
-  const m = plano.match(/(\d[\d.,]*)\s*(millones|millon|mil|lucas|luca|k)?\b/);
+  // Tiene que terminar en dígito: "14." no es un número, es el principio de
+  // "14.550".
+  const m = plano.match(/(\d(?:[\d.,]*\d)?)\s*(millones|millon|mil|lucas|luca|k)?\b/);
   if (!m) return null;
 
   const crudo = m[1];
   const palabra = m[2] ?? "";
 
-  // El punto es separador de miles; la coma, decimal ("1,5 millones").
-  const normalizado = crudo.replace(/\./g, "").replace(",", ".");
-  const base = Number(normalizado);
-  if (!Number.isFinite(base) || base <= 0) return null;
+  const base = numeroEscrito(crudo, palabra !== "");
+  if (base === null || base <= 0) return null;
 
   let factor = 1;
   for (const { patron, factor: f } of MULTIPLICADORES) {
@@ -152,8 +186,11 @@ function limpiarDescripcion(texto: string, tramoMonto: string): string {
  * pantalla diga "no te entendí" a guardar un movimiento inventado. Guardrail 3.
  */
 export function interpretar(texto: string, hoy: string): GastoRapido | null {
-  const limpio = (texto ?? "").trim();
-  if (limpio.length === 0 || limpio.length > 200) return null;
+  const original = (texto ?? "").trim();
+  if (original.length === 0 || original.length > 200) return null;
+  // El mismo texto que lee `leerMonto`, para que el tramo del importe se
+  // encuentre al sacarlo de la descripción.
+  const limpio = separarUnidad(original);
 
   const importe = leerMonto(limpio);
   if (!importe) return null;

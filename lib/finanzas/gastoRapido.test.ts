@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { confirmar, interpretar, leerFecha, leerMonto } from "./gastoRapido.ts";
+import { confirmar, interpretar, leerFecha, leerMonto, numeroEscrito } from "./gastoRapido.ts";
 
 const HOY = "2026-08-25";
 
@@ -109,4 +109,30 @@ test("un texto larguísimo se rechaza en vez de recortarse", () => {
   // Esta vía es para una línea. Un párrafo entero es otra cosa y adivinar
   // cuál es el gasto adentro sería inventar.
   assert.equal(interpretar("a".repeat(250), HOY), null);
+});
+
+// El caso real del 2026-09-25: "gasté 14.550gs en Punto Farma" se guardó como
+// ₲ 14 con "550gs Punto Farma" de descripción.
+test("la moneda pegada al número no corta el importe", () => {
+  const g = interpretar("gasté 14.550gs en Punto Farma", "2026-09-25");
+  assert.equal(g?.monto, 14_550);
+  assert.equal(g?.descripcion, "Punto Farma");
+});
+
+test("el punto separa miles, también con ₲ adelante o 'gs' separado", () => {
+  assert.equal(leerMonto("₲14.550 farmacia")?.monto, 14_550);
+  assert.equal(leerMonto("pagué 14.550 gs de luz")?.monto, 14_550);
+  assert.equal(leerMonto("pagué 14.550 de luz")?.monto, 14_550);
+});
+
+test("coma con tres dígitos sin multiplicador son miles", () => {
+  assert.equal(numeroEscrito("14,550"), 14_550);
+  assert.equal(numeroEscrito("1,5", true), 1.5);
+  assert.equal(numeroEscrito("14.550"), 14_550);
+  assert.equal(numeroEscrito("2.500.000"), 2_500_000);
+  assert.equal(numeroEscrito("abc"), null);
+});
+
+test("la k pegada sigue siendo mil", () => {
+  assert.equal(leerMonto("50k de super")?.monto, 50_000);
 });
