@@ -49,6 +49,18 @@ test("activa y sin problemas: ok", () => {
   assert.equal(r.estado, "ok");
 });
 
+test("las fechas con la zona corta de Postgres (timestamptz) se leen bien", () => {
+  assert.equal(fecha("2026-09-24 20:00:00+00"), AHORA);
+  assert.equal(fecha("2026-09-24 20:00:00.123456+00"), AHORA + 123);
+  assert.equal(fecha("2026-09-24 17:00:00-03"), AHORA);
+});
+
+test("un alta de hace días sin ninguna acción es INTERVENIR, aunque la fecha venga con zona corta", () => {
+  const r = evaluarCuenta({ registro: "2026-09-16 23:56:12.345678+00", primera_accion_ok: null, ultimo_mensaje: null }, AHORA);
+  assert.equal(r.estado, "INTERVENIR");
+  assert.match(r.motivo, /7 días/);
+});
+
 test("las fechas sin zona de Postgres se leen como UTC", () => {
   assert.equal(fecha("2026-09-24 20:00:00.123"), Date.parse("2026-09-24T20:00:00.123Z"));
   assert.equal(fecha("2026-09-24T20:00:00+00:00"), AHORA);
