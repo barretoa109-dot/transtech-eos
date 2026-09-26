@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluarCuenta, fecha } from "../../scripts/lib/piloto.mjs";
+import {
+  PYG_POR_USD_POR_DEFECTO,
+  UMBRAL_COSTO_PYG,
+  evaluarCuenta,
+  fecha,
+  lineaDeConsumo,
+} from "../../scripts/lib/piloto.mjs";
+import * as umbral from "../monitoreo/umbral-costo.ts";
 
 const AHORA = Date.parse("2026-09-24T20:00:00Z");
 const hace = (h: number) => new Date(AHORA - h * 3_600_000).toISOString();
@@ -46,4 +53,19 @@ test("las fechas sin zona de Postgres se leen como UTC", () => {
   assert.equal(fecha("2026-09-24 20:00:00.123"), Date.parse("2026-09-24T20:00:00.123Z"));
   assert.equal(fecha("2026-09-24T20:00:00+00:00"), AHORA);
   assert.equal(fecha(null), null);
+});
+
+test("el umbral de consumo del informe es el mismo que el del aviso", () => {
+  assert.equal(UMBRAL_COSTO_PYG, umbral.UMBRAL_COSTO_PYG);
+  assert.equal(PYG_POR_USD_POR_DEFECTO, umbral.PYG_POR_USD_POR_DEFECTO);
+});
+
+test("el consumo del mes se lee en guaraníes y avisa al pasar los Gs. 70.000", () => {
+  assert.equal(lineaDeConsumo(5, 150), "consumo del mes: Gs. 40.000 (USD 5, 150 mensajes)");
+  assert.equal(
+    lineaDeConsumo(9.1, 180),
+    "consumo del mes: Gs. 72.800 (USD 9.1, 180 mensajes) — pasó los Gs. 70.000: revisar",
+  );
+  assert.equal(lineaDeConsumo(0, 200), "consumo del mes: sin costo registrado (200 mensajes)");
+  assert.equal(lineaDeConsumo(null, null), "consumo del mes: sin costo registrado (0 mensajes)");
 });

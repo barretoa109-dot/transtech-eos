@@ -65,6 +65,7 @@ import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
 import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { avisarUsoAlto } from "@/lib/monitoreo/uso-alto";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import {
   bloqueDeContexto,
@@ -1326,6 +1327,26 @@ export async function procesarMensajeEOS(
 
     quotaReleased = true;
     releaseReservedQuota = null;
+
+    /*
+     * El aviso interno de consumo (Gs. 70.000 en el mes, ver
+     * `lib/monitoreo/uso-alto.ts`), en el momento en que este mensaje hace
+     * pasar a la cuenta el umbral: el cron diario llegaría con un día de
+     * atraso, y entre el aviso y la pérdida hay pocos mensajes. Después de la
+     * respuesta, y una sola vez por cuenta y por mes. Nunca le llega a la persona.
+     */
+    after(async () => {
+      try {
+        const base = (
+          process.env.EOS_APP_BASE_URL ||
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          "https://www.transtech.com.py"
+        ).replace(/\/$/, "");
+        await avisarUsoAlto(base, usuarioId);
+      } catch (avisoError) {
+        console.error("Uso alto: no se pudo revisar o avisar:", avisoError);
+      }
+    });
 
     /*
      * El archivo que EOS quiso mandar.

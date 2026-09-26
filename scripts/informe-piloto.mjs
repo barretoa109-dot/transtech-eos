@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 
-import { evaluarCuenta } from "./lib/piloto.mjs";
+import { PYG_POR_USD_POR_DEFECTO, evaluarCuenta, lineaDeConsumo } from "./lib/piloto.mjs";
 
 const REF = "dirugpkamzgvyshcnsxs";
 
@@ -64,12 +64,15 @@ select r.usuario_id,
        coalesce(m7.mensajes_7d, 0) as mensajes_7d,
        coalesce(m7.whatsapp_7d, 0) as whatsapp_7d,
        coalesce(a7.acciones_ok_7d, 0) as acciones_ok_7d,
-       coalesce(a7.acciones_error_7d, 0) as acciones_error_7d
+       coalesce(a7.acciones_error_7d, 0) as acciones_error_7d,
+       coalesce(um.costo_estimado_usd, 0)::float as costo_mes_usd,
+       coalesce(um.mensajes_usados, 0)::int as mensajes_mes
 from reales r
 left join public.usuarios u on u.id = r.usuario_id
 left join public.eos_analitica_usuario_v172 an on an.usuario_id = r.usuario_id
 left join m7 on m7.usuario_id = r.usuario_id
 left join a7 on a7.usuario_id = r.usuario_id
+left join public.uso_mensual um on um.usuario_id = r.usuario_id and um.periodo = public.eos_periodo_actual()
 order by an.registro desc nulls last`;
 
 function cuando(valor) {
@@ -96,6 +99,7 @@ async function main() {
   }
 
   const filas = (await r.json()).map((f) => ({ ...f, ...evaluarCuenta(f) }));
+  const pygPorUsd = Number(leer("EOS_PYG_POR_USD")) > 0 ? Number(leer("EOS_PYG_POR_USD")) : PYG_POR_USD_POR_DEFECTO;
   filas.sort((a, b) => b.nivel - a.nivel);
 
   console.log(`Piloto: ${filas.length} cuentas reales · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC\n`);
@@ -108,6 +112,7 @@ async function main() {
       `           plan ${f.plan} · alta ${cuando(f.registro)} · último mensaje ${cuando(f.ultimo_mensaje)} · ` +
         `7 días: ${f.mensajes_7d} mensajes (${f.whatsapp_7d} por WhatsApp), ${f.acciones_ok_7d} acciones bien, ${f.acciones_error_7d} con error`,
     );
+    console.log(`           ${lineaDeConsumo(f.costo_mes_usd, f.mensajes_mes, pygPorUsd)}`);
     console.log("");
   }
 

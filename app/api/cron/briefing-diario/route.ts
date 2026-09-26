@@ -111,10 +111,11 @@ export async function GET(request: Request) {
     }
   });
 
-  // Aviso INTERNO de uso alto: cuentas sin tope de mensajes que llegaron a 400 en
-  // el mes. Nunca le llega a la persona y no corta nada; es para que decidan
-  // quienes administran EOS. Va acá, antes de cualquier salida temprana, por lo
-  // mismo que el chequeo de salud. Cada cuenta se avisa una vez por mes.
+  // Aviso INTERNO de consumo: cuentas que llevan Gs. 70.000 de IA en el mes. Nunca
+  // le llega a la persona y no corta nada; es para que decidan quienes administran
+  // EOS. Sale en el momento del mensaje (`procesar-mensaje.ts`); esto es el
+  // respaldo, por si ese correo falló. Va acá, antes de cualquier salida temprana,
+  // por lo mismo que el chequeo de salud. Cada cuenta se avisa una vez por mes.
   after(async () => {
     try {
       await avisarUsoAlto(baseUrlApp());

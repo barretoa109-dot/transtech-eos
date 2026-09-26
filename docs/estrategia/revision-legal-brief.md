@@ -37,12 +37,12 @@ Hoy, antes de esta revisión:
 - `/terminos` ya dice que "hay un plan gratuito con límites de uso y planes
   pagos con límites mayores". Es coherente con el criterio y conviene
   conservarlo.
-- La descripción del plan "EOS Conversacional" (Gs. 60.000/mes) y la
+- La descripción del plan "EOS Conversacional" (Gs. 80.000/mes desde la v201) y la
   pantalla de Perfil decían "sin tope" / "sin límite". Se corrigieron (v200 y
   `ProfileView.tsx`).
-- Internamente hay un aviso a los 400 mensajes por mes (correo a los dueños,
-  no restricción al usuario), calibrado contra el costo real de IA por
-  mensaje (~USD 0,02-0,07).
+- Internamente hay un aviso cuando una cuenta lleva Gs. 70.000 de consumo de
+  IA en el mes (correo a los dueños, no restricción al usuario), antes de que
+  la cuenta dé pérdida. El plan gratuito tiene 7 mensajes por día.
 
 **Preguntas concretas para el abogado:**
 

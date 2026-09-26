@@ -28,18 +28,21 @@ recorrido está cerrado de punta a punta.
 
 | Módulo | Precio mes | Qué se promete exactamente |
 | --- | --- | --- |
-| Conversaciones | Gs. 45.000 | Hablar con EOS, 300 mensajes por mes, con memoria y contexto. |
-| Conversaciones sin freno | Gs. 90.000 | 1.000 mensajes por mes. |
-| EOS Conversacional | Gs. 60.000 | Para hablar con EOS todos los días, con memoria y contexto. Tiene tope, como todo plan; el número no se publica. |
+| Gratis | Gs. 0 | 7 mensajes por día, para probar, sin tarjeta. |
+| EOS Conversacional | Gs. 80.000 | Para hablar con EOS todos los días, con memoria y contexto. Tiene tope, como todo plan; el número no se publica. |
+
+Desde la v201 (26/09/2026), de conversaciones solo se ofrecen esas dos.
+"Conversaciones" (Gs. 45.000, 300 por mes) y "Conversaciones sin freno"
+(Gs. 90.000, 1.000 por mes) salieron de la vitrina; quien ya los tenía los
+conserva.
 | Panel financiero | Gs. 20.000 | Disponible real, ingresos y egresos, en cada moneda que tengas. |
 | Briefing diario | Gs. 25.000 | El resumen del día por correo, en horario de Paraguay. |
 | Documentos a pedido | Gs. 25.000 | Balance, cuadro o informe en Excel, PDF o Word. |
 | Decisiones y aprendizajes | Gs. 15.000 | Lo que decidiste, cómo salió, qué aprendió EOS. |
 
 Tope del armado: **Gs. 500.000**, prendiendo todo. Desde la v184 la suma de
-todo da Gs. 440.000 (de las conversaciones se cuenta la opción más cara, hoy
-la de Gs. 90.000), así que el tope sigue siendo un techo y ya no hace falta
-que sea exacto.
+todo da menos que eso (de las conversaciones se cuenta un solo tramo), así que
+el tope sigue siendo un techo y ya no hace falta que sea exacto.
 
 **Regla del tope de uso (26/09/2026):** todo plan tiene un tope de mensajes.
 El cliente no ve el número, y nunca se le dice que no existe. Ver la sección 4.
@@ -80,7 +83,8 @@ comprobantes en la v87. La migración `20260831120000_..._v92.sql` renombra a
 Los precios no se tocaron en esa decisión: el tope de Gs. 500.000 estaba
 calibrado con ellos adentro (150.000 de conversaciones + 20.000 + 25.000 +
 25.000 + 35.000 + 20.000 + 15.000 + 120.000 + 90.000 = 500.000 exacto). La
-v184 bajó después el tramo alto de conversaciones a Gs. 60.000.
+v184 bajó después el tramo alto de conversaciones a Gs. 60.000, y la v201 lo
+dejó en Gs. 80.000 como única opción paga.
 
 ---
 

@@ -33,6 +33,8 @@ type Uso = {
   limite_mensajes: number | null;
   memoria_dias: number | null;
   usados: number;
+  /** "dia" en el plan free (7 por día), "mes" en el resto. */
+  ventana?: "dia" | "mes";
 };
 
 export default function ProfileView({ nombre, email, usuarioId, conversaciones }: ProfileViewProps) {
@@ -242,7 +244,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           ) : (
             <>
               <div className="usage-text">
-                {usados} de {limite} mensajes usados este mes
+                {usados} de {limite} mensajes usados {uso.ventana === "dia" ? "hoy" : "este mes"}
               </div>
               <div className="usage-bar">
                 <div className="usage-fill" style={{ width: `${porcentaje}%` }} />

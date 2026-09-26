@@ -26,10 +26,9 @@ function modulo(codigo: string, precio: number, extra: Partial<ModuloCatalogo> =
   };
 }
 
-// Precios de la forma vigente (v184: EOS Conversacional a Gs. 60.000).
+// La vitrina vigente (v201): de conversaciones solo queda EOS Conversacional, a Gs. 80.000.
 const CATALOGO: ModuloCatalogo[] = [
-  modulo("conversaciones", 45_000, { grupo: "conversaciones", limite_mensajes: 300, orden: 10 }),
-  modulo("conversaciones_full", 60_000, { grupo: "conversaciones", limite_mensajes: -1, orden: 12 }),
+  modulo("conversaciones_full", 80_000, { grupo: "conversaciones", limite_mensajes: -1, orden: 12 }),
   modulo("dashboard", 20_000, { orden: 20 }),
   modulo("briefing", 25_000, { orden: 30 }),
   modulo("facturacion", 40_000, { orden: 75 }),
@@ -46,13 +45,13 @@ test("los tres presets salen con el mismo precio que el armador", () => {
   for (const p of presets) {
     assert.equal(p.total, calcularArmado([...p.modulos], CATALOGO).total);
   }
-  assert.equal(presets[0].total, 60_000);
-  assert.equal(presets[1].total, 200_000);
+  assert.equal(presets[0].total, 80_000);
+  assert.equal(presets[1].total, 220_000);
 });
 
 test("el anual se calcula con la misma regla del armador", () => {
   const [empezar] = presetsDisponibles(CATALOGO, "anual");
-  assert.equal(empezar.total, 600_000);
+  assert.equal(empezar.total, 800_000);
 });
 
 test("un preset al que le falta un módulo en el catálogo no se ofrece", () => {

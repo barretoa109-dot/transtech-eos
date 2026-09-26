@@ -40,7 +40,7 @@ export const PRESETS: readonly Preset[] = [
   {
     codigo: "empezar",
     nombre: "Empezar",
-    para: "Hablale a EOS todo lo que necesites. El panel financiero ya es gratis.",
+    para: "Para hablar con EOS todos los días. El panel financiero ya es gratis.",
     modulos: ["conversaciones_full"],
   },
   {

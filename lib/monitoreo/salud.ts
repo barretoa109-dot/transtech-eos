@@ -20,7 +20,8 @@
  */
 
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
-import { UMBRAL_USO_ALTO, cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
+import { cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
+import { UMBRAL_COSTO_PYG, formatearGs } from "./umbral-costo.ts";
 import { evaluarErroresServidor, type FilaErrores24h } from "./errores-servidor.ts";
 import { DIAS_CUENTA_NUEVA, evaluarPrimerValor, type FilaPrimerValor } from "./primer-valor.ts";
 
@@ -350,13 +351,13 @@ export function evaluarChat(
 }
 
 /**
- * Informativo, nunca "roto": que una cuenta sin tope pase de 400 mensajes
- * es una decisión comercial por tomar, no una falla del sistema, y tumbar la
+ * Informativo, nunca "roto": que una cuenta pase de Gs. 70.000 de consumo es
+ * una decisión comercial por tomar, no una falla del sistema, y tumbar la
  * salud (que consulta un monitor externo) por eso lo haría parpadear. El aviso
  * por correo sale aparte, una vez por cuenta y por mes (ver `uso-alto.ts`).
  */
 async function chequeoUsoAlto(): Promise<Chequeo> {
-  const nombre = `Cuentas sin tope sobre ${UMBRAL_USO_ALTO} mensajes (informativo)`;
+  const nombre = `Cuentas con ${formatearGs(UMBRAL_COSTO_PYG)} o más de consumo este mes (informativo)`;
 
   try {
     const cuentas = await cuentasConUsoAlto(false);
