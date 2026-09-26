@@ -23,7 +23,11 @@ import { DESTINOS } from "@/lib/finanzas/destinos";
   Personal se sentía pobre. Acá se reúne todo lo que es de la persona.
 */
 import FinanzasPanel from "./FinanzasPanel";
-import FinanzasPulso from "./FinanzasPulso";
+import FinanzasPulso, { FinanzasPuedoComprar } from "./FinanzasPulso";
+import FinanzasSetup from "./FinanzasSetup";
+import FinanzasFijos from "./FinanzasFijos";
+import FinanzasBuzon from "./FinanzasBuzon";
+import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasPresupuesto from "./FinanzasPresupuesto";
@@ -105,7 +109,7 @@ const VENTANAS = [
 ] as const;
 
 /**
- * Las subáreas, con la pregunta que contesta cada una.
+ * Las pestañas y sus partes, con la pregunta que contesta cada una.
  *
  * ============================================================
  * POR QUÉ PREGUNTAS Y NO NOMBRES DE TABLA
@@ -116,8 +120,19 @@ const VENTANAS = [
  * pasar por su patrimonio, sus tarjetas y su fondo de emergencia para llegar.
  *
  * Los nombres son la pregunta que trae la persona, no el módulo que la
- * contesta. "Lo que debo" y no "Deudas y plan de pago": el segundo describe
- * el código, el primero describe a quien lo mira.
+ * contesta. "Tengo y debo" y no "Cuentas, patrimonio y pasivos": el segundo
+ * describe el código, el primero describe a quien lo mira.
+ *
+ * ============================================================
+ * CINCO PESTAÑAS, NO SIETE CHIPS
+ * ============================================================
+ *
+ * Eran siete chips del mismo peso. Ahora son cinco pestañas, el mismo
+ * esqueleto que Negocio (`SeccionNav`), con la misma lista de componentes:
+ * "En qué se fue" entró a "Mi mes" —es la otra mitad de cómo viene el mes—,
+ * y "Lo que tengo" con "Lo que debo" son una sola pestaña porque quien se
+ * pregunta una se pregunta la otra. La configuración que vivía adentro del
+ * panel de arriba (datos base, fijos, buzón del banco) pasó al engranaje.
  *
  * ============================================================
  * EL ALTA RÁPIDA NO ESTÁ ACÁ ADENTRO
@@ -127,17 +142,83 @@ const VENTANAS = [
  * detrás de una pestaña la haría desaparecer. Queda arriba, siempre visible,
  * junto con el panel de "¿estoy bien?".
  */
-const SUBAREAS = [
-  ["hoy", "¿Cómo estoy?"],
-  ["mes", "Mi mes"],
-  ["viene", "Lo que viene"],
-  ["fue", "En qué se fue"],
-  ["tengo", "Lo que tengo"],
-  ["debo", "Lo que debo"],
-  ["quiero", "Lo que quiero"],
-] as const;
+type SeccionPersonal = "hoy" | "mes" | "viene" | "tengo" | "metas" | "ajustes";
 
-type Subarea = (typeof SUBAREAS)[number][0];
+type Subarea =
+  | "estoy"
+  | "comprar"
+  | "presupuesto"
+  | "fue"
+  | "movimientos"
+  | "balance"
+  | "curva"
+  | "calendario"
+  | "cuentas"
+  | "patrimonio"
+  | "deudas"
+  | "tarjetas"
+  | "fondo"
+  | "objetivos"
+  | "base"
+  | "fijos"
+  | "buzon";
+
+const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
+  {
+    clave: "hoy",
+    etiqueta: "Hoy",
+    subs: [
+      { clave: "estoy", etiqueta: "¿Cómo estoy?", detalle: "Tu número, qué cambió y por qué" },
+      { clave: "comprar", etiqueta: "¿Puedo comprarlo?", detalle: "Probá una compra antes de hacerla" },
+    ],
+  },
+  {
+    clave: "mes",
+    etiqueta: "Mi mes",
+    subs: [
+      { clave: "presupuesto", etiqueta: "Cuánto me queda", detalle: "Lo que tenés para el día a día y cómo venís" },
+      { clave: "fue", etiqueta: "En qué se fue", detalle: "A dónde va tu plata" },
+      { clave: "movimientos", etiqueta: "Movimientos", detalle: "Todo lo anotado, para revisar o corregir" },
+      { clave: "balance", etiqueta: "Llevate tu balance", detalle: "Tus movimientos en PDF, Excel o Word" },
+    ],
+  },
+  {
+    clave: "viene",
+    etiqueta: "Lo que viene",
+    subs: [
+      { clave: "curva", etiqueta: "Próximos 45 días", detalle: "Cómo va a quedar tu saldo" },
+      { clave: "calendario", etiqueta: "Calendario de pagos", detalle: "Qué vence y cuándo" },
+    ],
+  },
+  {
+    clave: "tengo",
+    etiqueta: "Tengo y debo",
+    subs: [
+      { clave: "cuentas", etiqueta: "Cuentas", detalle: "Bancos, billeteras, cooperativas y efectivo" },
+      { clave: "patrimonio", etiqueta: "Patrimonio", detalle: "Lo que tenés menos lo que debés" },
+      { clave: "deudas", etiqueta: "Deudas", detalle: "A quién le debés y en qué orden pagar" },
+      { clave: "tarjetas", etiqueta: "Tarjetas", detalle: "Límites, cierres y vencimientos" },
+    ],
+  },
+  {
+    clave: "metas",
+    etiqueta: "Mis metas",
+    subs: [
+      { clave: "fondo", etiqueta: "Fondo de emergencia", detalle: "Tu colchón para imprevistos" },
+      { clave: "objetivos", etiqueta: "Objetivos", detalle: "Lo que querés lograr, en plata por mes" },
+    ],
+  },
+  {
+    clave: "ajustes",
+    etiqueta: "Ajustes",
+    ajuste: true,
+    subs: [
+      { clave: "base", etiqueta: "Mis datos base", detalle: "Lo que EOS te preguntó una sola vez" },
+      { clave: "fijos", etiqueta: "Ingresos y gastos fijos", detalle: "Sueldo, alquiler y lo que se repite" },
+      { clave: "buzon", etiqueta: "Avisos del banco", detalle: "Reenviá los correos del banco y EOS anota solo" },
+    ],
+  },
+];
 
 function dia(iso: string): string {
   const [, mes, numero] = iso.split("-");
@@ -155,8 +236,8 @@ function AvisoSinConfigurar({ texto }: { texto: string }) {
       <div className="card-title">Todavía no hay nada que mostrar acá</div>
       <p className="prose">{texto}</p>
       <p className="prose" style={{ marginTop: 8 }}>
-        Contale a EOS tu situación con una frase, o configurá tus finanzas arriba en{" "}
-        <strong>¿Cómo estoy?</strong>
+        Contale a EOS tu situación con una frase, o tocá <strong>Configurar mis finanzas</strong> en el
+        panel de arriba.
       </p>
     </div>
   );
@@ -174,10 +255,30 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState<Total[]>([]);
   const [ventana, setVentana] = useState<"semana" | "mes" | "trimestre">("mes");
-  const [subarea, setSubarea] = useState<Subarea>("hoy");
+  const [subarea, setSubarea] = useState<Subarea>("estoy");
+  /** La última parte abierta de cada pestaña, para volver a donde estaba. */
+  const [ultima, setUltima] = useState<Partial<Record<SeccionPersonal, Subarea>>>({});
+  /**
+   * Sube cuando algo de Ajustes cambia lo que el panel de arriba calcula
+   * (los datos base, los fijos). La `key` del panel lo vuelve a leer.
+   */
+  const [versionPanel, setVersionPanel] = useState(0);
+  const [estadoPanel, setEstadoPanel] = useState<{ moneda: string; fijosConfirmados: number } | null>(null);
+  const [editandoBase, setEditandoBase] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [nuncaCargo, setNuncaCargo] = useState(true);
   const [error, setError] = useState("");
+
+  function irA(destino: Subarea) {
+    setSubarea(destino);
+    setEditandoBase(false);
+    setUltima((u) => ({ ...u, [seccionDe(SECCIONES, destino)]: destino }));
+  }
+
+  function abrirSeccion(seccion: SeccionPersonal) {
+    const conf = SECCIONES.find((s) => s.clave === seccion)!;
+    irA(ultima[seccion] ?? conf.subs[0].clave);
+  }
 
   /** Qué fila está abierta para editar. Una sola por vez. */
   const [editando, setEditando] = useState<string | null>(null);
@@ -387,11 +488,17 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
           de texto vacío. Quien entraba a ver cómo estaba encontraba un
           formulario.
 
-          FinanzasPanel trae adentro la Constitución Financiera, los fijos, las
-          series recurrentes que detectó y la conciliación. Todo eso también
-          estaba fuera de esta sección.
+          Arriba quedan el panel y lo que EOS necesita que confirmes —la
+          conciliación y los movimientos que detectó—, que aparece solo cuando
+          hay algo. Los datos base, los fijos y el buzón del banco se
+          configuran una vez y viven en el engranaje de Ajustes.
         */}
-        <FinanzasPanel onConfiguradoChange={setFinanzasConfigurada} />
+        <FinanzasPanel
+          key={versionPanel}
+          sinAjustes
+          onConfiguradoChange={setFinanzasConfigurada}
+          onEstado={setEstadoPanel}
+        />
 
         <div className="card">
         <div className="neg-section-heading">
@@ -431,31 +538,25 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
       </div>
 
-      {/*
-        Las subáreas. Mismo vocabulario visual que el resto del producto
-        (`chip-row` + `chip.active`), que ya funciona en claro y en oscuro y
-        se envuelve solo en pantalla angosta — que es lo que hace falta en un
-        teléfono, mejor que un carrusel horizontal donde las últimas no se ven.
-      */}
-      <div className="chip-row" role="tablist" aria-label="Secciones de Personal">
-        {SUBAREAS.map(([clave, etiqueta]) => (
-          <button
-            key={clave}
-            type="button"
-            role="tab"
-            aria-selected={subarea === clave}
-            className={`chip${subarea === clave ? " active" : ""}`}
-            style={{ cursor: "pointer" }}
-            onClick={() => setSubarea(clave)}
-          >
-            {etiqueta}
-          </button>
+      <SeccionNav
+        secciones={SECCIONES}
+        seccion={seccionDe(SECCIONES, subarea)}
+        sub={subarea}
+        onSeccion={abrirSeccion}
+        onSub={irA}
+        ariaLabel="Secciones de Personal"
+      />
+
+      {subarea === "estoy" && <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />}
+
+      {subarea === "comprar" &&
+        (finanzasConfigurada === false ? (
+          <AvisoSinConfigurar texto="Para decirte si una compra te deja bien parado, EOS necesita saber cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
+        ) : (
+          <FinanzasPuedoComprar moneda={monedaPrincipal} />
         ))}
-      </div>
 
-      {subarea === "hoy" && <FinanzasPulso moneda={monedaPrincipal} />}
-
-      {subarea === "mes" && (
+      {subarea === "presupuesto" && (
         <>
           {/*
             El presupuesto primero: "cuánto puedo gastar" es la pregunta de
@@ -538,75 +639,101 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
       */}
 
       {/*
-        La curva y la lista, juntas y en ese orden. La curva contesta cuánto
-        va a haber; la lista, qué va a pasar. Separadas, alguien que ve la
-        línea bajar el 25 tiene que ir a buscar por qué.
+        La curva contesta cuánto va a haber; el calendario, qué va a pasar.
+        Van en la misma pestaña, una al lado de la otra: alguien que ve la
+        línea bajar el 25 tiene el porqué a un toque.
       */}
-      {subarea === "viene" && (
-        <>
-          {finanzasConfigurada === false && (
-            <AvisoSinConfigurar texto="Para proyectar lo que se viene, EOS necesita un punto de partida: cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
-          )}
-          <FinanzasTrayectoria />
-          <FinanzasCalendario moneda={monedaPrincipal} />
-        </>
+      {(subarea === "curva" || subarea === "calendario") && finanzasConfigurada === false && (
+        <AvisoSinConfigurar texto="Para proyectar lo que se viene, EOS necesita un punto de partida: cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
       )}
-
+      {subarea === "curva" && <FinanzasTrayectoria />}
+      {subarea === "calendario" && <FinanzasCalendario moneda={monedaPrincipal} />}
 
       {/*
         "¿Cuánto tengo?" son las cuentas y el patrimonio: la primera es la
         plata que puede tocar hoy, el segundo es todo lo que tiene menos lo
-        que debe. Van juntas porque quien se hace una se hace la otra.
+        que debe.
       */}
-      {subarea === "tengo" && (
-        <>
-          <FinanzasCuentas moneda={monedaPrincipal} />
-          <FinanzasPatrimonio moneda={monedaPrincipal} />
-        </>
-      )}
+      {subarea === "cuentas" && <FinanzasCuentas moneda={monedaPrincipal} />}
+      {subarea === "patrimonio" && <FinanzasPatrimonio moneda={monedaPrincipal} />}
 
       {/*
-        Las deudas: a quién le debe, en qué orden pagar y por dónde sigue
-        endeudándose. Las tarjetas van con ellas porque son una deuda con
-        calendario propio, y después del plan porque el plan ordena lo que ya
-        se debe.
+        Las deudas: a quién le debe y en qué orden pagar, juntas porque el
+        plan ordena lo que ya se debe. Las tarjetas aparte: son una deuda con
+        calendario propio.
       */}
-      {subarea === "debo" && (
+      {(subarea === "deudas" || subarea === "tarjetas") && finanzasConfigurada === false && (
+        <AvisoSinConfigurar texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago." />
+      )}
+      {subarea === "deudas" && (
         <>
-          {finanzasConfigurada === false && (
-            <AvisoSinConfigurar texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago." />
-          )}
           <FinanzasDeudas />
           <FinanzasPlanDeudas moneda={monedaPrincipal} />
-          <FinanzasTarjetas moneda={monedaPrincipal} />
         </>
       )}
+      {subarea === "tarjetas" && <FinanzasTarjetas moneda={monedaPrincipal} />}
 
       {/*
-        El fondo va antes que los objetivos porque los sostiene: juntar para
-        un terreno sin colchón termina en gastar el terreno la primera vez que
+        El fondo va primero porque sostiene a los objetivos: juntar para un
+        terreno sin colchón termina en gastar el terreno la primera vez que
         algo sale mal.
       */}
-      {subarea === "quiero" && (
-        <>
-          {finanzasConfigurada === false && (
-            <AvisoSinConfigurar texto="Decile a EOS para qué estás juntando —un fondo, un viaje, lo que sea— y con cuánto contás, y te dice el aporte por mes y si vas al ritmo." />
-          )}
-          <FinanzasFondo moneda={monedaPrincipal} />
-          <FinanzasObjetivos moneda={monedaPrincipal} />
-        </>
+      {(subarea === "fondo" || subarea === "objetivos") && finanzasConfigurada === false && (
+        <AvisoSinConfigurar texto="Decile a EOS para qué estás juntando —un fondo, un viaje, lo que sea— y con cuánto contás, y te dice el aporte por mes y si vas al ritmo." />
       )}
+      {subarea === "fondo" && <FinanzasFondo moneda={monedaPrincipal} />}
+      {subarea === "objetivos" && <FinanzasObjetivos moneda={monedaPrincipal} />}
 
       {/*
-        "¿En qué se fue?" en un solo lugar: el desglose por destino, el
-        papel para el contador y la lista renglón por renglón. Estaban
-        separados por seis tarjetas de otros temas.
+        Ajustes: lo que se configura una vez. Antes vivía apilado arriba del
+        panel de "¿estoy bien?". Cuando algo de acá cambia lo que el panel
+        calcula, `versionPanel` lo vuelve a leer.
       */}
-      {subarea === "fue" && (
-        <>
-          <FinanzasDestino />
-          <FinanzasInforme />
+      {subarea === "base" &&
+        (editandoBase ? (
+          <FinanzasSetup
+            onListo={() => {
+              setEditandoBase(false);
+              setVersionPanel((v) => v + 1);
+            }}
+            onCancelar={() => setEditandoBase(false)}
+          />
+        ) : (
+          <div className="card">
+            <div className="card-title">Mis datos base</div>
+            <p className="prose">
+              {finanzasConfigurada === false
+                ? "Todavía no le contaste a EOS tu punto de partida: cuánto tenés, cuánto querés tener siempre de reserva y cuánto ahorrar. Son unas pocas preguntas, una sola vez."
+                : "Las preguntas que EOS te hizo una sola vez: cuánto tenías, tu reserva mínima y cuánto querés ahorrar. Cambialas solo si algo cambió de verdad; EOS recalcula todo con lo nuevo."}
+            </p>
+            <button type="button" className="reco-btn" style={{ marginTop: 12 }} onClick={() => setEditandoBase(true)}>
+              {finanzasConfigurada === false ? "Configurar mis finanzas" : "Revisar mis datos base"}
+            </button>
+          </div>
+        ))}
 
+      {subarea === "fijos" &&
+        (finanzasConfigurada === false ? (
+          <AvisoSinConfigurar texto="Los ingresos y gastos fijos se cargan después de tus datos base. Empezá por Ajustes › Mis datos base." />
+        ) : (
+          <FinanzasFijos
+            moneda={estadoPanel?.moneda ?? monedaPrincipal}
+            confirmados={estadoPanel?.fijosConfirmados ?? 0}
+            onGuardado={() => setVersionPanel((v) => v + 1)}
+          />
+        ))}
+
+      {subarea === "buzon" && <FinanzasBuzon explicarAusencia />}
+
+      {/*
+        "¿En qué se fue?" en tres partes de "Mi mes": el desglose por destino,
+        el papel para el contador y la lista renglón por renglón.
+      */}
+      {subarea === "fue" && <FinanzasDestino />}
+      {subarea === "balance" && <FinanzasInforme />}
+
+      {subarea === "movimientos" && (
+        <>
           <div className="card">
             <div className="neg-section-heading">
               <div>
@@ -618,6 +745,24 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
               <button type="button" className="chip" onClick={() => void cargar()}>
                 <RefreshCw size={13} /> Actualizar
               </button>
+            </div>
+
+            {/*
+              El mismo período que "Cómo venís": antes se elegía allá y esta
+              lista lo seguía sin decirlo. Acá se ve y se cambia.
+            */}
+            <div className="neg-ventanas" role="group" aria-label="Período de los movimientos">
+              {VENTANAS.map(([clave, etiqueta]) => (
+                <button
+                  key={clave}
+                  type="button"
+                  className={`chip${ventana === clave ? " active" : ""}`}
+                  aria-pressed={ventana === clave}
+                  onClick={() => setVentana(clave)}
+                >
+                  {etiqueta}
+                </button>
+              ))}
             </div>
 
             {error && (

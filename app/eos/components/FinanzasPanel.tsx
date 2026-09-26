@@ -121,9 +121,20 @@ type FinanzasPanelProps = {
    * pestaña lo repita.
    */
   onConfiguradoChange?: (configurado: boolean) => void;
+  /**
+   * Sin los fijos ni el buzón arriba del panel. Personal los muestra en su
+   * engranaje de Ajustes: se configuran una vez y, apilados encima del
+   * "¿estoy bien?", empujaban la respuesta del día hacia abajo. Lo que sí
+   * queda arriba es lo que EOS necesita que la persona confirme —la
+   * conciliación y los movimientos detectados—, que aparece solo cuando hay
+   * algo.
+   */
+  sinAjustes?: boolean;
+  /** Lo que Ajustes necesita del estado para mostrar los fijos igual que acá. */
+  onEstado?: (estado: { moneda: string; fijosConfirmados: number }) => void;
 };
 
-export default function FinanzasPanel({ onConfiguradoChange }: FinanzasPanelProps = {}) {
+export default function FinanzasPanel({ onConfiguradoChange, sinAjustes = false, onEstado }: FinanzasPanelProps = {}) {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
   /*
@@ -175,6 +186,12 @@ export default function FinanzasPanel({ onConfiguradoChange }: FinanzasPanelProp
   useEffect(() => {
     if (data) onConfiguradoChange?.(data.configurado === true);
   }, [data, onConfiguradoChange]);
+
+  useEffect(() => {
+    if (data?.configurado) {
+      onEstado?.({ moneda: data.moneda, fijosConfirmados: data.prevision?.fijos_confirmados ?? 0 });
+    }
+  }, [data, onEstado]);
 
   if (configurando) {
     return (
@@ -290,12 +307,16 @@ export default function FinanzasPanel({ onConfiguradoChange }: FinanzasPanelProp
         onListo={() => void cargar()}
       />
     )}
-    <FinanzasFijos
-      moneda={data.moneda}
-      confirmados={data.prevision?.fijos_confirmados ?? 0}
-      onGuardado={() => void cargar()}
-    />
-    <FinanzasBuzon />
+    {!sinAjustes && (
+      <>
+        <FinanzasFijos
+          moneda={data.moneda}
+          confirmados={data.prevision?.fijos_confirmados ?? 0}
+          onGuardado={() => void cargar()}
+        />
+        <FinanzasBuzon />
+      </>
+    )}
     <FinanzasCandidatos onImportado={() => void cargar()} />
 
     <div className="card fin-card">

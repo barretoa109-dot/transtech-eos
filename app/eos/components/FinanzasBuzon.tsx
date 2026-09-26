@@ -21,7 +21,15 @@ type Buzon =
  * alimenta solo; por eso el texto insiste en que es una sola configuración y
  * no una tarea recurrente.
  */
-export default function FinanzasBuzon() {
+export default function FinanzasBuzon({
+  explicarAusencia = false,
+}: {
+  /**
+   * En Ajustes el buzón es lo único de la pantalla, y callarse ahí la deja en
+   * blanco. Con esto, mientras carga o si la cuenta no lo tiene, lo dice.
+   */
+  explicarAusencia?: boolean;
+} = {}) {
   const [buzon, setBuzon] = useState<Buzon | null>(null);
   const [copiado, setCopiado] = useState(false);
 
@@ -32,7 +40,27 @@ export default function FinanzasBuzon() {
       .catch(() => setBuzon({ disponible: false }));
   }, []);
 
-  if (!buzon || !buzon.disponible) return null;
+  if (!buzon || !buzon.disponible) {
+    if (!explicarAusencia) return null;
+    return (
+      <div className="card fin-card">
+        <div className="fin-head">
+          <span className="fin-badge fin-badge-neutral">
+            <Mail size={14} />
+            AVISOS DEL BANCO
+          </span>
+        </div>
+        {buzon ? (
+          <p className="prose" style={{ marginTop: 10 }}>
+            El reenvío de avisos del banco todavía no está disponible para tu cuenta. Mientras tanto,
+            anotá tus movimientos con una frase arriba o contáselos a EOS en el chat.
+          </p>
+        ) : (
+          <p className="neg-loading" role="status">Buscando tu dirección de reenvío…</p>
+        )}
+      </div>
+    );
+  }
 
   async function copiar(direccion: string) {
     try {

@@ -396,7 +396,18 @@ export default function EOSPage() {
         )}
 
         {vista === "negocio" && usuarioCargado && (
-          <NegocioView onOpenChat={() => setVista("chat")} onOpenCRM={() => setVista("crm")} />
+          <NegocioView
+            onOpenChat={() => setVista("chat")}
+            onOpenCRM={() => setVista("crm")}
+            onDecirleAEOS={(texto) => {
+              // Lo registra el chat, que es quien entiende ventas y compras
+              // hablando. Si todavía está contestando otra cosa, la frase queda
+              // escrita en la caja en vez de perderse.
+              setVista("chat");
+              if (cargando) setMensaje(texto);
+              else void enviarMensaje(texto);
+            }}
+          />
         )}
         {vista === "crm" && usuarioCargado && <CRMView onOpenChat={() => setVista("chat")} />}
         {vista === "gastos" && usuarioCargado && <GastosView onOpenChat={() => setVista("chat")} />}
