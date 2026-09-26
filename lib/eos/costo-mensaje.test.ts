@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 
 import {
   cacheadosDeUsage,
+  costoDeAudio,
   costoDelMensaje,
   normalizarTokens,
   tarifasDelEntorno,
+  tokensDeUsage,
 } from "./costo-mensaje.ts";
 
 const GPT55 = {
@@ -84,4 +86,23 @@ test("lee cached_tokens de la Responses API y de Chat Completions", () => {
   assert.equal(cacheadosDeUsage({ prompt_tokens_details: { cached_tokens: 99 } }), 99);
   assert.equal(cacheadosDeUsage({ input_tokens: 5 }), 0);
   assert.equal(cacheadosDeUsage(undefined), 0);
+});
+
+test("el uso de la Responses API se convierte en tokens y en costo", () => {
+  const tokens = tokensDeUsage({
+    input_tokens: 2_000,
+    input_tokens_details: { cached_tokens: 1_000 },
+    output_tokens: 100,
+  });
+  assert.deepEqual(tokens, { entrada: 2_000, entradaCacheada: 1_000, salida: 100 });
+  // 1.000 × 5 + 1.000 × 0,5 + 100 × 30, por millón.
+  assert.equal(Number(costoDelMensaje(tokens, tarifasDelEntorno(GPT55)).toFixed(6)), 0.0085);
+  assert.deepEqual(tokensDeUsage(undefined), { entrada: 0, entradaCacheada: 0, salida: 0 });
+});
+
+test("un audio cuesta por minuto: 0,006 por defecto y la tarifa configurada si está", () => {
+  assert.equal(costoDeAudio(30, {}), 0.003);
+  assert.equal(costoDeAudio(120, { EOS_USD_POR_MINUTO_AUDIO: "0.01" }), 0.02);
+  assert.equal(costoDeAudio(undefined, {}), 0);
+  assert.equal(costoDeAudio(-5, {}), 0);
 });

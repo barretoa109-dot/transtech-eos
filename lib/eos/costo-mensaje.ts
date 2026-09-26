@@ -105,3 +105,35 @@ export function cacheadosDeUsage(usage: unknown): number {
   >;
   return noNegativo(detalle && typeof detalle === "object" ? detalle.cached_tokens : 0);
 }
+
+/**
+ * Los tokens que informa la Responses API en `usage`, listos para
+ * `costoDelMensaje`. Lo usan las llamadas al modelo que no pasan por el
+ * gateway: la lectura de imágenes y el clasificador de WhatsApp del CRM.
+ */
+export function tokensDeUsage(usage: unknown): TokensMensaje {
+  const u = (usage && typeof usage === "object" ? usage : {}) as Record<string, unknown>;
+  return normalizarTokens({
+    tokens_entrada: u.input_tokens ?? u.prompt_tokens,
+    tokens_entrada_cacheados: cacheadosDeUsage(u),
+    tokens_salida: u.output_tokens ?? u.completion_tokens,
+  });
+}
+
+/**
+ * Lo que cuesta transcribir un audio, por minuto.
+ *
+ * Whisper no informa tokens: cobra por duración. `EOS_USD_POR_MINUTO_AUDIO`
+ * manda; si falta, USD 0,006, el precio de lista de whisper-1. A diferencia de
+ * las tarifas del modelo, acá no se deja en cero: un audio sin costo es justo el
+ * hueco que hacía llegar tarde el aviso de consumo.
+ */
+export const USD_POR_MINUTO_AUDIO_POR_DEFECTO = 0.006;
+
+export function costoDeAudio(segundos: unknown, env: Record<string, string | undefined> = process.env): number {
+  const s = Number(segundos);
+  if (!Number.isFinite(s) || s <= 0) return 0;
+  const configurada = tarifa(env.EOS_USD_POR_MINUTO_AUDIO);
+  const porMinuto = configurada > 0 ? configurada : USD_POR_MINUTO_AUDIO_POR_DEFECTO;
+  return (s / 60) * porMinuto;
+}

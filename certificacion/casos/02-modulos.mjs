@@ -56,6 +56,8 @@ export const caso = {
     // sume exactamente eso. Lo sumaba hasta el 19 de septiembre de 2026, cuando
     // el tramo sin tope de conversaciones bajó de Gs. 150.000 a Gs. 60.000 por
     // decisión comercial; desde entonces prender todo cuesta menos que el techo.
+    // (v201, 26/09/2026: EOS Conversacional pasó a Gs. 80.000 y es el único tramo
+    // de conversaciones en la vitrina.)
     comprobar(
       `prender todo no pasa del tope prometido`,
       todo > 0 && todo <= TOPE,
@@ -64,10 +66,10 @@ export const caso = {
 
     // ---------- Los tres paquetes que se piensan vender ----------
     const paquetes = [
-      ["EOS Finanzas", ["dashboard", "lectura", "alertas", "briefing", "conversaciones"]],
+      ["EOS Finanzas", ["dashboard", "lectura", "alertas", "briefing", "conversaciones_full"]],
       [
         "EOS Comercio",
-        ["dashboard", "lectura", "alertas", "briefing", "conversaciones", "erp", "crm", "documentos"],
+        ["dashboard", "lectura", "alertas", "briefing", "conversaciones_full", "erp", "crm", "documentos"],
       ],
     ];
 

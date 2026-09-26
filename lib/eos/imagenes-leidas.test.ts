@@ -43,3 +43,34 @@ test("sin clave o sin imagen no llama a nadie y no lanza", async () => {
     else process.env.OPENAI_API_KEY = antes;
   }
 });
+
+test("la lectura de una imagen informa lo que costó, para sumarlo al consumo del mes", async () => {
+  const antes = { ...process.env };
+  const fetchOriginal = globalThis.fetch;
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "prueba",
+    EOS_USD_POR_MTOK_ENTRADA: "5",
+    EOS_USD_POR_MTOK_ENTRADA_CACHEADA: "0.5",
+    EOS_USD_POR_MTOK_SALIDA: "30",
+  });
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({ output_text: "Vestido azul USD 120", usage: { input_tokens: 1_000, output_tokens: 100 } }),
+      { status: 200 },
+    )) as typeof fetch;
+
+  try {
+    const costos: number[] = [];
+    const texto = await leerImagen(
+      { nombre: "a.jpg", tipo: "image/jpeg", base64: "AAAA" },
+      { alCosto: (usd) => costos.push(usd) },
+    );
+    assert.equal(texto, "Vestido azul USD 120");
+    // 1.000 × 5 + 100 × 30, por millón.
+    assert.deepEqual(costos.map((c) => Number(c.toFixed(6))), [0.008]);
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    for (const clave of Object.keys(process.env)) if (!(clave in antes)) delete process.env[clave];
+    Object.assign(process.env, antes);
+  }
+});

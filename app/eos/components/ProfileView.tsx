@@ -33,6 +33,8 @@ type Uso = {
   limite_mensajes: number | null;
   memoria_dias: number | null;
   usados: number;
+  /** "dia" en el plan free (7 por día), "mes" en el resto. */
+  ventana?: "dia" | "mes";
 };
 
 export default function ProfileView({ nombre, email, usuarioId, conversaciones }: ProfileViewProps) {
@@ -203,7 +205,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
               {uso?.memoria_dias === null || uso?.memoria_dias === undefined
                 ? "Según tu plan"
                 : uso.memoria_dias < 0
-                  ? "Ilimitada"
+                  ? "Incluida en tu plan"
                   : `${uso.memoria_dias} días`}
             </span>
           </div>
@@ -231,18 +233,18 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           {uso === null ? (
             <p className="empty-note">Cargando uso del plan…</p>
           ) : ilimitado ? (
-            <>
-              <div className="usage-text">
-                {usados} {usados === 1 ? "mensaje usado" : "mensajes usados"} este mes · sin límite en tu plan
-              </div>
-              <div className="usage-bar">
-                <div className="usage-fill" style={{ width: "100%" }} />
-              </div>
-            </>
+            /*
+              Sin barra y sin decir "sin límite": todo plan tiene un tope, que el
+              cliente no ve pero que tampoco se le niega (regla del dueño,
+              26/09/2026). Una barra llena al 100 % además se leía como agotado.
+            */
+            <div className="usage-text">
+              {usados} {usados === 1 ? "mensaje usado" : "mensajes usados"} este mes · incluidos en tu plan
+            </div>
           ) : (
             <>
               <div className="usage-text">
-                {usados} de {limite} mensajes usados este mes
+                {usados} de {limite} mensajes usados {uso.ventana === "dia" ? "hoy" : "este mes"}
               </div>
               <div className="usage-bar">
                 <div className="usage-fill" style={{ width: `${porcentaje}%` }} />

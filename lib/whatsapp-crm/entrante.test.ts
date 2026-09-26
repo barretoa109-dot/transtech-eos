@@ -152,7 +152,7 @@ test("un mensaje del cliente llega a la base con la intención ya leída", async
   assert.equal(llamadas[0].fn, "eos_wa_recibir_v177");
   assert.equal(llamadas[0].args.p_canal_id, "c1");
   assert.equal(llamadas[0].args.p_intencion, "lo_pensara");
-  assert.deepEqual(r, { mensajes: 1, duplicados: 0, clientes_nuevos: 1, bajas: 0, estados: 0, errores: 0 });
+  assert.deepEqual(r, { mensajes: 1, duplicados: 0, clientes_nuevos: 1, bajas: 0, estados: 0, errores: 0, costo_ia_usd: 0 });
 });
 
 test("un reintento de Meta se cuenta como duplicado y no como mensaje nuevo", async () => {

@@ -65,6 +65,8 @@ import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelEntorno } from "@/lib/eos/costo-mensaje";
 import { clasificarTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
+import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import {
   bloqueDeContexto,
@@ -783,8 +785,19 @@ export async function procesarMensajeEOS(
      * `after()`: no le suma ni un segundo a la respuesta.
      */
     const imagenes = archivos.filter((a) => a.tipo.startsWith("image/"));
+
+    // Lo que cuestan la lectura de imágenes y los audios: son llamadas al modelo
+    // aparte del mensaje, y van al consumo del mes (v202). Ver `costoExtraRegistrado`.
+    let costoExtraUsd = 0;
+    const sumarCostoExtra = (usd: number) => {
+      costoExtraUsd += usd;
+    };
+
     const lecturasPromise = Promise.all(
-      imagenes.map(async (a) => ({ nombre: a.nombre, contenido: await leerImagen(a) })),
+      imagenes.map(async (a) => ({
+        nombre: a.nombre,
+        contenido: await leerImagen(a, { alCosto: sumarCostoExtra }),
+      })),
     ).then((ls) =>
       ls.filter((l): l is { nombre: string; contenido: string } => Boolean(l.contenido)),
     );
@@ -817,7 +830,9 @@ export async function procesarMensajeEOS(
     const audios = archivos.filter((a) => a.tipo.startsWith("audio/"));
 
     if (audios.length > 0) {
-      const transcripciones = (await Promise.all(audios.map((a) => transcribirAudio(a)))).filter(
+      const transcripciones = (
+        await Promise.all(audios.map((a) => transcribirAudio(a, { alCosto: sumarCostoExtra })))
+      ).filter(
         (texto): texto is string => Boolean(texto),
       );
 
@@ -829,6 +844,20 @@ export async function procesarMensajeEOS(
         mensajeConAnalisis = mensajeConAnalisis ? `${mensajeConAnalisis}\n\n${bloque}` : bloque;
       }
     }
+
+    /*
+     * El costo de las imágenes y los audios, al consumo del mes, apenas terminan
+     * de leerse (los audios ya terminaron: se esperan arriba). En `after()`, así
+     * se registra aunque el mensaje falle después: la llamada al modelo ya se
+     * hizo y ya se pagó.
+     */
+    const costoExtraRegistrado =
+      imagenes.length > 0 || audios.length > 0
+        ? lecturasPromise
+            .catch(() => [])
+            .then(() => sumarCostoIA(usuarioId, costoExtraUsd))
+        : Promise.resolve();
+    after(() => costoExtraRegistrado);
 
     const { data: usuario, error: usuarioError } = await usuarioPromise;
 
@@ -1326,6 +1355,23 @@ export async function procesarMensajeEOS(
 
     quotaReleased = true;
     releaseReservedQuota = null;
+
+    /*
+     * El aviso interno de consumo (Gs. 70.000 en el mes, ver
+     * `lib/monitoreo/uso-alto.ts`), en el momento en que este mensaje hace
+     * pasar a la cuenta el umbral: el cron diario llegaría con un día de
+     * atraso, y entre el aviso y la pérdida hay pocos mensajes. Después de la
+     * respuesta, y una sola vez por cuenta y por mes. Nunca le llega a la persona.
+     */
+    after(async () => {
+      try {
+        // Primero lo que costaron las imágenes y los audios de este mismo mensaje.
+        await costoExtraRegistrado;
+        await avisarUsoAlto(baseUrlDeLaApp(), usuarioId);
+      } catch (avisoError) {
+        console.error("Uso alto: no se pudo revisar o avisar:", avisoError);
+      }
+    });
 
     /*
      * El archivo que EOS quiso mandar.

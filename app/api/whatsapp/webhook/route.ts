@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { procesarMensajeEOS, MAX_MESSAGE_LENGTH, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
 import { atenderOnboardingPorChat } from "@/lib/eos/onboarding-chat";
@@ -19,6 +20,7 @@ import {
 import { puedeProbarCodigo } from "@/lib/whatsapp/intentos-codigo";
 import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import { atenderCanalEmpresa, buscarCanalEmpresa, type ValorWebhook } from "@/lib/whatsapp-crm/entrante";
+import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { extraerPhoneNumberIds, secretoParaPayload } from "@/lib/whatsapp-crm/firma-canal";
 import {
   aplicarEstadoDePlantilla,
@@ -160,6 +162,13 @@ export async function POST(req: Request) {
     if (canalEmpresa) {
       const resumen = await atenderCanalEmpresa(admin, canalEmpresa, cambio.value as ValorWebhook);
       if (resumen.errores > 0) fallaDeCanalEmpresa = true;
+      // Lo que costó clasificar estos mensajes va al consumo del dueño del canal (v202),
+      // después de contestarle a Meta.
+      if (resumen.costo_ia_usd > 0) {
+        const { usuario_id } = canalEmpresa;
+        const costo = resumen.costo_ia_usd;
+        after(() => sumarCostoIA(usuario_id, costo, { avisar: true }));
+      }
       continue;
     }
 

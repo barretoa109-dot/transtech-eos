@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { hoyEnParaguay } from "@/lib/fecha";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -34,16 +35,22 @@ export async function GET() {
       .eq("codigo", planCodigo)
       .maybeSingle();
 
-    // Ventana mensual, mismo formato que usa la cuota: "YYYY-MM".
+    // La misma ventana que usa la cuota: por día (hora de Paraguay, "YYYY-MM-DD")
+    // en el plan free, por mes ("YYYY-MM") en el resto. Antes se miraba siempre
+    // el mes, y a quien estaba en free le figuraban 0 mensajes usados aunque ya
+    // no le quedara ninguno por hoy.
     const ahora = new Date();
-    const windowKey = `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, "0")}`;
+    const diaria = planCodigo === "free";
+    const windowKey = diaria
+      ? hoyEnParaguay(ahora)
+      : `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, "0")}`;
 
     const admin = createAdminClient();
     const { data: filas, error: usoError } = await admin
       .from("eos_message_usage_v40")
       .select("cantidad")
       .eq("usuario_id", user.id)
-      .eq("quota_scope", "monthly")
+      .eq("quota_scope", diaria ? "daily" : "monthly")
       .eq("window_key", windowKey)
       .eq("status", "consumed");
 
@@ -64,6 +71,7 @@ export async function GET() {
         memoria_dias: plan?.memoria_dias ?? null,
         usados,
         window_key: windowKey,
+        ventana: diaria ? "dia" : "mes",
       },
       { headers: noStoreHeaders() },
     );

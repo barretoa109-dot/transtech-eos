@@ -197,6 +197,8 @@ export type ResumenEntrante = {
   bajas: number;
   estados: number;
   errores: number;
+  /** Lo que costó clasificar los mensajes con el modelo, en dólares (v202). */
+  costo_ia_usd: number;
 };
 
 /**
@@ -213,9 +215,25 @@ export async function atenderCanalEmpresa(
   ahora: string = new Date().toISOString(),
   // Se inyecta en las pruebas. En producción, el modelo solo corre si la empresa lo encendió
   // (`EOS_INTENCION_IA=1`); sin eso devuelve lo que dijeron las reglas, sin salir a la red.
-  refinar: (texto: string, regla: Intencion) => Promise<Intencion> = refinarIntencion,
+  // `alCosto` junta lo que cuesta cada consulta, para sumarlo al consumo del dueño del canal.
+  refinar: (texto: string, regla: Intencion, alCosto?: (usd: number) => void) => Promise<Intencion> = (
+    texto,
+    regla,
+    alCosto,
+  ) => refinarIntencion(texto, regla, { alCosto }),
 ): Promise<ResumenEntrante> {
-  const resumen: ResumenEntrante = { mensajes: 0, duplicados: 0, clientes_nuevos: 0, bajas: 0, estados: 0, errores: 0 };
+  const resumen: ResumenEntrante = {
+    mensajes: 0,
+    duplicados: 0,
+    clientes_nuevos: 0,
+    bajas: 0,
+    estados: 0,
+    errores: 0,
+    costo_ia_usd: 0,
+  };
+  const sumarCosto = (usd: number) => {
+    resumen.costo_ia_usd += usd;
+  };
 
   if (canal.estado === "desconectado") return resumen;
 
@@ -230,7 +248,7 @@ export async function atenderCanalEmpresa(
           p_tipo: item.tipo,
           p_nombre_perfil: item.nombre_perfil,
           p_ocurrio_en: item.ocurrio_en,
-          p_intencion: await refinar(item.texto, item.intencion as Intencion),
+          p_intencion: await refinar(item.texto, item.intencion as Intencion, sumarCosto),
         });
 
         if (error) throw error;

@@ -10,6 +10,7 @@ import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
 import {
   calcularArmado,
+  MENSAJES_GRATIS_POR_DIA,
   MESES_DEL_ANUAL,
   TOPE_MENSUAL_PYG,
   type ModuloCatalogo,
@@ -167,7 +168,7 @@ export default function PlanesPage() {
           // Sin sesión, un punto de partida razonable: conversar y ver su plata.
           if (activo) {
             setSeleccion(
-              elegidasEnLaUrl.length > 0 ? elegidasEnLaUrl : ["conversaciones", "dashboard"],
+              elegidasEnLaUrl.length > 0 ? elegidasEnLaUrl : ["conversaciones_full", "dashboard"],
             );
           }
           return;
@@ -197,7 +198,7 @@ export default function PlanesPage() {
             ? [...new Set([...activos, ...elegidasEnLaUrl])]
             : activos.length > 0
               ? activos
-              : ["conversaciones", "dashboard"],
+              : ["conversaciones_full", "dashboard"],
         );
       } catch (err) {
         console.error("No se pudo cargar el catálogo de funciones:", err);
@@ -259,6 +260,15 @@ export default function PlanesPage() {
 
       return yaEstaba ? sinElGrupo : [...sinElGrupo, modulo.codigo];
     });
+  }
+
+  /**
+   * "Gratis" en conversaciones no es un módulo: es no tener ningún tramo
+   * prendido, que deja a la persona en los mensajes por día del plan free.
+   */
+  function elegirGratis(grupo: string) {
+    const delGrupo = catalogo.filter((m) => m.grupo === grupo).map((m) => m.codigo);
+    setSeleccion((actual) => actual.filter((c) => !delGrupo.includes(c)));
   }
 
   async function irAPagar() {
@@ -465,6 +475,31 @@ export default function PlanesPage() {
                   <p className="bloque-sub">{grupo.sub}</p>
 
                   <div className="opciones">
+                    {grupo.clave === "conversaciones" && (() => {
+                      const gratis = !grupo.modulos.some((m) => elegido(m.codigo));
+                      return (
+                        <button
+                          type="button"
+                          className={`opcion ${gratis ? "activa" : ""}`}
+                          onClick={() => elegirGratis("conversaciones")}
+                          aria-pressed={gratis}
+                          aria-label={`Gratis, ${MENSAJES_GRATIS_POR_DIA} mensajes por día, sin costo`}
+                        >
+                          <span className={`marca ${gratis ? "marcada" : ""}`}>
+                            {gratis && <Check size={13} />}
+                          </span>
+
+                          <span className="opcion-texto">
+                            <span className="opcion-nombre">Gratis</span>
+                            <span className="opcion-desc">
+                              {MENSAJES_GRATIS_POR_DIA} mensajes por día para probar, sin tarjeta.
+                            </span>
+                          </span>
+
+                          <span className="opcion-precio">Sin costo</span>
+                        </button>
+                      );
+                    })()}
                     {grupo.modulos.map((modulo) => {
                       const activo = elegido(modulo.codigo);
                       const agregado = armado.agregados.includes(modulo.codigo);
@@ -524,7 +559,7 @@ export default function PlanesPage() {
 
                 {armado.modulos.length === 0 ? (
                   <p className="cuenta-vacia">
-                    Sin nada prendido seguís en <strong>EOS Free</strong>: 5 mensajes por día
+                    Sin nada prendido seguís en <strong>EOS Free</strong>: {MENSAJES_GRATIS_POR_DIA} mensajes por día
                     para probar, sin costo y sin tarjeta. Prendé una función cuando quieras
                     más.
                   </p>
@@ -1762,7 +1797,7 @@ function agruparCatalogo(catalogo: ModuloCatalogo[]) {
     {
       clave: "conversaciones",
       titulo: "Hablar con EOS",
-      sub: "Elegí un tramo, o ninguno si solo querés que EOS trabaje de fondo.",
+      sub: "Gratis para probar, o Conversacional para hablar con EOS todos los días.",
       modulos: conversaciones,
     },
     {

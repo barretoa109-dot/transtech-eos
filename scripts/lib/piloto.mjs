@@ -10,6 +10,25 @@
 export const HORAS_SIN_PRIMERA_ACCION = 24;
 export const DIAS_SIN_VOLVER = 3;
 
+/**
+ * El aviso interno de consumo: el mismo número que `lib/monitoreo/umbral-costo.ts`
+ * (un test los compara). Se repite acá porque este script corre con el Node de
+ * la PC del dueño, que no ejecuta TypeScript solo.
+ */
+export const UMBRAL_COSTO_PYG = 70_000;
+export const PYG_POR_USD_POR_DEFECTO = 8_000;
+
+/** "consumo del mes: Gs. 72.800 (USD 9.1, 180 mensajes) — pasó los Gs. 70.000: revisar". */
+export function lineaDeConsumo(costoUsd, mensajes, pygPorUsd = PYG_POR_USD_POR_DEFECTO) {
+  const gs = (n) => `Gs. ${new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(n)}`;
+  const usd = Number(costoUsd ?? 0);
+  const cantidad = Number(mensajes ?? 0);
+  if (!(usd > 0)) return `consumo del mes: sin costo registrado (${cantidad} mensajes)`;
+  const pyg = Math.round(usd * pygPorUsd);
+  const alerta = pyg >= UMBRAL_COSTO_PYG ? ` — pasó los ${gs(UMBRAL_COSTO_PYG)}: revisar` : "";
+  return `consumo del mes: ${gs(pyg)} (USD ${Math.round(usd * 100) / 100}, ${cantidad} mensajes)${alerta}`;
+}
+
 const HORA = 3_600_000;
 const DIA = 24 * HORA;
 

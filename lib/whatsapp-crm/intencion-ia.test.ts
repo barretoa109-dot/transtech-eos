@@ -183,3 +183,35 @@ test("el webhook registra la intención afinada, y las reglas siguen mandando en
   const intenciones = pedidos.filter((p) => p.clave === "rpc:eos_wa_recibir_v177").map((p) => (p.args as { p_intencion: string }).p_intencion);
   assert.deepEqual(intenciones, ["consulta_precio", "baja"]);
 });
+
+test("la consulta al modelo informa lo que costó, y el webhook lo junta para el dueño del canal", async () => {
+  const env = { ...ENV, EOS_USD_POR_MTOK_ENTRADA: "5", EOS_USD_POR_MTOK_SALIDA: "30" };
+  const fetcher = (async () =>
+    new Response(
+      JSON.stringify({ output_text: json("consulta_precio", 0.9), usage: { input_tokens: 400, output_tokens: 20 } }),
+      { status: 200 },
+    )) as unknown as Fetcher;
+
+  const costos: number[] = [];
+  await preguntarAlModelo("cuánto sale", { fetcher, env, alCosto: (usd) => costos.push(usd) });
+  // 400 × 5 + 20 × 30, por millón.
+  assert.deepEqual(costos.map((c) => Number(c.toFixed(6))), [0.0026]);
+
+  const { admin } = baseFalsa({
+    "rpc:eos_wa_recibir_v177": { data: { duplicado: false, contacto_nuevo: false, opt_out: false }, error: null },
+  });
+  const r = await atenderCanalEmpresa(
+    admin,
+    { id: "canal-1", usuario_id: "u-1", estado: "activo" },
+    {
+      metadata: { phone_number_id: "1234567890" },
+      messages: [
+        { id: "wamid.1", from: "595981123456", timestamp: "1789000000", type: "text", text: { body: "cuánto sale?" } },
+        { id: "wamid.2", from: "595981123456", timestamp: "1789000001", type: "text", text: { body: "y el envío?" } },
+      ],
+    },
+    "2026-09-19T12:00:00Z",
+    (texto, regla, alCosto) => refinarIntencion(texto, regla, { fetcher, env, alCosto }),
+  );
+  assert.equal(Number(r.costo_ia_usd.toFixed(6)), 0.0052);
+});
