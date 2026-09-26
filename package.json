@@ -23,6 +23,7 @@
     "quien-toca": "node scripts/quien-toca.mjs",
     "go": "node scripts/verificar-go.mjs",
     "desplegar:costo": "node scripts/desplegar-venta-con-costo.mjs",
+    "desplegar:fotos": "node scripts/desplegar-varias-fotos.mjs",
     "piloto": "node scripts/informe-piloto.mjs"
   },
   "dependencies": {
