@@ -243,6 +243,7 @@ export default function ChatView({
                     onRegenerar={esUltimaDeEOS ? onRegenerar : undefined}
                     regenerando={esUltimaDeEOS && cargando}
                     onPreguntarSobre={onCitaChange}
+                    imagenes={m.imagenes}
                   />
                 </div>
               );
@@ -374,7 +375,17 @@ function Composer({
           {archivosAdjuntos.map((archivo, indice) => (
             <div className="file-preview" key={`${archivo.nombre}-${indice}`}>
               <div className="file-preview-info">
-                <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
+                {archivo.tipo.startsWith("image/") && archivo.base64 ? (
+                  // La foto misma, no la etiqueta "IMG": es lo que la persona reconoce.
+                  // eslint-disable-next-line @next/next/no-img-element -- base64 local, next/image no aplica.
+                  <img
+                    className="file-preview-foto"
+                    src={`data:${archivo.tipo};base64,${archivo.base64}`}
+                    alt=""
+                  />
+                ) : (
+                  <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
+                )}
                 <span className="file-preview-text">
                   <small>
                     {obtenerEtiquetaArchivo(archivo)} ADJUNTO

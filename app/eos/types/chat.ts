@@ -34,7 +34,22 @@ export type Mensaje = {
   tipo?: string;
   accion?: string;
 
+  /**
+   * Las fotos que mandó la persona, para verlas como miniatura.
+   *
+   * `src` es lo que se muestra: el base64 mientras se manda, o un enlace
+   * firmado de una hora al abrir la conversación. `ruta` es dónde quedó
+   * guardada; falta si todavía no se subió o si la subida falló.
+   */
+  imagenes?: ImagenDelMensaje[];
+
   creado_en?: string;
+};
+
+export type ImagenDelMensaje = {
+  nombre: string;
+  src?: string;
+  ruta?: string;
 };
 
 export type Conversacion = {
