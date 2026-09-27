@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { tokenDeBajaValido } from "@/lib/email/baja";
 import { escaparHtml } from "@/lib/email/marca";
 import { MOTIVO_BAJA } from "@/lib/email/motivacionales";
+import { MOTIVO_BAJA_IMPACTO } from "@/lib/impacto/enviar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -45,17 +46,45 @@ function pagina(titulo: string, mensaje: string, formulario = "", estado = 200) 
   });
 }
 
+/*
+ * Cada familia de correo tiene su propia baja y su propia columna. El motivo
+ * viaja en `m`; sin `m` es un enlace de motivacionales anterior al informe de
+ * impacto, que tiene que seguir funcionando. El token está firmado CON el
+ * motivo, así que cambiar `m` a mano no sirve para dar de baja otra cosa.
+ */
+type Motivo = typeof MOTIVO_BAJA | typeof MOTIVO_BAJA_IMPACTO;
+
+const BAJAS: Record<Motivo, { columna: string; nombre: string }> = {
+  [MOTIVO_BAJA]: {
+    columna: "correos_motivacionales",
+    nombre: "los correos motivacionales",
+  },
+  [MOTIVO_BAJA_IMPACTO]: {
+    columna: "informe_impacto",
+    nombre: "el resumen mensual de lo que EOS hizo por vos",
+  },
+};
+
 function leerEnlace(request: Request) {
   const url = new URL(request.url);
   const usuarioId = url.searchParams.get("u") || "";
   const token = url.searchParams.get("t") || "";
   const secreto = process.env.CRON_SECRET || "";
+  const pedido = url.searchParams.get("m") || MOTIVO_BAJA;
+  const motivo: Motivo = pedido === MOTIVO_BAJA_IMPACTO ? MOTIVO_BAJA_IMPACTO : MOTIVO_BAJA;
 
-  return { usuarioId, token, secreto, valido: tokenDeBajaValido(usuarioId, MOTIVO_BAJA, token, secreto) };
+  return {
+    usuarioId,
+    token,
+    secreto,
+    motivo,
+    // Un `m` desconocido no cae en motivacionales: es un enlace mal armado.
+    valido: pedido in BAJAS && tokenDeBajaValido(usuarioId, motivo, token, secreto),
+  };
 }
 
 export async function GET(request: Request) {
-  const { secreto, valido } = leerEnlace(request);
+  const { secreto, valido, motivo } = leerEnlace(request);
 
   if (!secreto) return pagina("No disponible", "Probá de nuevo en unos minutos.", "", 503);
   if (!valido) {
@@ -68,13 +97,13 @@ export async function GET(request: Request) {
 
   return pagina(
     "¿Dejar de recibir estos correos?",
-    "Dejarás de recibir los correos motivacionales de EOS. Los avisos de tu cuenta, como pagos o vencimientos, no cambian.",
+    `Dejarás de recibir ${BAJAS[motivo].nombre}. Los avisos de tu cuenta, como pagos o vencimientos, no cambian.`,
     formulario,
   );
 }
 
 export async function POST(request: Request) {
-  const { usuarioId, secreto, valido } = leerEnlace(request);
+  const { usuarioId, secreto, valido, motivo } = leerEnlace(request);
 
   if (!secreto) return pagina("No disponible", "Probá de nuevo en unos minutos.", "", 503);
   if (!valido) {
@@ -84,18 +113,20 @@ export async function POST(request: Request) {
   const { error } = await adminSinTipos()
     .from("eos_followup_preferences")
     .upsert(
-      { usuario_id: usuarioId, correos_motivacionales: false, updated_at: new Date().toISOString() },
+      { usuario_id: usuarioId, [BAJAS[motivo].columna]: false, updated_at: new Date().toISOString() },
       { onConflict: "usuario_id" },
     );
 
   // 23503: la cuenta ya no existe, así que no queda nada a lo que darle de baja.
   if (error && (error as { code?: string }).code !== "23503") {
-    console.error("No se pudo registrar la baja de motivacionales:", error);
+    console.error(`No se pudo registrar la baja (${motivo}):`, error);
     return pagina("No pudimos darte de baja", "Probá de nuevo en unos minutos.", "", 500);
   }
 
   return pagina(
     "Listo, quedaste de baja",
-    "No vas a recibir más correos motivacionales de EOS. Si cambiás de idea, podés volver a activarlos desde la pestaña Briefing de EOS.",
+    motivo === MOTIVO_BAJA
+      ? "No vas a recibir más correos motivacionales de EOS. Si cambiás de idea, podés volver a activarlos desde la pestaña Briefing de EOS."
+      : `No vas a recibir más ${BAJAS[motivo].nombre}. Si cambiás de idea, escribinos y lo volvemos a activar.`,
   );
 }

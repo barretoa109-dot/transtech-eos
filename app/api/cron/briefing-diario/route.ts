@@ -14,6 +14,7 @@ import { enviarMotivacionales } from "@/lib/email/motivacionales";
 import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
+import { enviarInformesDeImpacto, fuenteSupabase } from "@/lib/impacto/enviar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -334,6 +335,49 @@ export async function GET(request: Request) {
       console.log("Motivacionales: correos del ciclo", resumen);
     } catch (error) {
       console.error("Motivacionales: falló el envío del ciclo:", error);
+    }
+  });
+
+  /*
+   * El Informe de impacto del mes anterior, en su PROPIO `after`.
+   *
+   * Corre todos los días y solo hace algo del 1 al 5 de cada mes (ver
+   * `lib/impacto/enviar.ts`). Va antes de los `return` tempranos por lo mismo
+   * que los motivacionales: no depende de que alguien tenga el briefing activo.
+   */
+  after(async () => {
+    try {
+      const clave = process.env.RESEND_API_KEY;
+      const secreto = process.env.CRON_SECRET;
+      if (!clave || !secreto) {
+        console.error("Impacto: falta RESEND_API_KEY o CRON_SECRET; no se manda.");
+        return;
+      }
+
+      const resend = new Resend(clave);
+      const resumen = await enviarInformesDeImpacto(fuenteSupabase(adminSinTipos()), {
+        hoy: hoyEnParaguay(),
+        appUrl: baseUrlApp(),
+        secreto,
+        enviar: async ({ para, asunto, html, texto, urlBaja }) => {
+          const { error } = await resend.emails.send({
+            from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+            to: para,
+            subject: asunto,
+            html,
+            text: texto,
+            headers: {
+              "List-Unsubscribe": `<${urlBaja}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          });
+          if (error) throw new Error(error.message ?? "Resend rechazó el envío.");
+        },
+      });
+
+      console.log("Impacto: informes del mes", resumen);
+    } catch (error) {
+      console.error("Impacto: falló el envío de informes:", error);
     }
   });
 
