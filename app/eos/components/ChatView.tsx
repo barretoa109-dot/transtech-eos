@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Send } from "lucide-react";
+import { Mic, Paperclip, Send, X } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import { debeEnviarConEnter } from "@/lib/eos/composer";
@@ -393,6 +393,13 @@ function Composer({
   onQuitarCita,
 }: ComposerProps) {
   const listo = mensaje.trim().length > 0 || archivosAdjuntos.length > 0;
+
+  // Con el índice original: "Quitar" borra por posición en la lista completa.
+  const conIndice = archivosAdjuntos.map((archivo, indice) => ({ archivo, indice }));
+  const fotosAdjuntas = conIndice.filter(
+    ({ archivo }) => archivo.tipo.startsWith("image/") && Boolean(archivo.base64),
+  );
+  const otrosAdjuntos = conIndice.filter((a) => !fotosAdjuntas.includes(a));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -431,22 +438,35 @@ function Composer({
         </div>
       )}
 
-      {archivosAdjuntos.length > 0 && (
-        <div className={`file-preview-lista ${archivosAdjuntos.length > 3 ? "apretada" : ""}`}>
-          {archivosAdjuntos.map((archivo, indice) => (
+      {/*
+        Las fotos, en fila y solo la foto: se reconocen al verlas, y el nombre
+        de archivo de un teléfono ("IMG_4957.jpg") no le dice nada a nadie.
+        Cada una tiene su × con el nombre en el `aria-label`.
+      */}
+      {fotosAdjuntas.length > 0 && (
+        <div className="adjuntos-fotos">
+          {fotosAdjuntas.map(({ archivo, indice }) => (
+            <div className="adjunto-foto" key={`${archivo.nombre}-${indice}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- base64 local, next/image no aplica. */}
+              <img src={`data:${archivo.tipo};base64,${archivo.base64}`} alt={archivo.nombre} />
+              <button
+                type="button"
+                onClick={() => onQuitarArchivo(indice)}
+                aria-label={`Quitar ${archivo.nombre}`}
+              >
+                <X size={12} strokeWidth={3} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {otrosAdjuntos.length > 0 && (
+        <div className={`file-preview-lista ${otrosAdjuntos.length > 3 ? "apretada" : ""}`}>
+          {otrosAdjuntos.map(({ archivo, indice }) => (
             <div className="file-preview" key={`${archivo.nombre}-${indice}`}>
               <div className="file-preview-info">
-                {archivo.tipo.startsWith("image/") && archivo.base64 ? (
-                  // La foto misma, no la etiqueta "IMG": es lo que la persona reconoce.
-                  // eslint-disable-next-line @next/next/no-img-element -- base64 local, next/image no aplica.
-                  <img
-                    className="file-preview-foto"
-                    src={`data:${archivo.tipo};base64,${archivo.base64}`}
-                    alt=""
-                  />
-                ) : (
-                  <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
-                )}
+                <span className="file-preview-ic">{obtenerEtiquetaArchivo(archivo)}</span>
                 <span className="file-preview-text">
                   <small>
                     {obtenerEtiquetaArchivo(archivo)} ADJUNTO

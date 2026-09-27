@@ -1352,20 +1352,50 @@
   font-size: 9px;
   font-weight: 900;
 }
-/* Una foto adjunta se ve como foto, del mismo tamaño que el ícono que reemplaza. */
-.eos-app .file-preview-foto {
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
+/*
+  Las fotos por adjuntar, en fila hacia la derecha, como en cualquier chat.
+  Con diez no entran en un teléfono: la fila scrollea de costado en vez de
+  bajar y tapar la conversación.
+*/
+.eos-app .adjuntos-fotos {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto 10px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 2px 4px;
+}
+.eos-app .adjunto-foto {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+}
+.eos-app .adjunto-foto img {
   display: block;
-  border-radius: 11px;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
   object-fit: cover;
+  border: 1px solid rgba(22, 86, 189, 0.18);
   background: var(--blue-light);
 }
-.eos-app .file-preview-lista.apretada .file-preview-foto {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+.eos-app .adjunto-foto button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  /* Tinta sobre panel: en oscuro los dos tokens se invierten solos. */
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--panel);
+  cursor: pointer;
 }
 .eos-app .file-preview-text {
   min-width: 0;

@@ -66,3 +66,26 @@ test("se saca la línea de las fotos solo si todas tienen miniatura", () => {
 
   assert.equal(textoSinReferenciaDeFotos("Sin fotos", 0), "Sin fotos");
 });
+
+test("si la persona no escribió nada, la burbuja queda solo con las fotos", () => {
+  assert.equal(
+    textoSinReferenciaDeFotos("Analizá estas 2 imágenes\n\n[Imágenes adjuntas: a.jpg, b.jpg]", 2),
+    "",
+  );
+  assert.equal(
+    textoSinReferenciaDeFotos("Analizá esta imagen: a.jpg\n\n[Imagen adjunta: a.jpg]", 1),
+    "",
+  );
+
+  // Lo que sí escribió la persona se queda, aunque empiece igual.
+  assert.equal(
+    textoSinReferenciaDeFotos("Analizá estas 2 imágenes y sumá los totales\n\n[Imágenes adjuntas: a.jpg, b.jpg]", 2),
+    "Analizá estas 2 imágenes y sumá los totales",
+  );
+
+  // Sin miniaturas, el texto se ve entero como siempre.
+  assert.equal(
+    textoSinReferenciaDeFotos("Analizá estas 2 imágenes\n\n[Imágenes adjuntas: a.jpg, b.jpg]", 0),
+    "Analizá estas 2 imágenes\n\n[Imágenes adjuntas: a.jpg, b.jpg]",
+  );
+});

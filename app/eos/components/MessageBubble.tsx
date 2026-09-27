@@ -109,6 +109,8 @@ export default function MessageBubble({
   const textoVisible =
     fotos.length > 0 ? textoSinReferenciaDeFotos(texto, fotos.length) : texto;
   const lineas = textoVisible.split("\n");
+  // Un mensaje de solo fotos no lleva burbuja de texto vacía debajo.
+  const mostrarBurbuja = !esUsuario || fotos.length === 0 || textoVisible.trim().length > 0;
   const [fotoAbierta, setFotoAbierta] = useState<ImagenDelMensaje | null>(null);
 
   useEffect(() => {
@@ -258,187 +260,189 @@ export default function MessageBubble({
           </div>
         ) : null}
 
-        <article
-          ref={articuloRef}
-          className={`message-bubble ${
-            esUsuario ? "message-user" : "message-eos"
-          }`}
-        >
-          {seleccion ? (
-            <button
-              type="button"
-              className="message-quote-chip"
-              style={{ left: `${seleccion.x}px`, top: `${seleccion.y}px` }}
-              /*
-                `preventDefault` en el mousedown y en el touchstart: sin esto,
-                apretar el botón borra la selección ANTES del click y el
-                fragmento llega vacío. Es el detalle que hace que esto ande o
-                no ande, y no se ve hasta probarlo.
-              */
-              onMouseDown={(e) => e.preventDefault()}
-              onTouchStart={(e) => e.preventDefault()}
-              onClick={preguntarSobreLaSeleccion}
-            >
-              <MessageSquareQuote size={13} />
-              <span>Preguntar sobre esto</span>
-            </button>
-          ) : null}
+        {mostrarBurbuja ? (
+          <article
+            ref={articuloRef}
+            className={`message-bubble ${
+              esUsuario ? "message-user" : "message-eos"
+            }`}
+          >
+            {seleccion ? (
+              <button
+                type="button"
+                className="message-quote-chip"
+                style={{ left: `${seleccion.x}px`, top: `${seleccion.y}px` }}
+                /*
+                  `preventDefault` en el mousedown y en el touchstart: sin esto,
+                  apretar el botón borra la selección ANTES del click y el
+                  fragmento llega vacío. Es el detalle que hace que esto ande o
+                  no ande, y no se ve hasta probarlo.
+                */
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
+                onClick={preguntarSobreLaSeleccion}
+              >
+                <MessageSquareQuote size={13} />
+                <span>Preguntar sobre esto</span>
+              </button>
+            ) : null}
 
-          <div className="message-content">
-            {lineas.map((linea, index) => {
-              const limpio = linea.trim();
+            <div className="message-content">
+              {lineas.map((linea, index) => {
+                const limpio = linea.trim();
 
-              if (!limpio) {
-                return (
-                  <div
-                    key={`space-${index}`}
-                    className="message-space"
-                  />
-                );
-              }
+                if (!limpio) {
+                  return (
+                    <div
+                      key={`space-${index}`}
+                      className="message-space"
+                    />
+                  );
+                }
 
-              const documentoId = documentoDeEOS(limpio);
-              const enlaceAprobacion = aprobacionDeEOS(limpio);
+                const documentoId = documentoDeEOS(limpio);
+                const enlaceAprobacion = aprobacionDeEOS(limpio);
 
-              if (enlaceAprobacion) {
-                return (
-                  <div key={`aprobacion-${index}`} className="message-approval">
-                    <span className="message-approval-icon">
-                      <ShieldCheck size={19} />
-                    </span>
-                    <span className="message-file-text">
-                      <strong>Operación lista para registrar</strong>
-                      <small>Revisá los datos y confirmá para que EOS la guarde.</small>
-                    </span>
-                    <a href={enlaceAprobacion} className="message-approval-button">
-                      Revisar y aprobar <ArrowUpRight size={15} />
+                if (enlaceAprobacion) {
+                  return (
+                    <div key={`aprobacion-${index}`} className="message-approval">
+                      <span className="message-approval-icon">
+                        <ShieldCheck size={19} />
+                      </span>
+                      <span className="message-file-text">
+                        <strong>Operación lista para registrar</strong>
+                        <small>Revisá los datos y confirmá para que EOS la guarde.</small>
+                      </span>
+                      <a href={enlaceAprobacion} className="message-approval-button">
+                        Revisar y aprobar <ArrowUpRight size={15} />
+                      </a>
+                    </div>
+                  );
+                }
+
+                if (documentoId) {
+                  return (
+                    <div key={`documento-${index}`} className="message-file">
+                      <span className="message-file-icon">
+                        <Download size={18} />
+                      </span>
+
+                      <span className="message-file-text">
+                        <strong>Documento listo</strong>
+                        <small>Bajalo en el formato que prefieras</small>
+                      </span>
+
+                      <span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
+                        {FORMATOS_DOCUMENTO.map((formato) => (
+                          <a
+                            key={formato.clave}
+                            href={`/api/documentos/${documentoId}?formato=${formato.clave}`}
+                            className="message-file-formato"
+                            rel="noopener noreferrer"
+                          >
+                            {formato.etiqueta}
+                          </a>
+                        ))}
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (esEnlace(limpio)) {
+                  return (
+                    <a
+                      key={`link-${index}`}
+                      href={limpio}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="message-file"
+                    >
+                      <span className="message-file-icon">
+                        <Download size={18} />
+                      </span>
+
+                      <span className="message-file-text">
+                        <strong>Descargar archivo</strong>
+                        <small>Documento generado por EOS</small>
+                      </span>
+
+                      <ArrowUpRight size={17} />
                     </a>
-                  </div>
-                );
-              }
+                  );
+                }
 
-              if (documentoId) {
-                return (
-                  <div key={`documento-${index}`} className="message-file">
-                    <span className="message-file-icon">
-                      <Download size={18} />
-                    </span>
+                if (
+                  limpio.startsWith("•") ||
+                  limpio.startsWith("-")
+                ) {
+                  return (
+                    <div
+                      key={`bullet-${index}`}
+                      className="message-bullet"
+                    >
+                      <span className="message-bullet-dot" />
 
-                    <span className="message-file-text">
-                      <strong>Documento listo</strong>
-                      <small>Bajalo en el formato que prefieras</small>
-                    </span>
+                      <span>
+                        {renderizarTextoEnLinea(
+                          limpio.replace(/^[-•]\s*/, ""),
+                        )}
+                      </span>
+                    </div>
+                  );
+                }
 
-                    <span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
-                      {FORMATOS_DOCUMENTO.map((formato) => (
-                        <a
-                          key={formato.clave}
-                          href={`/api/documentos/${documentoId}?formato=${formato.clave}`}
-                          className="message-file-formato"
-                          rel="noopener noreferrer"
-                        >
-                          {formato.etiqueta}
-                        </a>
-                      ))}
-                    </span>
-                  </div>
-                );
-              }
+                if (/^\d+\./.test(limpio)) {
+                  const coincidencia = limpio.match(
+                    /^(\d+)\.\s*(.*)$/,
+                  );
 
-              if (esEnlace(limpio)) {
-                return (
-                  <a
-                    key={`link-${index}`}
-                    href={limpio}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="message-file"
-                  >
-                    <span className="message-file-icon">
-                      <Download size={18} />
-                    </span>
+                  return (
+                    <div
+                      key={`number-${index}`}
+                      className="message-numbered"
+                    >
+                      <span>
+                        {coincidencia?.[1] ?? index + 1}
+                      </span>
 
-                    <span className="message-file-text">
-                      <strong>Descargar archivo</strong>
-                      <small>Documento generado por EOS</small>
-                    </span>
+                      <p>
+                        {renderizarTextoEnLinea(
+                          coincidencia?.[2] ?? limpio,
+                        )}
+                      </p>
+                    </div>
+                  );
+                }
 
-                    <ArrowUpRight size={17} />
-                  </a>
-                );
-              }
-
-              if (
-                limpio.startsWith("•") ||
-                limpio.startsWith("-")
-              ) {
-                return (
-                  <div
-                    key={`bullet-${index}`}
-                    className="message-bullet"
-                  >
-                    <span className="message-bullet-dot" />
-
-                    <span>
+                if (
+                  limpio.startsWith("### ") ||
+                  limpio.startsWith("## ") ||
+                  limpio.startsWith("# ")
+                ) {
+                  return (
+                    <h3
+                      key={`heading-${index}`}
+                      className="message-heading"
+                    >
                       {renderizarTextoEnLinea(
-                        limpio.replace(/^[-•]\s*/, ""),
+                        limpio.replace(/^#{1,3}\s*/, ""),
                       )}
-                    </span>
-                  </div>
-                );
-              }
-
-              if (/^\d+\./.test(limpio)) {
-                const coincidencia = limpio.match(
-                  /^(\d+)\.\s*(.*)$/,
-                );
+                    </h3>
+                  );
+                }
 
                 return (
-                  <div
-                    key={`number-${index}`}
-                    className="message-numbered"
+                  <p
+                    key={`paragraph-${index}`}
+                    className="message-paragraph"
                   >
-                    <span>
-                      {coincidencia?.[1] ?? index + 1}
-                    </span>
-
-                    <p>
-                      {renderizarTextoEnLinea(
-                        coincidencia?.[2] ?? limpio,
-                      )}
-                    </p>
-                  </div>
+                    {renderizarTextoEnLinea(linea)}
+                  </p>
                 );
-              }
-
-              if (
-                limpio.startsWith("### ") ||
-                limpio.startsWith("## ") ||
-                limpio.startsWith("# ")
-              ) {
-                return (
-                  <h3
-                    key={`heading-${index}`}
-                    className="message-heading"
-                  >
-                    {renderizarTextoEnLinea(
-                      limpio.replace(/^#{1,3}\s*/, ""),
-                    )}
-                  </h3>
-                );
-              }
-
-              return (
-                <p
-                  key={`paragraph-${index}`}
-                  className="message-paragraph"
-                >
-                  {renderizarTextoEnLinea(linea)}
-                </p>
-              );
-            })}
-          </div>
-        </article>
+              })}
+            </div>
+          </article>
+        ) : null}
 
         {!esUsuario ? (
           <div className="message-actions">
