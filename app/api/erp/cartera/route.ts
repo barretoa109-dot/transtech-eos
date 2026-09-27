@@ -2,18 +2,16 @@ import { NextResponse } from "next/server";
 
 import { exigirModulo } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
+import { leerCartera, type CarteraLeida } from "@/lib/erp/cartera-leer";
 import {
   antiguedad,
-  cobradoEfectivo,
   diasPromedioDeCobro,
   estaPendiente,
   saldoDe,
   vencidos,
   type CobroConDocumento,
-  type DocumentoCartera,
 } from "@/lib/erp/cartera";
 
 export const dynamic = "force-dynamic";
@@ -35,75 +33,25 @@ export async function GET(request: Request) {
   const tipo = searchParams.get("tipo") === "pagar" ? "pagar" : "cobrar";
   const esVenta = tipo === "cobrar";
 
-  const admin = adminSinTipos();
-  // Las dos fronteras mientras dure la transición de la v109/v110.
-  const empresaId = await empresaDe(admin, puerta.usuarioId);
   const hoy = hoyEnParaguay();
-
-  const tabla = esVenta ? "eos_erp_ventas" : "eos_erp_compras";
   const columna = esVenta ? "venta_id" : "compra_id";
 
-  const [documentosRes, cobranzasRes] = await Promise.all([
-    admin
-      .from(tabla)
-      .select("id,fecha,vence_el,moneda,total,estado,movimiento_id,contacto:eos_crm_contactos(id,nombre)")
-      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
-      .neq("estado", "anulada")
-      .order("fecha", { ascending: false })
-      .limit(1000),
-    admin
-      .from("eos_erp_cuenta_movimientos_v107")
-      .select("id,venta_id,compra_id,monto,moneda,fecha")
-      .or(filtroDeEmpresa(puerta.usuarioId, empresaId))
-      .limit(5000),
-  ]);
-
-  if (documentosRes.error) {
-    console.error("ERP: no se pudo leer la cartera:", documentosRes.error);
-    return NextResponse.json(
-      { error: "No pudimos leer tu estado de cuenta." },
-      { status: 503, headers: noStore() },
-    );
-  }
-
-  if (cobranzasRes.error) {
+  // La lectura vive en `lib/erp/cartera-leer.ts`: el chat y el Informe de
+  // impacto leen la misma, así "cuánto me deben" da igual en todos lados.
+  let cartera: CarteraLeida;
+  try {
+    cartera = await leerCartera(adminSinTipos(), puerta.usuarioId, tipo);
+  } catch (error) {
     // Sin las cobranzas los saldos saldrían iguales al total, o sea mal. Es
     // mejor no responder que responder una cartera inflada.
-    console.error("ERP: no se pudieron leer las cobranzas:", cobranzasRes.error);
+    console.error("ERP: no se pudo leer la cartera:", error);
     return NextResponse.json(
       { error: "No pudimos leer tu estado de cuenta." },
       { status: 503, headers: noStore() },
     );
   }
 
-  const cobranzas = (cobranzasRes.data ?? []) as Record<string, unknown>[];
-
-  const cobradoPorDocumento = new Map<string, number>();
-  for (const c of cobranzas) {
-    const clave = c[columna] as string | null;
-    if (!clave) continue;
-    cobradoPorDocumento.set(clave, (cobradoPorDocumento.get(clave) ?? 0) + Number(c.monto ?? 0));
-  }
-
-  const documentos: DocumentoCartera[] = (documentosRes.data ?? []).map(
-    (d: Record<string, unknown>) => ({
-      id: String(d.id),
-      fecha: String(d.fecha),
-      vence_el: (d.vence_el as string | null) ?? null,
-      moneda: monedaConocida(d.moneda as string | null),
-      total: Number(d.total ?? 0),
-      // Lo saldado de una vez (contado, o cobrado/pagado entero) no deja filas
-      // de pagos parciales: ver `cobradoEfectivo`.
-      cobrado: cobradoEfectivo({
-        estado: d.estado as string | null,
-        movimiento_id: d.movimiento_id as string | null,
-        total: Number(d.total ?? 0),
-        cobrado: cobradoPorDocumento.get(String(d.id)) ?? 0,
-      }),
-      contacto_id: (d.contacto as { id?: string } | null)?.id ?? null,
-      contacto_nombre: (d.contacto as { nombre?: string } | null)?.nombre ?? null,
-    }),
-  );
+  const { documentos, cobranzas } = cartera;
 
   const pendientes = documentos.filter(estaPendiente);
   const monedas = [...new Set(pendientes.map((d) => d.moneda))].sort();
