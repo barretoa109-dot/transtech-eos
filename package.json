@@ -24,7 +24,8 @@
     "go": "node scripts/verificar-go.mjs",
     "desplegar:costo": "node scripts/desplegar-venta-con-costo.mjs",
     "desplegar:fotos": "node scripts/desplegar-varias-fotos.mjs",
-    "piloto": "node scripts/informe-piloto.mjs"
+    "piloto": "node scripts/informe-piloto.mjs",
+    "bateria": "node --experimental-strip-types evals/bateria/correr.mts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
