@@ -4,6 +4,8 @@ import { requestIdDeAccion } from "../gateway/jobs.ts";
 import { sumarDias } from "../fecha.ts";
 import { VENTANA_DIAS, type ProductoAgotable, type SalidaDeStock } from "./agotamiento.ts";
 import { avisoDeStockTrasVenta } from "./stock-tras-venta.ts";
+import { estaPendiente, saldoDe, type DocumentoCartera } from "./cartera.ts";
+import { leerCartera } from "./cartera-leer.ts";
 
 /**
  * La guardia de margen (fila D4 de docs/estrategia/plan-diferenciacion-2026-09-27.md).
@@ -142,13 +144,15 @@ export async function avisosDeLaVenta(
 
   const { data: ventas, error: errVentas } = await admin
     .from("eos_erp_ventas")
-    .select("id,moneda")
+    .select("id,moneda,condicion,contacto_id")
     .eq("usuario_id", usuarioId)
     .in("action_command_id", ordenIds)
     .neq("estado", "anulada");
 
   if (errVentas) throw new Error(errVentas.message ?? "no se pudieron leer las ventas");
-  const monedaDe = new Map(((ventas ?? []) as { id: string; moneda: string | null }[]).map((v) => [v.id, v.moneda ?? "PYG"]));
+  type Venta = { id: string; moneda: string | null; condicion: string | null; contacto_id: string | null };
+  const vendidas = (ventas ?? []) as Venta[];
+  const monedaDe = new Map(vendidas.map((v) => [v.id, v.moneda ?? "PYG"]));
   if (monedaDe.size === 0) return "";
 
   const { data: items, error: errItems } = await admin
@@ -179,7 +183,44 @@ export async function avisosDeLaVenta(
     console.error("EOS: no se pudo revisar el stock de la venta:", error instanceof Error ? error.message : error);
   }
 
-  return [margen, stock].filter(Boolean).join("\n\n");
+  // Lo que ahora le debe cada cliente al que se le fió: también en su propio try.
+  let deuda = "";
+  const fiadoA = [
+    ...new Set(vendidas.filter((v) => v.condicion === "credito" && v.contacto_id).map((v) => v.contacto_id as string)),
+  ];
+  if (fiadoA.length > 0) {
+    try {
+      const { documentos } = await leerCartera(admin, usuarioId, "cobrar");
+      deuda = avisoDeDeudaTrasVenta(documentos, fiadoA);
+    } catch (error) {
+      console.error("EOS: no se pudo leer lo que debe el cliente:", error instanceof Error ? error.message : error);
+    }
+  }
+
+  return [margen, stock, deuda].filter(Boolean).join("\n\n");
+}
+
+/**
+ * Después de fiarle a alguien, cuánto debe EN TOTAL (fila D2: el dato que
+ * importa). Es el número que el dueño no tiene en la cabeza cuando le vuelve
+ * a fiar al mismo cliente. Sale de la cartera, igual que la pantalla: con los
+ * pagos parciales descontados.
+ */
+export function avisoDeDeudaTrasVenta(documentos: DocumentoCartera[], contactos: string[]): string {
+  const frases: string[] = [];
+  for (const id of contactos) {
+    const suyos = documentos.filter((d) => d.contacto_id === id && estaPendiente(d));
+    if (suyos.length === 0) continue;
+    const nombre = suyos[0].contacto_nombre ?? "Este cliente";
+    // Por moneda: guaraníes y dólares no se suman.
+    const porMoneda = new Map<string, number>();
+    for (const d of suyos) porMoneda.set(d.moneda, (porMoneda.get(d.moneda) ?? 0) + saldoDe(d));
+    const total = [...porMoneda.entries()].map(([m, t]) => formatearMonto(t, m)).join(" y ");
+    frases.push(
+      suyos.length === 1 ? `${nombre} te debe ${total} por esta venta.` : `Con esta, ${nombre} te debe ${total} en total.`,
+    );
+  }
+  return frases.join(" ");
 }
 
 async function avisoDeStock(

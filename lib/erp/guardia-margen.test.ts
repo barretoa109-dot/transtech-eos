@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  avisoDeDeudaTrasVenta,
   avisosDeLaVenta,
   avisoDeVentaAPerdida,
   lineasAPerdida,
@@ -74,6 +75,8 @@ function baseFalsa(tablas: Record<string, Record<string, unknown>[]>) {
   const consultas: { tabla: string; filtros: [string, string, unknown][] }[] = [];
 
   const cliente = {
+    // `empresaDe` (eos_empresa_de_v109): todas las cuentas de prueba son de "emp1".
+    rpc: async () => ({ data: "emp1", error: null }),
     from(tabla: string) {
       const filtros: [string, string, unknown][] = [];
       consultas.push({ tabla, filtros });
@@ -84,6 +87,13 @@ function baseFalsa(tablas: Record<string, Record<string, unknown>[]>) {
         in: (c: string, v: unknown[]) => (filtros.push(["in", c, v]), q),
         gte: () => q,
         limit: () => q,
+        order: () => q,
+        // filtroDeEmpresa: "empresa_id.eq.<id>"
+        or: (expr: string) => {
+          const m = /^(\w+)\.eq\.(.+)$/.exec(expr);
+          if (m) filtros.push(["eq", m[1], m[2]]);
+          return q;
+        },
         then: (ok: (r: unknown) => unknown) => {
           const filas = (tablas[tabla] ?? []).filter((f) =>
             filtros.every(([op, c, v]) =>
@@ -194,4 +204,82 @@ test("una venta a pérdida que además vacía el stock trae los dos avisos, marg
     "Ojo: “Balanceado” lo vendiste a ₲ 150.000 y te cuesta ₲ 160.000. Perdiste ₲ 20.000 en esta venta. Quedó registrada igual." +
       "\n\nTe quedaste sin “Balanceado”: esa era la última.",
   );
+});
+
+// ---------------------------------------------------------------------------
+// D2: después de fiar, cuánto debe el cliente en total
+// ---------------------------------------------------------------------------
+
+const deuda = (p: Record<string, unknown>) => ({
+  id: String(Math.random()),
+  fecha: "2026-09-20",
+  vence_el: null,
+  moneda: "PYG",
+  total: 540_000,
+  cobrado: 0,
+  contacto_id: "juan",
+  contacto_nombre: "Juan Pérez",
+  ...p,
+});
+
+test("con una sola deuda dice cuánto debe por esta venta", () => {
+  assert.equal(avisoDeDeudaTrasVenta([deuda({})], ["juan"]), "Juan Pérez te debe ₲ 540.000 por esta venta.");
+});
+
+test("con deudas anteriores dice el total, con los pagos parciales descontados", () => {
+  const texto = avisoDeDeudaTrasVenta(
+    [deuda({}), deuda({ total: 1_000_000, cobrado: 100_000 }), deuda({ contacto_id: "otro", total: 5 })],
+    ["juan"],
+  );
+  assert.equal(texto, "Con esta, Juan Pérez te debe ₲ 1.440.000 en total.");
+});
+
+test("una venta fiada suma la línea de deuda en la respuesta", async () => {
+  const { cliente } = baseFalsa({
+    eos_action_commands: [
+      { id: "c1", usuario_id: "u1", request_id: "r1", accion: "REGISTRAR_VENTA", estado: "completada" },
+    ],
+    eos_erp_ventas: [
+      {
+        id: "v1",
+        usuario_id: "u1",
+        empresa_id: "emp1",
+        action_command_id: "c1",
+        estado: "emitida",
+        condicion: "credito",
+        contacto_id: "juan",
+        moneda: "PYG",
+        fecha: "2026-09-27",
+        vence_el: null,
+        total: 540_000,
+        movimiento_id: null,
+        contacto: { id: "juan", nombre: "Juan Pérez" },
+      },
+      {
+        id: "v0",
+        usuario_id: "u1",
+        empresa_id: "emp1",
+        action_command_id: "c0",
+        estado: "emitida",
+        condicion: "credito",
+        contacto_id: "juan",
+        moneda: "PYG",
+        fecha: "2026-09-10",
+        vence_el: null,
+        total: 900_000,
+        movimiento_id: null,
+        contacto: { id: "juan", nombre: "Juan Pérez" },
+      },
+    ],
+    eos_erp_venta_items: [
+      { venta_id: "v1", producto_id: null, descripcion: "Balanceado", cantidad: 3, precio_unitario: 180_000, costo_unitario: 140_000, costo_estimado: false },
+    ],
+    eos_erp_cuenta_movimientos_v107: [
+      { id: "p1", empresa_id: "emp1", venta_id: "v0", monto: 300_000, moneda: "PYG", fecha: "2026-09-15" },
+    ],
+  });
+
+  const aviso = await avisosDeLaVenta(cliente, "u1", "r1", { hoy: "2026-09-27" });
+  // 540.000 de hoy + 600.000 que le quedaba de la anterior.
+  assert.equal(aviso, "Con esta, Juan Pérez te debe ₲ 1.140.000 en total.");
 });
