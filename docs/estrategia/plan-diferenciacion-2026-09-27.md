@@ -240,3 +240,9 @@ Con 5 cuentas reales, estos números no son estadística: son señales. Lo que m
 | Fecha | Fila | Resultado medido |
 |---|---|---|
 | 2026-09-27 | — | Documento creado. Línea de base: la del plan maestro del 26/09 (5 cuentas reales, 1 activa, activación 40 %). Competencia relevada por búsqueda pública: ERP con SIFEN (GeStock360, Novasoft, GestionPy), facturadores, bots de WhatsApp que venden (Meta Business AI, Chatsell) y un bot de registro por WhatsApp en México. Ninguno ocupa "dueño + anota hablando + avisa primero + paraguayo". |
+| 2026-09-27 | D4 + D6 | La respuesta de una venta avisa si quedó por debajo del costo declarado y si el producto se acaba (sin stock, bajo el mínimo o menos de 7 días), solo cuando esa venta cruza el umbral. PR #147. |
+| 2026-09-27 | D5 | "¿Qué sabés de mi negocio?" contesta directo desde la base, sin el modelo. PR #148. |
+| 2026-09-27 | D7 | "¿Quién me debe?" con el mensaje de cobro listo para reenviar. Arregla el Informe de impacto y D5, que no descontaban los pagos parciales: toda cifra de "te deben" sale de `lib/erp/cartera-leer.ts`. PR #149. |
+| 2026-09-27 | D8 | El resumen de los lunes por correo (migración v207, aplicada). El primero sale el 28/09 a las 8. PR #150. |
+| 2026-09-27 | D1 | Batería de 51 frases con jopara (`npm run bateria`): 100 % de verbo correcto con gpt-5.5. PR #151. |
+| 2026-09-27 | D2 | Medido con la batería (`evals/bateria/resultados/2026-09-27-2317.md`): las 34 confirmaciones del modelo son de **una línea**, con una mediana de 66 caracteres y **0 de más de 2 líneas**. El pedido ya se cumplía; lo que faltaba era el dato que importa después de fiar: ahora la respuesta dice "Con esta, Juan Pérez te debe ₲ X en total", con los pagos parciales descontados. |
