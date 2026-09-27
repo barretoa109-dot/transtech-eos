@@ -1,6 +1,8 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { crearTokenBaja } from "../email/baja.ts";
 import { monedaConocida } from "../finanzas/monedas.ts";
+import { estaPendiente, saldoDe, SALDO_CERO } from "../erp/cartera.ts";
+import { leerCartera } from "../erp/cartera-leer.ts";
 import {
   calcularImpacto,
   mesAnterior,
@@ -232,7 +234,7 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
     async hechos(uid, p) {
       const { desde, hasta } = rangoInstantes(p);
 
-      const [acciones, ventas, credito, pendientes] = await Promise.all([
+      const [acciones, ventas, credito, cartera] = await Promise.all([
         admin
           .from("eos_action_commands")
           .select("accion")
@@ -249,39 +251,53 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
           .gte("fecha", p.desde)
           .lte("fecha", p.hasta)
           .limit(5000),
-        // Las ventas a crédito ya cobradas: el día del cobro es la fecha del
-        // movimiento que las cobró, no la de la venta.
+        // Las ventas a crédito saldadas de una vez: el día del cobro es la
+        // fecha del movimiento que las cobró, no la de la venta.
         admin
           .from("eos_erp_ventas")
-          .select("total,moneda,movimiento_id")
+          .select("id,total,moneda,movimiento_id")
           .eq("usuario_id", uid)
           .eq("condicion", "credito")
           .eq("estado", "cobrada")
           .not("movimiento_id", "is", null)
           .limit(5000),
-        admin
-          .from("eos_erp_ventas")
-          .select("total,moneda,contacto_id")
-          .eq("usuario_id", uid)
-          .eq("condicion", "credito")
-          .eq("estado", "emitida")
-          .limit(5000),
+        // Lo que le deben y los pagos parciales, con la misma lectura que la
+        // pantalla de cartera (`lib/erp/cartera-leer.ts`).
+        leerCartera(admin, uid, "cobrar"),
       ]);
 
       if (acciones.error) falla("las acciones", acciones.error);
       if (ventas.error) falla("las ventas", ventas.error);
       if (credito.error) falla("las ventas a crédito cobradas", credito.error);
-      if (pendientes.error) falla("las ventas por cobrar", pendientes.error);
 
       type Venta = { total: number | string | null; moneda: string | null };
       const aNumero = (v: Venta) => ({ total: Number(v.total ?? 0) });
 
-      const cobradas = ((credito.data ?? []) as (Venta & { movimiento_id: string })[]).filter((v) =>
+      /*
+       * Lo cobrado en el mes de lo que le debían, en dos partes que no se pisan:
+       *
+       *  1. Los pagos parciales (v107) con fecha en el mes.
+       *  2. Las ventas a crédito saldadas con un movimiento del mes, por lo que
+       *     faltaba después de sus pagos parciales. Si los parciales ya
+       *     cubrían el total, esa venta no suma nada más: no se cuenta dos
+       *     veces la misma plata.
+       */
+      const parcialesPorVenta = new Map<string, number>();
+      const cobrosDeCredito: { total: number }[] = [];
+      for (const c of cartera.cobranzas) {
+        const ventaId = c.venta_id as string | null;
+        if (!ventaId || !esPYG((c.moneda as string | null) ?? "PYG")) continue;
+        const monto = Number(c.monto ?? 0);
+        parcialesPorVenta.set(ventaId, (parcialesPorVenta.get(ventaId) ?? 0) + monto);
+        const fecha = String(c.fecha ?? "").slice(0, 10);
+        if (fecha >= p.desde && fecha <= p.hasta && monto > 0) cobrosDeCredito.push({ total: monto });
+      }
+
+      const saldadas = ((credito.data ?? []) as (Venta & { id: string; movimiento_id: string })[]).filter((v) =>
         esPYG(v.moneda),
       );
 
-      let cobrosDeCredito: { total: number }[] = [];
-      if (cobradas.length > 0) {
+      if (saldadas.length > 0) {
         const { data, error } = await admin
           .from("eos_movimientos_financieros")
           .select("id")
@@ -290,22 +306,28 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
           .eq("ambito", "negocio")
           .in(
             "id",
-            cobradas.map((v) => v.movimiento_id),
+            saldadas.map((v) => v.movimiento_id),
           )
           .gte("fecha", p.desde)
           .lte("fecha", p.hasta);
         if (error) falla("los movimientos de cobro", error);
         const delMes = new Set(((data ?? []) as { id: string }[]).map((m) => m.id));
-        cobrosDeCredito = cobradas.filter((v) => delMes.has(v.movimiento_id)).map(aNumero);
+        for (const v of saldadas) {
+          if (!delMes.has(v.movimiento_id)) continue;
+          const resto = Number(v.total ?? 0) - (parcialesPorVenta.get(v.id) ?? 0);
+          if (resto > SALDO_CERO) cobrosDeCredito.push({ total: resto });
+        }
       }
 
       return {
         acciones: ((acciones.data ?? []) as { accion: string }[]).map((a) => a.accion),
         ventas: ((ventas.data ?? []) as Venta[]).filter((v) => esPYG(v.moneda)).map(aNumero),
         cobrosDeCredito,
-        porCobrar: ((pendientes.data ?? []) as (Venta & { contacto_id: string | null })[])
-          .filter((v) => esPYG(v.moneda))
-          .map((v) => ({ total: Number(v.total ?? 0), contacto_id: v.contacto_id })),
+        // El SALDO de cada venta pendiente, no su total: un cliente que pagó la
+        // mitad debe la mitad.
+        porCobrar: cartera.documentos
+          .filter((d) => estaPendiente(d) && d.moneda === "PYG")
+          .map((d) => ({ total: saldoDe(d), contacto_id: d.contacto_id })),
       };
     },
 

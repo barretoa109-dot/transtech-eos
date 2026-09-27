@@ -2,6 +2,8 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { sumarDias } from "../fecha.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import { monedaConocida } from "../finanzas/monedas.ts";
+import { estaPendiente, saldoDe } from "../erp/cartera.ts";
+import { leerCartera } from "../erp/cartera-leer.ts";
 
 /**
  * "¿Qué sabés de mi negocio?" (fila D5 de docs/estrategia/plan-diferenciacion-2026-09-27.md).
@@ -165,17 +167,11 @@ export async function leerLoQueSe(admin: ClienteSinTipos, usuarioId: string, hoy
       .in("estado", ["emitida", "cobrada"])
       .gte("fecha", sumarDias(hoy, -90))
       .limit(5000),
-    admin
-      .from("eos_erp_ventas")
-      .select("total,moneda,contacto_id")
-      .eq("usuario_id", usuarioId)
-      .eq("condicion", "credito")
-      .eq("estado", "emitida")
-      .limit(5000),
+    // El saldo real, con pagos parciales: la misma lectura que la pantalla.
+    leerCartera(admin, usuarioId, "cobrar"),
   ]);
 
   if (ventas.error) throw new Error(`no se pudieron leer las ventas: ${ventas.error.message}`);
-  if (porCobrar.error) throw new Error(`no se pudo leer lo que le deben: ${porCobrar.error.message}`);
 
   type Venta = { fecha: string; total: number | string | null; moneda: string | null };
   // Solo guaraníes: sumar monedas distintas no es el total de nada.
@@ -186,7 +182,7 @@ export async function leerLoQueSe(admin: ClienteSinTipos, usuarioId: string, hoy
   const desde30 = sumarDias(hoy, -30);
   const ultimas30 = ventas90.filter((v) => String(v.fecha).slice(0, 10) >= desde30);
 
-  const deudas = pyg((porCobrar.data ?? []) as (Venta & { contacto_id: string | null })[]);
+  const deudas = porCobrar.documentos.filter((d) => estaPendiente(d) && d.moneda === "PYG");
 
   return {
     productos: contar(productos, "los productos"),
@@ -199,8 +195,8 @@ export async function leerLoQueSe(admin: ClienteSinTipos, usuarioId: string, hoy
     },
     mejorDia: mejorDiaDeLaSemana(ventas90.map((v) => v.fecha)),
     porCobrar: {
-      clientes: new Set(deudas.map((v, i) => v.contacto_id ?? `sin-contacto-${i}`)).size,
-      total: deudas.reduce((s, v) => s + Number(v.total ?? 0), 0),
+      clientes: new Set(deudas.map((d, i) => d.contacto_id ?? `sin-contacto-${i}`)).size,
+      total: deudas.reduce((s, d) => s + saldoDe(d), 0),
     },
   };
 }

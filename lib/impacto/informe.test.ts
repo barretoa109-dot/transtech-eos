@@ -273,3 +273,63 @@ test("si el envío falla, se suelta el reclamo y al día siguiente se reintenta"
   assert.equal(r2.enviados, 1);
   assert.equal(enviados.length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// La fuente real, con una base en memoria: pagos parciales y saldo
+// ---------------------------------------------------------------------------
+
+function baseEnMemoria(tablas: Record<string, Record<string, unknown>[]>) {
+  return {
+    rpc: async () => ({ data: "emp1", error: null }),
+    from(tabla: string) {
+      const filtros: ((f: Record<string, unknown>) => boolean)[] = [];
+      const q: Record<string, unknown> = {
+        select: () => q,
+        order: () => q,
+        limit: () => q,
+        eq: (c: string, v: unknown) => (filtros.push((f) => f[c] === v), q),
+        neq: (c: string, v: unknown) => (filtros.push((f) => f[c] !== v), q),
+        in: (c: string, v: unknown[]) => (filtros.push((f) => v.includes(f[c])), q),
+        gte: (c: string, v: string) => (filtros.push((f) => String(f[c]) >= v), q),
+        lte: (c: string, v: string) => (filtros.push((f) => String(f[c]) <= v), q),
+        not: (c: string) => (filtros.push((f) => f[c] !== null && f[c] !== undefined), q),
+        // filtroDeEmpresa: "empresa_id.eq.<id>"
+        or: (expr: string) => {
+          const [, col, , valor] = /^(\w+)\.(eq)\.(.+)$/.exec(expr) ?? [];
+          if (col) filtros.push((f) => f[col] === valor);
+          return q;
+        },
+        then: (ok: (r: unknown) => unknown) =>
+          Promise.resolve({ data: (tablas[tabla] ?? []).filter((f) => filtros.every((fn) => fn(f))), error: null }).then(ok),
+      };
+      return q;
+    },
+  };
+}
+
+test("el informe cuenta pagos parciales del mes y el saldo real de lo que le deben", async () => {
+  const { fuenteSupabase } = await import("./enviar.ts");
+  const base = baseEnMemoria({
+    eos_action_commands: [],
+    eos_erp_ventas: [
+      // Juan: 1.000.000 a crédito, pagó 400.000 en setiembre y el resto en setiembre al saldarla.
+      { id: "v1", usuario_id: "u1", empresa_id: "emp1", fecha: "2026-08-20", total: 1_000_000, moneda: "PYG", condicion: "credito", estado: "cobrada", movimiento_id: "m1", contacto: { id: "juan", nombre: "Juan" } },
+      // María: 500.000 a crédito, pagó 200.000; le queda 300.000.
+      { id: "v2", usuario_id: "u1", empresa_id: "emp1", fecha: "2026-09-10", total: 500_000, moneda: "PYG", condicion: "credito", estado: "emitida", movimiento_id: null, contacto: { id: "maria", nombre: "María" } },
+    ],
+    eos_erp_cuenta_movimientos_v107: [
+      { id: "p1", empresa_id: "emp1", venta_id: "v1", monto: 400_000, moneda: "PYG", fecha: "2026-09-05" },
+      { id: "p2", empresa_id: "emp1", venta_id: "v2", monto: 200_000, moneda: "PYG", fecha: "2026-09-12" },
+    ],
+    eos_movimientos_financieros: [{ id: "m1", usuario_id: "u1", ambito: "negocio", fecha: "2026-09-20" }],
+  });
+
+  const fuente = fuenteSupabase(base as never);
+  const hechos = await fuente.hechos("u1", mesAnterior("2026-10-01"));
+  const i = calcularImpacto("2026-09", hechos);
+
+  // 400.000 + 200.000 parciales + 600.000 que faltaba de Juan al saldarla.
+  assert.equal(i.cobrado.total, 1_200_000);
+  // María debe el saldo, no el total.
+  assert.deepEqual(i.porCobrar, { clientes: 1, total: 300_000 });
+});

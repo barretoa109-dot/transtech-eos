@@ -67,7 +67,7 @@ import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
-import { esPreguntaQueSabes, leerLoQueSe, redactarLoQueSe } from "@/lib/eos/que-sabes";
+import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
@@ -1109,15 +1109,17 @@ export async function procesarMensajeEOS(
     });
 
     /*
-     * "¿Qué sabés de mi negocio?" se contesta directo desde la base, con los
-     * números exactos y sin gastar IA. Entra por el mismo lugar que la
-     * respuesta del gateway en TypeScript, así que todo lo de abajo (cupo,
-     * historial, limpieza, WhatsApp) corre igual. Si la lectura falla, sigue
-     * el camino de siempre. Ver `lib/eos/que-sabes.ts`.
+     * Las preguntas que se contestan directo desde la base ("¿qué sabés de mi
+     * negocio?", "¿quién me debe?"): números exactos y sin gastar IA. Entran
+     * por el mismo lugar que la respuesta del gateway en TypeScript, así que
+     * todo lo de abajo (cupo, historial, limpieza, WhatsApp) corre igual. Si
+     * la lectura falla, sigue el camino de siempre. Ver
+     * `lib/eos/respuestas-directas.ts`.
      */
-    if (archivos.length === 0 && !payload.cita && esPreguntaQueSabes(mensaje)) {
+    const directa = archivos.length === 0 && !payload.cita ? respuestaDirectaPara(mensaje) : null;
+    if (directa) {
       try {
-        const texto = redactarLoQueSe(await leerLoQueSe(adminSinTipos(), usuarioId, hoyEnParaguay()));
+        const texto = await directa.responder(adminSinTipos(), usuarioId, hoyEnParaguay());
         const cuerpo: RespuestaGateway = {
           respuesta: texto,
           documento: null,
@@ -1131,12 +1133,13 @@ export async function procesarMensajeEOS(
           tokens_entrada: 0,
           tokens_entrada_cacheados: 0,
           tokens_salida: 0,
-          metadata: { gateway: "directa", respuesta_directa: "que_sabes" },
+          metadata: { gateway: "directa", respuesta_directa: directa.clave },
         };
         n8nResponse = Response.json(cuerpo);
       } catch (error) {
-        console.error("EOS: no se pudo armar '¿qué sabés de mi negocio?'; sigue al modelo:", {
+        console.error("EOS: no se pudo armar una respuesta directa; sigue al modelo:", {
           request_id: payload.request_id,
+          respuesta_directa: directa.clave,
           error: error instanceof Error ? error.message : error,
         });
       }
