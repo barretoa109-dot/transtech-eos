@@ -1,4 +1,10 @@
-const CACHE_NAME = "transtech-eos-v2";
+/*
+ * v3 (27/09/2026): al cambiar el nombre, `activate` borra la caché anterior.
+ * La v2 guardaba casi todo lo que pedía la app y lo devolvía para siempre, y
+ * podía dejar a alguien con una versión vieja del chat aunque ya hubiera otra
+ * publicada.
+ */
+const CACHE_NAME = "transtech-eos-v3";
 const STATIC_ASSETS = [
   "/manifest.webmanifest",
   "/transtech-logo.png"
@@ -45,6 +51,19 @@ self.addEventListener("fetch", (event) => {
     );
     return;
   }
+
+  /*
+   * De la caché, SOLO lo que no cambia nunca: los archivos de
+   * `/_next/static/` llevan un hash en el nombre, así que una versión nueva
+   * es un archivo nuevo. Todo lo demás —los datos de navegación de Next
+   * (`?_rsc=`), las imágenes de `public/`, cualquier ruta sin hash— va a la
+   * red. Guardarlo acá lo congelaba en la versión en que se pidió por
+   * primera vez.
+   */
+  const inmutable =
+    url.pathname.startsWith("/_next/static/") || STATIC_ASSETS.includes(url.pathname);
+
+  if (!inmutable) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
