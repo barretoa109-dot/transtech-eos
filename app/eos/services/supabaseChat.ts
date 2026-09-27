@@ -52,7 +52,13 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
       rol: m.rol === "usuario" ? "usuario" : "eos",
       texto: (m.texto as string) || "",
       ...(fotos.length > 0
-        ? { imagenes: fotos.map((f) => ({ nombre: f.nombre, ruta: f.ruta })) }
+        ? {
+            imagenes: fotos.map((f) => ({
+              nombre: f.nombre,
+              ruta: f.ruta,
+              ...(f.duracion ? { duracion: f.duracion } : {}),
+            })),
+          }
         : {}),
     };
   });

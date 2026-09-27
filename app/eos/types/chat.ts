@@ -50,6 +50,8 @@ export type ImagenDelMensaje = {
   nombre: string;
   src?: string;
   ruta?: string;
+  /** Solo en los videos: la miniatura es su primer cuadro, con la duración encima. */
+  duracion?: number;
 };
 
 export type Conversacion = {
@@ -77,4 +79,13 @@ export type ArchivoAdjunto = {
   base64: string;
   extension?: string;
   url?: string;
+  /** Lo que viaja en lugar del archivo: en un video, sus cuadros y el audio. */
+  partes?: { base64: string }[];
+  /** Un video ya desarmado en el navegador (`services/video.ts`). */
+  video?: {
+    duracion: number;
+    segundos: number[];
+    cuadros: string[];
+    audio: string | null;
+  };
 };
