@@ -9,9 +9,12 @@ import {
   MessageSquareQuote,
   RefreshCw,
   ShieldCheck,
+  X,
 } from "lucide-react";
 
 import { armarCita, type Cita } from "@/lib/eos/cita";
+import { textoSinReferenciaDeFotos } from "@/lib/eos/fotos-chat";
+import type { ImagenDelMensaje } from "../types/chat";
 
 type MessageBubbleProps = {
   rol: "usuario" | "eos";
@@ -23,6 +26,8 @@ type MessageBubbleProps = {
   regenerando?: boolean;
   /** Sin esto no aparece nada: la burbuja sigue siendo texto y se copia igual. */
   onPreguntarSobre?: (cita: Cita) => void;
+  /** Las fotos que mandó la persona, como miniaturas arriba del texto. */
+  imagenes?: ImagenDelMensaje[];
 };
 
 function esEnlace(texto: string) {
@@ -95,9 +100,27 @@ export default function MessageBubble({
   onRegenerar,
   regenerando = false,
   onPreguntarSobre,
+  imagenes,
 }: MessageBubbleProps) {
   const esUsuario = rol === "usuario";
-  const lineas = texto.split("\n");
+  const fotos = esUsuario ? (imagenes ?? []).filter((i) => i.src) : [];
+
+  // Con las miniaturas a la vista, la línea "[Imagen adjunta: …]" sobra.
+  const textoVisible =
+    fotos.length > 0 ? textoSinReferenciaDeFotos(texto, fotos.length) : texto;
+  const lineas = textoVisible.split("\n");
+  const [fotoAbierta, setFotoAbierta] = useState<ImagenDelMensaje | null>(null);
+
+  useEffect(() => {
+    if (!fotoAbierta) return;
+
+    function alTeclear(evento: KeyboardEvent) {
+      if (evento.key === "Escape") setFotoAbierta(null);
+    }
+
+    document.addEventListener("keydown", alTeclear);
+    return () => document.removeEventListener("keydown", alTeclear);
+  }, [fotoAbierta]);
   const [copiado, setCopiado] = useState(false);
 
   /*
@@ -193,6 +216,48 @@ export default function MessageBubble({
       }`}
     >
       <div className="message-column">
+        {fotos.length > 0 ? (
+          <div className={`message-fotos ${fotos.length === 1 ? "una" : ""}`}>
+            {fotos.map((foto, indice) => (
+              <button
+                type="button"
+                key={`${foto.ruta ?? foto.nombre}-${indice}`}
+                className="message-foto"
+                onClick={() => setFotoAbierta(foto)}
+                aria-label={`Ver ${foto.nombre || "la imagen"}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- base64 o enlace firmado de una hora: next/image no aporta nada acá. */}
+                <img src={foto.src} alt={foto.nombre || "Imagen adjunta"} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {fotoAbierta ? (
+          <div
+            className="message-foto-grande"
+            role="dialog"
+            aria-modal="true"
+            aria-label={fotoAbierta.nombre || "Imagen adjunta"}
+            onClick={() => setFotoAbierta(null)}
+          >
+            <button
+              type="button"
+              className="message-foto-cerrar"
+              onClick={() => setFotoAbierta(null)}
+              aria-label="Cerrar la imagen"
+            >
+              <X size={20} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element -- ver arriba. */}
+            <img
+              src={fotoAbierta.src}
+              alt={fotoAbierta.nombre || "Imagen adjunta"}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        ) : null}
+
         <article
           ref={articuloRef}
           className={`message-bubble ${
@@ -463,6 +528,93 @@ export default function MessageBubble({
 
         .message-row-user .message-column {
           align-items: flex-end;
+        }
+
+        /*
+          Las fotos van arriba de la burbuja, como en cualquier chat: cuadradas,
+          recortadas al centro, en filas de hasta tres. Una sola va más grande
+          y con su proporción, porque ahí sí se quiere ver entera.
+        */
+        .message-fotos {
+          display: grid;
+          grid-template-columns: repeat(3, 96px);
+          gap: 6px;
+          margin-bottom: 6px;
+          justify-content: end;
+        }
+
+        .message-fotos.una {
+          grid-template-columns: minmax(0, 240px);
+        }
+
+        .message-foto {
+          display: block;
+          padding: 0;
+          border: 1px solid rgba(120, 130, 150, 0.25);
+          border-radius: 12px;
+          overflow: hidden;
+          background: rgba(120, 130, 150, 0.12);
+          cursor: zoom-in;
+          aspect-ratio: 1 / 1;
+        }
+
+        .message-fotos.una .message-foto {
+          aspect-ratio: auto;
+          max-height: 320px;
+        }
+
+        .message-foto img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .message-fotos.una .message-foto img {
+          height: auto;
+          max-height: 320px;
+          object-fit: contain;
+        }
+
+        .message-foto:focus-visible {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+        }
+
+        .message-foto-grande {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px 16px;
+          background: rgba(8, 12, 20, 0.86);
+          cursor: zoom-out;
+        }
+
+        .message-foto-grande img {
+          max-width: 100%;
+          max-height: 100%;
+          border-radius: 8px;
+          object-fit: contain;
+          cursor: default;
+        }
+
+        .message-foto-cerrar {
+          position: absolute;
+          top: max(16px, env(safe-area-inset-top));
+          right: 16px;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 0;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.14);
+          color: #fff;
+          cursor: pointer;
         }
 
         .message-bubble {
@@ -789,6 +941,10 @@ export default function MessageBubble({
         @media (max-width: 620px) {
           .message-column {
             max-width: 100%;
+          }
+
+          .message-fotos {
+            grid-template-columns: repeat(3, 84px);
           }
 
           .message-bubble {

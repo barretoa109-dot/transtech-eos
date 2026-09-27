@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase";
+import { fotosDeMetadata, type FotoGuardada } from "@/lib/eos/fotos-chat";
 import type { Conversacion, Mensaje } from "../types/chat";
 
 export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
@@ -43,11 +44,90 @@ export async function obtenerMensajes(conversacionId: string): Promise<Mensaje[]
     return [];
   }
 
-  return (data || []).map((m: Record<string, unknown>) => ({
-    id: typeof m.id === "string" ? m.id : undefined,
-    rol: m.rol === "usuario" ? "usuario" : "eos",
-    texto: (m.texto as string) || "",
-  }));
+  const mensajes: Mensaje[] = (data || []).map((m: Record<string, unknown>) => {
+    const fotos = m.rol === "usuario" ? fotosDeMetadata(m.metadata) : [];
+
+    return {
+      id: typeof m.id === "string" ? m.id : undefined,
+      rol: m.rol === "usuario" ? "usuario" : "eos",
+      texto: (m.texto as string) || "",
+      ...(fotos.length > 0
+        ? { imagenes: fotos.map((f) => ({ nombre: f.nombre, ruta: f.ruta })) }
+        : {}),
+    };
+  });
+
+  return conEnlacesDeFotos(mensajes);
+}
+
+/*
+ * Las fotos guardadas se ven con un enlace firmado de una hora.
+ *
+ * Un solo pedido para toda la conversación. Si falla, los mensajes vuelven
+ * igual, sin miniaturas: la burbuja muestra la línea "[Imagen adjunta: …]"
+ * de siempre, que es mejor que no mostrar la conversación.
+ */
+async function conEnlacesDeFotos(mensajes: Mensaje[]): Promise<Mensaje[]> {
+  const rutas = mensajes.flatMap((m) =>
+    (m.imagenes ?? []).map((i) => i.ruta).filter((r): r is string => Boolean(r)),
+  );
+
+  if (rutas.length === 0) return mensajes;
+
+  let urls: Record<string, string> = {};
+
+  try {
+    const respuesta = await fetch("/api/chat/imagenes/ver", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rutas }),
+    });
+
+    if (respuesta.ok) {
+      const cuerpo = (await respuesta.json()) as { urls?: Record<string, string> };
+      urls = cuerpo.urls ?? {};
+    }
+  } catch (error) {
+    console.error("No se pudieron abrir las fotos de la conversación:", error);
+  }
+
+  return mensajes.map((m) => {
+    if (!m.imagenes) return m;
+
+    const imagenes = m.imagenes
+      .map((i) => ({ ...i, src: i.ruta ? urls[i.ruta] : undefined }))
+      .filter((i) => i.src);
+
+    return imagenes.length > 0 ? { ...m, imagenes } : { ...m, imagenes: undefined };
+  });
+}
+
+/**
+ * Guarda UNA foto del chat. Devuelve `null` si no se pudo: el mensaje sale
+ * igual, y esa foto queda nombrada solo en la línea de texto.
+ */
+export async function subirFotoDelChat(foto: {
+  nombre: string;
+  tipo: string;
+  base64: string;
+}): Promise<FotoGuardada | null> {
+  try {
+    const respuesta = await fetch("/api/chat/imagenes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(foto),
+    });
+
+    if (!respuesta.ok) return null;
+
+    const cuerpo = (await respuesta.json()) as Partial<FotoGuardada>;
+    if (typeof cuerpo.ruta !== "string") return null;
+
+    return { ruta: cuerpo.ruta, nombre: foto.nombre, tipo: foto.tipo };
+  } catch (error) {
+    console.error("No se pudo guardar la foto del chat:", error);
+    return null;
+  }
 }
 
 /**
@@ -60,7 +140,8 @@ export async function guardarMensaje(
   conversacionId: string,
   usuarioId: string,
   rol: "usuario" | "eos",
-  texto: string
+  texto: string,
+  fotos: FotoGuardada[] = []
 ) {
   if (!conversacionId || !usuarioId || !texto.trim()) return;
 
@@ -70,6 +151,9 @@ export async function guardarMensaje(
       usuario_id: usuarioId,
       rol,
       texto,
+      // Solo cuando hay fotos: `metadata` tiene default `{}` y no hace falta
+      // mandarlo vacío en cada mensaje.
+      ...(fotos.length > 0 ? { metadata: { imagenes: fotos } } : {}),
     },
   ]);
 

@@ -11,7 +11,11 @@ import type {
 
 import { enviarMensajeAEOS } from "../services/eosApi";
 import { textoConCita, type Cita } from "@/lib/eos/cita";
-import { guardarMensaje } from "../services/supabaseChat";
+import type { FotoGuardada } from "@/lib/eos/fotos-chat";
+import {
+  guardarMensaje,
+  subirFotoDelChat,
+} from "../services/supabaseChat";
 
 type UseChatParams = {
   usuarioId: string;
@@ -47,6 +51,8 @@ type EjecutarEOSParams = {
   reemplazarUltimaRespuesta: boolean;
   /** El pedazo de una respuesta de EOS sobre el que se está preguntando. */
   cita: Cita | null;
+  /** Las fotos del mensaje, subiéndose mientras EOS contesta. */
+  fotosSubidas: Promise<FotoGuardada[]>;
 };
 
 function crearIdMensaje(prefijo: string) {
@@ -82,6 +88,32 @@ function limpiarReferenciaDeArchivo(texto: string) {
       "",
     )
     .trim();
+}
+
+/*
+ * Sube las fotos del mensaje, todas a la vez, para mostrarlas al volver.
+ *
+ * Corre en paralelo con la respuesta de EOS: la persona no espera la subida.
+ * Las que fallan se descartan en silencio —la línea de texto las sigue
+ * nombrando— y el mensaje se guarda igual.
+ */
+async function subirFotos(
+  archivos: ArchivoAdjunto[],
+): Promise<FotoGuardada[]> {
+  const fotos = archivos.filter(esImagenAdjunta);
+  if (fotos.length === 0) return [];
+
+  const subidas = await Promise.all(
+    fotos.map((f) =>
+      subirFotoDelChat({
+        nombre: f.nombre,
+        tipo: f.tipo,
+        base64: f.base64,
+      }),
+    ),
+  );
+
+  return subidas.filter((f): f is FotoGuardada => f !== null);
 }
 
 function esImagenAdjunta(
@@ -190,25 +222,36 @@ export function useChat({
       guardarUsuario,
       reemplazarUltimaRespuesta,
       cita: citaDelEnvio,
+      fotosSubidas,
     }: EjecutarEOSParams) => {
       setCargando(true);
       setPensando(true);
 
+      /*
+       * El mensaje del usuario se guarda cuando terminan de subir sus fotos,
+       * para anotarlas, y mientras tanto EOS ya está contestando. Se espera
+       * antes de guardar la respuesta, así las dos quedan en orden.
+       */
+      const guardadoUsuario = guardarUsuario
+        ? (async () => {
+            const fotos = await fotosSubidas;
+
+            await guardarMensaje(
+              conversacionActiva,
+              usuarioId,
+              "usuario",
+              textoUsuario,
+              fotos,
+            );
+
+            await actualizarTituloSiHaceFalta(
+              conversacionActiva,
+              textoUsuario,
+            );
+          })()
+        : Promise.resolve();
+
       try {
-        if (guardarUsuario) {
-          await guardarMensaje(
-            conversacionActiva,
-            usuarioId,
-            "usuario",
-            textoUsuario,
-          );
-
-          await actualizarTituloSiHaceFalta(
-            conversacionActiva,
-            textoUsuario,
-          );
-        }
-
         const resultadoEOS = await enviarMensajeAEOS({
           usuarioId,
           conversacionId: conversacionActiva,
@@ -258,6 +301,8 @@ export function useChat({
           creado_en: new Date().toISOString(),
         };
 
+        await guardadoUsuario;
+
         await guardarMensaje(
           conversacionActiva,
           usuarioId,
@@ -289,6 +334,11 @@ export function useChat({
         await cargarBriefing(usuarioId);
       } catch (error) {
         console.error("ERROR EOS:", error);
+
+        // Aunque EOS haya fallado, lo que mandó la persona queda guardado.
+        await guardadoUsuario.catch((guardadoError) =>
+          console.error("No se pudo guardar el mensaje:", guardadoError),
+        );
 
         const respuestaError =
           obtenerMensajeError(error);
@@ -390,6 +440,17 @@ export function useChat({
           )}`
         : textoConLaCita;
 
+    // Se ven ya, desde el base64 que se está por mandar. Al recargar, las
+    // mismas fotos vuelven desde el bucket (`obtenerMensajes`).
+    const imagenes = archivosActuales
+      .filter(esImagenAdjunta)
+      .map((a) => ({
+        nombre: a.nombre,
+        src: `data:${a.tipo};base64,${a.base64}`,
+      }));
+
+    const fotosSubidas = subirFotos(archivosActuales);
+
     const mensajeUsuario: Mensaje = {
       id: crearIdMensaje("usuario"),
       rol: "usuario",
@@ -405,6 +466,7 @@ export function useChat({
       tipo: archivosActuales.length > 0
         ? "archivo_adjunto"
         : "texto",
+      ...(imagenes.length > 0 ? { imagenes } : {}),
       creado_en: new Date().toISOString(),
     };
 
@@ -431,6 +493,7 @@ export function useChat({
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
       cita: citaActual,
+      fotosSubidas,
     });
   }
 
@@ -498,6 +561,7 @@ export function useChat({
       // Regenerar rehace el último mensaje tal como se mandó, y la cita ya
       // está adentro de su texto. Mandarla otra vez la duplicaría.
       cita: null,
+      fotosSubidas: Promise.resolve([]),
     });
   }
 
