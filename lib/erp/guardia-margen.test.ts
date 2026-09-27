@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  avisoDeMargenDelPedido,
+  avisosDeLaVenta,
   avisoDeVentaAPerdida,
   lineasAPerdida,
   type LineaVendida,
@@ -82,6 +82,8 @@ function baseFalsa(tablas: Record<string, Record<string, unknown>[]>) {
         eq: (c: string, v: unknown) => (filtros.push(["eq", c, v]), q),
         neq: (c: string, v: unknown) => (filtros.push(["neq", c, v]), q),
         in: (c: string, v: unknown[]) => (filtros.push(["in", c, v]), q),
+        gte: () => q,
+        limit: () => q,
         then: (ok: (r: unknown) => unknown) => {
           const filas = (tablas[tabla] ?? []).filter((f) =>
             filtros.every(([op, c, v]) =>
@@ -114,7 +116,7 @@ test("lee solo la venta del pedido actual y avisa", async () => {
     ],
   });
 
-  const aviso = await avisoDeMargenDelPedido(cliente, "u1", "r1");
+  const aviso = await avisosDeLaVenta(cliente, "u1", "r1", { hoy: "2026-09-27" });
 
   assert.ok(aviso.includes("“Balanceado”"));
   assert.ok(aviso.includes("Perdiste ₲ 30.000"));
@@ -143,13 +145,53 @@ test("con dos ventas en el mismo mensaje también mira la segunda (request_id de
     ],
   });
 
-  assert.equal(await avisoDeMargenDelPedido(cliente, "u1", r1, 1), "");
-  assert.ok((await avisoDeMargenDelPedido(cliente, "u1", r1, 2)).includes("“Segunda”"));
+  assert.equal(await avisosDeLaVenta(cliente, "u1", r1, { ventasEnElMensaje: 1, hoy: "2026-09-27" }), "");
+  assert.ok((await avisosDeLaVenta(cliente, "u1", r1, { ventasEnElMensaje: 2, hoy: "2026-09-27" })).includes("“Segunda”"));
 });
 
 test("sin venta completada en el pedido no hay aviso ni más lecturas", async () => {
   const { cliente, consultas } = baseFalsa({ eos_action_commands: [] });
 
-  assert.equal(await avisoDeMargenDelPedido(cliente, "u1", "r1"), "");
+  assert.equal(await avisosDeLaVenta(cliente, "u1", "r1", { hoy: "2026-09-27" }), "");
   assert.equal(consultas.length, 1);
+});
+
+test("una venta a pérdida que además vacía el stock trae los dos avisos, margen primero", async () => {
+  const { cliente } = baseFalsa({
+    eos_action_commands: [
+      { id: "c1", usuario_id: "u1", request_id: "r1", accion: "REGISTRAR_VENTA", estado: "completada" },
+    ],
+    eos_erp_ventas: [{ id: "v1", usuario_id: "u1", action_command_id: "c1", estado: "emitida", moneda: "PYG" }],
+    eos_erp_venta_items: [
+      {
+        venta_id: "v1",
+        producto_id: "p1",
+        descripcion: "Balanceado",
+        cantidad: 2,
+        precio_unitario: 150_000,
+        costo_unitario: 160_000,
+        costo_estimado: false,
+      },
+    ],
+    eos_erp_productos: [
+      {
+        id: "p1",
+        usuario_id: "u1",
+        nombre: "Balanceado",
+        stock_actual: 0,
+        stock_minimo: 0,
+        controla_stock: true,
+        activo: true,
+      },
+    ],
+    eos_erp_movimientos_stock: [],
+  });
+
+  const aviso = await avisosDeLaVenta(cliente, "u1", "r1", { hoy: "2026-09-27" });
+
+  assert.equal(
+    aviso,
+    "Ojo: “Balanceado” lo vendiste a ₲ 150.000 y te cuesta ₲ 160.000. Perdiste ₲ 20.000 en esta venta. Quedó registrada igual." +
+      "\n\nTe quedaste sin “Balanceado”: esa era la última.",
+  );
 });

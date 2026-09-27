@@ -66,7 +66,7 @@ import { clasificarTurno, modeloDelTurno, pareceAccion, registroDeEnrutamiento }
 import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
-import { avisoDeMargenDelPedido } from "@/lib/erp/guardia-margen";
+import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import {
   bloqueDeContexto,
   guardarLecturas,
@@ -1277,17 +1277,22 @@ export async function procesarMensajeEOS(
     }
 
     /*
-     * La guardia de margen: si lo que se acaba de vender quedó por debajo de lo
-     * que le cuesta, se dice acá, en la misma respuesta. Solo se consulta la
-     * base cuando hubo una venta, y un fallo de lectura nunca le quita a la
-     * persona la confirmación de su venta. Ver `lib/erp/guardia-margen.ts`.
+     * La guardia de margen y el "se te acaba": si lo que se acaba de vender quedó
+     * por debajo de lo que le cuesta, o dejó al producto sin stock o a días de
+     * acabarse, se dice acá, en la misma respuesta. Solo se consulta la base
+     * cuando hubo una venta, y un fallo de lectura nunca le quita a la persona
+     * la confirmación de su venta. Ver `lib/erp/guardia-margen.ts` y
+     * `lib/erp/stock-tras-venta.ts`.
      */
     const ventasPedidas = resultado.acciones.filter(
       (a) => String(a?.tipo ?? "").toUpperCase() === "REGISTRAR_VENTA",
     ).length;
     if (ventasPedidas > 0) {
       try {
-        const aviso = await avisoDeMargenDelPedido(adminSinTipos(), usuarioId, payload.request_id, ventasPedidas);
+        const aviso = await avisosDeLaVenta(adminSinTipos(), usuarioId, payload.request_id, {
+          ventasEnElMensaje: ventasPedidas,
+          hoy: hoyEnParaguay(),
+        });
         if (aviso && !resultado.respuesta.includes(aviso)) {
           resultado.respuesta = `${resultado.respuesta}\n\n${aviso}`;
         }

@@ -1,6 +1,9 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import { requestIdDeAccion } from "../gateway/jobs.ts";
+import { sumarDias } from "../fecha.ts";
+import { VENTANA_DIAS, type ProductoAgotable, type SalidaDeStock } from "./agotamiento.ts";
+import { avisoDeStockTrasVenta } from "./stock-tras-venta.ts";
 
 /**
  * La guardia de margen (fila D4 de docs/estrategia/plan-diferenciacion-2026-09-27.md).
@@ -104,7 +107,8 @@ export function avisoDeVentaAPerdida(perdidas: LineaAPerdida[]): string {
 }
 
 /**
- * Lee las ventas que dejó ESTE pedido y devuelve el aviso, o "".
+ * Lee las ventas que dejó ESTE pedido y devuelve los avisos que corresponden
+ * (margen y stock, ver `stock-tras-venta.ts`), o "".
  *
  * Encuentra las ventas por la orden que las creó (`action_command_id`) y la
  * orden por el `request_id` del mensaje: así solo mira lo que se acaba de
@@ -115,12 +119,13 @@ export function avisoDeVentaAPerdida(perdidas: LineaAPerdida[]): string {
  * (`requestIdDeAccion`, en lib/gateway/jobs.ts). Por eso se pide cuántas
  * ventas hubo: con solo el id del mensaje, la segunda venta quedaba sin mirar.
  */
-export async function avisoDeMargenDelPedido(
+export async function avisosDeLaVenta(
   admin: ClienteSinTipos,
   usuarioId: string,
   requestId: string,
-  ventasEnElMensaje = 1,
+  opciones: { ventasEnElMensaje?: number; hoy: string },
 ): Promise<string> {
+  const ventasEnElMensaje = opciones.ventasEnElMensaje ?? 1;
   const ids = Array.from({ length: Math.max(1, ventasEnElMensaje) }, (_, n) => requestIdDeAccion(requestId, n));
 
   const { data: ordenes, error: errOrdenes } = await admin
@@ -148,13 +153,14 @@ export async function avisoDeMargenDelPedido(
 
   const { data: items, error: errItems } = await admin
     .from("eos_erp_venta_items")
-    .select("venta_id,descripcion,cantidad,precio_unitario,costo_unitario,costo_estimado")
+    .select("venta_id,producto_id,descripcion,cantidad,precio_unitario,costo_unitario,costo_estimado")
     .in("venta_id", [...monedaDe.keys()]);
 
   if (errItems) throw new Error(errItems.message ?? "no se pudieron leer los ítems");
 
-  type Fila = Omit<LineaVendida, "moneda"> & { venta_id: string };
-  const lineas: LineaVendida[] = ((items ?? []) as Fila[]).map((i) => ({
+  type Fila = Omit<LineaVendida, "moneda"> & { venta_id: string; producto_id: string | null };
+  const filas = (items ?? []) as Fila[];
+  const lineas: LineaVendida[] = filas.map((i) => ({
     descripcion: i.descripcion,
     cantidad: Number(i.cantidad),
     precio_unitario: Number(i.precio_unitario),
@@ -163,5 +169,59 @@ export async function avisoDeMargenDelPedido(
     moneda: monedaDe.get(i.venta_id) ?? "PYG",
   }));
 
-  return avisoDeVentaAPerdida(lineasAPerdida(lineas));
+  const margen = avisoDeVentaAPerdida(lineasAPerdida(lineas));
+
+  // El stock, en su propio try: si falla, el aviso de margen igual sale.
+  let stock = "";
+  try {
+    stock = await avisoDeStock(admin, usuarioId, opciones.hoy, filas);
+  } catch (error) {
+    console.error("EOS: no se pudo revisar el stock de la venta:", error instanceof Error ? error.message : error);
+  }
+
+  return [margen, stock].filter(Boolean).join("\n\n");
+}
+
+async function avisoDeStock(
+  admin: ClienteSinTipos,
+  usuarioId: string,
+  hoy: string,
+  filas: { producto_id: string | null; cantidad: number }[],
+): Promise<string> {
+  const vendidos = new Map<string, number>();
+  for (const f of filas) {
+    if (!f.producto_id) continue;
+    vendidos.set(f.producto_id, (vendidos.get(f.producto_id) ?? 0) + Number(f.cantidad));
+  }
+  if (vendidos.size === 0) return "";
+
+  const [productos, salidas] = await Promise.all([
+    admin
+      .from("eos_erp_productos")
+      .select("id,nombre,stock_actual,stock_minimo,controla_stock,activo")
+      .eq("usuario_id", usuarioId)
+      .in("id", [...vendidos.keys()]),
+    admin
+      .from("eos_erp_movimientos_stock")
+      .select("producto_id,fecha,cantidad")
+      .eq("usuario_id", usuarioId)
+      .eq("tipo", "salida")
+      .in("producto_id", [...vendidos.keys()])
+      .gte("fecha", sumarDias(hoy, -VENTANA_DIAS))
+      .limit(5000),
+  ]);
+
+  if (productos.error) throw new Error(productos.error.message ?? "no se pudieron leer los productos");
+  if (salidas.error) throw new Error(salidas.error.message ?? "no se pudieron leer las salidas");
+
+  return avisoDeStockTrasVenta({
+    hoy,
+    vendidos,
+    productos: ((productos.data ?? []) as ProductoAgotable[]).map((p) => ({
+      ...p,
+      stock_actual: Number(p.stock_actual ?? 0),
+      stock_minimo: Number(p.stock_minimo ?? 0),
+    })),
+    salidas: ((salidas.data ?? []) as SalidaDeStock[]).map((s) => ({ ...s, cantidad: Number(s.cantidad ?? 0) })),
+  });
 }
