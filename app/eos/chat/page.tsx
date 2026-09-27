@@ -86,6 +86,8 @@ function vistaInicialDesdeUrl(): VistaEOS {
 
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
+  // El rubro que eligió al empezar: da ejemplos suyos en el chat vacío.
+  const [rubro, setRubro] = useState<string | null>(null);
   const [plan, setPlan] = useState("free");
   const [email, setEmail] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
@@ -163,6 +165,7 @@ export default function EOSPage() {
 
     setUsuarioId(user.id);
     setNombre(nombreUsuario);
+    setRubro(typeof user.user_metadata?.rubro === "string" ? user.user_metadata.rubro : null);
     setPlan(planUsuario);
     setEmail(usuario?.email ?? user.email ?? "");
     setUsuarioCargado(true);
@@ -339,6 +342,7 @@ export default function EOSPage() {
             formatearTamanio={formatearTamanio}
             onRegenerar={regenerarRespuesta}
             cuentaNueva={conversaciones.length > 0 && conversaciones.every(tieneTituloPorDefecto)}
+            rubro={rubro}
           />
         )}
 

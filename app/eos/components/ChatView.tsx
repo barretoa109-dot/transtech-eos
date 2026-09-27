@@ -8,6 +8,7 @@ import { debeEnviarConEnter } from "@/lib/eos/composer";
 import { fusionarDictado } from "@/lib/eos/dictado";
 import type { Cita } from "@/lib/eos/cita";
 import { useDictado, type Dictado } from "./useDictado";
+import { comienzo, rubroDe } from "@/lib/eos/rubros";
 
 type PromptCard = {
   key: string;
@@ -111,6 +112,24 @@ const PROMPTS_CUENTA_NUEVA: PromptCard[] = [
   },
 ];
 
+/*
+ * Las mismas cuatro tarjetas, pero con ejemplos del rubro que la persona
+ * eligió al empezar (`lib/eos/rubros.ts`). "Vendí 3 lechones a 450 mil" le
+ * dice a un criador de cerdos que esto es para él; "Vendí 2 remeras", no.
+ * Tampoco mandan nada: el ejemplo se muestra y en la caja queda el comienzo.
+ */
+function tarjetasDeCuentaNueva(rubro: string | null | undefined): PromptCard[] {
+  const r = rubroDe(rubro);
+  if (!r) return PROMPTS_CUENTA_NUEVA;
+
+  return [
+    { ...PROMPTS_CUENTA_NUEVA[0], subtitle: `Ej.: «${r.venta}»`, relleno: comienzo(r.venta) },
+    { ...PROMPTS_CUENTA_NUEVA[1], title: "Compras", subtitle: `Ej.: «${r.compra}»`, relleno: comienzo(r.compra) },
+    { ...PROMPTS_CUENTA_NUEVA[2], key: "tercero", title: r.tercero.titulo, subtitle: r.tercero.subtitulo, relleno: r.tercero.relleno },
+    PROMPTS_CUENTA_NUEVA[3],
+  ];
+}
+
 type ChatViewProps = {
   historial: Mensaje[];
   nombre: string;
@@ -130,6 +149,8 @@ type ChatViewProps = {
   onCitaChange: (cita: Cita | null) => void;
   /** La persona todavía no le escribió nunca a EOS. */
   cuentaNueva?: boolean;
+  /** El rubro que eligió al empezar, si eligió (`lib/eos/rubros.ts`). */
+  rubro?: string | null;
 };
 
 export default function ChatView({
@@ -149,6 +170,7 @@ export default function ChatView({
   cita,
   onCitaChange,
   cuentaNueva = false,
+  rubro = null,
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
@@ -245,7 +267,7 @@ export default function ChatView({
           <div className="greet-sub">¿En qué te ayudo hoy?</div>
 
           <div className="prompts">
-            {(cuentaNueva ? PROMPTS_CUENTA_NUEVA : PROMPTS).map((p) => (
+            {(cuentaNueva ? tarjetasDeCuentaNueva(rubro) : PROMPTS).map((p) => (
               <button key={p.key} type="button" className="prompt-card" onClick={() => tocarTarjeta(p)}>
                 <div className="ic">{p.icon}</div>
                 <div className="t">{p.title}</div>
