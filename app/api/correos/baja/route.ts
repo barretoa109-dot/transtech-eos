@@ -4,6 +4,7 @@ import { tokenDeBajaValido } from "@/lib/email/baja";
 import { escaparHtml } from "@/lib/email/marca";
 import { MOTIVO_BAJA } from "@/lib/email/motivacionales";
 import { MOTIVO_BAJA_IMPACTO } from "@/lib/impacto/enviar";
+import { MOTIVO_BAJA_RESUMEN } from "@/lib/resumen/enviar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -52,7 +53,7 @@ function pagina(titulo: string, mensaje: string, formulario = "", estado = 200) 
  * impacto, que tiene que seguir funcionando. El token está firmado CON el
  * motivo, así que cambiar `m` a mano no sirve para dar de baja otra cosa.
  */
-type Motivo = typeof MOTIVO_BAJA | typeof MOTIVO_BAJA_IMPACTO;
+type Motivo = typeof MOTIVO_BAJA | typeof MOTIVO_BAJA_IMPACTO | typeof MOTIVO_BAJA_RESUMEN;
 
 const BAJAS: Record<Motivo, { columna: string; nombre: string }> = {
   [MOTIVO_BAJA]: {
@@ -63,6 +64,10 @@ const BAJAS: Record<Motivo, { columna: string; nombre: string }> = {
     columna: "informe_impacto",
     nombre: "el resumen mensual de lo que EOS hizo por vos",
   },
+  [MOTIVO_BAJA_RESUMEN]: {
+    columna: "resumen_semanal",
+    nombre: "el resumen de los lunes",
+  },
 };
 
 function leerEnlace(request: Request) {
@@ -71,7 +76,8 @@ function leerEnlace(request: Request) {
   const token = url.searchParams.get("t") || "";
   const secreto = process.env.CRON_SECRET || "";
   const pedido = url.searchParams.get("m") || MOTIVO_BAJA;
-  const motivo: Motivo = pedido === MOTIVO_BAJA_IMPACTO ? MOTIVO_BAJA_IMPACTO : MOTIVO_BAJA;
+  const motivo: Motivo =
+    pedido === MOTIVO_BAJA_IMPACTO || pedido === MOTIVO_BAJA_RESUMEN ? pedido : MOTIVO_BAJA;
 
   return {
     usuarioId,
