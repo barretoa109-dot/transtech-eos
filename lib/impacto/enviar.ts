@@ -285,6 +285,9 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
         const { data, error } = await admin
           .from("eos_movimientos_financieros")
           .select("id")
+          .eq("usuario_id", uid)
+          // El cobro de una venta es plata del negocio (ver memoria del ámbito, v136).
+          .eq("ambito", "negocio")
           .in(
             "id",
             cobradas.map((v) => v.movimiento_id),
