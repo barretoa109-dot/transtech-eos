@@ -589,6 +589,28 @@ async function ramaLectura(job: Job): Promise<ResultadoWorker> {
   const filas = (data ?? []) as Record<string, unknown>[];
 
   if (esDashboard) {
+    /*
+     * Sin métricas, la lectura no dice nada: devuelve texto vacío y la
+     * respuesta del modelo queda como está (`juntarResultados` solo reemplaza
+     * cuando la lectura trae texto).
+     *
+     * Antes devolvía "Todavía no hay métricas cargadas para este usuario." y
+     * esa frase PISABA lo que el modelo había escrito con el contexto del
+     * negocio a la vista. `eos_dashboard_metrics` no la llena ningún código,
+     * así que le pasaba a todos: el 26 de septiembre de 2026 un cliente nuevo
+     * tocó "Analizá el flujo de caja del mes", leyó eso, y no volvió a escribir.
+     */
+    if (filas.length === 0) {
+      return {
+        ok: true,
+        executed: true,
+        request_id: job.request_id,
+        accion: job.accion.tipo,
+        tipo: "texto",
+        respuesta: "",
+      };
+    }
+
     const lineas = filas
       .map(
         (m) =>

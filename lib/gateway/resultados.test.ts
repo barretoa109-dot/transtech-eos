@@ -214,6 +214,16 @@ test("una lectura REEMPLAZA la respuesta en vez de sumarse", () => {
   assert.equal(f.respuesta, "Ventas: 12.000.000");
 });
 
+test("un dashboard sin métricas deja la respuesta del modelo", () => {
+  // Así vuelve la lectura cuando `eos_dashboard_metrics` está vacía. Antes
+  // traía "Todavía no hay métricas cargadas para este usuario." y eso le
+  // borraba la respuesta a un cliente nuevo que pedía su flujo de caja.
+  const f = juntarResultados(base({ respuesta: "Este mes todavía no tenés movimientos." }), [
+    hecho("VER_DASHBOARD", ""),
+  ]);
+  assert.equal(f.respuesta, "Este mes todavía no tenés movimientos.");
+});
+
 test("una lectura no ejecutada no reemplaza nada", () => {
   const f = juntarResultados(base({ respuesta: "Te muestro el panel." }), [
     { ok: true, executed: false, accion: "VER_DASHBOARD", respuesta: "Ventas: 1" },

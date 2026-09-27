@@ -9,6 +9,18 @@ import {
   obtenerMensajes,
 } from "../services/supabaseChat";
 
+const TITULOS_POR_DEFECTO = new Set(["Nuevo chat", "Nuevo proceso EOS", "Diagnóstico actual"]);
+
+/**
+ * La conversación todavía no tiene un mensaje de la persona.
+ *
+ * El título se reemplaza por el primer mensaje, así que mientras siga siendo
+ * uno de los de fábrica nadie escribió ahí.
+ */
+export function tieneTituloPorDefecto(c: Conversacion): boolean {
+  return !c.titulo || TITULOS_POR_DEFECTO.has(c.titulo);
+}
+
 export function useConversations() {
   const [conversacionId, setConversacionId] = useState("");
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
@@ -51,12 +63,7 @@ export function useConversations() {
   async function actualizarTituloSiHaceFalta(id: string, textoUsuario: string) {
     const conversacionActual = conversaciones.find((c) => c.id === id);
 
-    if (
-      !conversacionActual?.titulo ||
-      conversacionActual.titulo === "Nuevo chat" ||
-      conversacionActual.titulo === "Nuevo proceso EOS" ||
-      conversacionActual.titulo === "Diagnóstico actual"
-    ) {
+    if (!conversacionActual || tieneTituloPorDefecto(conversacionActual)) {
       const titulo = await actualizarTituloConversacion(id, textoUsuario);
 
       setConversaciones((prev) =>

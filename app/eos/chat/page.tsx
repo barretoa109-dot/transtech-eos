@@ -21,7 +21,7 @@ import LearningsView from "../components/LearningsView";
 
 import { useTema } from "../components/useTema";
 import { useBriefing } from "../hooks/useBriefing";
-import { useConversations } from "../hooks/useConversations";
+import { tieneTituloPorDefecto, useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
 
 import AmbientBackground from "@/components/effects/AmbientBackground";
@@ -357,6 +357,7 @@ export default function EOSPage() {
             obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
             formatearTamanio={formatearTamanio}
             onRegenerar={regenerarRespuesta}
+            cuentaNueva={conversaciones.length > 0 && conversaciones.every(tieneTituloPorDefecto)}
           />
         )}
 

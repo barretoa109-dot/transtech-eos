@@ -14,7 +14,10 @@ type PromptCard = {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
-  prompt: string;
+  /** Se manda tal cual al tocar la tarjeta. */
+  prompt?: string;
+  /** Se escribe en la caja y se deja para que la persona lo complete. */
+  relleno?: string;
 };
 
 const PROMPTS: PromptCard[] = [
@@ -68,6 +71,46 @@ const PROMPTS: PromptCard[] = [
   },
 ];
 
+/*
+ * Las tarjetas de una cuenta que nunca escribió.
+ *
+ * Las de arriba piden análisis, y en una cuenta vacía no hay nada que
+ * analizar: el 26 de septiembre de 2026 un cliente nuevo tocó "Analizá el
+ * flujo de caja del mes", EOS le dijo que no había métricas, y no volvió a
+ * escribir. Estas invitan a cargar el primer dato. No mandan nada: dejan el
+ * comienzo de la frase en la caja para que la persona la termine con lo suyo.
+ */
+const PROMPTS_CUENTA_NUEVA: PromptCard[] = [
+  {
+    key: "venta",
+    icon: PROMPTS[0].icon,
+    title: "Ventas",
+    subtitle: "Anotá tu primera venta",
+    relleno: "Vendí ",
+  },
+  {
+    key: "gasto",
+    icon: PROMPTS[1].icon,
+    title: "Gastos",
+    subtitle: "Anotá un gasto de hoy",
+    relleno: "Pagué ",
+  },
+  {
+    key: "cliente",
+    icon: PROMPTS[2].icon,
+    title: "Clientes",
+    subtitle: "Agregá un cliente",
+    relleno: "Agregá a mi cliente ",
+  },
+  {
+    key: "recordatorio",
+    icon: PROMPTS[3].icon,
+    title: "Tareas",
+    subtitle: "Pedile que te recuerde algo",
+    relleno: "Recordame ",
+  },
+];
+
 type ChatViewProps = {
   historial: Mensaje[];
   nombre: string;
@@ -85,6 +128,8 @@ type ChatViewProps = {
   /** El pedazo de una respuesta de EOS sobre el que se está preguntando. */
   cita: Cita | null;
   onCitaChange: (cita: Cita | null) => void;
+  /** La persona todavía no le escribió nunca a EOS. */
+  cuentaNueva?: boolean;
 };
 
 export default function ChatView({
@@ -103,6 +148,7 @@ export default function ChatView({
   onRegenerar,
   cita,
   onCitaChange,
+  cuentaNueva = false,
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
@@ -139,6 +185,21 @@ export default function ChatView({
 
   function enviar(texto?: string) {
     onEnviar(texto);
+  }
+
+  function tocarTarjeta(tarjeta: PromptCard) {
+    if (tarjeta.prompt) {
+      enviar(tarjeta.prompt);
+      return;
+    }
+
+    onMensajeChange(tarjeta.relleno ?? "");
+    requestAnimationFrame(() => {
+      const caja = document.querySelector<HTMLTextAreaElement>("#view-chat textarea");
+      if (!caja) return;
+      caja.focus();
+      caja.setSelectionRange(caja.value.length, caja.value.length);
+    });
   }
 
   function manejarTecla(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -184,8 +245,8 @@ export default function ChatView({
           <div className="greet-sub">¿En qué te ayudo hoy?</div>
 
           <div className="prompts">
-            {PROMPTS.map((p) => (
-              <button key={p.key} type="button" className="prompt-card" onClick={() => enviar(p.prompt)}>
+            {(cuentaNueva ? PROMPTS_CUENTA_NUEVA : PROMPTS).map((p) => (
+              <button key={p.key} type="button" className="prompt-card" onClick={() => tocarTarjeta(p)}>
                 <div className="ic">{p.icon}</div>
                 <div className="t">{p.title}</div>
                 <div className="s">{p.subtitle}</div>
