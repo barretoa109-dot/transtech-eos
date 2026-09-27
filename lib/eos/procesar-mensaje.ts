@@ -67,6 +67,8 @@ import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
+import { esPreguntaQueSabes, leerLoQueSe, redactarLoQueSe } from "@/lib/eos/que-sabes";
+import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
   guardarLecturas,
@@ -1106,7 +1108,41 @@ export async function procesarMensajeEOS(
       historial: payload.historial,
     });
 
-    if (atiendeTypeScript(turnoDeAccion)) {
+    /*
+     * "¿Qué sabés de mi negocio?" se contesta directo desde la base, con los
+     * números exactos y sin gastar IA. Entra por el mismo lugar que la
+     * respuesta del gateway en TypeScript, así que todo lo de abajo (cupo,
+     * historial, limpieza, WhatsApp) corre igual. Si la lectura falla, sigue
+     * el camino de siempre. Ver `lib/eos/que-sabes.ts`.
+     */
+    if (archivos.length === 0 && !payload.cita && esPreguntaQueSabes(mensaje)) {
+      try {
+        const texto = redactarLoQueSe(await leerLoQueSe(adminSinTipos(), usuarioId, hoyEnParaguay()));
+        const cuerpo: RespuestaGateway = {
+          respuesta: texto,
+          documento: null,
+          acciones: [],
+          requiere_worker: false,
+          tipo: "texto",
+          accion: "RESPONDER",
+          archivo_url: "",
+          archivo_tipo: "",
+          archivo_nombre: "",
+          tokens_entrada: 0,
+          tokens_entrada_cacheados: 0,
+          tokens_salida: 0,
+          metadata: { gateway: "directa", respuesta_directa: "que_sabes" },
+        };
+        n8nResponse = Response.json(cuerpo);
+      } catch (error) {
+        console.error("EOS: no se pudo armar '¿qué sabés de mi negocio?'; sigue al modelo:", {
+          request_id: payload.request_id,
+          error: error instanceof Error ? error.message : error,
+        });
+      }
+    }
+
+    if (n8nResponse === null && atiendeTypeScript(turnoDeAccion)) {
       const propio = await conversar(payload, { modelo: modeloDelTurno(enrutamiento) });
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
@@ -1484,7 +1520,10 @@ export async function procesarMensajeEOS(
         usuario_id: payload.usuario_id,
         conversacion_id: payload.conversacion_id || null,
         origen: payload.origen,
-        gateway: resultado.metadata?.gateway === "ts" ? "ts" : "n8n",
+        gateway:
+          resultado.metadata?.gateway === "ts" || resultado.metadata?.gateway === "directa"
+            ? resultado.metadata.gateway
+            : "n8n",
         con_cita: Boolean(cita),
         adjuntos: archivos.length,
         acciones: resultado.acciones.map((a) => String(a?.tipo ?? "")),
