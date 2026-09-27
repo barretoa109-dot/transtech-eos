@@ -27,7 +27,7 @@ import { useChat } from "../hooks/useChat";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { appTechCanvas } from "@/components/effects/techCanvasPresets";
 
-import { revisarAdjuntos, textoPorDefecto } from "@/lib/eos/adjuntos";
+import { revisarAdjuntos } from "@/lib/eos/adjuntos";
 import { convertirArchivoABase64 } from "../services/uploads";
 import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
 
@@ -41,17 +41,6 @@ function formatearTamanio(bytes?: number): string {
   const decimales = indice === 0 || valor >= 10 ? 0 : 1;
 
   return `${valor.toFixed(decimales)} ${unidades[indice]}`;
-}
-
-/**
- * ¿Este texto lo escribió el producto o la persona?
- *
- * Solo el que escribió el producto se puede pisar cuando cambian los adjuntos.
- * Si alguien tipeó "cuánto suma esto" y después agrega otra foto, ese texto no
- * se toca: reemplazarlo por "Analizá estas 3 imágenes" le borraría la pregunta.
- */
-function esTextoPorDefecto(texto: string): boolean {
-  return /^Analizá (esta imagen|este archivo|estas \d+ imágenes|estos \d+ archivos)\b/.test(texto.trim());
 }
 
 function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
@@ -266,13 +255,10 @@ export default function EOSPage() {
       return;
     }
 
+    // El campo no se llena solo: lo que se escribe es de la persona. Si manda
+    // las fotos sin texto, `useChat` completa el pedido para EOS y la burbuja
+    // muestra solo las fotos.
     setArchivosAdjuntos(juntos);
-
-    // El texto por defecto se reescribe con el total, no con lo último: si
-    // decía "Analizá esta imagen: a.jpg" y ahora hay tres, tiene que decir tres.
-    if (!mensaje.trim() || esTextoPorDefecto(mensaje)) {
-      setMensaje(textoPorDefecto(juntos));
-    }
   }
 
   async function manejarAbrirConversacion(id: string) {
@@ -287,12 +273,7 @@ export default function EOSPage() {
   }
 
   function quitarArchivoAdjunto(indice: number) {
-    const quedan = archivosAdjuntos.filter((_, i) => i !== indice);
-    setArchivosAdjuntos(quedan);
-
-    if (esTextoPorDefecto(mensaje)) {
-      setMensaje(textoPorDefecto(quedan));
-    }
+    setArchivosAdjuntos(archivosAdjuntos.filter((_, i) => i !== indice));
   }
 
   const sidebarProps = {

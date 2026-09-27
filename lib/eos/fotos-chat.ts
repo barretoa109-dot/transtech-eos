@@ -125,5 +125,15 @@ export function textoSinReferenciaDeFotos(texto: string, fotosVisibles: number):
   const nombradas = linea[1].split(",").filter((n) => n.trim()).length;
   if (nombradas !== fotosVisibles) return texto;
 
-  return texto.slice(0, linea.index).trimEnd();
+  const resto = texto.slice(0, linea.index).trimEnd();
+
+  // Si la persona no escribió nada, lo que queda es el pedido que completó
+  // `useChat` para EOS ("Analizá estas 2 imágenes"). Con las fotos a la vista
+  // no dice nada nuevo, y la burbuja queda solo con las fotos.
+  return esPedidoPorDefectoDeFotos(resto) ? "" : resto;
+}
+
+/** El texto que arma `textoPorDefecto` para fotos, y nada más que eso. */
+function esPedidoPorDefectoDeFotos(texto: string): boolean {
+  return /^Analizá (esta imagen: [^\n]+|estas \d+ imágenes)$/.test(texto.trim());
 }
