@@ -62,17 +62,29 @@ test("una reacción o un aviso del sistema no se anotan: no merecen respuesta", 
   assert.equal(entradaDeMensaje({ from: "1", type: "text" }), null);
 });
 
+test("un video se anota con su pie y se baja como cualquier adjunto", () => {
+  const video = fila(
+    { id: "v", from: "1", type: "video", video: { id: "mv", mime_type: "video/mp4", caption: "Así quedó la góndola" } },
+    1,
+  );
+  assert.equal(video.media_id, "mv");
+  assert.equal(video.texto, "Así quedó la góndola");
+
+  const lote = unirLote([video]);
+  assert.deepEqual(lote.noLegibles, []);
+  assert.deepEqual(lote.medios, [{ media_id: "mv", mime_type: "video/mp4", nombre: "whatsapp-video" }]);
+});
+
 test("el documento conserva su nombre", () => {
   const doc = fila({ id: "d", from: "1", type: "document", document: { id: "m", mime_type: "application/pdf", filename: "factura.pdf" } }, 1);
   assert.equal(unirLote([doc]).medios[0].nombre, "factura.pdf");
 });
 
 test("el aviso nunca dice 'puedo leer imágenes' a quien acaba de mandarlas", () => {
-  for (const tipos of [["unsupported"], ["video"], ["location"], ["contacts"], ["interactive"]]) {
+  for (const tipos of [["unsupported"], ["location"], ["contacts"], ["interactive"]]) {
     assert.doesNotMatch(avisoNoLegible(tipos), /puedo leer texto, imágenes/);
   }
   assert.match(avisoNoLegible(["unsupported"]), /no me llegó completo/);
-  assert.match(avisoNoLegible(["video"]), /videos/);
   assert.equal(avisoNoLegible(["sticker"]), "", "a un sticker no se le contesta");
 });
 

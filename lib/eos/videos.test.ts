@@ -5,12 +5,14 @@ import { revisarAdjuntos, textoPorDefecto, type Adjunto } from "./adjuntos.ts";
 import {
   CUADROS_POR_VIDEO,
   DURACION_MAXIMA_VIDEO,
+  duracionDeFfmpeg,
   formatoDuracion,
   notaDelVideo,
   revisarVideo,
   segundosDeLosCuadros,
   tieneSonido,
   wavMono,
+  wavTieneSonido,
 } from "./videos.ts";
 
 test("los cuadros caen en el medio de cada tramo, en orden", () => {
@@ -94,4 +96,21 @@ test("un video ocupa un lugar por pieza, no uno solo", () => {
 test("el texto por defecto nombra al video", () => {
   assert.equal(textoPorDefecto([video("local.mov", 5)]), "Analizá este video: local.mov");
   assert.equal(textoPorDefecto([video("a.mov", 5), video("b.mov", 5)]), "Analizá estos 2 videos");
+});
+
+test("la duración se lee de lo que imprime ffmpeg", () => {
+  assert.equal(duracionDeFfmpeg("  Duration: 00:00:42.50, start: 0.000000, bitrate: 812 kb/s"), 42.5);
+  assert.equal(duracionDeFfmpeg("Duration: 00:02:05.00,"), 125);
+  assert.equal(duracionDeFfmpeg("Invalid data found when processing input"), null);
+  assert.equal(duracionDeFfmpeg("Duration: N/A, bitrate: N/A"), null);
+});
+
+test("un WAV de silencio no se manda a transcribir", () => {
+  const silencio = wavMono([new Float32Array(800)], 16_000);
+  assert.equal(wavTieneSonido(silencio), false);
+
+  const voz = new Float32Array(800);
+  voz[400] = 0.3;
+  assert.equal(wavTieneSonido(wavMono([voz], 16_000)), true);
+  assert.equal(wavTieneSonido(new Uint8Array(10)), false);
 });
