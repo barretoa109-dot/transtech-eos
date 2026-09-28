@@ -39,6 +39,7 @@ import { bloqueDeDocumento } from "@/lib/eos/adjuntos";
 import { dentroDeRafaga } from "@/lib/seguridad/rafaga";
 import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import type { Documento } from "@/lib/documentos/especificacion";
+import { respuestaSinDocumentos } from "@/lib/documentos/sin-modulo";
 import {
   extraerDocumento,
   formatoPedido,
@@ -1445,7 +1446,29 @@ export async function procesarMensajeEOS(
      */
     let archivoDocumento: { url: string; nombre: string; tipo: string } | null = null;
 
-    if (resultado.documento) {
+    /*
+     * ¿Puede bajar lo que EOS le arma?
+     *
+     * Bajar un documento es el módulo "Documentos a pedido": la ruta de
+     * descarga lo exige. Sin él, mandar el enlace es mandar uno que falla al
+     * tocarlo. Se pregunta solo si hay archivo en la respuesta, por el cliente
+     * de servicio porque acá no hay sesión (también llega por WhatsApp). Ante
+     * un error de lectura se deja pasar: la descarga vuelve a mirar, y perder
+     * un archivo que sí estaba pago es peor que un enlace que avisa.
+     */
+    const hayArchivo = Boolean(resultado.documento || resultado.archivo_url);
+    let puedeBajarDocumentos = true;
+
+    if (hayArchivo) {
+      const { data: tieneDocumentos, error: moduloError } = await adminSinTipos().rpc(
+        "eos_tiene_modulo",
+        { p_usuario_id: usuarioId, p_modulo: "documentos" },
+      );
+
+      puedeBajarDocumentos = Boolean(moduloError) || tieneDocumentos === true;
+    }
+
+    if (resultado.documento && puedeBajarDocumentos) {
       const formato = formatoPedido(payload.mensaje, resultado.metadata?.formato);
 
       const guardado = await guardarDocumento(createAdminClient(), {
@@ -1545,14 +1568,24 @@ export async function procesarMensajeEOS(
     // La descripción del documento no viaja al cliente: ya está guardada, y
     // puede pesar más que la respuesta entera. Por eso se nombran los campos
     // uno por uno en vez de esparcir `resultado`.
-    const paraElCliente = {
-      respuesta: resultado.respuesta,
-      archivo_url: resultado.archivo_url,
-      archivo_tipo: resultado.archivo_tipo,
-      archivo_nombre: resultado.archivo_nombre,
-      tipo: resultado.tipo,
-      accion: resultado.accion,
-    };
+    const paraElCliente = puedeBajarDocumentos
+      ? {
+          respuesta: resultado.respuesta,
+          archivo_url: resultado.archivo_url,
+          archivo_tipo: resultado.archivo_tipo,
+          archivo_nombre: resultado.archivo_nombre,
+          tipo: resultado.tipo,
+          accion: resultado.accion,
+        }
+      : {
+          // Sin el módulo: la respuesta sin enlace, con lo que falta dicho.
+          respuesta: respuestaSinDocumentos(resultado.respuesta),
+          archivo_url: "",
+          archivo_tipo: "",
+          archivo_nombre: "",
+          tipo: "texto",
+          accion: resultado.accion,
+        };
 
     return {
       status: 200,
