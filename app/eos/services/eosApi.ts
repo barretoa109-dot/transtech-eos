@@ -1,5 +1,6 @@
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import type { Cita } from "@/lib/eos/cita";
+import { enviarHastaQueLlegue, type ConsultaBuzon } from "@/lib/eos/envio-confiable";
 
 type EnviarEOSParams = {
   usuarioId: string;
@@ -83,11 +84,13 @@ function normalizarRespuesta(valor: unknown): RespuestaEOS {
  *
  * Ahora cada envío lleva su `request_id`, el servidor deja la respuesta en un
  * buzón (v196), y si la conexión se cae se la pide a `/api/eos/resultado`
- * hasta que aparece. El mensaje NUNCA se reenvía: se espera el que ya está en
- * camino.
+ * hasta que aparece.
+ *
+ * Y si el mensaje nunca llegó al servidor —el corte fue mientras subía, caso
+ * del 27/09/2026— se reenvía solo, con el mismo `request_id`. El servidor no
+ * procesa dos veces un `request_id`, así que reenviar no duplica nada. Toda la
+ * lógica está en `lib/eos/envio-confiable.ts`, con sus pruebas.
  */
-const ESPERA_RECUPERACION_MS = 150_000;
-const INTERVALO_RECUPERACION_MS = 3_000;
 
 function nuevoRequestId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -100,51 +103,72 @@ function nuevoRequestId(): string {
   });
 }
 
-const dormir = (ms: number) => new Promise((resolver) => setTimeout(resolver, ms));
+const dormir = (ms: number) => new Promise<void>((resolver) => setTimeout(resolver, ms));
 
-async function recuperarRespuesta(requestId: string): Promise<RespuestaEOS | null> {
-  const limite = Date.now() + ESPERA_RECUPERACION_MS;
-
-  while (Date.now() < limite) {
-    await dormir(INTERVALO_RECUPERACION_MS);
-    try {
-      const r = await fetch(`/api/eos/resultado?request_id=${encodeURIComponent(requestId)}`, {
-        cache: "no-store",
-      });
-      if (r.status === 401) return null;
-      const data = (await r.json().catch(() => null)) as
-        | { listo?: boolean; estado_http?: number; cuerpo?: unknown }
-        | null;
-      if (!data?.listo) continue;
-
-      const resultado = normalizarRespuesta(data.cuerpo);
-      const estado = Number(data.estado_http) || 200;
-      if (estado < 200 || estado >= 300) throw new Error(resultado.respuesta || "Error en EOS");
-      return resultado;
-    } catch (error) {
-      // Un error de red al preguntar no es el final: se sigue esperando.
-      if (!(error instanceof TypeError)) throw error;
-    }
+/**
+ * En el celular, una pestaña en segundo plano no tiene red: mandar en ese
+ * momento es fallar seguro. Se espera a que la persona vuelva (con tope, por
+ * si el evento no llega).
+ */
+function esperarVisible(): Promise<void> {
+  if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+    return Promise.resolve();
   }
+  return new Promise((resolver) => {
+    const listo = () => {
+      document.removeEventListener("visibilitychange", alCambiar);
+      clearTimeout(tope);
+      resolver();
+    };
+    const alCambiar = () => {
+      if (document.visibilityState !== "hidden") listo();
+    };
+    const tope = setTimeout(listo, 60_000);
+    document.addEventListener("visibilitychange", alCambiar);
+  });
+}
 
-  return null;
+async function consultarBuzon(requestId: string): Promise<ConsultaBuzon | null> {
+  const r = await fetch(`/api/eos/resultado?request_id=${encodeURIComponent(requestId)}`, {
+    cache: "no-store",
+  });
+  if (r.status === 401) return null;
+  const data = (await r.json().catch(() => null)) as Partial<ConsultaBuzon> | null;
+  return {
+    listo: data?.listo === true,
+    recibido: data?.recibido === true,
+    estado_http: data?.estado_http,
+    cuerpo: data?.cuerpo,
+  };
 }
 
 export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<RespuestaEOS>{
   const requestId = nuevoRequestId();
 
-  let response: Response;
-  try {
-    response = await enviarAlServidor(params, requestId);
-  } catch (error) {
-    if (!(error instanceof TypeError)) throw error;
-    // La conexión se cortó: la respuesta puede estar llegando igual.
-    const recuperada = await recuperarRespuesta(requestId);
-    if (recuperada) return recuperada;
-    throw error;
+  const llegada = await enviarHastaQueLlegue({
+    enviar: async () => {
+      const response = await enviarAlServidor(params, requestId);
+      // El cuerpo se lee acá adentro: un corte a mitad de la lectura también es
+      // un corte de red, y tiene que pasar por la recuperación.
+      return { estado: response.status, texto: await response.text() };
+    },
+    consultar: () => consultarBuzon(requestId),
+    dormir,
+    ahora: () => Date.now(),
+    esperarVisible,
+  });
+
+  if (!llegada) {
+    throw new Error(
+      "No me llegó tu mensaje: la conexión del teléfono se cortó varias veces. Tocá Regenerar y lo mando de nuevo.",
+    );
   }
 
-  return await leerRespuesta(response);
+  if (llegada.origen === "directo") return leerRespuesta(llegada.estado, llegada.texto);
+
+  const resultado = normalizarRespuesta(llegada.cuerpo);
+  if (llegada.estado < 200 || llegada.estado >= 300) throw new Error(resultado.respuesta || "Error en EOS");
+  return resultado;
 }
 
 function enviarAlServidor(params: EnviarEOSParams, requestId: string): Promise<Response>{
@@ -187,8 +211,8 @@ function enviarAlServidor(params: EnviarEOSParams, requestId: string): Promise<R
   });
 }
 
-async function leerRespuesta(response: Response): Promise<RespuestaEOS>{
-  const raw=await response.text();
+function leerRespuesta(estado: number, raw: string): RespuestaEOS{
+  const response={ ok: estado>=200 && estado<300 };
   if(!raw.trim()) throw new Error("EOS respondió vacío");
 
   let parsed:unknown=raw;

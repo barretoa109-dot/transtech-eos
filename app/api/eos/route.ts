@@ -7,7 +7,14 @@ import {
   MAX_MESSAGE_LENGTH,
   type ArchivoEOS,
 } from "@/lib/eos/procesar-mensaje";
-import { guardarRespuesta } from "@/lib/eos/respuestas-guardadas";
+import { anotarLlegada, guardarRespuesta } from "@/lib/eos/respuestas-guardadas";
+
+/*
+ * Explícito, y no el valor por defecto de la plataforma: la app espera una
+ * respuesta hasta un poco más que esto antes de rendirse (330 s), y las filas
+ * "en proceso" del buzón vencen a los 320 s. Los tres números van juntos.
+ */
+export const maxDuration = 300;
 
 function noStoreHeaders() {
   return {
@@ -116,25 +123,76 @@ export async function POST(req: Request) {
     textoSeguro(user.user_metadata?.name, 120) ||
     textoSeguro(user.email?.split("@")[0], 120);
 
-  const resultado = await procesarMensajeEOS(user.id, {
-    mensaje,
-    archivos,
-    conversacionId: textoSeguro(body.conversacion_id, 120),
-    historial: body.historial,
-    origen: textoSeguro(body.origen, 50) || "eos-web",
-    nuevoChat: body.nuevo_chat === true,
-    cita: body.cita,
-    requestId: body.request_id,
-    nombreFallback,
-    requestOrigin: new URL(req.url).origin,
-  });
+  /*
+   * Anotar que llegó, antes de trabajar (27/09/2026). Si la conexión del
+   * teléfono se corta, la app pregunta si el pedido llegó y lo reenvía con el
+   * mismo `request_id` si no. Un reenvío de algo que ya está acá no se procesa
+   * otra vez: se contesta lo que hay. Ver `lib/eos/envio-confiable.ts`.
+   */
+  const llegada = await anotarLlegada(user.id, body.request_id);
+
+  if (llegada.tipo === "terminado") {
+    return Response.json(llegada.guardada.cuerpo, {
+      status: llegada.guardada.estado_http,
+      headers: noStoreHeaders(),
+    });
+  }
+
+  if (llegada.tipo === "en_proceso") {
+    return Response.json(
+      { en_proceso: true, respuesta: "Ya recibí tu mensaje y lo estoy trabajando." },
+      { status: 202, headers: noStoreHeaders() },
+    );
+  }
+
+  if (llegada.tipo === "ajeno") {
+    return Response.json(
+      { respuesta: "La solicitud enviada no es válida." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  let resultado: Awaited<ReturnType<typeof procesarMensajeEOS>>;
+  try {
+    resultado = await procesarMensajeEOS(user.id, {
+      mensaje,
+      archivos,
+      conversacionId: textoSeguro(body.conversacion_id, 120),
+      historial: body.historial,
+      origen: textoSeguro(body.origen, 50) || "eos-web",
+      nuevoChat: body.nuevo_chat === true,
+      cita: body.cita,
+      requestId: body.request_id,
+      nombreFallback,
+      requestOrigin: new URL(req.url).origin,
+    });
+  } catch (error) {
+    // Sin esto la fila quedaba "en proceso" y la app esperaba minutos por nada.
+    console.error("EOS: el procesamiento del mensaje falló:", error);
+    resultado = {
+      status: 500,
+      body: {
+        respuesta:
+          "EOS recibió tu mensaje, pero tuvo un problema procesándolo. Probá de nuevo en unos segundos.",
+      },
+    };
+  }
 
   /*
    * Al buzón ANTES de responder (v196). Si el teléfono ya cortó la conexión,
    * esta es la única copia de la respuesta: la app la va a pedir a
    * `/api/eos/resultado` en vez de mostrar "no pude conectarme".
+   *
+   * Menos un "ese pedido ya está en curso / ya se procesó": pisaría la
+   * respuesta de verdad del mismo `request_id`.
    */
-  await guardarRespuesta(user.id, body.request_id, resultado.status, resultado.body);
+  const code = (resultado.body as { code?: unknown }).code;
+  const esRepeticion =
+    code === "EOS_MESSAGE_REQUEST_IN_PROGRESS" || code === "EOS_MESSAGE_REQUEST_ALREADY_CONSUMED";
+
+  if (!esRepeticion) {
+    await guardarRespuesta(user.id, body.request_id, resultado.status, resultado.body);
+  }
 
   return Response.json(resultado.body, {
     status: resultado.status,
