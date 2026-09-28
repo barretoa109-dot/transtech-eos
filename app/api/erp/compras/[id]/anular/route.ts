@@ -55,6 +55,15 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     });
 
     if (texto.includes("EOS_COMPRA_NO_EXISTE")) return respuesta("Compra no encontrada.", 404);
+    // Desde la v209 editar y anular se llevan los pagos consigo; esto queda
+    // por si la base todavía no tiene esa migración, o por otro camino.
+    if (texto.includes("EOS_DOCUMENTO_CON_COBRANZAS") || texto.includes("cuenta_movimientos")) {
+      return respuesta(
+        "Esta compra tiene pagos registrados y todavía no se puede cambiar desde acá. Avisanos y lo resolvemos.",
+        409,
+      );
+    }
+
     console.error("ERP: no se pudo anular la compra:", error);
     return respuesta("No pudimos anular la compra.", 503);
   }
