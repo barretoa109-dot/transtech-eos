@@ -601,7 +601,7 @@ export default function Home() {
             </div>
           </div>
           <div className="footer-bottom">
-            <span>© 2026 TRANSTECH. Todos los derechos reservados.</span>
+            <span>© 2026 TRANSTECH E.A.S. Todos los derechos reservados.</span>
             <span>Asunción, Paraguay</span>
           </div>
         </div>
