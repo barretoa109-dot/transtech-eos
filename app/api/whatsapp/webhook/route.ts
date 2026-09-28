@@ -7,6 +7,7 @@ import { renderizarDocumento } from "@/lib/documentos/renderizar";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { descargarMedia } from "@/lib/whatsapp/media";
+import { desarmarVideoDeWhatsapp } from "@/lib/whatsapp/video";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
 import {
   ESPERA_RAFAGA_MS,
@@ -512,13 +513,35 @@ async function atenderMensajeVinculado(
 
   let mensajeTexto = lote.texto;
 
-  const descargados = await Promise.all(
-    lote.medios.map((m) => descargarMedia(m.media_id, m.mime_type, m.nombre)),
-  );
-  const archivos: ArchivoEOS[] = descargados.filter((a): a is ArchivoEOS => a !== null);
+  /*
+   * Los videos no viajan como archivo: se desarman en cuadros y audio, como en
+   * la app (`lib/whatsapp/video.ts`). Si uno no se puede abrir, su aviso va con
+   * la respuesta y el resto del mensaje se atiende igual.
+   */
+  const esVideo = (m: { mime_type: string; nombre: string }) =>
+    m.mime_type.toLowerCase().startsWith("video/") || m.nombre.startsWith("whatsapp-video");
+  const videos = lote.medios.filter(esVideo);
+  const otros = lote.medios.filter((m) => !esVideo(m));
+
+  const [descargados, desarmados] = await Promise.all([
+    Promise.all(otros.map((m) => descargarMedia(m.media_id, m.mime_type, m.nombre))),
+    Promise.all(videos.map((m) => desarmarVideoDeWhatsapp(m.media_id, m.mime_type, m.nombre))),
+  ]);
+
+  const archivos: ArchivoEOS[] = [
+    ...descargados.filter((a): a is ArchivoEOS => a !== null),
+    ...desarmados.flatMap((v) => (v.ok ? v.archivos : [])),
+  ];
+  const notasDeVideos = desarmados.flatMap((v) => (v.ok ? [v.nota] : []));
+  const avisosDeVideos = desarmados.flatMap((v) => (v.ok ? [] : [v.aviso]));
 
   if (lote.noLegibles.length > 0) {
     console.warn(`WhatsApp: llegaron tipos que no se leen (${lote.noLegibles.join(", ")}).`);
+  }
+
+  if (!mensajeTexto && archivos.length === 0 && avisosDeVideos.length > 0) {
+    await enviarTexto(desde, avisosDeVideos.join("\n\n"));
+    return;
   }
 
   if (!mensajeTexto && archivos.length === 0) {
@@ -535,8 +558,10 @@ async function atenderMensajeVinculado(
     return;
   }
 
-  if (archivos.length < lote.medios.length) {
-    const faltan = lote.medios.length - archivos.length;
+  const bajados = descargados.filter((a) => a !== null).length;
+
+  if (bajados < otros.length) {
+    const faltan = otros.length - bajados;
     const aviso =
       faltan === 1
         ? "(Una de las fotos no me llegó bien desde WhatsApp: si falta algo, mandala de nuevo.)"
@@ -551,7 +576,21 @@ async function atenderMensajeVinculado(
    * defecto antes de mandar (`lib/eos/adjuntos.ts`); acá faltaba.
    */
   if (!mensajeTexto && archivos.length > 0) {
-    mensajeTexto = textoPorDefecto(archivos);
+    // Con videos se cuenta lo que mandó la persona ("este video"), no las
+    // piezas en que se desarmó ("estos 5 archivos").
+    mensajeTexto = textoPorDefecto([
+      ...descargados.filter((a): a is ArchivoEOS => a !== null),
+      ...videos
+        .filter((_, i) => desarmados[i]?.ok)
+        .map((m) => ({ nombre: m.nombre, tipo: "video/mp4", base64: "-" })),
+    ]);
+  }
+
+  // Lo que EOS tiene que saber de cada video, y lo que no se pudo abrir.
+  if (notasDeVideos.length > 0 || avisosDeVideos.length > 0) {
+    mensajeTexto = [mensajeTexto, ...notasDeVideos, ...avisosDeVideos.map((a) => `(${a})`)]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   if (mensajeTexto.length > MAX_MESSAGE_LENGTH) {

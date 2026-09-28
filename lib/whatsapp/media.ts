@@ -19,6 +19,31 @@ export async function descargarMedia(
   mimeType: string,
   nombreSugerido: string,
 ): Promise<ArchivoEOS | null> {
+  const bajado = await descargarBytes(mediaId, mimeType);
+  if (!bajado) return null;
+
+  try {
+    return normalizarArchivo({
+      nombre: nombreSugerido,
+      tipo: bajado.tipo,
+      base64: bajado.bytes.toString("base64"),
+      tamanio: bajado.bytes.length,
+    });
+  } catch (error) {
+    console.error("WhatsApp: el adjunto no se pudo usar:", error);
+    return null;
+  }
+}
+
+/**
+ * Los bytes de un adjunto, tal cual llegan. Lo usa `descargarMedia` y, para
+ * los videos —que no viajan como archivo sino desarmados—,
+ * `lib/whatsapp/video.ts`.
+ */
+export async function descargarBytes(
+  mediaId: string,
+  mimeType: string,
+): Promise<{ bytes: Buffer; tipo: string } | null> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!token || !mediaId) {
     console.error("WhatsApp: falta WHATSAPP_ACCESS_TOKEN o el id del adjunto.");
@@ -47,14 +72,10 @@ export async function descargarMedia(
       return null;
     }
 
-    const buffer = Buffer.from(await archivoResp.arrayBuffer());
-
-    return normalizarArchivo({
-      nombre: nombreSugerido,
+    return {
+      bytes: Buffer.from(await archivoResp.arrayBuffer()),
       tipo: meta.mime_type || mimeType,
-      base64: buffer.toString("base64"),
-      tamanio: buffer.length,
-    });
+    };
   } catch (error) {
     console.error("WhatsApp: error descargando un adjunto:", error);
     return null;

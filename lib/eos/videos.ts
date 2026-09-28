@@ -159,3 +159,35 @@ export function notaDelVideo(video: {
     video.segundos.length
   } cuadros de ese video, en orden (${momentos}). ${audio}]`;
 }
+
+/**
+ * Por WhatsApp un video puede durar más: el tope ahí lo pone WhatsApp (16 MB,
+ * unos tres minutos). Se aceptan hasta tres; el audio entero se transcribe.
+ */
+export const DURACION_MAXIMA_VIDEO_WHATSAPP = 180;
+
+/**
+ * La duración que ffmpeg imprime al abrir un archivo ("Duration: 00:00:42.50").
+ * `null` si no la dice, que es como ffmpeg avisa que no lo pudo abrir.
+ */
+export function duracionDeFfmpeg(salida: string): number | null {
+  const m = /Duration:\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/.exec(salida);
+  if (!m) return null;
+
+  const segundos = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  return Number.isFinite(segundos) && segundos > 0 ? segundos : null;
+}
+
+/** `tieneSonido`, pero sobre un WAV de 16 bits ya armado (el que da ffmpeg). */
+export function wavTieneSonido(wav: Uint8Array, umbral = 0.01): boolean {
+  if (wav.length <= 44) return false;
+
+  const vista = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
+  const limite = umbral * 0x8000;
+
+  for (let i = 44; i + 1 < wav.length; i += 2) {
+    if (Math.abs(vista.getInt16(i, true)) > limite) return true;
+  }
+
+  return false;
+}
