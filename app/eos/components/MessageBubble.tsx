@@ -8,12 +8,14 @@ import {
   Download,
   MessageSquareQuote,
   RefreshCw,
+  Play,
   ShieldCheck,
   X,
 } from "lucide-react";
 
 import { armarCita, type Cita } from "@/lib/eos/cita";
 import { textoSinReferenciaDeFotos } from "@/lib/eos/fotos-chat";
+import { formatoDuracion } from "@/lib/eos/videos";
 import type { ImagenDelMensaje } from "../types/chat";
 
 type MessageBubbleProps = {
@@ -230,6 +232,13 @@ export default function MessageBubble({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- base64 o enlace firmado de una hora: next/image no aporta nada acá. */}
                 <img src={foto.src} alt={foto.nombre || "Imagen adjunta"} loading="lazy" />
+                {foto.duracion ? (
+                  // El video no se guarda: queda su primer cuadro, marcado como video.
+                  <span className="message-video-marca" aria-hidden="true">
+                    <Play size={10} fill="currentColor" strokeWidth={0} />
+                    {formatoDuracion(foto.duracion)}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -552,6 +561,7 @@ export default function MessageBubble({
         }
 
         .message-foto {
+          position: relative;
           display: block;
           padding: 0;
           border: 1px solid rgba(120, 130, 150, 0.25);
@@ -578,6 +588,22 @@ export default function MessageBubble({
           height: auto;
           max-height: 320px;
           object-fit: contain;
+        }
+
+        .message-video-marca {
+          position: absolute;
+          left: 6px;
+          bottom: 6px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 7px;
+          border-radius: 999px;
+          background: rgba(8, 12, 20, 0.72);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 16px;
         }
 
         .message-foto:focus-visible {

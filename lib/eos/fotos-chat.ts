@@ -75,7 +75,10 @@ export function rutaEsDe(usuarioId: string, ruta: unknown): ruta is string {
 export type FotoGuardada = {
   ruta: string;
   nombre: string;
+  /** El del archivo original: `video/…` si la miniatura es de un video. */
   tipo: string;
+  /** Solo en los videos, en segundos. */
+  duracion?: number;
 };
 
 /**
@@ -95,19 +98,42 @@ export function fotosDeMetadata(metadata: unknown): FotoGuardada[] {
   for (const cruda of crudas) {
     if (!cruda || typeof cruda !== "object") continue;
 
-    const { ruta, nombre, tipo } = cruda as Record<string, unknown>;
+    const { ruta, nombre, tipo, duracion } = cruda as Record<string, unknown>;
     if (typeof ruta !== "string" || !ruta) continue;
 
     fotos.push({
       ruta,
       nombre: typeof nombre === "string" ? nombre : "",
       tipo: typeof tipo === "string" ? tipo : "",
+      ...(typeof duracion === "number" && Number.isFinite(duracion) && duracion > 0
+        ? { duracion }
+        : {}),
     });
 
     if (fotos.length === MAX_ADJUNTOS) break;
   }
 
   return fotos;
+}
+
+/**
+ * Cómo se llama lo que se adjuntó, en la línea que queda escrita en el
+ * mensaje: "[Imagen adjunta: …]", "[Videos adjuntos: …]".
+ *
+ * Fotos y videos juntos tienen su propia etiqueta, y no "Archivos adjuntos",
+ * porque los dos se ven como miniatura y la línea se puede ocultar. Con un
+ * PDF de por medio es "Archivos adjuntos" y se queda: es lo único que lo nombra.
+ */
+export function etiquetaDeAdjuntos(tipos: string[]): string {
+  const uno = tipos.length === 1;
+  const imagen = (t: string) => t.toLowerCase().startsWith("image/");
+  const video = (t: string) => t.toLowerCase().startsWith("video/");
+
+  if (tipos.every(imagen)) return uno ? "Imagen adjunta" : "Imágenes adjuntas";
+  if (tipos.every(video)) return uno ? "Video adjunto" : "Videos adjuntos";
+  if (tipos.every((t) => imagen(t) || video(t))) return "Fotos y videos adjuntos";
+
+  return uno ? "Archivo adjunto" : "Archivos adjuntos";
 }
 
 /**
@@ -119,7 +145,10 @@ export function fotosDeMetadata(metadata: unknown): FotoGuardada[] {
  * queda, porque es lo único que dice que esa foto existió.
  */
 export function textoSinReferenciaDeFotos(texto: string, fotosVisibles: number): string {
-  const linea = /\n*\[Im[áa]gen(?:es)? adjuntas?:([^\]]*)\]\s*$/i.exec(texto);
+  const linea =
+    /\n*\[(?:Im[áa]gen(?:es)? adjuntas?|Videos? adjuntos?|Fotos y videos adjuntos):([^\]]*)\]\s*$/i.exec(
+      texto,
+    );
   if (!linea || fotosVisibles <= 0) return texto;
 
   const nombradas = linea[1].split(",").filter((n) => n.trim()).length;
@@ -133,7 +162,9 @@ export function textoSinReferenciaDeFotos(texto: string, fotosVisibles: number):
   return esPedidoPorDefectoDeFotos(resto) ? "" : resto;
 }
 
-/** El texto que arma `textoPorDefecto` para fotos, y nada más que eso. */
+/** El texto que arma `textoPorDefecto` para fotos y videos, y nada más que eso. */
 function esPedidoPorDefectoDeFotos(texto: string): boolean {
-  return /^Analizá (esta imagen: [^\n]+|estas \d+ imágenes)$/.test(texto.trim());
+  return /^Analizá (esta imagen: [^\n]+|este video: [^\n]+|estas \d+ imágenes|estos \d+ (videos|archivos))$/.test(
+    texto.trim(),
+  );
 }

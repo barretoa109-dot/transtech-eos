@@ -1,5 +1,6 @@
 import { LADO_MAXIMO_IMAGEN, MAX_BYTES_POR_ARCHIVO, medidaParaModelo } from "@/lib/eos/adjuntos";
 import type { ArchivoAdjunto } from "../types/chat";
+import { procesarVideo } from "./video";
 
 const TAMANIO_MAXIMO = MAX_BYTES_POR_ARCHIVO;
 
@@ -16,6 +17,9 @@ const CALIDAD_JPEG = 0.82;
 const TIPOS_PERMITIDOS = [
   // Imágenes
   "image/",
+
+  // Videos: se desarman en cuadros y audio antes de salir (`video.ts`).
+  "video/",
 
   // PDF
   "application/pdf",
@@ -114,7 +118,12 @@ async function achicarImagen(file: File): Promise<File> {
  */
 export async function convertirArchivoABase64(file: File): Promise<ArchivoAdjunto> {
   if (!tipoPermitido(file.type)) {
-    throw new Error("Formato no soportado. EOS acepta imágenes, PDF, Word, Excel, CSV y TXT.");
+    throw new Error("Formato no soportado. EOS acepta imágenes, videos, PDF, Word, Excel, CSV y TXT.");
+  }
+
+  // El video tiene su propio tope —duración, no peso— y nunca viaja entero.
+  if (file.type.startsWith("video/")) {
+    return procesarVideo(file);
   }
 
   if (file.size > TAMANIO_MAXIMO) {

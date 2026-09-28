@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Send, X } from "lucide-react";
+import { Mic, Paperclip, Play, Send, X } from "lucide-react";
+
+import { formatoDuracion } from "@/lib/eos/videos";
 import MessageBubble from "./MessageBubble";
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import { debeEnviarConEnter } from "@/lib/eos/composer";
@@ -397,7 +399,8 @@ function Composer({
   // Con el índice original: "Quitar" borra por posición en la lista completa.
   const conIndice = archivosAdjuntos.map((archivo, indice) => ({ archivo, indice }));
   const fotosAdjuntas = conIndice.filter(
-    ({ archivo }) => archivo.tipo.startsWith("image/") && Boolean(archivo.base64),
+    ({ archivo }) =>
+      (archivo.tipo.startsWith("image/") || Boolean(archivo.video)) && Boolean(archivo.base64),
   );
   const otrosAdjuntos = conIndice.filter((a) => !fotosAdjuntas.includes(a));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -448,7 +451,16 @@ function Composer({
           {fotosAdjuntas.map(({ archivo, indice }) => (
             <div className="adjunto-foto" key={`${archivo.nombre}-${indice}`}>
               {/* eslint-disable-next-line @next/next/no-img-element -- base64 local, next/image no aplica. */}
-              <img src={`data:${archivo.tipo};base64,${archivo.base64}`} alt={archivo.nombre} />
+              <img
+                src={`data:${archivo.video ? "image/jpeg" : archivo.tipo};base64,${archivo.base64}`}
+                alt={archivo.nombre}
+              />
+              {archivo.video ? (
+                <span className="adjunto-video-marca" aria-hidden="true">
+                  <Play size={9} fill="currentColor" strokeWidth={0} />
+                  {formatoDuracion(archivo.video.duracion)}
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={() => onQuitarArchivo(indice)}

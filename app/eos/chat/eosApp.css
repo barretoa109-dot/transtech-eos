@@ -1381,6 +1381,23 @@
   border: 1px solid rgba(22, 86, 189, 0.18);
   background: var(--blue-light);
 }
+/* Un video se reconoce por la marca: ▶ y cuánto dura, sobre su primer cuadro. */
+.eos-app .adjunto-video-marca {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.72);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 14px;
+  pointer-events: none;
+}
 .eos-app .adjunto-foto button {
   position: absolute;
   top: -6px;
