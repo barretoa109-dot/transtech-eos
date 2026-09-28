@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { textoPorDefecto } from "@/lib/eos/adjuntos";
 
@@ -213,6 +213,18 @@ export function useChat({
    */
   const [cita, setCita] = useState<Cita | null>(null);
 
+  /*
+   * Los adjuntos del último envío, para que "Regenerar" los vuelva a mandar
+   * (27/09/2026). Regeneraba solo el texto: un mensaje con dos capturas que
+   * falló por la red se rehacía SIN las capturas, y EOS contestaba sin haber
+   * visto los montos. Viven solo en memoria: al recargar la página se
+   * pierden, igual que antes.
+   */
+  const archivosDelUltimoEnvio = useRef<{ conversacionId: string; archivos: ArchivoAdjunto[] }>({
+    conversacionId: "",
+    archivos: [],
+  });
+
   const ejecutarEOS = useCallback(
     async ({
       textoUsuario,
@@ -417,6 +429,10 @@ export function useChat({
 
     const archivosActuales = archivosAdjuntos;
     const citaActual = cita;
+    archivosDelUltimoEnvio.current = {
+      conversacionId: conversacionActiva,
+      archivos: archivosActuales,
+    };
 
     const textoUsuario =
       textoFinal.trim() || textoPorDefecto(archivosActuales);
@@ -555,7 +571,11 @@ export function useChat({
       conversacionActiva: conversacionId,
       historialParaContexto:
         historialSinUltimaRespuesta.slice(-10),
-      archivos: [],
+      // Solo si son de ESTA conversación: el último envío pudo ser en otra.
+      archivos:
+        archivosDelUltimoEnvio.current.conversacionId === conversacionId
+          ? archivosDelUltimoEnvio.current.archivos
+          : [],
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
       // Regenerar rehace el último mensaje tal como se mandó, y la cita ya

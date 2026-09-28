@@ -47,8 +47,14 @@ export const MAX_BYTES_POR_ARCHIVO = 15 * 1024 * 1024;
  * Es el número que de verdad tiene que entrar en el cuerpo del pedido. Se mide
  * sobre el base64 y no sobre los bytes originales porque es lo que viaja:
  * base64 agrega un tercio.
+ *
+ * 4 MB y no 18 (27/09/2026): Vercel rechaza todo pedido de más de 4,5 MB
+ * ANTES de que corra la función, y el teléfono lo ve como un corte de red. Un
+ * tope mayor que el de la plataforma dejaba pasar adjuntos que después se
+ * perdían sin explicación. El medio MB que sobra es para el historial y el
+ * resto del JSON.
  */
-export const MAX_BASE64_TOTAL = 18 * 1024 * 1024;
+export const MAX_BASE64_TOTAL = 4 * 1024 * 1024;
 
 /**
  * El lado más largo al que se achica una imagen.
