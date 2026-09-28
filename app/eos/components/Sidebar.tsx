@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { filtrarConversaciones } from "@/lib/eos/buscar-chats";
 import { BarChart3, CalendarDays, FileText, Handshake, Lightbulb, Plus, ScrollText, Store, Wallet, PanelLeftClose } from "lucide-react";
 
 type Conversacion = {
@@ -16,6 +17,10 @@ type SidebarProps = {
   plan: string;
   vista: Vista;
   busqueda: string;
+  /** Chats con un mensaje que coincide con la búsqueda, y el pedazo que coincide. */
+  coincidencias?: Record<string, string>;
+  /** Mientras se busca en los mensajes. */
+  buscando?: boolean;
   conversacionId: string;
   conversaciones: Conversacion[];
   colapsado: boolean;
@@ -74,6 +79,8 @@ export default function Sidebar({
   plan,
   vista,
   busqueda,
+  coincidencias = {},
+  buscando = false,
   conversacionId,
   conversaciones,
   onToggleColapsado,
@@ -82,9 +89,8 @@ export default function Sidebar({
   onNuevoChat,
   onAbrirConversacion,
 }: SidebarProps) {
-  const conversacionesFiltradas = conversaciones.filter((c) =>
-    (c.titulo || "Nuevo chat").toLowerCase().includes(busqueda.toLowerCase()),
-  );
+  // Por título y por lo que se habló (`lib/eos/buscar-chats.ts`).
+  const conversacionesFiltradas = filtrarConversaciones(conversaciones, busqueda, coincidencias);
 
   const iniciales =
     nombre
@@ -120,9 +126,9 @@ export default function Sidebar({
 
       <div className="search-row">
         <input
-          type="text"
-          aria-label="Buscar conversaciones"
-          placeholder="Buscar conversaciones"
+          type="search"
+          aria-label="Buscar en tus chats"
+          placeholder="Buscar en tus chats"
           value={busqueda}
           onChange={(e) => onBusquedaChange(e.target.value)}
         />
@@ -145,7 +151,7 @@ export default function Sidebar({
 
         {conversacionesFiltradas.length === 0 ? (
           <div className="conv" style={{ color: "var(--muted)", cursor: "default" }}>
-            {busqueda ? "Sin resultados" : "Todavía no hay conversaciones"}
+            {busqueda ? (buscando ? "Buscando…" : "Sin resultados") : "Todavía no hay conversaciones"}
           </div>
         ) : (
           conversacionesFiltradas.map((c) => (
@@ -156,6 +162,9 @@ export default function Sidebar({
               onClick={() => onAbrirConversacion(c.id)}
             >
               {c.titulo || "Nuevo chat"}
+              {busqueda && coincidencias[c.id] ? (
+                <span className="frag">{coincidencias[c.id]}</span>
+              ) : null}
               <span className="d">{formatearFecha(c.created_at)}</span>
             </button>
           ))
