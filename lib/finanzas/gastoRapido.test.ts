@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { confirmar, interpretar, leerFecha, leerMonto, numeroEscrito } from "./gastoRapido.ts";
+import { confirmar, interpretar, leerFecha, leerMonto, noEsGastoSuelto, numeroEscrito } from "./gastoRapido.ts";
 
 const HOY = "2026-08-25";
 
@@ -135,4 +135,24 @@ test("coma con tres dígitos sin multiplicador son miles", () => {
 
 test("la k pegada sigue siendo mil", () => {
   assert.equal(leerMonto("50k de super")?.monto, 50_000);
+});
+
+/* ==================== LO QUE NO ES UN GASTO SUELTO ==================== */
+
+test("caso real del 27/09: una corrección de un fijo no se guarda como gasto nuevo", () => {
+  assert.ok(noEsGastoSuelto("OpenAI y Claude Pro son 120.000gs mensuales, no 120gs"));
+  assert.ok(noEsGastoSuelto("donde dice 120 en Claude cambiá a 120.000"));
+  assert.ok(noEsGastoSuelto("el de la farmacia estaba mal, eran 22 mil"));
+});
+
+test("un gasto que se repite va al chat, que lo anota como fijo", () => {
+  assert.ok(noEsGastoSuelto("Netflix 60 mil por mes"));
+  assert.ok(noEsGastoSuelto("alquiler 2 millones cada mes"));
+});
+
+test("un gasto normal pasa", () => {
+  assert.equal(noEsGastoSuelto("gasté 50 mil en nafta"), null);
+  assert.equal(noEsGastoSuelto("almuerzo 35.000"), null);
+  assert.equal(noEsGastoSuelto("cobré 1,5 millones de Juan"), null);
+  assert.equal(noEsGastoSuelto("super 120 mil, no incluye la carne"), null);
 });

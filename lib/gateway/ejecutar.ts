@@ -149,6 +149,21 @@ const HECHO: Record<string, string> = {
   ENVIAR_WHATSAPP_CLIENTE: "Le escribí por WhatsApp.",
 };
 
+/**
+ * La compra con tarjeta, diciendo si hubo que crear la tarjeta (v208).
+ *
+ * Antes, una tarjeta que no estaba cargada frenaba la compra y la compra no
+ * se retomaba nunca (27/09/2026). Ahora se crea en el momento; lo único que
+ * le falta es el ciclo, y eso es lo que hay que pedir.
+ */
+export function fraseDeCompraConTarjeta(resultado: unknown): string {
+  const r = (resultado ?? {}) as { tarjeta_creada?: unknown; tarjeta?: unknown };
+  if (r.tarjeta_creada !== true) return HECHO.REGISTRAR_COMPRA_TARJETA;
+
+  const nombre = typeof r.tarjeta === "string" && r.tarjeta.trim() ? r.tarjeta.trim() : "esa tarjeta";
+  return `Anoté la compra. ${nombre} no estaba cargada: la agregué. Decime qué día cierra y qué día vence, así sé cuándo cae.`;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function esUuid(v: unknown): v is string {
@@ -279,7 +294,9 @@ async function ramaInterna(
             String((resultado.resultado as Record<string, unknown> | undefined)?.contacto_nombre ?? ""),
             (resultado.resultado as { envio?: EnvioDeChat } | undefined)?.envio,
           )
-        : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
+        : job.accion.tipo === "REGISTRAR_COMPRA_TARJETA"
+          ? fraseDeCompraConTarjeta(resultado.resultado)
+          : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
       : String(resultado.error ?? "No fue posible completar la acción interna."),
   };
 }

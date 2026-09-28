@@ -215,6 +215,36 @@ export function interpretar(texto: string, hoy: string): GastoRapido | null {
 }
 
 /**
+ * ¿Esta línea NO es un gasto suelto, aunque tenga un importe?
+ *
+ * Caso real (27/09/2026): en la caja rápida de Personal alguien escribió
+ * "OpenAI y Claude Pro son 120.000gs mensuales, no 120gs" —estaba corrigiendo
+ * un gasto fijo— y se guardó un gasto NUEVO de ₲ 120.000 llamado "OpenAI
+ * Claude Pro son mensuales no". La caja no pide confirmación a propósito, así
+ * que lo que no es un gasto de una vez no puede entrar por acá: una
+ * corrección o algo que se repite todos los meses lo resuelve el chat, que
+ * sabe buscar lo que ya está anotado y cambiarlo.
+ *
+ * Devuelve el motivo para mostrar, o `null` si es un gasto normal.
+ */
+const SE_REPITE =
+  /\b(mensual(es|mente)?|por mes|cada mes|todos los meses|al mes|semanal(es)?|cada semana|anual(es)?|por año|cada año|suscripci[oó]n|d[eé]bito autom[aá]tico|de cada mes)\b/;
+const CORRIGE =
+  /\b(correg\w*|corrij\w*|cambi[aá]\w*|en vez de|en lugar de|donde dice|deber[ií]a|deb[eé]s|estaba mal|est[aá] mal|no era|no son)\b|,\s*no\s+\d/;
+
+export function noEsGastoSuelto(texto: string): string | null {
+  const plano = sinAcentos((texto ?? "").toLowerCase());
+
+  if (CORRIGE.test(plano)) {
+    return "Eso parece una corrección de algo que ya está anotado. Decíselo a EOS en el chat y lo corrige ahí; esta caja solo anota gastos nuevos.";
+  }
+  if (SE_REPITE.test(plano)) {
+    return "Eso parece un gasto que se repite. Decíselo a EOS en el chat y lo anota como fijo; esta caja solo anota gastos de una vez.";
+  }
+  return null;
+}
+
+/**
  * Lo que la pantalla le devuelve al usuario después de guardar.
  *
  * No es cortesía: es el mecanismo de corrección. Como esto se guarda sin pedir
