@@ -579,6 +579,9 @@ export default function Home() {
                 <div className="footer-brand">TRANSTECH</div>
               </div>
               <div className="footer-tag">TECNOLOGÍA E INTELIGENCIA</div>
+              <div className="footer-legal">
+                TRANSTECH E.A.S. · RUC 80174259-5
+              </div>
             </div>
             <div className="footer-cols">
               <div className="footer-col">
@@ -1355,6 +1358,11 @@ export default function Home() {
           color: var(--muted);
           margin-top: 4px;
           letter-spacing: 0.4px;
+        }
+        .footer-legal {
+          font-size: 12.5px;
+          color: var(--muted);
+          margin-top: 18px;
         }
         .footer-cols {
           display: flex;
