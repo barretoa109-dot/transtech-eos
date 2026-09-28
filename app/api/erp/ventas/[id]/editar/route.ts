@@ -138,6 +138,15 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
       );
     }
 
+    // Desde la v209 editar y anular se llevan los cobros consigo; esto queda
+    // por si la base todavía no tiene esa migración, o por otro camino.
+    if (texto.includes("EOS_DOCUMENTO_CON_COBRANZAS") || texto.includes("cuenta_movimientos")) {
+      return respuesta(
+        "Esta venta tiene cobros registrados y todavía no se puede cambiar desde acá. Avisanos y lo resolvemos.",
+        409,
+      );
+    }
+
     console.error("ERP: no se pudo editar la venta:", error);
     return respuesta("No pudimos editar la venta.", 503);
   }

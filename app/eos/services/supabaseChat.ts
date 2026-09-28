@@ -1,5 +1,6 @@
 import { supabase } from "../../../lib/supabase";
 import { fotosDeMetadata, type FotoGuardada } from "@/lib/eos/fotos-chat";
+import { MINIMO_PARA_BUSCAR, fragmento, patronIlike } from "@/lib/eos/buscar-chats";
 import type { Conversacion, Mensaje } from "../types/chat";
 
 export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
@@ -215,4 +216,43 @@ export async function actualizarTituloConversacion(
   await supabase.from("conversaciones").update({ titulo }).eq("id", conversacionId);
 
   return titulo;
+}
+/**
+ * Las conversaciones con algún mensaje que dice lo buscado, y el pedazo donde
+ * lo dice (el mensaje más reciente que coincide). Lo usa el buscador de la
+ * barra lateral: el título solo no alcanza para encontrar un chat.
+ *
+ * Con la sesión del usuario: la RLS de `mensajes` solo deja ver los suyos, y
+ * además se filtra por `usuario_id` explícito.
+ */
+export async function buscarEnMensajes(
+  usuarioId: string,
+  consulta: string
+): Promise<Record<string, string>> {
+  if (!usuarioId || consulta.trim().length < MINIMO_PARA_BUSCAR) return {};
+
+  const { data, error } = await supabase
+    .from("mensajes")
+    .select("conversacion_id, texto")
+    .eq("usuario_id", usuarioId)
+    .ilike("texto", patronIlike(consulta))
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error("No se pudo buscar en los mensajes:", error);
+    return {};
+  }
+
+  const coincidencias: Record<string, string> = {};
+
+  for (const fila of data ?? []) {
+    const id = typeof fila.conversacion_id === "string" ? fila.conversacion_id : "";
+    if (!id || id in coincidencias) continue;
+
+    const pedazo = fragmento(String(fila.texto ?? ""), consulta);
+    if (pedazo) coincidencias[id] = pedazo;
+  }
+
+  return coincidencias;
 }

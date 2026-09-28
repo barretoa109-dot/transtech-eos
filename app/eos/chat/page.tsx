@@ -23,6 +23,7 @@ import { useTema } from "../components/useTema";
 import { useBriefing } from "../hooks/useBriefing";
 import { tieneTituloPorDefecto, useConversations } from "../hooks/useConversations";
 import { useChat } from "../hooks/useChat";
+import { useBusquedaChats } from "../hooks/useBusquedaChats";
 
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { appTechCanvas } from "@/components/effects/techCanvasPresets";
@@ -276,11 +277,15 @@ export default function EOSPage() {
     setArchivosAdjuntos(archivosAdjuntos.filter((_, i) => i !== indice));
   }
 
+  const { coincidencias, buscando } = useBusquedaChats(usuarioId, busqueda);
+
   const sidebarProps = {
     nombre,
     plan,
     vista,
     busqueda,
+    coincidencias,
+    buscando,
     conversacionId,
     conversaciones,
     colapsado: sidebarColapsado,
