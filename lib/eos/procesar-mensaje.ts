@@ -37,6 +37,7 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { bloqueDeDocumento } from "@/lib/eos/adjuntos";
 import { dentroDeRafaga } from "@/lib/seguridad/rafaga";
+import { guardarTiempos, tiemposDelTurno } from "@/lib/eos/tiempos";
 import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import type { Documento } from "@/lib/documentos/especificacion";
 import { respuestaSinDocumentos } from "@/lib/documentos/sin-modulo";
@@ -598,6 +599,16 @@ export async function procesarMensajeEOS(
   entrada: EntradaProcesamiento,
 ): Promise<ResultadoProcesamiento> {
   const comienzo = Date.now();
+  /*
+   * Milisegundos desde `comienzo` al terminar cada etapa. La meta del tablero
+   * (encargado-02) es una mediana de menos de 8 s, y sin partirla no se sabe a
+   * qué parte apuntar: el modelo solo, medido con la batería, tarda ~3 s.
+   * Se guardan en `turno` de eos_message_usage_v40 (ver `guardarTiempos`).
+   */
+  const tiempos: Record<string, number> = {};
+  const marcar = (etapa: string) => {
+    tiempos[etapa] = Date.now() - comienzo;
+  };
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
 
@@ -897,6 +908,7 @@ export async function procesarMensajeEOS(
     ]
       .filter((parte) => parte.trim() !== "")
       .join("\n\n");
+    marcar("contexto");
 
     const origen = textoSeguro(entrada.origen, 50) || "eos-web";
     const nuevoChat = entrada.nuevoChat === true;
@@ -1059,6 +1071,7 @@ export async function procesarMensajeEOS(
     };
 
     releaseReservedQuota = releaseQuota;
+    marcar("cupo");
 
     const n8nHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (process.env.N8N_EOS_INTERNAL_SECRET) {
@@ -1178,6 +1191,7 @@ export async function procesarMensajeEOS(
     }
 
     const rawText = await n8nResponse.text();
+    marcar("respuesta");
 
     if (!n8nResponse.ok) {
       /*
@@ -1420,6 +1434,21 @@ export async function procesarMensajeEOS(
 
     quotaReleased = true;
     releaseReservedQuota = null;
+    marcar("cierre");
+
+    // Corre después de la respuesta: para entonces ya está marcado el "fin".
+    const diagnostico = {
+      soloMemoria,
+      verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
+    };
+    after(() =>
+      guardarTiempos(
+        quotaAdmin,
+        usuarioId,
+        payload.request_id,
+        tiemposDelTurno(tiempos, resultado.metadata, diagnostico),
+      ),
+    );
 
     /*
      * El aviso interno de consumo (Gs. 70.000 en el mes, ver
@@ -1550,6 +1579,7 @@ export async function procesarMensajeEOS(
      * sus datos. Lo que va son identificadores, tipos de acción y estados —que
      * es exactamente lo que sirve para diagnosticar y nada más.
      */
+    marcar("fin");
     console.info(
       "EOS mensaje:",
       JSON.stringify({
@@ -1573,6 +1603,7 @@ export async function procesarMensajeEOS(
         camino_accion: turnoDeAccion,
         solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,
+        tiempos: tiemposDelTurno(tiempos, resultado.metadata),
       }),
     );
 

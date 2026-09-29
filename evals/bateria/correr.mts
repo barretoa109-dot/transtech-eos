@@ -6,6 +6,7 @@
  *     npm run bateria -- --grupo correccion   # solo un grupo
  *     npm run bateria -- --id ropa-cobro,agro-anular  # frases sueltas
  *     npm run bateria -- --rubro ferreteria   # solo un rubro (almacen, ropa, ferreteria, agro, comida, servicios)
+ *     npm run bateria -- --esfuerzo low       # razonamiento: none, low, medium o high
  *
  * Arma el pedido con las MISMAS funciones del gateway en TypeScript
  * (`prepararEntrada`, `armarPrompt`, `PROMPT_SISTEMA`, `prepararRespuesta`):
@@ -24,7 +25,7 @@ import { randomUUID } from "node:crypto";
 import { prepararEntrada } from "../../lib/gateway/entrada.ts";
 import { armarPrompt } from "../../lib/gateway/prompt.ts";
 import { prepararRespuesta } from "../../lib/gateway/respuesta.ts";
-import { MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
+import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
 import { FRASES, contextoDe, type Frase } from "./frases.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
@@ -53,6 +54,12 @@ if (!clave) {
 
 const modelo = argumento("modelo") ?? MODELO;
 const grupo = argumento("grupo");
+/*
+ * El esfuerzo de razonamiento. Sin la bandera se usa el mismo que el gateway
+ * (`ESFUERZO` de lib/gateway/sistema.ts), para que la batería mida lo que
+ * corre en producción.
+ */
+const esfuerzo = argumento("esfuerzo") ?? ESFUERZO;
 const rubro = argumento("rubro");
 const ids = argumento("id")?.split(",") ?? null;
 const frases = FRASES.filter(
@@ -60,7 +67,17 @@ const frases = FRASES.filter(
 );
 const PARALELO = 4;
 
-type Resultado = { frase: Frase; obtenido: string[]; ok: boolean; motivo: string; texto: string };
+type Resultado = {
+  frase: Frase;
+  obtenido: string[];
+  ok: boolean;
+  motivo: string;
+  texto: string;
+  /** Lo que tardó OpenAI en contestar, medido desde acá. */
+  ms: number;
+  /** Tokens de razonamiento: se pagan y se esperan sin que se vean. */
+  razonamiento: number;
+};
 
 function clave_(verbos: string[]): string {
   return [...new Set(verbos)].sort().join("+");
@@ -76,7 +93,7 @@ export function evaluar(frase: Frase, obtenido: string[]): { ok: boolean; motivo
   return { ok, motivo: ok ? "" : `esperaba ${frase.esperado.map((c) => clave_(c) || "(nada)").join(" o ")}` };
 }
 
-async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: string }> {
+async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: string; ms: number; razonamiento: number }> {
   const entrada = prepararEntrada({
     request_id: randomUUID(),
     usuario_id: randomUUID(),
@@ -90,11 +107,13 @@ async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: strin
   });
   const { contenido } = armarPrompt(entrada);
 
+  const comienzo = Date.now();
   const respuesta = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${clave}` },
     body: JSON.stringify({
       model: modelo,
+      reasoning: { effort: esfuerzo },
       input: [
         { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
         { role: "user", content: contenido },
@@ -103,12 +122,15 @@ async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: strin
   });
 
   if (!respuesta.ok) throw new Error(`OpenAI respondió ${respuesta.status}`);
-  const cuerpo = prepararRespuesta(entrada, await respuesta.json());
+  const ai = await respuesta.json();
+  const ms = Date.now() - comienzo;
+  const razonamiento = Number(ai?.usage?.output_tokens_details?.reasoning_tokens ?? 0);
+  const cuerpo = prepararRespuesta(entrada, ai);
   const verbos = cuerpo.acciones.map((a) => String(a.tipo ?? "").toUpperCase()).filter(Boolean);
   // Los documentos a pedido no viajan como acción: el modelo los manda en el
   // campo `documento` y `procesar-mensaje.ts` genera el archivo en el formato
   // que pidió la persona. Para la batería cuentan como "DOCUMENTO".
-  return { verbos: cuerpo.documento ? [...verbos, "DOCUMENTO"] : verbos, texto: cuerpo.respuesta };
+  return { verbos: cuerpo.documento ? [...verbos, "DOCUMENTO"] : verbos, texto: cuerpo.respuesta, ms, razonamiento };
 }
 
 async function correr(): Promise<Resultado[]> {
@@ -119,9 +141,9 @@ async function correr(): Promise<Resultado[]> {
     while (siguiente < frases.length) {
       const frase = frases[siguiente++];
       try {
-        const { verbos: obtenido, texto } = await preguntar(frase);
+        const { verbos: obtenido, texto, ms, razonamiento } = await preguntar(frase);
         const { ok, motivo } = evaluar(frase, obtenido);
-        resultados.push({ frase, obtenido, ok, motivo, texto });
+        resultados.push({ frase, obtenido, ok, motivo, texto, ms, razonamiento });
         process.stdout.write(ok ? "." : "x");
       } catch (error) {
         resultados.push({
@@ -130,6 +152,8 @@ async function correr(): Promise<Resultado[]> {
           ok: false,
           motivo: `error: ${error instanceof Error ? error.message : String(error)}`,
           texto: "",
+          ms: 0,
+          razonamiento: 0,
         });
         process.stdout.write("E");
       }
@@ -177,6 +201,28 @@ function largoDeConfirmaciones(rs: Resultado[]): string[] {
   ];
 }
 
+/*
+ * Encargado-02 del tablero: la mediana de respuesta tiene que bajar de 8 s, y
+ * el modelo es la parte más grande. Se mide con las mismas frases que miden el
+ * acierto, para que un cambio de esfuerzo se juzgue por las dos cosas a la
+ * vez. Van 4 pedidos en paralelo: sirve para comparar corridas entre sí, no
+ * como la latencia exacta de producción.
+ */
+function tiempos(rs: Resultado[]): string[] {
+  const medidos = rs.filter((r) => r.ms > 0);
+  if (medidos.length === 0) return [];
+  const ms = medidos.map((r) => r.ms).sort((a, b) => a - b);
+  const rz = medidos.map((r) => r.razonamiento).sort((a, b) => a - b);
+  const p = (xs: number[], q: number) => xs[Math.min(xs.length - 1, Math.floor(xs.length * q))];
+  const s = (n: number) => (n / 1000).toFixed(1).replace(".", ",");
+  return [
+    "## Tiempo del modelo",
+    "",
+    `Mediana ${s(p(ms, 0.5))} s · p90 ${s(p(ms, 0.9))} s · máximo ${s(ms[ms.length - 1])} s. Tokens de razonamiento: mediana ${p(rz, 0.5)}, p90 ${p(rz, 0.9)}.`,
+    "",
+  ];
+}
+
 const resultados = await correr();
 // Con la hora: dos corridas del mismo día no se pisan (el registro es evidencia).
 const fecha = new Date().toISOString().slice(0, 10);
@@ -186,7 +232,7 @@ const grupos = [...new Set(resultados.map((r) => r.frase.grupo))];
 const lineas: string[] = [
   `# Batería de frases — ${fecha}`,
   "",
-  `Modelo: \`${modelo}\` · ${resultados.length} frases · **${porcentaje(resultados)} % de verbo correcto** (meta: ≥ 95 %).`,
+  `Modelo: \`${modelo}\` · esfuerzo \`${esfuerzo}\` · ${resultados.length} frases · **${porcentaje(resultados)} % de verbo correcto** (meta: ≥ 95 %).`,
   "",
   "| Grupo | Acierto |",
   "|---|---|",
@@ -202,6 +248,7 @@ const lineas: string[] = [
     return `| ${rb} | ${rs.filter((r) => r.ok).length}/${rs.length} (${porcentaje(rs)} %) |`;
   }),
   "",
+  ...tiempos(resultados),
   ...largoDeConfirmaciones(resultados),
   "## Las que fallaron",
   "",
@@ -215,7 +262,9 @@ const lineas: string[] = [
 
 const carpeta = path.join(RAIZ, "evals", "bateria", "resultados");
 fs.mkdirSync(carpeta, { recursive: true });
-const sufijo = modelo === MODELO ? "" : `-${modelo.replace(/[^a-z0-9.-]/gi, "_")}`;
+const sufijo =
+  (modelo === MODELO ? "" : `-${modelo.replace(/[^a-z0-9.-]/gi, "_")}`) +
+  (esfuerzo === ESFUERZO ? "" : `-esfuerzo-${esfuerzo.replace(/[^a-z]/gi, "")}`);
 const archivo = path.join(carpeta, `${marca}${grupo ? `-${grupo}` : ""}${sufijo}.md`);
 fs.writeFileSync(archivo, lineas.join("\n"));
 
