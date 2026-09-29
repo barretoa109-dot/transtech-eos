@@ -66,3 +66,29 @@ test("guardarTiempos filtra por usuario y request, y no lanza si la base falla",
     },
   ]);
 });
+
+test("guarda los tokens del turno y lo que tardó cada puerta de cada acción", () => {
+  const t = tiemposDelTurno(
+    {},
+    {
+      gateway: "ts",
+      tokens_razonamiento: 412,
+      acciones_ms: [
+        { accion: "REGISTRAR_VENTA", autorizar: 380.4, efecto: 2210 },
+        { accion: "ANULAR_VENTA", autorizar: -1, efecto: "x" },
+      ],
+    },
+    { tokens: { entrada: 9100, cacheada: 7800, salida: 240 } },
+  );
+  assert.deepEqual(t.tokens, { entrada: 9100, cacheada: 7800, salida: 240, razonamiento: 412 });
+  assert.deepEqual(t.pasos, [
+    { accion: "REGISTRAR_VENTA", autorizar: 380, efecto: 2210 },
+    { accion: "ANULAR_VENTA" },
+  ]);
+});
+
+test("sin tokens ni acciones, no inventa esos campos", () => {
+  const t = tiemposDelTurno({}, { gateway: "directa" }, { tokens: { entrada: 0, salida: 0 } });
+  assert.equal(t.tokens, undefined);
+  assert.equal(t.pasos, undefined);
+});

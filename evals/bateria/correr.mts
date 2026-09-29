@@ -4,6 +4,8 @@
  *     npm run bateria                       # el modelo de producción
  *     npm run bateria -- --modelo gpt-5-mini  # para decidir el enrutamiento (plan maestro, fila 23)
  *     npm run bateria -- --grupo correccion   # solo un grupo
+ *     npm run bateria -- --id ropa-cobro,agro-anular  # frases sueltas
+ *     npm run bateria -- --rubro ferreteria   # solo un rubro (almacen, ropa, ferreteria, agro, comida, servicios)
  *     npm run bateria -- --esfuerzo low       # razonamiento: none, low, medium o high
  *
  * Arma el pedido con las MISMAS funciones del gateway en TypeScript
@@ -24,7 +26,7 @@ import { prepararEntrada } from "../../lib/gateway/entrada.ts";
 import { armarPrompt } from "../../lib/gateway/prompt.ts";
 import { prepararRespuesta } from "../../lib/gateway/respuesta.ts";
 import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
-import { CONTEXTO_NEGOCIO, FRASES, type Frase } from "./frases.ts";
+import { FRASES, contextoDe, type Frase } from "./frases.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
 
@@ -58,7 +60,11 @@ const grupo = argumento("grupo");
  * corre en producción.
  */
 const esfuerzo = argumento("esfuerzo") ?? ESFUERZO;
-const frases = grupo ? FRASES.filter((f) => f.grupo === grupo) : FRASES;
+const rubro = argumento("rubro");
+const ids = argumento("id")?.split(",") ?? null;
+const frases = FRASES.filter(
+  (f) => (!grupo || f.grupo === grupo) && (!rubro || (f.rubro ?? "almacen") === rubro) && (!ids || ids.includes(f.id)),
+);
 const PARALELO = 4;
 
 type Resultado = {
@@ -95,7 +101,7 @@ async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: strin
     nombre: "Carmen",
     mensaje: frase.mensaje,
     plan: "business",
-    contexto_negocio: CONTEXTO_NEGOCIO,
+    contexto_negocio: contextoDe(frase),
     origen: "whatsapp",
     historial: frase.historial ?? [],
   });
@@ -235,6 +241,13 @@ const lineas: string[] = [
     return `| ${g} | ${rs.filter((r) => r.ok).length}/${rs.length} (${porcentaje(rs)} %) |`;
   }),
   "",
+  "| Rubro | Acierto |",
+  "|---|---|",
+  ...[...new Set(resultados.map((r) => r.frase.rubro ?? "almacen"))].map((rb) => {
+    const rs = resultados.filter((r) => (r.frase.rubro ?? "almacen") === rb);
+    return `| ${rb} | ${rs.filter((r) => r.ok).length}/${rs.length} (${porcentaje(rs)} %) |`;
+  }),
+  "",
   ...tiempos(resultados),
   ...largoDeConfirmaciones(resultados),
   "## Las que fallaron",
@@ -242,7 +255,7 @@ const lineas: string[] = [
   ...(resultados.some((r) => !r.ok)
     ? resultados
         .filter((r) => !r.ok)
-        .map((r) => `- \`${r.frase.id}\` — "${r.frase.mensaje}" → ${clave_(r.obtenido) || "(nada)"}; ${r.motivo}. _${r.frase.porque}_`)
+        .map((r) => `- \`${r.frase.id}\` — "${r.frase.mensaje}" → ${clave_(r.obtenido) || "(nada)"}; ${r.motivo}. _${r.frase.porque}_ Respondió: «${r.texto.replace(/\s*\n+\s*/g, " ⏎ ")}»`)
     : ["Ninguna."]),
   "",
 ];

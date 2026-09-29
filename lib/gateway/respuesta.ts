@@ -277,6 +277,11 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
       openai_response_id: String(datosAi.id ?? ""),
       openai_status: String(datosAi.status ?? ""),
       openai_model: String(datosAi.model ?? ""),
+      // Se esperan y se pagan como salida sin que se vean: van a `turno`.
+      tokens_razonamiento:
+        Number(
+          ((usage.output_tokens_details ?? {}) as Record<string, unknown>).reasoning_tokens ?? 0,
+        ) || 0,
       // Marca de qué camino salió la respuesta. Sin esto, comparar los dos
       // caminos sobre tráfico real exige adivinar cuál atendió cada mensaje.
       gateway: "ts",

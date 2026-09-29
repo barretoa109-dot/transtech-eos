@@ -19,6 +19,8 @@
  *  - Nada destructivo. Los chequeos leen, nunca escriben.
  */
 
+import { createHash } from "node:crypto";
+
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import { cuentasConUsoAlto, describirCuenta } from "./uso-alto.ts";
 import { UMBRAL_COSTO_PYG, formatearGs } from "./umbral-costo.ts";
@@ -685,17 +687,41 @@ export async function enviarAlerta(reporte: Reporte, baseUrl: string): Promise<v
     const { Resend } = await import("resend");
     const { asunto, html, texto } = redactarAlerta(reporte, baseUrl);
 
-    await new Resend(apiKey).emails.send({
-      from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
-      to: destino,
-      subject: asunto,
-      html,
-      text: texto,
-    });
+    await new Resend(apiKey).emails.send(
+      {
+        from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+        to: destino,
+        subject: asunto,
+        html,
+        text: texto,
+      },
+      { idempotencyKey: claveDeAlerta(reporte, new Date()) },
+    );
   } catch (error) {
     // Si ni el aviso se puede mandar, al menos que quede en los logs.
     console.error("Salud: no se pudo enviar la alerta:", error, reporte.fallos);
   }
+}
+
+/**
+ * Una alerta por hora por el mismo problema, y en seguida si cambia qué se rompió.
+ *
+ * El monitor de n8n consulta la salud con `?avisar=1` cada 5 minutos. Sin
+ * freno, un fallo que dura un día manda 288 correos, y el plan de Resend
+ * permite 100 por día PARA TODO EOS: la alerta de que algo anda mal se come el
+ * cupo de los correos de los clientes (recuperar la contraseña, confirmar la
+ * cuenta, el briefing). El 29/09/2026 la casilla de alertas tenía docenas de
+ * "EOS · 1 problema detectado" y un aviso de Resend por el 80 % del cupo.
+ *
+ * Resend descarta un envío con una clave de idempotencia que ya vio en las
+ * últimas 24 horas, sin tabla ni estado propio. La clave junta QUÉ chequeos
+ * fallan (el nombre, no el detalle, que cambia con cada cuenta) y la hora UTC:
+ * el mismo problema avisa una vez por hora; uno nuevo, en el acto.
+ */
+export function claveDeAlerta(reporte: Pick<Reporte, "fallos">, ahora: Date): string {
+  const nombres = [...new Set(reporte.fallos.map((f) => f.nombre))].sort().join("|");
+  const hora = ahora.toISOString().slice(0, 13);
+  return `salud-${createHash("sha256").update(nombres).digest("hex").slice(0, 24)}-${hora}`;
 }
 
 /** Correo de alerta. Solo se manda cuando hay algo roto. */

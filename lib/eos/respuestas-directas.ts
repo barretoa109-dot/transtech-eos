@@ -1,6 +1,7 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { esPreguntaQueSabes, leerLoQueSe, redactarLoQueSe } from "./que-sabes.ts";
 import { esPreguntaQuienMeDebe, responderQuienMeDebe } from "./quien-me-debe.ts";
+import { esPreguntaCuantoVendi, responderCuantoVendi } from "./cuanto-vendi.ts";
 
 /**
  * Las preguntas que EOS contesta directo desde la base, sin el modelo.
@@ -20,7 +21,8 @@ import { esPreguntaQuienMeDebe, responderQuienMeDebe } from "./quien-me-debe.ts"
 export type RespuestaDirecta = {
   /** Va a `metadata.respuesta_directa` y al log. */
   clave: string;
-  responder: (admin: ClienteSinTipos, usuarioId: string, hoy: string) => Promise<string>;
+  /** `mensaje` es el original: algunas necesitan saber de qué período le preguntan. */
+  responder: (admin: ClienteSinTipos, usuarioId: string, hoy: string, mensaje: string) => Promise<string>;
 };
 
 const RESPUESTAS: { es: (mensaje: string) => boolean; respuesta: RespuestaDirecta }[] = [
@@ -34,6 +36,10 @@ const RESPUESTAS: { es: (mensaje: string) => boolean; respuesta: RespuestaDirect
   {
     es: esPreguntaQuienMeDebe,
     respuesta: { clave: "quien_me_debe", responder: responderQuienMeDebe },
+  },
+  {
+    es: esPreguntaCuantoVendi,
+    respuesta: { clave: "cuanto_vendi", responder: responderCuantoVendi },
   },
 ];
 
