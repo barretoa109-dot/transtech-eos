@@ -124,6 +124,11 @@ export type HechosDelMes = {
   cobrosDeCredito: { total: number }[];
   /** Ventas a crédito todavía sin cobrar al momento del informe, en PYG. */
   porCobrar: { total: number; contacto_id: string | null }[];
+  /**
+   * Los avisos que llegaron en el mes, por tipo (eos_avisos_historial_v217).
+   * Opcional: un informe sin la historia de avisos sigue siendo un informe.
+   */
+  avisos?: { tipo: string }[];
 };
 
 export type Impacto = {
@@ -136,6 +141,19 @@ export type Impacto = {
   ventas: { cantidad: number; total: number };
   cobrado: { cantidad: number; total: number };
   porCobrar: { clientes: number; total: number };
+  /** Avisos que llegaron antes de que el problema pasara, por tema. */
+  avisos: { total: number; porTema: { tema: string; cantidad: number }[] };
+};
+
+/** De qué fue cada aviso, en palabras del dueño. Los de un mismo tema se juntan. */
+const TEMA_DEL_AVISO: Record<string, string> = {
+  inventario_bajo: "stock",
+  stock_por_agotarse: "stock",
+  pagos_a_proveedores: "pagos a proveedores",
+  cobros_demorados: "cobros atrasados",
+  gasto_anormal: "gastos fuera de lo normal",
+  faltante: "plata que iba a faltar",
+  seguimientos_crm: "clientes para seguir",
 };
 
 function sumar(filas: { total: number }[]): number {
@@ -175,6 +193,19 @@ export function calcularImpacto(periodo: string, hechos: HechosDelMes): Impacto 
     ventas: { cantidad: hechos.ventas.length, total: sumar(hechos.ventas) },
     cobrado: { cantidad: hechos.cobrosDeCredito.length, total: sumar(hechos.cobrosDeCredito) },
     porCobrar: { clientes: hechos.porCobrar.length > 0 ? clientes.size : 0, total: sumar(hechos.porCobrar) },
+    avisos: contarAvisos(hechos.avisos ?? []),
+  };
+}
+
+function contarAvisos(avisos: { tipo: string }[]): Impacto["avisos"] {
+  const porTema = new Map<string, number>();
+  for (const a of avisos) {
+    const tema = TEMA_DEL_AVISO[a.tipo] ?? "tu negocio";
+    porTema.set(tema, (porTema.get(tema) ?? 0) + 1);
+  }
+  return {
+    total: avisos.length,
+    porTema: [...porTema.entries()].map(([tema, cantidad]) => ({ tema, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
   };
 }
 
@@ -236,6 +267,16 @@ export function lineasDelInforme(i: Impacto): string[] {
     lineas.push(
       `Hoy te deben ${gs(i.porCobrar.total)} entre ${quienes}. Preguntame "¿quién me debe?" y te paso la lista.`,
     );
+  }
+
+  /*
+   * negocio-02: lo que EOS vio venir. Solo avisos que LLEGARON (no los que
+   * quedaron fuera del tope ni los que no tuvieron canal).
+   */
+  if (i.avisos.total > 0) {
+    const veces = i.avisos.total === 1 ? "1 vez" : `${i.avisos.total} veces`;
+    const temas = i.avisos.porTema.map((t) => (t.cantidad === 1 ? t.tema : `${t.tema} (${t.cantidad})`)).join(", ");
+    lineas.push(`Te avisé ${veces} de algo antes de que pasara: ${temas}.`);
   }
 
   if (i.documentos > 0) {

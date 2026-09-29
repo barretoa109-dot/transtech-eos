@@ -333,3 +333,25 @@ test("el informe cuenta pagos parciales del mes y el saldo real de lo que le deb
   // María debe el saldo, no el total.
   assert.deepEqual(i.porCobrar, { clientes: 1, total: 300_000 });
 });
+
+test("cuenta los avisos que llegaron, juntando los del mismo tema (negocio-02)", () => {
+  const i = calcularImpacto("2026-09", {
+    ...VACIO,
+    avisos: [{ tipo: "inventario_bajo" }, { tipo: "stock_por_agotarse" }, { tipo: "pagos_a_proveedores" }],
+  });
+  assert.deepEqual(i.avisos, {
+    total: 3,
+    porTema: [
+      { tema: "stock", cantidad: 2 },
+      { tema: "pagos a proveedores", cantidad: 1 },
+    ],
+  });
+  assert.ok(lineasDelInforme(i).includes("Te avisé 3 veces de algo antes de que pasara: stock (2), pagos a proveedores."));
+});
+
+test("sin historia de avisos, no hay línea de avisos ni cambia si se manda", () => {
+  const i = calcularImpacto("2026-09", VACIO);
+  assert.deepEqual(i.avisos, { total: 0, porTema: [] });
+  assert.ok(!lineasDelInforme(i).some((l) => l.startsWith("Te avisé")));
+  assert.equal(tieneAlgoQueContar(calcularImpacto("2026-09", { ...VACIO, avisos: [{ tipo: "faltante" }] })), false);
+});
