@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import PWARegister from "@/components/pwa/PWARegister";
+import PuenteAppNativa from "@/components/app-nativa/PuenteAppNativa";
 import "./globals.css";
 import "./eos-design/tokens.css";
 
@@ -79,6 +80,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PWARegister />
+        <PuenteAppNativa />
         {children}
       </body>
     </html>

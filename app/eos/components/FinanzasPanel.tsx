@@ -11,6 +11,7 @@ import { formatearMonto } from "@/lib/finanzas/formato";
 import Traza, { Cifra } from "./Traza";
 import type { ClaveCifra, Trazado } from "@/lib/finanzas/trazabilidad";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 type Estado = "seguro" | "atencion" | "accion";
 
@@ -245,9 +246,11 @@ export default function FinanzasPanel({
           Con él, EOS te dice si estás bien, de dónde sale tu disponible real y qué se viene —todo
           calculado sobre lo que ya vas anotando.
         </p>
-        <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-          Ver cómo sumarlo
-        </a>
+        <SoloEnWeb>
+          <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+            Ver cómo sumarlo
+          </a>
+        </SoloEnWeb>
       </div>
     );
   }

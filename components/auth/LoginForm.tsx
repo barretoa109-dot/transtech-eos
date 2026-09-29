@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { destinoPedido, destinoTrasLogin } from "@/lib/auth/destino";
 import CampoContrasena from "./CampoContrasena";
+import { navegadorDelSistema, puedeAbrirNavegadorDelSistema } from "@/lib/app-nativa/cliente";
+import { redireccionOAuthApp } from "@/lib/app-nativa/plataforma";
 import {
   NOMBRE_PROVEEDOR,
   proveedoresHabilitados,
@@ -107,16 +109,25 @@ export default function LoginForm({
   async function entrarCon(proveedor: Proveedor) {
     setErrorMessage("");
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    /*
+     * En la app nativa, Google no deja iniciar sesión dentro del WebView
+     * (`disallowed_useragent`). El inicio se abre en el navegador del sistema
+     * y vuelve a la app por su esquema propio; `PuenteAppNativa` lo lleva al
+     * mismo /auth/callback de la web, donde está la cookie del verificador.
+     */
+    const enNavegadorDelSistema = puedeAbrirNavegadorDelSistema();
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: proveedor,
       options: {
         /*
          * Al destino pedido, igual que con contraseña: quien venía a pagar
          * tiene que volver al checkout y no al chat.
          */
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-          destinoPedido(),
-        )}`,
+        redirectTo: enNavegadorDelSistema
+          ? redireccionOAuthApp(destinoPedido())
+          : `${window.location.origin}/auth/callback?next=${encodeURIComponent(destinoPedido())}`,
+        skipBrowserRedirect: enNavegadorDelSistema,
       },
     });
 
@@ -126,6 +137,15 @@ export default function LoginForm({
           ? `Entrar con ${NOMBRE_PROVEEDOR[proveedor]} todavía no está disponible.`
           : error.message,
       );
+      return;
+    }
+
+    if (enNavegadorDelSistema && data?.url) {
+      try {
+        await navegadorDelSistema().open({ url: data.url });
+      } catch {
+        setErrorMessage(`No se pudo abrir el inicio con ${NOMBRE_PROVEEDOR[proveedor]}. Probá de nuevo.`);
+      }
     }
   }
 

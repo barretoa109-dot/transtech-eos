@@ -8,6 +8,7 @@ import {
   type ArchivoEOS,
 } from "@/lib/eos/procesar-mensaje";
 import { anotarLlegada, guardarRespuesta } from "@/lib/eos/respuestas-guardadas";
+import { esAppNativa } from "@/lib/app-nativa/plataforma";
 
 /*
  * Explícito, y no el valor por defecto de la plataforma: la app espera una
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
       requestId: body.request_id,
       nombreFallback,
       requestOrigin: new URL(req.url).origin,
+      appNativa: esAppNativa(req.headers.get("user-agent")),
     });
   } catch (error) {
     // Sin esto la fila quedaba "en proceso" y la app esperaba minutos por nada.
