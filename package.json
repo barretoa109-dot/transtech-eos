@@ -25,6 +25,7 @@
     "desplegar:costo": "node scripts/desplegar-venta-con-costo.mjs",
     "desplegar:fotos": "node scripts/desplegar-varias-fotos.mjs",
     "piloto": "node scripts/informe-piloto.mjs",
+    "primeros-pasos": "node scripts/primeros-pasos.mjs",
     "bateria": "node --experimental-strip-types evals/bateria/correr.mts"
   },
   "dependencies": {
