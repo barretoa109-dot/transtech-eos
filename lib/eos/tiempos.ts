@@ -40,9 +40,21 @@ export type Tiempos = {
   solo_memoria?: boolean;
   /** Cómo terminó cada acción, como "REGISTRAR_VENTA:confirmada". */
   verificacion?: string[];
+  /**
+   * Los tokens del turno. El 29/09 el modelo tardó 18,9 s en producción contra
+   * 3,2 s en la batería: sin esto no se sabe si fue la entrada (contexto
+   * largo), la salida (respuesta larga) o el razonamiento.
+   */
+  tokens?: { entrada: number; cacheada: number; salida: number; razonamiento: number };
+  /** Lo que tardó cada puerta de cada acción (autorizar y ejecutar). */
+  pasos?: { accion: string; autorizar?: number; efecto?: number }[];
 };
 
-export type Diagnostico = { soloMemoria?: boolean; verificacion?: ReadonlyArray<string> };
+export type Diagnostico = {
+  soloMemoria?: boolean;
+  verificacion?: ReadonlyArray<string>;
+  tokens?: { entrada?: number; cacheada?: number; salida?: number };
+};
 
 const ms = (valor: unknown): number | undefined =>
   typeof valor === "number" && Number.isFinite(valor) && valor >= 0 ? Math.round(valor) : undefined;
@@ -71,6 +83,29 @@ export function tiemposDelTurno(
   if (diagnostico.soloMemoria === true) salida.solo_memoria = true;
   const verificacion = (diagnostico.verificacion ?? []).map((v) => String(v).slice(0, 80)).slice(0, 20);
   if (verificacion.length > 0) salida.verificacion = verificacion;
+
+  const t = diagnostico.tokens;
+  const razonamiento = ms(metadata?.tokens_razonamiento) ?? 0;
+  if (t && (ms(t.entrada) || ms(t.salida))) {
+    salida.tokens = {
+      entrada: ms(t.entrada) ?? 0,
+      cacheada: ms(t.cacheada) ?? 0,
+      salida: ms(t.salida) ?? 0,
+      razonamiento,
+    };
+  }
+
+  const pasos = Array.isArray(metadata?.acciones_ms) ? (metadata.acciones_ms as Record<string, unknown>[]) : [];
+  if (pasos.length > 0) {
+    salida.pasos = pasos.slice(0, 20).map((p) => {
+      const paso: { accion: string; autorizar?: number; efecto?: number } = { accion: String(p.accion ?? "").slice(0, 40) };
+      const a = ms(p.autorizar);
+      const e = ms(p.efecto);
+      if (a !== undefined) paso.autorizar = a;
+      if (e !== undefined) paso.efecto = e;
+      return paso;
+    });
+  }
   return salida;
 }
 

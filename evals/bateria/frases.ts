@@ -14,6 +14,8 @@
  * ropa, porcicultura, ferretería) y de los errores que ya pasaron.
  */
 
+import { CONTEXTOS_RUBRO, FRASES_RUBROS } from "./rubros.ts";
+
 export type Turno = { rol: "usuario" | "eos"; texto: string };
 
 export type Frase = {
@@ -25,6 +27,8 @@ export type Frase = {
   esperado: string[][];
   prohibido?: string[];
   porque: string;
+  /** El rubro de la frase (evals/bateria/rubros.ts). Sin rubro, el almacén de CONTEXTO_NEGOCIO. */
+  rubro?: string;
 };
 
 /** El negocio de prueba: lo mismo que vería el modelo de una cuenta real chica. */
@@ -53,7 +57,7 @@ const TRAS_GASTO: Turno[] = [
 const V = [["REGISTRAR_VENTA"]];
 const NADA = [[]];
 
-export const FRASES: Frase[] = [
+const FRASES_BASE: Frase[] = [
   // Ventas
   { id: "venta-simple", grupo: "venta", mensaje: "vendí 3 bolsas de balanceado a 180 mil", esperado: V, porque: "La frase más común del ICP." },
   { id: "venta-cliente", grupo: "venta", mensaje: "vendí 2 remeras a 85 mil cada una a Rossana", esperado: V, porque: "Venta con cliente." },
@@ -122,4 +126,40 @@ export const FRASES: Frase[] = [
   { id: "excel", grupo: "otro", mensaje: "pasame en excel las ventas del mes", esperado: [["DOCUMENTO"], ["GENERAR_EXCEL"]], porque: "Documento a pedido: viaja en el campo documento." },
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
+
+  // "Responder" en WhatsApp: el pedido es sobre el mensaje citado (29/09, Sofía).
+  {
+    id: "cita-envio-otro-tema",
+    grupo: "correccion",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "vendí un conjunto negro M a Camila a 185 mil" },
+      { rol: "eos", texto: "Registré la venta de 1 Conjunto deportivo negro talle M a Camila por ₲ 185.000." },
+    ],
+    mensaje: "En respuesta a este mensaje de EOS:\n> Calza negra sobrepedido: USD 12 × 5.917,7 = ₲71.012 de costo.\n\nSumale el envío 15.000gs",
+    esperado: [["ACTUALIZAR_PRODUCTO"]],
+    prohibido: ["REGISTRAR_VENTA", "CORREGIR_VENTA", "ANULAR_VENTA"],
+    porque: "Sofía citó la gorra y EOS le sumó el envío a la venta de Sheyla, el último tema de la charla.",
+  },
+  {
+    id: "cita-aqui-esta",
+    grupo: "producto",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "agregale el envío de 20 mil a la calza negra" },
+      { rol: "eos", texto: "Necesito el tipo de cambio o el costo base en guaraníes de la Calza negra para sumarle el envío." },
+    ],
+    mensaje: "En respuesta a este mensaje de EOS:\n> Calza negra: USD 12 × 5.917,7 = ₲71.012\n\nAquí está",
+    esperado: [["ACTUALIZAR_PRODUCTO"]],
+    prohibido: ["REGISTRAR_VENTA", "GUARDAR_MEMORIA"],
+    porque: "\"Aquí está\" citando el dato: antes le llegaba solo \"Aquí está\" y contestaba \"no me llegó el dato\".",
+  },
 ];
+
+/** Todas: las del almacén y las de cada rubro. */
+export const FRASES: Frase[] = [...FRASES_BASE, ...FRASES_RUBROS];
+
+/** Lo que ve el modelo como negocio de quien escribe, según el rubro de la frase. */
+export function contextoDe(frase: Frase): string {
+  return (frase.rubro && CONTEXTOS_RUBRO[frase.rubro]) || CONTEXTO_NEGOCIO;
+}

@@ -149,3 +149,9 @@ test("escribirle a un cliente: cada falta dice qué hacer, con el nombre cuando 
   assert.match(errorDeAccion("EOS_ACCION_WHATSAPP_MENSAJE_LARGO")!.mensaje, /largo/);
   assert.ok(CODIGOS_DE_NEGOCIO.includes("EOS_ACCION_WHATSAPP_BAJA"));
 });
+
+test("un nombre parecido a un contacto pregunta cuál, sin mandar a agendar (v215)", () => {
+  const e = errorDeAccion("EOS_ACCION_CONTACTO_AMBIGUO: Gladys Velilla")!;
+  assert.match(e.mensaje, /"Gladys Velilla" se parece a alguien que ya tenés agendado/);
+  assert.doesNotMatch(e.mensaje, /agendá a/);
+});

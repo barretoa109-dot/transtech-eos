@@ -6736,3 +6736,18 @@
 .eos-app .fin-card .fin-desde-cuentas { margin: 12px 0 0; }
 .eos-app .fin-estimado-hoy { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: var(--blue-light); color: var(--ink); font-size: 13px; }
 .eos-app .fin-estimado-hoy strong { color: var(--blue); white-space: nowrap; }
+
+/* Los rubros del primer paso (D3): se tocan, así que se ven tocables. */
+.eos-app .onb-rubros .chip {
+  cursor: pointer;
+  font-size: 13.5px;
+  padding: 9px 16px;
+}
+.eos-app .onb-rubros .chip:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--text);
+}
+.eos-app .onb-rubros .chip:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

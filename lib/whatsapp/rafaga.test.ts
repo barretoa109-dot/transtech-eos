@@ -53,7 +53,31 @@ test("texto suelto y foto después: van juntos y en orden", () => {
 
 test("un solo mensaje de texto queda igual que antes", () => {
   const lote = unirLote([fila({ id: "t", from: "1", type: "text", text: { body: "hola" } }, 1)]);
-  assert.deepEqual(lote, { texto: "hola", medios: [], noLegibles: [], ultimoId: "t" });
+  assert.deepEqual(lote, { texto: "hola", medios: [], noLegibles: [], ultimoId: "t", waIds: ["t"], contextoWaId: "" });
+});
+
+test("'Responder' en WhatsApp: el id citado se anota y llega al lote", () => {
+  const respuesta: MensajeWhatsapp = {
+    id: "wamid.r",
+    from: "595981",
+    type: "text",
+    text: { body: "Aquí está" },
+    context: { id: "wamid.eos", from: "595900" },
+  };
+  const entrada = entradaDeMensaje(respuesta);
+  assert.equal(entrada?.contexto_wa_id, "wamid.eos");
+
+  // La cita puede venir en la foto del álbum y no en el último mensaje.
+  const conCita = { ...FOTO_1, context: { id: "wamid.eos" } };
+  const lote = unirLote([fila(conCita, 1), fila(FOTO_2, 2)]);
+  assert.equal(lote.contextoWaId, "wamid.eos");
+  assert.deepEqual(lote.waIds, ["wamid.1", "wamid.2"]);
+});
+
+test("sin cita, la clave ni aparece: el upsert no nombra una columna que quizás no existe", () => {
+  const entrada = entradaDeMensaje({ id: "t", from: "1", type: "text", text: { body: "hola" } });
+  assert.ok(entrada);
+  assert.equal("contexto_wa_id" in entrada, false);
 });
 
 test("una reacción o un aviso del sistema no se anotan: no merecen respuesta", () => {
