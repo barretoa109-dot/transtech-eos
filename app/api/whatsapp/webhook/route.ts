@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { procesarMensajeEOS, MAX_MESSAGE_LENGTH, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
-import { atenderOnboardingPorChat } from "@/lib/eos/onboarding-chat";
+import { atenderOnboardingPorChat, TEXTO_AL_VINCULAR } from "@/lib/eos/onboarding-chat";
 import { textoPorDefecto } from "@/lib/eos/adjuntos";
 import { renderizarDocumento } from "@/lib/documentos/renderizar";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
@@ -439,10 +439,7 @@ async function confirmarCodigo(admin: ReturnType<typeof adminSinTipos>, desde: s
     return;
   }
 
-  await enviarTexto(
-    desde,
-    "¡Listo! Tu WhatsApp quedó vinculado a tu cuenta de EOS. Ya podés escribirme por acá igual que en la app.",
-  );
+  await enviarTexto(desde, TEXTO_AL_VINCULAR);
 }
 
 /**
