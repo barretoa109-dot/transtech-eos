@@ -40,7 +40,8 @@
  */
 
 import { ejecutarEnProceso } from "./ejecutar.ts";
-import type { Job } from "./jobs.ts";
+import { RUTAS, normalizarDatos, requestIdDeAccion, type Job } from "./jobs.ts";
+import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 
 /** El mismo que usa n8n en el nodo 07. */
@@ -171,17 +172,150 @@ export async function ejecutarJob(job: Job, config: Config | null): Promise<Resu
   }
 }
 
+/** Las que reemplazan una anulación: si la anulación falla, no van solas. */
+const REEMPLAZO: Record<string, string> = {
+  ANULAR_VENTA: "REGISTRAR_VENTA",
+  ANULAR_COMPRA: "REGISTRAR_COMPRA",
+};
+
+export const REEMPLAZO_SIN_ANULAR =
+  "No registré la nueva porque no pude anular la anterior: habría quedado repetida. " +
+  "Decime el monto o el día de la que hay que anular y la reemplazo.";
+
+function codigoDe(r: ResultadoWorker): string {
+  const valor = r?.codigo ?? r?.code ?? r?.error_code ?? "";
+  return typeof valor === "string" ? valor.trim().toUpperCase() : "";
+}
+
+function fallo(r: ResultadoWorker): boolean {
+  return Boolean(r && (r.ok === false || r.error || r.estado === "error"));
+}
+
+/** El nombre del contacto de una venta, tal como lo mandó el modelo. */
+function contactoDeLaVenta(job: Job): string {
+  const datos = (job.accion.datos ?? {}) as Record<string, unknown>;
+  const valor = datos.contacto ?? datos.cliente ?? datos.contacto_nombre ?? "";
+  return typeof valor === "string" ? valor.trim() : "";
+}
+
+const plano = (t: string) =>
+  t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * ¿Hay algún contacto que se le PAREZCA?
+ *
+ * `eos_crm_resolver_contacto` devuelve null tanto si no hay nadie como si hay
+ * dos que coinciden ("María" con María López y María Benítez). En el segundo
+ * caso agendar otra "María" no arregla nada: suma un tercer candidato y la
+ * venta falla igual. Así que se agenda solo si nadie comparte ni una palabra
+ * con el nombre; ante la duda, la pregunta de siempre.
+ */
+export function hayParecido(nombre: string, contactos: string[]): boolean {
+  const palabras = plano(nombre).split(" ").filter((p) => p.length >= 3);
+  if (palabras.length === 0) return true;
+  return contactos.some((c) => {
+    const otro = plano(c);
+    return otro.includes(plano(nombre)) || palabras.some((p) => otro.split(" ").includes(p));
+  });
+}
+
+/** Los nombres de los contactos activos, o `null` si no se pudieron leer. */
+async function nombresDeContactos(usuarioId: string): Promise<string[] | null> {
+  try {
+    const { data, error } = await adminSinTipos()
+      .from("eos_crm_contactos")
+      .select("nombre")
+      .eq("usuario_id", usuarioId)
+      .eq("activo", true)
+      .limit(5000);
+    if (error) return null;
+    return ((data ?? []) as Array<{ nombre?: unknown }>).map((f) => String(f.nombre ?? ""));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Un job hijo de otro: misma persona y mismo mensaje, otra acción, y un
+ * `request_id` derivado y determinístico. Un reintento del mismo mensaje
+ * vuelve a derivar los mismos ids y el gate lo reconoce como reintento; y no
+ * choca con la orden que falló, que conserva el suyo.
+ */
+function jobDerivado(padre: Job, tipo: string, datos: Record<string, unknown>, ordinal: number): Job {
+  return {
+    ...padre,
+    request_id: requestIdDeAccion(padre.request_id, 7000 + ordinal),
+    accion: { tipo, datos: normalizarDatos(tipo, datos) },
+    worker_path: RUTAS[tipo] ?? padre.worker_path,
+  };
+}
+
 /**
  * Todos los jobs, en orden, hasta terminar.
  *
  * No corta ante el primer error: si la persona pidió dos cosas y la primera
  * falla, la segunda igual se intenta. Cortar dejaría la mitad hecha sin decir
  * cuál mitad.
+ *
+ * Con dos excepciones, las dos del 29/09/2026 (Sofía, WhatsApp):
+ *
+ *   · Una venta a un cliente que no está agendado. Antes fallaba con "pedime
+ *     que lo agende primero y después registramos"; ella pidió agendarlo, EOS
+ *     lo agendó y la venta NUNCA se registró —dos veces en una tarde, Gladys y
+ *     Sheyla—. Para ella el tema estaba cerrado y la venta cargada. Ahora el
+ *     contacto se agenda y la venta se registra en el mismo paso: nombrar a
+ *     alguien en una venta es decir que es tu cliente.
+ *
+ *   · Una anulación que falla seguida de la venta que la reemplazaba. EOS
+ *     intentó corregir una venta anulándola y registrándola de nuevo; la
+ *     anulación no encontró la venta y la nueva se registró igual: quedó
+ *     duplicada, con el stock en −2. Sin anulación, el reemplazo no va.
  */
-export async function ejecutarJobs(jobs: Job[], config: Config | null): Promise<ResultadoWorker[]> {
+export async function ejecutarJobs(
+  jobs: Job[],
+  config: Config | null,
+  {
+    ejecutar = ejecutarJob,
+    contactos = nombresDeContactos,
+  }: {
+    ejecutar?: (job: Job, config: Config | null) => Promise<ResultadoWorker>;
+    contactos?: (usuarioId: string) => Promise<string[] | null>;
+  } = {},
+): Promise<ResultadoWorker[]> {
   const resultados: ResultadoWorker[] = [];
+  const anulacionesFallidas = new Set<string>();
+  let derivados = 0;
+
   for (const job of jobs) {
-    resultados.push(await ejecutarJob(job, config));
+    const tipo = job.accion.tipo;
+
+    if (anulacionesFallidas.has(tipo)) {
+      resultados.push({ ok: false, accion: tipo, codigo: "EOS_ACCION_REEMPLAZO_SIN_ANULAR", respuesta: REEMPLAZO_SIN_ANULAR });
+      continue;
+    }
+
+    let resultado = await ejecutar(job, config);
+
+    const contacto = contactoDeLaVenta(job);
+    const sinCliente =
+      tipo === "REGISTRAR_VENTA" && contacto && codigoDe(resultado) === "EOS_ACCION_CONTACTO_NO_RESUELTO";
+    const existentes = sinCliente ? await contactos(job.usuario_id) : null;
+
+    if (sinCliente && existentes !== null && !hayParecido(contacto, existentes)) {
+      derivados += 1;
+      const alta = await ejecutar(jobDerivado(job, "CREAR_CONTACTO", { nombre: contacto, es_proveedor: false }, derivados), config);
+
+      if (!fallo(alta)) {
+        resultados.push({ ...alta, respuesta: `Agendé a ${contacto} como cliente.` });
+        derivados += 1;
+        resultado = await ejecutar(jobDerivado(job, tipo, job.accion.datos, derivados), config);
+      }
+    }
+
+    if (REEMPLAZO[tipo] && fallo(resultado)) anulacionesFallidas.add(REEMPLAZO[tipo]);
+
+    resultados.push(resultado);
   }
+
   return resultados;
 }
