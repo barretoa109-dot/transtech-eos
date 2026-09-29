@@ -14,6 +14,8 @@
  * ropa, porcicultura, ferretería) y de los errores que ya pasaron.
  */
 
+import { CONTEXTOS_RUBRO, FRASES_RUBROS } from "./rubros.ts";
+
 export type Turno = { rol: "usuario" | "eos"; texto: string };
 
 export type Frase = {
@@ -25,6 +27,8 @@ export type Frase = {
   esperado: string[][];
   prohibido?: string[];
   porque: string;
+  /** El rubro de la frase (evals/bateria/rubros.ts). Sin rubro, el almacén de CONTEXTO_NEGOCIO. */
+  rubro?: string;
 };
 
 /** El negocio de prueba: lo mismo que vería el modelo de una cuenta real chica. */
@@ -53,7 +57,7 @@ const TRAS_GASTO: Turno[] = [
 const V = [["REGISTRAR_VENTA"]];
 const NADA = [[]];
 
-export const FRASES: Frase[] = [
+const FRASES_BASE: Frase[] = [
   // Ventas
   { id: "venta-simple", grupo: "venta", mensaje: "vendí 3 bolsas de balanceado a 180 mil", esperado: V, porque: "La frase más común del ICP." },
   { id: "venta-cliente", grupo: "venta", mensaje: "vendí 2 remeras a 85 mil cada una a Rossana", esperado: V, porque: "Venta con cliente." },
@@ -123,3 +127,11 @@ export const FRASES: Frase[] = [
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
 ];
+
+/** Todas: las del almacén y las de cada rubro. */
+export const FRASES: Frase[] = [...FRASES_BASE, ...FRASES_RUBROS];
+
+/** Lo que ve el modelo como negocio de quien escribe, según el rubro de la frase. */
+export function contextoDe(frase: Frase): string {
+  return (frase.rubro && CONTEXTOS_RUBRO[frase.rubro]) || CONTEXTO_NEGOCIO;
+}
