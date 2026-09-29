@@ -126,6 +126,34 @@ const FRASES_BASE: Frase[] = [
   { id: "excel", grupo: "otro", mensaje: "pasame en excel las ventas del mes", esperado: [["DOCUMENTO"], ["GENERAR_EXCEL"]], porque: "Documento a pedido: viaja en el campo documento." },
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
+
+  // "Responder" en WhatsApp: el pedido es sobre el mensaje citado (29/09, Sofía).
+  {
+    id: "cita-envio-otro-tema",
+    grupo: "correccion",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "vendí un conjunto negro M a Camila a 185 mil" },
+      { rol: "eos", texto: "Registré la venta de 1 Conjunto deportivo negro talle M a Camila por ₲ 185.000." },
+    ],
+    mensaje: "En respuesta a este mensaje de EOS:\n> Calza negra sobrepedido: USD 12 × 5.917,7 = ₲71.012 de costo.\n\nSumale el envío 15.000gs",
+    esperado: [["ACTUALIZAR_PRODUCTO"]],
+    prohibido: ["REGISTRAR_VENTA", "CORREGIR_VENTA", "ANULAR_VENTA"],
+    porque: "Sofía citó la gorra y EOS le sumó el envío a la venta de Sheyla, el último tema de la charla.",
+  },
+  {
+    id: "cita-aqui-esta",
+    grupo: "producto",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "agregale el envío de 20 mil a la calza negra" },
+      { rol: "eos", texto: "Necesito el tipo de cambio o el costo base en guaraníes de la Calza negra para sumarle el envío." },
+    ],
+    mensaje: "En respuesta a este mensaje de EOS:\n> Calza negra: USD 12 × 5.917,7 = ₲71.012\n\nAquí está",
+    esperado: [["ACTUALIZAR_PRODUCTO"]],
+    prohibido: ["REGISTRAR_VENTA", "GUARDAR_MEMORIA"],
+    porque: "\"Aquí está\" citando el dato: antes le llegaba solo \"Aquí está\" y contestaba \"no me llegó el dato\".",
+  },
 ];
 
 /** Todas: las del almacén y las de cada rubro. */

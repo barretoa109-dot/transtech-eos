@@ -50,3 +50,10 @@ test("una cita enorme se recorta: no infla el prompt", () => {
   const mensaje = mensajeConCitaDeWhatsapp("ok", { rol: "eos", texto: "x".repeat(MAXIMO_CITA * 3) });
   assert.ok(mensaje.length < MAXIMO_CITA + 100);
 });
+
+test("el prompt de los dos gateways dice que lo citado manda sobre el último tema", async () => {
+  const { MARCA, aplicarPrompt } = await import("../../n8n/parches/cambios-respuesta-citada.mjs");
+  const { PROMPT_SISTEMA } = await import("../gateway/sistema.ts");
+  assert.ok(PROMPT_SISTEMA.includes(MARCA), "sistema.ts no tiene la regla de la respuesta citada");
+  assert.equal(aplicarPrompt(PROMPT_SISTEMA, "prueba"), PROMPT_SISTEMA, "el parche no es idempotente");
+});
