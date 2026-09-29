@@ -24,6 +24,8 @@ export type MensajeWhatsapp = {
   document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
   audio?: { id?: string; mime_type?: string };
   video?: { id?: string; mime_type?: string; caption?: string };
+  /** Presente cuando la persona usó "Responder" sobre un mensaje anterior. */
+  context?: { id?: string; from?: string };
   errors?: Array<{ code?: number; title?: string; message?: string }>;
 };
 
@@ -36,6 +38,13 @@ export type EntradaRafaga = {
   media_id: string | null;
   mime_type: string | null;
   nombre_archivo: string | null;
+  /**
+   * El mensaje al que responde, si usó "Responder" en WhatsApp (v215).
+   *
+   * Opcional: la clave solo viaja cuando hay cita, así un upsert sin citas no
+   * nombra la columna y sigue andando aunque la v215 todavía no esté aplicada.
+   */
+  contexto_wa_id?: string | null;
 };
 
 export type FilaRafaga = EntradaRafaga & { id: number; recibido_en: string };
@@ -60,7 +69,17 @@ export function entradaDeMensaje(m: MensajeWhatsapp): EntradaRafaga | null {
   const tipo = String(m.type || "desconocido").trim();
   if (!wa_id || !telefono || SIN_RESPUESTA.has(tipo)) return null;
 
-  const base = { wa_id, telefono, tipo, texto: null, media_id: null, mime_type: null, nombre_archivo: null };
+  const contexto = String(m.context?.id || "").trim();
+  const base = {
+    wa_id,
+    telefono,
+    tipo,
+    texto: null,
+    media_id: null,
+    mime_type: null,
+    nombre_archivo: null,
+    ...(contexto ? { contexto_wa_id: contexto } : {}),
+  };
 
   if (tipo === "text") return { ...base, texto: String(m.text?.body || "").trim() || null };
 
@@ -93,6 +112,10 @@ export type Lote = {
   noLegibles: string[];
   /** El último mensaje del lote: de él sale el id del pedido. */
   ultimoId: string;
+  /** Todos los ids del lote: si después citan cualquiera, se encuentra este pedido. */
+  waIds: string[];
+  /** El mensaje citado con "Responder", o vacío. Si en el lote hay más de uno, el último. */
+  contextoWaId: string;
 };
 
 export function unirLote(filas: FilaRafaga[]): Lote {
@@ -104,8 +127,10 @@ export function unirLote(filas: FilaRafaga[]): Lote {
   const medios: Lote["medios"] = [];
   const noLegibles: string[] = [];
   const cuantos = new Map<string, number>();
+  let contextoWaId = "";
 
   for (const f of orden) {
+    if (f.contexto_wa_id) contextoWaId = f.contexto_wa_id;
     if (!LEGIBLES.has(f.tipo)) {
       noLegibles.push(f.tipo);
       continue;
@@ -124,7 +149,14 @@ export function unirLote(filas: FilaRafaga[]): Lote {
     }
   }
 
-  return { texto: textos.join("\n\n"), medios, noLegibles, ultimoId: orden[orden.length - 1]?.wa_id ?? "" };
+  return {
+    texto: textos.join("\n\n"),
+    medios,
+    noLegibles,
+    ultimoId: orden[orden.length - 1]?.wa_id ?? "",
+    waIds: orden.map((f) => f.wa_id),
+    contextoWaId,
+  };
 }
 
 /**

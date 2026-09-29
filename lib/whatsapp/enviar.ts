@@ -12,12 +12,25 @@ const MAX_TEXTO = 4096;
  * reintente el mensaje entero).
  */
 export async function enviarTexto(telefono: string, texto: string): Promise<boolean> {
+  return (await enviarTextoConId(telefono, texto)).ok;
+}
+
+/**
+ * Igual que `enviarTexto`, pero devuelve además el id que Meta le puso al
+ * mensaje (`wamid...`). Hace falta para reconocerlo cuando la persona lo
+ * cita con "Responder": Meta manda solo ese id, nunca el texto. Ver
+ * `lib/whatsapp/cita.ts`.
+ */
+export async function enviarTextoConId(
+  telefono: string,
+  texto: string,
+): Promise<{ ok: boolean; waId: string | null }> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!token || !phoneNumberId) {
     console.error("WhatsApp: faltan WHATSAPP_ACCESS_TOKEN o WHATSAPP_PHONE_NUMBER_ID.");
-    return false;
+    return { ok: false, waId: null };
   }
 
   try {
@@ -40,13 +53,17 @@ export async function enviarTexto(telefono: string, texto: string): Promise<bool
 
     if (!respuesta.ok) {
       console.error("WhatsApp: el envío de mensaje falló con status", respuesta.status);
-      return false;
+      return { ok: false, waId: null };
     }
 
-    return true;
+    // El mensaje ya salió: no poder leer el id no lo vuelve un error.
+    const cuerpo = (await respuesta.json().catch(() => null)) as { messages?: Array<{ id?: string }> } | null;
+    const waId = String(cuerpo?.messages?.[0]?.id || "").trim();
+
+    return { ok: true, waId: waId || null };
   } catch (error) {
     console.error("WhatsApp: error de red al enviar un mensaje:", error);
-    return false;
+    return { ok: false, waId: null };
   }
 }
 
