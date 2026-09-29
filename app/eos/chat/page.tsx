@@ -30,6 +30,7 @@ import { appTechCanvas } from "@/components/effects/techCanvasPresets";
 
 import { revisarAdjuntos } from "@/lib/eos/adjuntos";
 import { convertirArchivoABase64 } from "../services/uploads";
+import { textoParaCompartir } from "../services/supabaseChat";
 import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
 
 function formatearTamanio(bytes?: number): string {
@@ -125,6 +126,9 @@ export default function EOSPage() {
     nuevaConversacion,
     abrirConversacion,
     actualizarTituloSiHaceFalta,
+    renombrar,
+    archivar,
+    eliminar,
   } = useConversations();
 
   const { mensaje, setMensaje, cargando, archivosAdjuntos, setArchivosAdjuntos, cita, setCita, enviarMensaje, regenerarRespuesta } = useChat({
@@ -294,6 +298,10 @@ export default function EOSPage() {
     onBusquedaChange: setBusqueda,
     onNuevoChat: manejarNuevoChat,
     onAbrirConversacion: manejarAbrirConversacion,
+    onRenombrar: renombrar,
+    onArchivar: (id: string, archivarlo: boolean) => archivar(id, archivarlo, usuarioId),
+    onEliminar: (id: string) => eliminar(id, usuarioId),
+    onTextoParaCompartir: textoParaCompartir,
   };
 
   return (

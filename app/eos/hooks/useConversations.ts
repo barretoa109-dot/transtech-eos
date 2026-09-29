@@ -4,9 +4,12 @@ import { useState } from "react";
 import type { Conversacion, Mensaje } from "../types/chat";
 import {
   actualizarTituloConversacion,
+  archivarConversacion,
   crearConversacion,
+  eliminarConversacion,
   obtenerConversaciones,
   obtenerMensajes,
+  renombrarConversacion,
 } from "../services/supabaseChat";
 
 const TITULOS_POR_DEFECTO = new Set(["Nuevo chat", "Nuevo proceso EOS", "Diagnóstico actual"]);
@@ -21,6 +24,10 @@ export function tieneTituloPorDefecto(c: Conversacion): boolean {
   return !c.titulo || TITULOS_POR_DEFECTO.has(c.titulo);
 }
 
+export function estaArchivada(c: Conversacion): boolean {
+  return Boolean(c.archivada_at);
+}
+
 export function useConversations() {
   const [conversacionId, setConversacionId] = useState("");
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
@@ -28,15 +35,19 @@ export function useConversations() {
 
   async function cargarConversaciones(usuarioId: string) {
     const conversacionesData = await obtenerConversaciones(usuarioId);
+    // Se abre la más reciente de la lista, no una archivada: archivar es
+    // justamente pedir no verla al entrar.
+    const primera = conversacionesData.find((c) => !estaArchivada(c));
 
-    if (conversacionesData.length === 0) {
+    setConversaciones(conversacionesData);
+
+    if (!primera) {
       await nuevaConversacion(usuarioId);
       return;
     }
 
-    setConversaciones(conversacionesData);
-    setConversacionId(conversacionesData[0].id);
-    await abrirConversacion(conversacionesData[0].id);
+    setConversacionId(primera.id);
+    await abrirConversacion(primera.id);
   }
 
   async function nuevaConversacion(usuarioId: string) {
@@ -72,6 +83,54 @@ export function useConversations() {
     }
   }
 
+  /**
+   * El chat abierto dejó de estar en la lista (se archivó o se eliminó): se
+   * abre el siguiente de la lista, o uno nuevo si no queda ninguno. Sin esto
+   * la pantalla seguiría mostrando, y dejando escribir, en un chat que la
+   * persona acaba de sacar de su vista.
+   */
+  async function salirDe(id: string, restantes: Conversacion[], usuarioId: string) {
+    if (id !== conversacionId) return;
+
+    const siguiente = restantes.find((c) => !estaArchivada(c));
+
+    if (siguiente) {
+      await abrirConversacion(siguiente.id);
+    } else {
+      await nuevaConversacion(usuarioId);
+    }
+  }
+
+  async function renombrar(id: string, titulo: string) {
+    const guardado = await renombrarConversacion(id, titulo);
+    if (!guardado) return false;
+
+    setConversaciones((prev) => prev.map((c) => (c.id === id ? { ...c, titulo: guardado } : c)));
+    return true;
+  }
+
+  async function archivar(id: string, archivar: boolean, usuarioId: string) {
+    const archivadaAt = await archivarConversacion(id, archivar);
+    if (archivadaAt === undefined) return false;
+
+    const restantes = conversaciones.map((c) => (c.id === id ? { ...c, archivada_at: archivadaAt } : c));
+    setConversaciones(restantes);
+
+    if (archivar) await salirDe(id, restantes, usuarioId);
+    return true;
+  }
+
+  async function eliminar(id: string, usuarioId: string) {
+    const ok = await eliminarConversacion(id);
+    if (!ok) return false;
+
+    const restantes = conversaciones.filter((c) => c.id !== id);
+    setConversaciones(restantes);
+
+    await salirDe(id, restantes, usuarioId);
+    return true;
+  }
+
   return {
     conversacionId,
     conversaciones,
@@ -81,5 +140,8 @@ export function useConversations() {
     nuevaConversacion,
     abrirConversacion,
     actualizarTituloSiHaceFalta,
+    renombrar,
+    archivar,
+    eliminar,
   };
 }

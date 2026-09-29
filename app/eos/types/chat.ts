@@ -58,6 +58,8 @@ export type Conversacion = {
   id: string;
   titulo: string | null;
   created_at?: string;
+  /** Con fecha, el chat está en "Archivados" y no en la lista (v210). */
+  archivada_at?: string | null;
 };
 
 export type VistaEOS =
