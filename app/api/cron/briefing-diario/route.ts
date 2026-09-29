@@ -16,6 +16,7 @@ import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
 import { enviarInformesDeImpacto, fuenteSupabase } from "@/lib/impacto/enviar";
 import { enviarResumenesSemanales, fuenteResumenSupabase } from "@/lib/resumen/enviar";
+import { enviarTableroDeLosViernes } from "@/lib/metricas/tablero-semanal";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -419,6 +420,43 @@ export async function GET(request: Request) {
       console.log("Resumen: resúmenes de la semana", resumen);
     } catch (error) {
       console.error("Resumen: falló el envío de resúmenes:", error);
+    }
+  });
+
+  /*
+   * El tablero de los viernes (correo interno al dueño), en su PROPIO
+   * `after`. Corre todos los días y solo hace algo los viernes de Paraguay.
+   * Ver `lib/metricas/tablero-semanal.ts`.
+   */
+  after(async () => {
+    try {
+      const clave = process.env.RESEND_API_KEY;
+      if (!clave) {
+        console.error("Tablero: falta RESEND_API_KEY; no se manda.");
+        return;
+      }
+      const resend = new Resend(clave);
+      const destinos = (process.env.ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((correo) => correo.trim())
+        .filter(Boolean);
+      const enviado = await enviarTableroDeLosViernes(adminSinTipos(), {
+        hoyPY: hoyEnParaguay(),
+        destinos,
+        enviar: async ({ para, asunto, html, texto }) => {
+          const { error } = await resend.emails.send({
+            from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+            to: para,
+            subject: asunto,
+            html,
+            text: texto,
+          });
+          if (error) throw new Error(error.message ?? "Resend rechazó el envío.");
+        },
+      });
+      if (enviado) console.log("Tablero: enviado");
+    } catch (error) {
+      console.error("Tablero: falló el envío:", error);
     }
   });
 
