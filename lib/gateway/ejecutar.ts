@@ -310,9 +310,6 @@ async function ramaInterna(
     effect_type: resultado.effect_type ?? "",
     effect_id: resultado.effect_id ?? null,
     resultado: resultado.resultado ?? {},
-    // El código de negocio ("EOS_ACCION_CONTACTO_NO_RESUELTO"): con él, el
-    // ejecutor de jobs sabe arreglar lo que tiene arreglo (`worker.ts`).
-    codigo: salioBien ? null : (resultado.code ?? null),
     respuesta: salioBien
       ? job.accion.tipo === "ENVIAR_WHATSAPP_CLIENTE"
         ? fraseDelEnvio(
