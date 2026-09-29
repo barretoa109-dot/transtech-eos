@@ -1,6 +1,6 @@
 # Runbook de rollback — TransTech EOS
 
-Última actualización: 2026-08-18.
+Última actualización: 2026-09-29 (ver la sección del final).
 
 ## 1. Vercel (app Next.js)
 
@@ -240,3 +240,59 @@ pide:
    que Resend se cayó tampoco sale. Hace falta un segundo canal.
 5. **Nada de esto se ensayó.** Un procedimiento que nunca se ejecutó es una
    hipótesis. El simulacro es el punto 50.
+
+## Actualización del 29 de septiembre de 2026
+
+Cambió bastante de "Lo que falta". Punto por punto, con lo que se vio andar:
+
+**1. Hay copia, y se restaura todas las noches.** `.github/workflows/respaldo.yml`
+(04:00 PY) hace `pg_dump` de `public`, `auth` y `storage`, lo **restaura** en
+un Postgres 17 descartable, compara tabla por tabla contra producción, lo cifra
+y lo guarda 14 días como artifact. La primera corrida en verde (29/09) tardó 15 s
+en volcar y 2 s en restaurar. Cómo abrir uno y cómo levantar la base en un
+proyecto nuevo: `docs/respaldo-nocturno.md`. Lo que sigue sin ensayar es ese
+segundo camino (cargarlo en un proyecto de Supabase nuevo y ver EOS arrancar).
+**Sin `RESPALDO_CLAVE` no se abre ningún respaldo**: tiene que estar también
+fuera de GitHub.
+
+**2. PITR:** sigue sin estar. Llega con Supabase Pro, decisión ya tomada para el
+primer cliente pago.
+
+**3. n8n ya no se restaura desde `docs/n8n-backups/`.** La fuente es
+`n8n/workflows/*.json` (se reexporta con `node n8n/exportar.mjs` después de cada
+parche) y cada parche deja el estado anterior en `n8n/respaldos/`. El workflow
+`deriva` (04:30 PY) compara esos JSON con los vivos y las migraciones de `main`
+con las aplicadas; si difieren, queda en rojo y GitHub avisa por correo. El
+29/09 encontró dos migraciones mergeadas que nadie había aplicado.
+
+**4. La alerta ya no viaja solo por el canal que vigila.** UptimeRobot consulta
+cada 5 minutos `https://www.transtech.com.py/api/internal/salud` (503 cuando
+algo está roto) y `https://n8n-production-6cdb.up.railway.app/healthz`, y avisa
+por correo y con la app en el teléfono. Si se caen Vercel, n8n o Resend, suena
+igual. El monitor de n8n cada 5 minutos sigue: es el que manda el detalle por
+correo cuando la app está viva.
+
+**5. Ensayado:** la restauración de datos, todas las noches. Sin ensayar: una
+caída simulada con aviso al teléfono cronometrado, y la restauración en un
+proyecto de Supabase nuevo.
+
+### Cómo se llega a producción (para no romperla arreglándola)
+
+- Todo entra por PR a `main` con `evals` en verde.
+- Migraciones: `npx supabase db push` desde `C:\Users\galea\eos-db-push`, que se
+  pone en `origin/main` antes (`git fetch origin; git checkout --detach
+  origin/main`) y nunca tiene archivos sueltos: un archivo sin versionar hace
+  fallar el checkout y `db push` contesta "up to date" sin aplicar nada (pasó
+  el 29/09). Siempre `--dry-run` primero y leer qué lista.
+- Parches de n8n: se mergean, se corren desde `eos-db-push` y se reexporta en el
+  mismo movimiento.
+
+### Webhooks de n8n (revisados el 29/09)
+
+El repositorio es público y con él las URLs de n8n. De los workflows activos:
+`eos-chat` exige una reserva de cupo creada por la app; los `eos-worker-rc1-*`
+y `eos-decision-capture` exigen `Authorization: Bearer <EOS_WORKER_GATE_SECRET>`.
+El worker anterior (`eos-worker`, v3) quedó desactivado: si alguna vez vuelve a
+aparecer activo, apagarlo. Si se rota `EOS_WORKER_GATE_SECRET`, hay que
+cambiarlo en Vercel **y** en las variables de n8n en Railway al mismo tiempo, o
+el chat deja de ejecutar acciones.
