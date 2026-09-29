@@ -1144,7 +1144,7 @@ export async function procesarMensajeEOS(
     const directa = archivos.length === 0 && !payload.cita ? respuestaDirectaPara(mensaje) : null;
     if (directa) {
       try {
-        const texto = await directa.responder(adminSinTipos(), usuarioId, hoyEnParaguay());
+        const texto = await directa.responder(adminSinTipos(), usuarioId, hoyEnParaguay(), mensaje);
         const cuerpo: RespuestaGateway = {
           respuesta: texto,
           documento: null,
