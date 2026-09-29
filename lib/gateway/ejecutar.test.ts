@@ -496,3 +496,13 @@ test("compra con tarjeta: si la tarjeta se creó en el momento, se pide su ciclo
   assert.equal(fraseDeCompraConTarjeta(undefined), "Anoté la compra.");
   assert.match(fraseDeCompraConTarjeta({ tarjeta_creada: true, tarjeta: "Banco Basa" }), /Banco Basa no estaba cargada.*cierra.*vence/);
 });
+
+test("la venta dice si agendó al cliente nuevo (v215)", async () => {
+  const { fraseDeVenta } = await import("./ejecutar.ts");
+  assert.equal(fraseDeVenta({}), "La venta quedó registrada. La ves en Negocio > Ventas.");
+  assert.equal(fraseDeVenta(undefined), "La venta quedó registrada. La ves en Negocio > Ventas.");
+  assert.equal(
+    fraseDeVenta({ contacto_creado: "Sheyla Ortiz" }),
+    "La venta quedó registrada. La ves en Negocio > Ventas. Sheyla Ortiz no estaba en tus contactos: lo agendé como cliente.",
+  );
+});
