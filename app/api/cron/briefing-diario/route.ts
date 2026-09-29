@@ -17,6 +17,7 @@ import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
 import { enviarInformesDeImpacto, fuenteSupabase } from "@/lib/impacto/enviar";
 import { enviarResumenesSemanales, fuenteResumenSupabase } from "@/lib/resumen/enviar";
 import { enviarTableroDeLosViernes } from "@/lib/metricas/tablero-semanal";
+import { enviarPrimerosDias } from "@/lib/email/primeros-dias";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
@@ -337,6 +338,47 @@ export async function GET(request: Request) {
       console.log("Motivacionales: correos del ciclo", resumen);
     } catch (error) {
       console.error("Motivacionales: falló el envío del ciclo:", error);
+    }
+  });
+
+  /*
+   * Los correos de la primera semana (día 1, día 3 si no anotó nada, día 7),
+   * en su PROPIO `after`. Misma baja que los motivacionales. Las respuestas
+   * van a soporte. Ver `lib/email/primeros-dias.ts`.
+   */
+  after(async () => {
+    try {
+      const clave = process.env.RESEND_API_KEY;
+      const secreto = process.env.CRON_SECRET;
+      if (!clave || !secreto) {
+        console.error("Primeros días: falta RESEND_API_KEY o CRON_SECRET; no se manda.");
+        return;
+      }
+
+      const resend = new Resend(clave);
+      const resumen = await enviarPrimerosDias(adminSinTipos(), {
+        appUrl: baseUrlApp(),
+        secreto,
+        enviar: async ({ para, asunto, html, texto, urlBaja, replyTo }) => {
+          const { error } = await resend.emails.send({
+            from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+            to: para,
+            replyTo,
+            subject: asunto,
+            html,
+            text: texto,
+            headers: {
+              "List-Unsubscribe": `<${urlBaja}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          });
+          if (error) throw new Error(error.message ?? "Resend rechazó el envío.");
+        },
+      });
+
+      if (resumen.enviados + resumen.fallidos > 0) console.log("Primeros días:", resumen);
+    } catch (error) {
+      console.error("Primeros días: falló el envío:", error);
     }
   });
 
