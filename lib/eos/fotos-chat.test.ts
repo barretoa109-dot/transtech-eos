@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  etiquetaDeAdjuntos,
   fotosDeMetadata,
   rutaDeFoto,
   rutaEsDe,
@@ -88,4 +89,31 @@ test("si la persona no escribió nada, la burbuja queda solo con las fotos", () 
     textoSinReferenciaDeFotos("Analizá estas 2 imágenes\n\n[Imágenes adjuntas: a.jpg, b.jpg]", 0),
     "Analizá estas 2 imágenes\n\n[Imágenes adjuntas: a.jpg, b.jpg]",
   );
+});
+
+test("fotos y videos se nombran para poder ocultar la línea cuando se ven", () => {
+  assert.equal(etiquetaDeAdjuntos(["image/jpeg"]), "Imagen adjunta");
+  assert.equal(etiquetaDeAdjuntos(["video/mp4"]), "Video adjunto");
+  assert.equal(etiquetaDeAdjuntos(["video/mp4", "video/quicktime"]), "Videos adjuntos");
+  assert.equal(etiquetaDeAdjuntos(["image/png", "video/mp4"]), "Fotos y videos adjuntos");
+  assert.equal(etiquetaDeAdjuntos(["image/png", "application/pdf"]), "Archivos adjuntos");
+
+  assert.equal(textoSinReferenciaDeFotos("Analizá este video: a.mov\n\n[Video adjunto: a.mov]", 1), "");
+  assert.equal(
+    textoSinReferenciaDeFotos("¿Qué falta en la góndola?\n\n[Fotos y videos adjuntos: a.jpg, b.mov]", 2),
+    "¿Qué falta en la góndola?",
+  );
+  assert.equal(textoSinReferenciaDeFotos("Analizá estos 2 archivos\n\n[Fotos y videos adjuntos: a.jpg, b.mov]", 2), "");
+});
+
+test("la duración de un video vuelve de la metadata, y solo si es un número", () => {
+  const [video, foto] = fotosDeMetadata({
+    imagenes: [
+      { ruta: `${YO}/v.jpg`, nombre: "v.mov", tipo: "video/quicktime", duracion: 42.5 },
+      { ruta: `${YO}/f.jpg`, nombre: "f.jpg", tipo: "image/jpeg", duracion: "mucho" },
+    ],
+  });
+
+  assert.equal(video.duracion, 42.5);
+  assert.equal("duracion" in foto, false);
 });

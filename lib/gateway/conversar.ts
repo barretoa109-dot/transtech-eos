@@ -37,13 +37,14 @@
  * cada mensaje, y los tokens ya viajan en la respuesta.
  */
 
+import { esCaidaDeIA } from "../eos/en-espera.ts";
 import { EntradaInvalida, prepararEntrada } from "./entrada.ts";
 import { armarPrompt, type Prompt } from "./prompt.ts";
 import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
-import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
+import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -150,7 +151,7 @@ export type Resultado =
   /** Hay acciones y la etapa 2 está apagada: las arma n8n. */
   | { estado: "delegar"; motivo: string };
 
-type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red" };
+type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red"; status?: number };
 
 /** Una llamada a la Responses API. Nunca lanza. */
 async function preguntarAlModelo(clave: string, modelo: string, contenido: Prompt["contenido"]): Promise<Llamada> {
@@ -166,6 +167,9 @@ async function preguntarAlModelo(clave: string, modelo: string, contenido: Promp
       },
       body: JSON.stringify({
         model: modelo,
+        // Solo al principal: el esfuerzo se eligió midiendo ESE modelo, y el
+        // barato del enrutamiento puede no aceptar el mismo valor.
+        ...(modelo === MODELO ? { reasoning: { effort: ESFUERZO } } : {}),
         input: [
           { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
           { role: "user", content: contenido },
@@ -184,7 +188,7 @@ async function preguntarAlModelo(clave: string, modelo: string, contenido: Promp
        */
       if (modelo === MODELO) console.error("Gateway TS: OpenAI respondió", respuesta.status);
       else console.error("Gateway TS: el modelo simple respondió", respuesta.status);
-      return { ok: false, motivo: "http" };
+      return { ok: false, motivo: "http", status: respuesta.status };
     }
 
     return { ok: true, ai: await respuesta.json() };
@@ -224,10 +228,16 @@ export type Enrutado = "simple" | "volvio_por_accion" | "volvio_por_error";
  * paso 4 del enrutamiento, `lib/eos/enrutamiento-modelo.ts`). Si falla o su
  * respuesta no sirve (`sirveRespuestaSimple`), se vuelve a preguntar al de
  * siempre ANTES de hacer nada: con el barato no sale ninguna acción.
+ *
+ * Con `alFallarIA`, avisa cuando el `null` es porque OpenAI no responde
+ * (timeout, red, 429 o 5xx del modelo principal). n8n llama al mismo OpenAI,
+ * así que esperar 90 s más ahí no arregla nada: quien llama puede dejar el
+ * mensaje en espera (`lib/eos/en-espera.ts`). Pasa siempre antes de ejecutar
+ * ninguna acción, porque el modelo es lo primero que se llama.
  */
 export async function conversar(
   payload: Record<string, unknown>,
-  opciones: { modelo?: string | null } = {},
+  opciones: { modelo?: string | null; alFallarIA?: (motivo: string) => void } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
@@ -252,6 +262,10 @@ export async function conversar(
   }
 
   const { contenido } = armarPrompt(entrada);
+
+  // Cuánto se esperó al modelo y cuánto a las acciones: van a la metadata y de
+  // ahí a `turno` en eos_message_usage_v40 (encargado-02 del tablero).
+  const antesDelModelo = Date.now();
 
   const pedido = opciones.modelo?.trim() ?? "";
   const barato = pedido && pedido !== MODELO ? pedido : null;
@@ -281,7 +295,12 @@ export async function conversar(
 
   if (!cuerpo) {
     const llamada = await preguntarAlModelo(clave, MODELO, contenido);
-    if (!llamada.ok) return null;
+    if (!llamada.ok) {
+      if (esCaidaDeIA(llamada)) {
+        opciones.alFallarIA?.(llamada.status ? `${llamada.motivo}_${llamada.status}` : llamada.motivo);
+      }
+      return null;
+    }
     cuerpo = prepararRespuesta(entrada, llamada.ai);
   }
 
@@ -291,6 +310,7 @@ export async function conversar(
    * mensaje (`tarifasDelModelo`).
    */
   cuerpo.metadata.modelo = modelo;
+  cuerpo.metadata.modelo_ms = Date.now() - antesDelModelo;
   if (enrutado) cuerpo.metadata.enrutado = enrutado;
 
   if (!cuerpo.requiere_worker) {
@@ -330,7 +350,14 @@ export async function conversar(
    * y no un permiso. Lo que falle se informa como error en la respuesta, que
    * es lo mismo que hace n8n hoy.
    */
+  const antesDelWorker = Date.now();
   const resultados = await ejecutarJobs(jobs, config);
+  cuerpo.metadata.worker_ms = Date.now() - antesDelWorker;
+  // Autorizar y ejecutar, por acción: van a `turno` (lib/eos/tiempos.ts).
+  cuerpo.metadata.acciones_ms = resultados.map((r) => ({
+    accion: String(r.accion ?? ""),
+    ...((r.ms && typeof r.ms === "object" ? r.ms : {}) as Record<string, unknown>),
+  }));
 
   const final = juntarResultados(
     {

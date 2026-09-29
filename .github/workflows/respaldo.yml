@@ -1,0 +1,126 @@
+# Respaldo nocturno de la base de producción, con ensayo de restauración.
+#
+# Supabase está en el plan gratuito: no hay copias (`backups: []`) ni PITR.
+# `npm run respaldo` existe, pero es manual y nunca probó que lo copiado se
+# pueda volver a cargar. Esto corre solo, todas las noches, y cada vez:
+#
+#   1. hace `pg_dump` de public, auth y storage;
+#   2. lo RESTAURA en un Postgres descartable y compara la cantidad de filas de
+#      cada tabla contra la base viva — si una tabla no volvió, el job falla y
+#      GitHub le manda un correo a quien tocó este archivo por última vez;
+#   3. lo cifra con AES-256 y lo guarda como artifact 14 días.
+#
+# EL REPOSITORIO ES PÚBLICO. Los logs y los artifacts se ven desde afuera, así
+# que: los logs no imprimen datos ni cantidades de filas (solo nombres de tabla,
+# que ya están en las migraciones), y nada sale del runner sin cifrar.
+#
+# Secretos (Settings → Secrets and variables → Actions), ver
+# docs/respaldo-nocturno.md:
+#   SUPABASE_DB_URL  cadena del "Session pooler" de Supabase (IPv4)
+#   RESPALDO_CLAVE   frase larga para cifrar; sin ella el respaldo no se abre
+
+name: respaldo
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 04:00 en Asunción
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+
+jobs:
+  respaldo:
+    # En un fork no hay secretos y no tiene nada que respaldar.
+    if: github.repository == 'barretoa109-dot/transtech-eos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      ensayo:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ensayo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secretos cargados
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$RESPALDO_CLAVE" ]; then
+            echo "::error::Faltan SUPABASE_DB_URL o RESPALDO_CLAVE. Ver docs/respaldo-nocturno.md"
+            exit 1
+          fi
+          if [ "${#RESPALDO_CLAVE}" -lt 24 ]; then
+            echo "::error::RESPALDO_CLAVE tiene que tener 24 caracteres o más"
+            exit 1
+          fi
+          # Si no es una URI, pg_dump la toma como NOMBRE de base y busca un
+          # Postgres local ("connection to server on socket ... failed"), que no
+          # dice nada de qué está mal. Pasó en la primera corrida (2026-09-29).
+          case "$SUPABASE_DB_URL" in
+            postgresql://*@*pooler.supabase.com:5432/*|postgres://*@*pooler.supabase.com:5432/*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL tiene que empezar con postgresql:// (sin espacios, comillas ni 'SUPABASE_DB_URL=' adelante) y apuntar al Session pooler (…pooler.supabase.com:5432/postgres)"
+              exit 1
+              ;;
+          esac
+
+      # La base corre Postgres 17: pg_dump tiene que ser de la misma versión o
+      # más nueva, y Ubuntu trae la 16.
+      - name: Cliente de Postgres 17
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Volcado
+        run: |
+          mkdir -p salida
+          # A un archivo aparte y renombrado solo si terminó: un volcado cortado
+          # a la mitad no puede quedar con el nombre del bueno (el paso "Cifrar"
+          # lo subiría como si fuera un respaldo).
+          pg_dump --dbname="$SUPABASE_DB_URL" --format=custom \
+            --schema=public --schema=auth --schema=storage \
+            --file=parcial.dump
+          mv parcial.dump salida/eos.dump
+          echo "volcado: $(du -h salida/eos.dump | cut -f1)"
+
+      - name: Ensayo de restauración
+        env:
+          ENSAYO_URL: postgresql://postgres:ensayo@localhost:5432/postgres
+          DUMP: salida/eos.dump
+          SALIDA: salida
+        run: bash scripts/respaldo/ensayo-restauracion.sh
+
+      # Aunque el ensayo falle, el volcado se guarda: puede estar sano y ser lo
+      # único que haya. El job igual queda en rojo y avisa.
+      - name: Cifrar
+        if: always() && hashFiles('salida/eos.dump') != ''
+        run: |
+          tar -C salida -cf - . \
+            | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+                  --symmetric --cipher-algo AES256 -o respaldo.tar.gpg 3<<< "$RESPALDO_CLAVE"
+          rm -rf salida
+
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('respaldo.tar.gpg') != ''
+        with:
+          name: respaldo-${{ github.run_id }}
+          path: respaldo.tar.gpg
+          retention-days: 14
+          if-no-files-found: error

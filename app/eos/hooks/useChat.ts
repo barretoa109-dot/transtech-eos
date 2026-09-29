@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { textoPorDefecto } from "@/lib/eos/adjuntos";
 
@@ -11,7 +11,11 @@ import type {
 
 import { enviarMensajeAEOS } from "../services/eosApi";
 import { textoConCita, type Cita } from "@/lib/eos/cita";
-import type { FotoGuardada } from "@/lib/eos/fotos-chat";
+import {
+  etiquetaDeAdjuntos,
+  type FotoGuardada,
+} from "@/lib/eos/fotos-chat";
+import { formatoDuracion, notaDelVideo } from "@/lib/eos/videos";
 import {
   guardarMensaje,
   subirFotoDelChat,
@@ -53,6 +57,11 @@ type EjecutarEOSParams = {
   cita: Cita | null;
   /** Las fotos del mensaje, subiéndose mientras EOS contesta. */
   fotosSubidas: Promise<FotoGuardada[]>;
+  /**
+   * Lo que EOS necesita saber y la persona no escribió: qué video son los
+   * cuadros adjuntos. Viaja con el mensaje pero NO se guarda en su texto.
+   */
+  notaParaEOS?: string;
 };
 
 function crearIdMensaje(prefijo: string) {
@@ -84,7 +93,7 @@ function limpiarReferenciaDeArchivo(texto: string) {
       // el plural y la tilde están contemplados. Sin eso, regenerar un mensaje
       // con varias fotos dejaba la referencia pegada al texto y EOS la leía
       // como parte de la pregunta.
-      /\n\n\[(?:Im[áa]gen(?:es)?|Archivos?) adjunt[oa]s?:[^\]]+\]\s*$/i,
+      /\n\n\[(?:Im[áa]gen(?:es)?|Archivos?|Videos?|Fotos y videos) adjunt[oa]s?:[^\]]+\]\s*$/i,
       "",
     )
     .trim();
@@ -100,20 +109,81 @@ function limpiarReferenciaDeArchivo(texto: string) {
 async function subirFotos(
   archivos: ArchivoAdjunto[],
 ): Promise<FotoGuardada[]> {
-  const fotos = archivos.filter(esImagenAdjunta);
+  const fotos = archivos.filter(seVeComoMiniatura);
   if (fotos.length === 0) return [];
 
   const subidas = await Promise.all(
-    fotos.map((f) =>
-      subirFotoDelChat({
+    fotos.map(async (f) => {
+      // De un video se guarda la miniatura, que es un JPEG; el video no.
+      const guardada = await subirFotoDelChat({
         nombre: f.nombre,
-        tipo: f.tipo,
+        tipo: f.video ? "image/jpeg" : f.tipo,
         base64: f.base64,
-      }),
-    ),
+      });
+
+      return guardada && f.video
+        ? { ...guardada, tipo: f.tipo, duracion: f.video.duracion }
+        : guardada;
+    }),
   );
 
   return subidas.filter((f): f is FotoGuardada => f !== null);
+}
+
+/** Fotos y videos: los dos se muestran como miniatura en la burbuja. */
+function seVeComoMiniatura(archivo: ArchivoAdjunto): boolean {
+  return esImagenAdjunta(archivo) || Boolean(archivo.video);
+}
+
+/*
+ * Lo que de verdad viaja a EOS.
+ *
+ * Un video no viaja: viajan sus cuadros como fotos y su audio como WAV
+ * (`lib/eos/videos.ts`). El resto de los archivos, tal cual. Se arma recién
+ * acá, al mandar, para que el compositor muestre UN video y no cinco piezas.
+ */
+function archivosParaEOS(archivos: ArchivoAdjunto[]): ArchivoAdjunto[] {
+  return archivos.flatMap((archivo) => {
+    const video = archivo.video;
+    if (!video) return [archivo];
+
+    const base = archivo.nombre.replace(/\.[^.]+$/, "");
+
+    const cuadros = video.cuadros.map((base64, i) => ({
+      nombre: `${base} - cuadro ${i + 1} (${formatoDuracion(video.segundos[i] ?? 0)}).jpg`,
+      tipo: "image/jpeg",
+      tamanio: Math.floor((base64.length * 3) / 4),
+      base64,
+    }));
+
+    const audio = video.audio
+      ? [
+          {
+            nombre: `${base} - audio.wav`,
+            tipo: "audio/wav",
+            tamanio: Math.floor((video.audio.length * 3) / 4),
+            base64: video.audio,
+          },
+        ]
+      : [];
+
+    return [...cuadros, ...audio];
+  });
+}
+
+/** Lo que se le explica a EOS sobre cada video, para que no vea fotos sueltas. */
+function notasDeVideos(archivos: ArchivoAdjunto[]): string {
+  return archivos
+    .filter((a) => a.video)
+    .map((a) =>
+      notaDelVideo({
+        nombre: a.nombre,
+        duracion: a.video!.duracion,
+        segundos: a.video!.segundos,
+        conAudio: Boolean(a.video!.audio),
+      }),
+    )
+    .join("\n");
 }
 
 function esImagenAdjunta(
@@ -140,17 +210,7 @@ function construirReferenciaArchivo(
 ): string {
   if (archivos.length === 0) return "";
 
-  if (archivos.length === 1) {
-    const etiqueta = esImagenAdjunta(archivos[0])
-      ? "Imagen adjunta"
-      : "Archivo adjunto";
-
-    return `[${etiqueta}: ${archivos[0].nombre}]`;
-  }
-
-  const etiqueta = archivos.every(esImagenAdjunta)
-    ? "Imágenes adjuntas"
-    : "Archivos adjuntos";
+  const etiqueta = etiquetaDeAdjuntos(archivos.map((a) => a.tipo));
 
   return `[${etiqueta}: ${archivos.map((a) => a.nombre).join(", ")}]`;
 }
@@ -213,6 +273,18 @@ export function useChat({
    */
   const [cita, setCita] = useState<Cita | null>(null);
 
+  /*
+   * Los adjuntos del último envío, para que "Regenerar" los vuelva a mandar
+   * (27/09/2026). Regeneraba solo el texto: un mensaje con dos capturas que
+   * falló por la red se rehacía SIN las capturas, y EOS contestaba sin haber
+   * visto los montos. Viven solo en memoria: al recargar la página se
+   * pierden, igual que antes.
+   */
+  const archivosDelUltimoEnvio = useRef<{ conversacionId: string; archivos: ArchivoAdjunto[] }>({
+    conversacionId: "",
+    archivos: [],
+  });
+
   const ejecutarEOS = useCallback(
     async ({
       textoUsuario,
@@ -223,6 +295,7 @@ export function useChat({
       reemplazarUltimaRespuesta,
       cita: citaDelEnvio,
       fotosSubidas,
+      notaParaEOS,
     }: EjecutarEOSParams) => {
       setCargando(true);
       setPensando(true);
@@ -257,7 +330,9 @@ export function useChat({
           conversacionId: conversacionActiva,
           nombre,
           plan,
-          mensaje: textoUsuario,
+          mensaje: notaParaEOS
+            ? `${textoUsuario}\n\n${notaParaEOS}`
+            : textoUsuario,
           historial: historialParaContexto.slice(-10),
           nuevoChat: historialParaContexto.length === 0,
           archivos,
@@ -417,6 +492,10 @@ export function useChat({
 
     const archivosActuales = archivosAdjuntos;
     const citaActual = cita;
+    archivosDelUltimoEnvio.current = {
+      conversacionId: conversacionActiva,
+      archivos: archivosActuales,
+    };
 
     const textoUsuario =
       textoFinal.trim() || textoPorDefecto(archivosActuales);
@@ -443,10 +522,12 @@ export function useChat({
     // Se ven ya, desde el base64 que se está por mandar. Al recargar, las
     // mismas fotos vuelven desde el bucket (`obtenerMensajes`).
     const imagenes = archivosActuales
-      .filter(esImagenAdjunta)
+      .filter(seVeComoMiniatura)
       .map((a) => ({
         nombre: a.nombre,
-        src: `data:${a.tipo};base64,${a.base64}`,
+        // La miniatura de un video es su primer cuadro, que es un JPEG.
+        src: `data:${a.video ? "image/jpeg" : a.tipo};base64,${a.base64}`,
+        ...(a.video ? { duracion: a.video.duracion } : {}),
       }));
 
     const fotosSubidas = subirFotos(archivosActuales);
@@ -489,7 +570,8 @@ export function useChat({
       conversacionActiva,
       historialParaContexto:
         historialAntesDelEnvio,
-      archivos: archivosActuales,
+      archivos: archivosParaEOS(archivosActuales),
+      notaParaEOS: notasDeVideos(archivosActuales) || undefined,
       guardarUsuario: true,
       reemplazarUltimaRespuesta: false,
       cita: citaActual,
@@ -555,7 +637,11 @@ export function useChat({
       conversacionActiva: conversacionId,
       historialParaContexto:
         historialSinUltimaRespuesta.slice(-10),
-      archivos: [],
+      // Solo si son de ESTA conversación: el último envío pudo ser en otra.
+      archivos:
+        archivosDelUltimoEnvio.current.conversacionId === conversacionId
+          ? archivosDelUltimoEnvio.current.archivos
+          : [],
       guardarUsuario: false,
       reemplazarUltimaRespuesta: true,
       // Regenerar rehace el último mensaje tal como se mandó, y la cita ya

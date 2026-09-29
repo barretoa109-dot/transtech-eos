@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { registrarAuditoria, resumirMovimiento } from "@/lib/auditoria/registrar";
 import { hoyEnParaguay } from "@/lib/fecha";
-import { confirmar, interpretar } from "@/lib/finanzas/gastoRapido";
+import { confirmar, interpretar, noEsGastoSuelto } from "@/lib/finanzas/gastoRapido";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,13 @@ export async function POST(request: Request) {
   }
 
   const texto = typeof body.texto === "string" ? body.texto : "";
+
+  // Una corrección o un fijo con importe no es un gasto nuevo (caso del 27/09).
+  const alChat = noEsGastoSuelto(texto);
+  if (alChat) {
+    return NextResponse.json({ error: alChat, entendido: null }, { status: 400, headers: noStore() });
+  }
+
   const gasto = interpretar(texto, hoyEnParaguay());
 
   // Sin importe no se guarda nada. Mejor pedir de nuevo que inventar un

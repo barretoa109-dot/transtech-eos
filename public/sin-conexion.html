@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#020817">
+<title>Sin conexión · TransTech EOS</title>
+<!--
+  La muestra la app nativa cuando no puede cargar EOS (capacitor.config.ts,
+  server.errorPath). Vive dentro de la app, así que no puede depender de
+  nada de internet: sin fuentes, imágenes ni scripts externos.
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #020817; color: #e7ecf6;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  }
+  main { max-width: 340px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .marca { width: 56px; height: 56px; border-radius: 16px; background: #0d1730; border: 1px solid #243150; display: grid; place-items: center; }
+  .marca svg { width: 28px; height: 28px; stroke: #7392ff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  h1 { font-size: 22px; margin: 6px 0 0; font-weight: 700; }
+  p { margin: 0; color: #98a3ba; }
+  button {
+    margin-top: 8px; font: inherit; font-weight: 600; color: #fff; background: #2554e8;
+    border: 0; border-radius: 12px; padding: 12px 22px; min-width: 180px;
+  }
+  button:disabled { opacity: .6; }
+  button:focus-visible { outline: 2px solid #7392ff; outline-offset: 3px; }
+  .estado { font-size: 13px; min-height: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="marca" aria-hidden="true">
+    <svg viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><path d="M12 19h.01"/><path d="M3 3l18 18"/></svg>
+  </div>
+  <h1>No hay conexión</h1>
+  <p>EOS necesita internet para anotar y responder. Lo que ya anotaste está guardado.</p>
+  <button id="reintentar" type="button">Reintentar</button>
+  <p class="estado" id="estado" role="status" aria-live="polite"></p>
+</main>
+<script>
+  (function () {
+    var DESTINO = "https://transtech.com.py/eos/chat";
+    var boton = document.getElementById("reintentar");
+    var estado = document.getElementById("estado");
+
+    function reintentar() {
+      boton.disabled = true;
+      estado.textContent = "Conectando…";
+      window.location.replace(DESTINO);
+      setTimeout(function () {
+        boton.disabled = false;
+        estado.textContent = navigator.onLine ? "No pudimos llegar a EOS. Probá de nuevo." : "Seguís sin conexión.";
+      }, 8000);
+    }
+
+    boton.addEventListener("click", reintentar);
+    // Vuelve sola apenas el teléfono recupera la señal.
+    window.addEventListener("online", reintentar);
+  })();
+</script>
+</body>
+</html>

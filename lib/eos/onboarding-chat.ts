@@ -279,6 +279,29 @@ async function completar(admin: ClienteSinTipos, usuarioId: string) {
   if (error) console.error("Onboarding por chat: no se pudo completar:", error);
 }
 
+/**
+ * Lo que recibe quien termina de vincular WhatsApp con el código.
+ *
+ * Antes decía "Ya podés escribirme por acá igual que en la app" y nada más. El
+ * 29/09/2026 `npm run primeros-pasos` mostró una cuenta que vinculó WhatsApp
+ * dos minutos después de registrarse y nunca mandó un mensaje: se le dijo que
+ * podía escribir, no qué escribir. Es el mismo arranque que `primerValor` (una
+ * venta o una compra dicha como la diría la persona), y como la persona acaba
+ * de escribirnos el código, la ventana de 24 horas de Meta está abierta y el
+ * mensaje llega sin plantilla.
+ */
+export const TEXTO_AL_VINCULAR = [
+  "¡Listo! Tu WhatsApp quedó vinculado a tu cuenta de EOS.",
+  "",
+  "Probemos ya mismo: contame algo que vendiste o compraste, tal cual lo dirías vos. Por ejemplo:",
+  "• «Vendí 2 remeras a 80 mil cada una»",
+  "• «Compré 10 cajas de gaseosa a 120 mil»",
+  "",
+  "También me lo podés mandar en un audio. Yo lo anoto y te digo cómo quedan tu stock y tu caja.",
+  "",
+  "Si lo que querés es ordenar tu plata personal, escribime «mi plata».",
+].join("\n");
+
 const TEXTOS: Record<string, string> = {
   primerValor: [
     "¡Hola! Soy EOS. Te ayudo a llevar tu negocio hablando, sin planillas.",

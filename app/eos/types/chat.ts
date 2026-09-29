@@ -50,12 +50,16 @@ export type ImagenDelMensaje = {
   nombre: string;
   src?: string;
   ruta?: string;
+  /** Solo en los videos: la miniatura es su primer cuadro, con la duración encima. */
+  duracion?: number;
 };
 
 export type Conversacion = {
   id: string;
   titulo: string | null;
   created_at?: string;
+  /** Con fecha, el chat está en "Archivados" y no en la lista (v210). */
+  archivada_at?: string | null;
 };
 
 export type VistaEOS =
@@ -77,4 +81,13 @@ export type ArchivoAdjunto = {
   base64: string;
   extension?: string;
   url?: string;
+  /** Lo que viaja en lugar del archivo: en un video, sus cuadros y el audio. */
+  partes?: { base64: string }[];
+  /** Un video ya desarmado en el navegador (`services/video.ts`). */
+  video?: {
+    duracion: number;
+    segundos: number[];
+    cuadros: string[];
+    audio: string | null;
+  };
 };

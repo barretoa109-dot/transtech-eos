@@ -24,6 +24,7 @@ import FilaProducto from "./negocio/FilaProducto";
 import CorregirCosto from "./negocio/CorregirCosto";
 import ImportarProductos from "./negocio/ImportarProductos";
 import type { Contacto, Producto } from "./negocio/tipos";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 /**
  * El ERP de EOS.
@@ -520,9 +521,11 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
               El módulo de gestión se contrata aparte. Con él, cada venta que cargues aparece
               sola en tu disponible real: no hay que anotar la plata dos veces.
             </p>
-            <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-              Ver cómo sumarlo
-            </a>
+            <SoloEnWeb>
+              <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+                Ver cómo sumarlo
+              </a>
+            </SoloEnWeb>
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ import Reveal from "@/components/effects/Reveal";
 import { homeTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
 import { supabase } from "../lib/supabase";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 const transtechIntelligence = [
   {
@@ -482,9 +483,11 @@ export default function Home() {
               <strong>Empezá con las funciones que tu negocio necesita.</strong>
               <span> Podés sumar ERP, CRM y facturación a tu EOS personalizado.</span>
             </div>
-            <Link className="btn btn-primary" href="/planes">
-              Armar mi EOS →
-            </Link>
+            <SoloEnWeb>
+              <Link className="btn btn-primary" href="/planes">
+                Armar mi EOS →
+              </Link>
+            </SoloEnWeb>
           </Reveal>
         </div>
       </section>
@@ -579,6 +582,9 @@ export default function Home() {
                 <div className="footer-brand">TRANSTECH</div>
               </div>
               <div className="footer-tag">TECNOLOGÍA E INTELIGENCIA</div>
+              <div className="footer-legal">
+                TRANSTECH E.A.S. · RUC 80174259-5
+              </div>
             </div>
             <div className="footer-cols">
               <div className="footer-col">
@@ -591,14 +597,16 @@ export default function Home() {
               <div className="footer-col">
                 <h4>EOS</h4>
                 <Link href="/eos">Conocer EOS</Link>
-                <Link href="/planes">Planes</Link>
+                <SoloEnWeb>
+                  <Link href="/planes">Planes</Link>
+                </SoloEnWeb>
                 <Link href="/login">Abrir EOS</Link>
                 <Link href="/login">Iniciar sesión</Link>
               </div>
             </div>
           </div>
           <div className="footer-bottom">
-            <span>© 2026 TRANSTECH. Todos los derechos reservados.</span>
+            <span>© 2026 TRANSTECH E.A.S. Todos los derechos reservados.</span>
             <span>Asunción, Paraguay</span>
           </div>
         </div>
@@ -1355,6 +1363,11 @@ export default function Home() {
           color: var(--muted);
           margin-top: 4px;
           letter-spacing: 0.4px;
+        }
+        .footer-legal {
+          font-size: 12.5px;
+          color: var(--muted);
+          margin-top: 18px;
         }
         .footer-cols {
           display: flex;

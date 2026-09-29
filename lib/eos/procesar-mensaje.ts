@@ -37,8 +37,10 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { bloqueDeDocumento } from "@/lib/eos/adjuntos";
 import { dentroDeRafaga } from "@/lib/seguridad/rafaga";
+import { guardarTiempos, tiemposDelTurno } from "@/lib/eos/tiempos";
 import { secretoDelEntorno } from "@/lib/seguridad/limite";
 import type { Documento } from "@/lib/documentos/especificacion";
+import { respuestaSinDocumentos } from "@/lib/documentos/sin-modulo";
 import {
   extraerDocumento,
   formatoPedido,
@@ -68,6 +70,8 @@ import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
+import { mensajeDeCupo } from "@/lib/eos/mensaje-cupo";
+import { TEXTO_EN_ESPERA, ponerEnEspera, puedeEsperar } from "@/lib/eos/en-espera";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
@@ -177,6 +181,18 @@ export type EntradaProcesamiento = {
   nombreFallback?: string;
   /** Origen absoluto usado para armar enlaces en la respuesta (ej. `/eos/autonomy`). */
   requestOrigin: string;
+  /**
+   * El mensaje llega desde la app nativa de iOS o Android. Ahí las respuestas
+   * no invitan a comprar por fuera de la tienda (ver `lib/app-nativa/plataforma.ts`).
+   * WhatsApp y la web lo dejan sin definir.
+   */
+  appNativa?: boolean;
+  /**
+   * Es el reintento de un mensaje que quedó en espera (id de su fila en
+   * eos_mensajes_en_espera_v214). Si la IA sigue sin responder, no se vuelve
+   * a guardar: lo maneja `reintentarEnEspera`.
+   */
+  reintentoDe?: string;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -251,6 +267,8 @@ const AVISOS_DE_FALLA = [
   "EOS tardó más de lo esperado en responder",
   "EOS recibió tu mensaje, pero tuvo un problema procesándolo",
   "no pudo generar una respuesta clara en este momento",
+  // El aviso de `lib/eos/en-espera.ts`: el mensaje se reintenta aparte.
+  "ahora mismo no lo puedo procesar",
 ];
 
 function esAvisoDeFalla(texto: string): boolean {
@@ -590,6 +608,16 @@ export async function procesarMensajeEOS(
   entrada: EntradaProcesamiento,
 ): Promise<ResultadoProcesamiento> {
   const comienzo = Date.now();
+  /*
+   * Milisegundos desde `comienzo` al terminar cada etapa. La meta del tablero
+   * (encargado-02) es una mediana de menos de 8 s, y sin partirla no se sabe a
+   * qué parte apuntar: el modelo solo, medido con la batería, tarda ~3 s.
+   * Se guardan en `turno` de eos_message_usage_v40 (ver `guardarTiempos`).
+   */
+  const tiempos: Record<string, number> = {};
+  const marcar = (etapa: string) => {
+    tiempos[etapa] = Date.now() - comienzo;
+  };
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
 
@@ -889,6 +917,7 @@ export async function procesarMensajeEOS(
     ]
       .filter((parte) => parte.trim() !== "")
       .join("\n\n");
+    marcar("contexto");
 
     const origen = textoSeguro(entrada.origen, 50) || "eos-web";
     const nuevoChat = entrada.nuevoChat === true;
@@ -1020,18 +1049,13 @@ export async function procesarMensajeEOS(
       return {
         status: isReplayConflict ? 409 : isLimit ? 429 : 402,
         body: {
-          respuesta: isLimit
-            ? isFree
-              ? "Llegaste a tus 5 mensajes gratuitos de hoy. Tu cupo se renueva mañana según la hora de Paraguay. Si querés seguir ahora, podés elegir un plan en Planes."
-              : "Llegaste al límite de mensajes de tu plan actual. Podés revisar tus opciones en Planes."
-            : isInProgress
-              ? "Este mensaje ya se está procesando. Esperá la respuesta antes de volver a enviarlo."
-              : isConsumedReplay
-                ? "Este mensaje ya fue procesado. Para continuar, enviá un mensaje nuevo."
-                : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
+          respuesta: mensajeDeCupo(
+            isLimit ? "limite" : isInProgress ? "en_proceso" : isConsumedReplay ? "ya_procesado" : "suscripcion",
+            { planGratis: isFree, appNativa: entrada.appNativa === true },
+          ),
           code,
           commercial: quota,
-          ...(isLimit || !isReplayConflict ? { upgrade_url: "/planes" } : {}),
+          ...((isLimit || !isReplayConflict) && entrada.appNativa !== true ? { upgrade_url: "/planes" } : {}),
         },
       };
     }
@@ -1056,6 +1080,7 @@ export async function procesarMensajeEOS(
     };
 
     releaseReservedQuota = releaseQuota;
+    marcar("cupo");
 
     const n8nHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (process.env.N8N_EOS_INTERNAL_SECRET) {
@@ -1119,7 +1144,7 @@ export async function procesarMensajeEOS(
     const directa = archivos.length === 0 && !payload.cita ? respuestaDirectaPara(mensaje) : null;
     if (directa) {
       try {
-        const texto = await directa.responder(adminSinTipos(), usuarioId, hoyEnParaguay());
+        const texto = await directa.responder(adminSinTipos(), usuarioId, hoyEnParaguay(), mensaje);
         const cuerpo: RespuestaGateway = {
           respuesta: texto,
           documento: null,
@@ -1146,12 +1171,48 @@ export async function procesarMensajeEOS(
     }
 
     if (n8nResponse === null && atiendeTypeScript(turnoDeAccion)) {
-      const propio = await conversar(payload, { modelo: modeloDelTurno(enrutamiento) });
+      let iaCaida: string | null = null;
+      const propio = await conversar(payload, {
+        modelo: modeloDelTurno(enrutamiento),
+        alFallarIA: (motivo) => {
+          iaCaida = motivo;
+        },
+      });
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
         n8nResponse = Response.json(propio.cuerpo);
       } else if (propio?.estado === "delegar") {
         console.info("Gateway TS: delega en n8n por", propio.motivo);
+      }
+
+      /*
+       * OpenAI no responde (encargado-08). Va con 200 y no 202: para la web, 202 es "en proceso"
+       * (lib/eos/envio-confiable.ts). n8n llama al mismo OpenAI y
+       * esperarlo sumaba hasta 90 s para terminar en "probá nuevamente". El
+       * mensaje queda en espera, se reintenta solo y la respuesta llega por
+       * el mismo canal. Nada se ejecutó todavía: el modelo es lo primero que
+       * se llama. Si no se puede guardar, sigue a n8n como siempre.
+       */
+      if (n8nResponse === null && iaCaida && puedeEsperar(entrada)) {
+        const guardado = await ponerEnEspera(adminSinTipos(), {
+          usuarioId,
+          conversacionId,
+          origen,
+          mensaje,
+          appNativa: entrada.appNativa === true,
+          motivo: `ia_${iaCaida}`,
+        });
+        if (guardado) {
+          await releaseQuota(`ia_no_responde_${iaCaida}`);
+          console.info("EOS: mensaje en espera porque la IA no responde:", {
+            request_id: payload.request_id,
+            motivo: iaCaida,
+          });
+          return {
+            status: 200,
+            body: { respuesta: TEXTO_EN_ESPERA, code: "EOS_EN_ESPERA" },
+          };
+        }
       }
     }
 
@@ -1175,6 +1236,7 @@ export async function procesarMensajeEOS(
     }
 
     const rawText = await n8nResponse.text();
+    marcar("respuesta");
 
     if (!n8nResponse.ok) {
       /*
@@ -1417,6 +1479,22 @@ export async function procesarMensajeEOS(
 
     quotaReleased = true;
     releaseReservedQuota = null;
+    marcar("cierre");
+
+    // Corre después de la respuesta: para entonces ya está marcado el "fin".
+    const diagnostico = {
+      soloMemoria,
+      verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
+      tokens: { entrada: tokensEntrada, cacheada: tokens.entradaCacheada, salida: tokensSalida },
+    };
+    after(() =>
+      guardarTiempos(
+        quotaAdmin,
+        usuarioId,
+        payload.request_id,
+        tiemposDelTurno(tiempos, resultado.metadata, diagnostico),
+      ),
+    );
 
     /*
      * El aviso interno de consumo (Gs. 70.000 en el mes, ver
@@ -1445,7 +1523,29 @@ export async function procesarMensajeEOS(
      */
     let archivoDocumento: { url: string; nombre: string; tipo: string } | null = null;
 
-    if (resultado.documento) {
+    /*
+     * ¿Puede bajar lo que EOS le arma?
+     *
+     * Bajar un documento es el módulo "Documentos a pedido": la ruta de
+     * descarga lo exige. Sin él, mandar el enlace es mandar uno que falla al
+     * tocarlo. Se pregunta solo si hay archivo en la respuesta, por el cliente
+     * de servicio porque acá no hay sesión (también llega por WhatsApp). Ante
+     * un error de lectura se deja pasar: la descarga vuelve a mirar, y perder
+     * un archivo que sí estaba pago es peor que un enlace que avisa.
+     */
+    const hayArchivo = Boolean(resultado.documento || resultado.archivo_url);
+    let puedeBajarDocumentos = true;
+
+    if (hayArchivo) {
+      const { data: tieneDocumentos, error: moduloError } = await adminSinTipos().rpc(
+        "eos_tiene_modulo",
+        { p_usuario_id: usuarioId, p_modulo: "documentos" },
+      );
+
+      puedeBajarDocumentos = Boolean(moduloError) || tieneDocumentos === true;
+    }
+
+    if (resultado.documento && puedeBajarDocumentos) {
       const formato = formatoPedido(payload.mensaje, resultado.metadata?.formato);
 
       const guardado = await guardarDocumento(createAdminClient(), {
@@ -1472,7 +1572,16 @@ export async function procesarMensajeEOS(
             "https://n8n-production-6cdb.up.railway.app/webhook/eos-decision-capture",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            /*
+             * El webhook es público y su URL está en este repositorio, que
+             * también es público. Sin el secreto, cualquiera podía hacerle
+             * gastar OpenAI y escribir decisiones en la cuenta de otro
+             * (`n8n/parches/2026-09-28-decisiones-con-secreto.mjs`).
+             */
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.EOS_WORKER_GATE_SECRET ?? ""}`,
+            },
             body: JSON.stringify({
               usuario_id: payload.usuario_id,
               request_id: payload.request_id,
@@ -1516,6 +1625,7 @@ export async function procesarMensajeEOS(
      * sus datos. Lo que va son identificadores, tipos de acción y estados —que
      * es exactamente lo que sirve para diagnosticar y nada más.
      */
+    marcar("fin");
     console.info(
       "EOS mensaje:",
       JSON.stringify({
@@ -1539,20 +1649,31 @@ export async function procesarMensajeEOS(
         camino_accion: turnoDeAccion,
         solo_memoria: soloMemoria,
         ms: Date.now() - comienzo,
+        tiempos: tiemposDelTurno(tiempos, resultado.metadata),
       }),
     );
 
     // La descripción del documento no viaja al cliente: ya está guardada, y
     // puede pesar más que la respuesta entera. Por eso se nombran los campos
     // uno por uno en vez de esparcir `resultado`.
-    const paraElCliente = {
-      respuesta: resultado.respuesta,
-      archivo_url: resultado.archivo_url,
-      archivo_tipo: resultado.archivo_tipo,
-      archivo_nombre: resultado.archivo_nombre,
-      tipo: resultado.tipo,
-      accion: resultado.accion,
-    };
+    const paraElCliente = puedeBajarDocumentos
+      ? {
+          respuesta: resultado.respuesta,
+          archivo_url: resultado.archivo_url,
+          archivo_tipo: resultado.archivo_tipo,
+          archivo_nombre: resultado.archivo_nombre,
+          tipo: resultado.tipo,
+          accion: resultado.accion,
+        }
+      : {
+          // Sin el módulo: la respuesta sin enlace, con lo que falta dicho.
+          respuesta: respuestaSinDocumentos(resultado.respuesta),
+          archivo_url: "",
+          archivo_tipo: "",
+          archivo_nombre: "",
+          tipo: "texto",
+          accion: resultado.accion,
+        };
 
     return {
       status: 200,

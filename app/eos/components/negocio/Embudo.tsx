@@ -9,6 +9,7 @@ import type { Actividad, Contacto, Oportunidad } from "./tipos";
 import { useEscape } from "../useEscape";
 import ConfigurarEtapas, { type EtapaCfg } from "./ConfigurarEtapas";
 import TarjetaOportunidad from "./TarjetaOportunidad";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 /**
  * El embudo y la agenda del CRM.
@@ -135,9 +136,11 @@ export default function Embudo({ contactos }: { contactos: Contacto[] }) {
           Con el CRM, EOS lleva tu embudo de ventas y lo que quedó pendiente con cada cliente,
           sobre el mismo contexto que ya tiene de vos.
         </p>
-        <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-          Ver cómo sumarlo
-        </a>
+        <SoloEnWeb>
+          <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+            Ver cómo sumarlo
+          </a>
+        </SoloEnWeb>
       </div>
     );
   }

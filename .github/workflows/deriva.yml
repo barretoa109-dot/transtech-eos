@@ -1,0 +1,52 @@
+# ¿Producción corre lo mismo que main? Ver scripts/deriva-produccion.mjs.
+#
+# Corre todas las noches (y a mano, desde Actions → deriva → Run workflow,
+# después de un db push para confirmar). Si difieren, el job queda en rojo y
+# GitHub avisa por correo.
+#
+# Secretos: SUPABASE_DB_URL (el mismo del respaldo). N8N_BASE_URL y
+# N8N_API_KEY son opcionales: sin ellos solo compara migraciones.
+
+name: deriva
+
+on:
+  schedule:
+    - cron: "30 7 * * *" # 04:30 en Asunción, después del respaldo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deriva:
+    if: github.repository == 'barretoa109-dot/transtech-eos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Versiones aplicadas en producción
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Falta SUPABASE_DB_URL. Ver docs/respaldo-nocturno.md"
+            exit 1
+          fi
+          case "$SUPABASE_DB_URL" in
+            postgresql://*|postgres://*) ;;
+            *) echo "::error::SUPABASE_DB_URL tiene que empezar con postgresql:// (sin espacios ni comillas adelante)"; exit 1 ;;
+          esac
+          psql --dbname="$SUPABASE_DB_URL" -At \
+            -c "select version from supabase_migrations.schema_migrations order by 1" > versiones.txt
+
+      - name: Comparar con main
+        env:
+          PROD_VERSIONES: versiones.txt
+        run: node scripts/deriva-produccion.mjs

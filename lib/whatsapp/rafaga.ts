@@ -23,6 +23,7 @@ export type MensajeWhatsapp = {
   image?: { id?: string; mime_type?: string; caption?: string };
   document?: { id?: string; mime_type?: string; caption?: string; filename?: string };
   audio?: { id?: string; mime_type?: string };
+  video?: { id?: string; mime_type?: string; caption?: string };
   errors?: Array<{ code?: number; title?: string; message?: string }>;
 };
 
@@ -47,7 +48,7 @@ export type FilaRafaga = EntradaRafaga & { id: number; recibido_en: string };
 const SIN_RESPUESTA = new Set(["reaction", "system", "ephemeral", "request_welcome"]);
 
 /** Los que el motor entiende. */
-const LEGIBLES = new Set(["text", "image", "document", "audio"]);
+const LEGIBLES = new Set(["text", "image", "document", "audio", "video"]);
 
 /**
  * Qué se anota de un mensaje. `null` si no hay nada que anotar: sin id, sin
@@ -63,8 +64,11 @@ export function entradaDeMensaje(m: MensajeWhatsapp): EntradaRafaga | null {
 
   if (tipo === "text") return { ...base, texto: String(m.text?.body || "").trim() || null };
 
-  if (tipo === "image" || tipo === "document" || tipo === "audio") {
-    const media = tipo === "image" ? m.image : tipo === "document" ? m.document : m.audio;
+  if (tipo === "image" || tipo === "document" || tipo === "audio" || tipo === "video") {
+    // Un video se baja igual que una foto; el webhook lo desarma después
+    // en cuadros y audio (`lib/whatsapp/video.ts`).
+    const media =
+      tipo === "image" ? m.image : tipo === "document" ? m.document : tipo === "video" ? m.video : m.audio;
     const pie = tipo === "audio" ? "" : String((media as { caption?: string } | undefined)?.caption || "").trim();
     return {
       ...base,
@@ -131,9 +135,6 @@ export function unirLote(filas: FilaRafaga[]): Lote {
  * que la hizo pensar que EOS no funcionaba. Se dice qué fue lo que no llegó.
  */
 export function avisoNoLegible(tipos: string[]): string {
-  if (tipos.includes("video")) {
-    return "Los videos todavía no los puedo ver. Si me mandás una captura de lo que querés que mire, lo reviso.";
-  }
   if (tipos.includes("sticker")) return "";
   if (tipos.includes("location")) return "Las ubicaciones todavía no las leo. Escribime la dirección y sigo.";
   if (tipos.includes("contacts")) return "Los contactos compartidos todavía no los leo. Escribime el nombre y el número y lo cargo.";

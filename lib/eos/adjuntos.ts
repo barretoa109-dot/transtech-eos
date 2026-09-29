@@ -47,8 +47,14 @@ export const MAX_BYTES_POR_ARCHIVO = 15 * 1024 * 1024;
  * Es el número que de verdad tiene que entrar en el cuerpo del pedido. Se mide
  * sobre el base64 y no sobre los bytes originales porque es lo que viaja:
  * base64 agrega un tercio.
+ *
+ * 4 MB y no 18 (27/09/2026): Vercel rechaza todo pedido de más de 4,5 MB
+ * ANTES de que corra la función, y el teléfono lo ve como un corte de red. Un
+ * tope mayor que el de la plataforma dejaba pasar adjuntos que después se
+ * perdían sin explicación. El medio MB que sobra es para el historial y el
+ * resto del JSON.
  */
-export const MAX_BASE64_TOTAL = 18 * 1024 * 1024;
+export const MAX_BASE64_TOTAL = 4 * 1024 * 1024;
 
 /**
  * El lado más largo al que se achica una imagen.
@@ -64,7 +70,18 @@ export type Adjunto = {
   tipo: string;
   tamanio?: number;
   base64: string;
+  /**
+   * Lo que viaja de verdad, cuando no es el archivo mismo. Un video viaja
+   * desarmado en cuadros y audio (`lib/eos/videos.ts`): ocupa un lugar por
+   * pieza y pesa lo que pesan ellas, no lo que pesaba el video.
+   */
+  partes?: { base64: string }[];
 };
+
+/** Cuántos lugares del mensaje ocupa un adjunto. */
+export function lugaresQueOcupa(adjunto: Adjunto): number {
+  return adjunto.partes?.length || 1;
+}
 
 /**
  * A qué medida achicar, conservando la proporción.
@@ -110,19 +127,41 @@ export function revisarAdjuntos(adjuntos: Adjunto[]): Rechazo | null {
     };
   }
 
+  // Un video viaja como varias piezas, y el tope es de piezas: es lo que le
+  // llega al modelo. Se dice cuánto ocupa, porque "diez archivos" con un
+  // video y seis fotos no se entiende sin eso.
+  const lugares = adjuntos.reduce((suma, a) => suma + lugaresQueOcupa(a), 0);
+  const video = adjuntos.find((a) => a.partes && a.partes.length > 1);
+
+  if (lugares > MAX_ADJUNTOS && video) {
+    return {
+      motivo: `Un video ocupa ${lugaresQueOcupa(video)} de los ${MAX_ADJUNTOS} lugares de un mensaje (sus cuadros y el audio), y así no entra todo. Mandá el video solo, o con menos fotos.`,
+    };
+  }
+
   for (const adjunto of adjuntos) {
     if (!adjunto.nombre || !adjunto.tipo || !adjunto.base64) {
       return { motivo: "Uno de los archivos llegó incompleto. Probá adjuntarlo de nuevo." };
     }
 
-    if (typeof adjunto.tamanio === "number" && adjunto.tamanio > MAX_BYTES_POR_ARCHIVO) {
+    // El tope por archivo es para lo que viaja tal cual. Un video ya se revisó
+    // por su cuenta (`revisarVideo`) y viaja desarmado.
+    if (
+      !adjunto.partes &&
+      typeof adjunto.tamanio === "number" &&
+      adjunto.tamanio > MAX_BYTES_POR_ARCHIVO
+    ) {
       return {
         motivo: `"${adjunto.nombre}" pesa más de 15 MB, que es el máximo por archivo.`,
       };
     }
   }
 
-  const total = adjuntos.reduce((suma, a) => suma + a.base64.length, 0);
+  const total = adjuntos.reduce(
+    (suma, a) =>
+      suma + (a.partes ? a.partes.reduce((s, p) => s + p.base64.length, 0) : a.base64.length),
+    0,
+  );
 
   if (total > MAX_BASE64_TOTAL) {
     return {
@@ -148,9 +187,11 @@ export function textoPorDefecto(adjuntos: Adjunto[]): string {
     const uno = adjuntos[0];
     const que = uno.tipo.startsWith("image/")
       ? "esta imagen"
-      : uno.tipo.startsWith("audio/")
-        ? "este audio"
-        : "este archivo";
+      : uno.tipo.startsWith("video/")
+        ? "este video"
+        : uno.tipo.startsWith("audio/")
+          ? "este audio"
+          : "este archivo";
     return `Analizá ${que}: ${uno.nombre}`;
   }
 
@@ -160,7 +201,10 @@ export function textoPorDefecto(adjuntos: Adjunto[]): string {
   const todasImagenes = adjuntos.every((a) => a.tipo.startsWith("image/"));
   const todosAudios = adjuntos.every((a) => a.tipo.startsWith("audio/"));
 
+  const todosVideos = adjuntos.every((a) => a.tipo.startsWith("video/"));
+
   if (todasImagenes) return `Analizá estas ${adjuntos.length} imágenes`;
+  if (todosVideos) return `Analizá estos ${adjuntos.length} videos`;
   if (todosAudios) return `Analizá estos ${adjuntos.length} audios`;
 
   return `Analizá estos ${adjuntos.length} archivos`;

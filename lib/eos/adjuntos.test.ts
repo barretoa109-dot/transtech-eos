@@ -83,8 +83,15 @@ test("el archivo de más de 15 MB se rechaza con su nombre", () => {
 test("diez archivos chicos pasan aunque uno solo grande no pasaría", () => {
   // El tope por archivo y el tope del total son distintos a propósito: la
   // suma es lo que tiene que entrar en el cuerpo del pedido.
-  const diez = Array.from({ length: 10 }, () => foto({ base64: "x".repeat(1_000_000) }));
+  // Diez fotos achicadas (~300 KB, ~400 KB en base64) tienen que entrar.
+  const diez = Array.from({ length: 10 }, () => foto({ base64: "x".repeat(400_000) }));
   assert.equal(revisarAdjuntos(diez), null);
+});
+
+test("nada que la plataforma vaya a rechazar pasa la revisión", () => {
+  // Vercel corta el pedido de más de 4,5 MB antes de que corra la función.
+  const pdf = foto({ nombre: "extracto.pdf", tipo: "application/pdf", base64: "x".repeat(4_600_000) });
+  assert.ok(revisarAdjuntos([pdf]));
 });
 
 test("diez archivos pesados sí se frenan por el total", () => {

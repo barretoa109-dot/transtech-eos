@@ -152,6 +152,21 @@ export default function ResultadoView() {
 
       {datos.aviso && <p className="neg-error" role="alert">{datos.aviso}</p>}
 
+      {/*
+        El libro para el contador (negocio-03): ventas, compras, IVA por tasa,
+        cobros y pagos del mismo período que se está mirando, en un Excel que
+        se abre sin explicación. Ver app/api/erp/libro-contador/route.ts.
+      */}
+      <p style={{ margin: "0 0 12px" }}>
+        <a
+          className="btn-link"
+          href={`/api/erp/libro-contador?desde=${datos.periodo.desde}&hasta=${datos.periodo.hasta}`}
+          download
+        >
+          Descargar el Excel para el contador (ventas, compras e IVA de este período)
+        </a>
+      </p>
+
       {datos.resultados.map((r) => (
         <div key={`res-${r.moneda}`} className="card" style={{ marginBottom: 16 }}>
           <div className="card-title">
