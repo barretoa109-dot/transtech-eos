@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 
 import FinanzasBuzon from "./FinanzasBuzon";
+import { createClient } from "@/lib/supabase/client";
+import { RUBROS } from "@/lib/eos/rubros";
 
 /**
  * La conversación fundacional.
@@ -100,6 +102,7 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [rubroElegido, setRubroElegido] = useState<string | null>(null);
 
   const [cuentas, setCuentas] = useState<Cuenta[]>([{ ...CUENTA_VACIA }]);
   const [fijos, setFijos] = useState<Fijo[]>([]);
@@ -319,6 +322,37 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
     }
   }
 
+  /**
+   * El camino del negocio (fila D3 del plan de diferenciación): elegir el
+   * rubro y directo al chat, con ejemplos de ese rubro.
+   *
+   * Antes el primer paso era el cuestionario de plata personal y el negocio
+   * era un botón secundario. Los datos dicen lo contrario: quienes se quedan
+   * usan EOS para su negocio, y 3 de 5 cuentas reales nunca recibieron valor.
+   * El cuestionario sigue intacto, un toque más abajo.
+   *
+   * El rubro va a los metadatos de la cuenta. Si no se pudo guardar, se sigue
+   * igual: sin rubro, el chat muestra los ejemplos generales.
+   */
+  async function empezarConNegocio(clave: string) {
+    setError("");
+    setRubroElegido(clave);
+    setGuardando(true);
+
+    try {
+      const { error: errorRubro } = await createClient().auth.updateUser({ data: { rubro: clave } });
+      if (errorRubro) console.error("Onboarding: no se pudo guardar el rubro:", errorRubro.message);
+
+      await marcarPaso("completado");
+      onListo?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pudimos guardar el cambio.");
+      setRubroElegido(null);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   function retroceder() {
     const indice = ORDEN.indexOf(paso);
     if (indice > 0) setPaso(ORDEN[indice - 1]);
@@ -342,33 +376,47 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
           <ShieldCheck size={14} />
           EMPECEMOS
         </span>
-        <span className="fin-setup-progreso">
-          {indice + 1} de {ORDEN.length}
-        </span>
+        {/* En la bienvenida no: "1 de 8" le haría creer al dueño de un negocio
+            que le esperan ocho pasos, cuando a él le alcanza con un toque. */}
+        {paso !== "bienvenida" && (
+          <span className="fin-setup-progreso">
+            {indice + 1} de {ORDEN.length}
+          </span>
+        )}
       </div>
 
-      <div className="fin-setup-barra">
-        <div
-          className="fin-setup-barra-fill"
-          style={{ width: `${((indice + 1) / ORDEN.length) * 100}%` }}
-        />
-      </div>
+      {paso !== "bienvenida" && (
+        <div className="fin-setup-barra">
+          <div
+            className="fin-setup-barra-fill"
+            style={{ width: `${((indice + 1) / ORDEN.length) * 100}%` }}
+          />
+        </div>
+      )}
 
       {paso === "bienvenida" && (
         <>
-          <div className="fin-setup-pregunta">Vamos a hacer esto una sola vez</div>
+          <div className="fin-setup-pregunta">¿A qué se dedica tu negocio?</div>
           <div className="fin-setup-ayuda">
-            Te voy a preguntar algunas cosas sobre tu plata: dónde la tenés, qué entra, qué sale y a
-            quién le debés. Cuando terminemos no vas a tener que cargarme nada más — yo miro y te
-            aviso si algo necesita tu atención.
+            Elegí lo más parecido y empezamos hablando: me contás una venta como se la contarías a
+            alguien de confianza y yo la anoto, con tu stock y tu caja.
+          </div>
+          <div className="chip-row onb-rubros" role="group" aria-label="Rubro de tu negocio">
+            {RUBROS.map((r) => (
+              <button
+                key={r.clave}
+                type="button"
+                className={`chip${rubroElegido === r.clave ? " active" : ""}`}
+                onClick={() => void empezarConNegocio(r.clave)}
+                disabled={guardando}
+              >
+                {r.etiqueta}
+              </button>
+            ))}
           </div>
           <div className="fin-setup-ayuda">
-            Son unos minutos. Podés dejarlo por la mitad y seguir después: cada respuesta queda
-            guardada.
-          </div>
-          <div className="fin-setup-ayuda">
-            ¿Lo tuyo es un negocio? Podés saltearlo: contale a EOS una venta o un producto y lo
-            anota.
+            ¿Preferís ordenar primero tu plata personal? Te hago unas preguntas, una sola vez, y
+            después te aviso si algo necesita tu atención.
           </div>
         </>
       )}
@@ -646,6 +694,27 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
 
       {error && <p className="fin-setup-error" role="alert">{error}</p>}
 
+      {/*
+       * En la bienvenida el camino principal son los rubros de arriba: acá abajo
+       * queda solo el de la plata personal, como opción secundaria.
+       */}
+      {paso === "bienvenida" ? (
+        <div className="fin-setup-acciones">
+          <button type="button" className="fin-toggle" onClick={() => void avanzar()} disabled={guardando}>
+            {guardando && !rubroElegido ? (
+              <Loader2 size={12} className="fin-spin onb-icono" />
+            ) : null}
+            Ordenar mi plata personal
+            <ArrowRight size={12} className="onb-icono onb-icono-der" />
+          </button>
+          {guardando && rubroElegido && (
+            <span className="fin-setup-ayuda">
+              <Loader2 size={12} className="fin-spin onb-icono" />
+              Preparando tu chat…
+            </span>
+          )}
+        </div>
+      ) : (
       <div className="fin-setup-acciones">
         {indice > 0 ? (
           <button type="button" className="fin-toggle" onClick={retroceder} disabled={guardando}>
@@ -669,11 +738,6 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
               <Check size={12} className="onb-icono" />
               Empezar
             </>
-          ) : paso === "bienvenida" ? (
-            <>
-              Empecemos
-              <ArrowRight size={12} className="onb-icono onb-icono-der" />
-            </>
           ) : (
             <>
               Seguir
@@ -682,6 +746,7 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
           )}
         </button>
       </div>
+      )}
     </div>
   );
 }
