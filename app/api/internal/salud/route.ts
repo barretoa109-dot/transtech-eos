@@ -1,10 +1,19 @@
 import { timingSafeEqual } from "crypto";
 
+import { after } from "next/server";
+
 import { correrChequeos, enviarAlerta } from "@/lib/monitoreo/salud";
+import { procesarMensajeEOS } from "@/lib/eos/procesar-mensaje";
+import { reintentarEnEspera } from "@/lib/eos/en-espera";
+import { entregaEnEspera } from "@/lib/eos/en-espera-entrega";
+import { idDeterministico } from "@/lib/whatsapp/id-determinista";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 300 y no 60: en `after()` corren los reintentos de los mensajes en espera,
+// que llaman al modelo uno por uno (lib/eos/en-espera.ts).
+export const maxDuration = 300;
 
 /**
  * Chequeo de salud de EOS.
@@ -50,6 +59,38 @@ export async function GET(request: Request) {
   const baseUrl = baseUrlApp();
   const conDetalle = autorizado(request);
   const avisar = new URL(request.url).searchParams.get("avisar") === "1";
+
+  /*
+   * Los mensajes que quedaron en espera porque la IA no respondía
+   * (lib/eos/en-espera.ts). Van colgados de este chequeo porque n8n ya lo
+   * llama cada 5 minutos con el secreto, y el plan Hobby de Vercel no da
+   * crons más seguidos que uno por día. Solo con el secreto: un monitor
+   * externo sin él no dispara nada. En `after()`, así no demora el chequeo.
+   */
+  if (conDetalle) {
+    after(async () => {
+      try {
+        const admin = adminSinTipos();
+        const resumen = await reintentarEnEspera(admin, {
+          procesar: (usuarioId, entrada) =>
+            procesarMensajeEOS(usuarioId, {
+              ...entrada,
+              archivos: [],
+              nuevoChat: false,
+              cita: null,
+              requestOrigin: baseUrl,
+            }),
+          entregar: entregaEnEspera(admin),
+          idDelIntento: idDeterministico,
+        });
+        if (resumen.procesados + resumen.siguen + resumen.vencidos > 0) {
+          console.log("En espera: reintentos", resumen);
+        }
+      } catch (error) {
+        console.error("En espera: falló la tanda de reintentos:", error);
+      }
+    });
+  }
 
   const reporte = await correrChequeos(baseUrl);
 

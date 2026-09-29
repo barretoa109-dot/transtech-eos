@@ -26,6 +26,7 @@
     "desplegar:fotos": "node scripts/desplegar-varias-fotos.mjs",
     "piloto": "node scripts/informe-piloto.mjs",
     "primeros-pasos": "node scripts/primeros-pasos.mjs",
+    "tablero": "node --experimental-strip-types scripts/tablero-semanal.mjs",
     "bateria": "node --experimental-strip-types evals/bateria/correr.mts"
   },
   "dependencies": {
