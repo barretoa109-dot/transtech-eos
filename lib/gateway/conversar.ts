@@ -353,6 +353,11 @@ export async function conversar(
   const antesDelWorker = Date.now();
   const resultados = await ejecutarJobs(jobs, config);
   cuerpo.metadata.worker_ms = Date.now() - antesDelWorker;
+  // Autorizar y ejecutar, por acción: van a `turno` (lib/eos/tiempos.ts).
+  cuerpo.metadata.acciones_ms = resultados.map((r) => ({
+    accion: String(r.accion ?? ""),
+    ...((r.ms && typeof r.ms === "object" ? r.ms : {}) as Record<string, unknown>),
+  }));
 
   const final = juntarResultados(
     {
