@@ -8,6 +8,7 @@ import FichaCliente from "./FichaCliente";
 import Embudo from "./negocio/Embudo";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto } from "./negocio/tipos";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 /**
  * El CRM, separado del ERP.
@@ -124,9 +125,11 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
               Con el CRM, EOS lleva tu embudo de ventas y lo que quedó pendiente con cada
               cliente, sobre el mismo contexto que ya tiene de vos.
             </p>
-            <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-              Ver cómo sumarlo
-            </a>
+            <SoloEnWeb>
+              <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+                Ver cómo sumarlo
+              </a>
+            </SoloEnWeb>
           </div>
         </div>
       </div>

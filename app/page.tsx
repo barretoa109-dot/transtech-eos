@@ -8,6 +8,7 @@ import Reveal from "@/components/effects/Reveal";
 import { homeTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
 import { supabase } from "../lib/supabase";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 const transtechIntelligence = [
   {
@@ -482,9 +483,11 @@ export default function Home() {
               <strong>Empezá con las funciones que tu negocio necesita.</strong>
               <span> Podés sumar ERP, CRM y facturación a tu EOS personalizado.</span>
             </div>
-            <Link className="btn btn-primary" href="/planes">
-              Armar mi EOS →
-            </Link>
+            <SoloEnWeb>
+              <Link className="btn btn-primary" href="/planes">
+                Armar mi EOS →
+              </Link>
+            </SoloEnWeb>
           </Reveal>
         </div>
       </section>
@@ -594,7 +597,9 @@ export default function Home() {
               <div className="footer-col">
                 <h4>EOS</h4>
                 <Link href="/eos">Conocer EOS</Link>
-                <Link href="/planes">Planes</Link>
+                <SoloEnWeb>
+                  <Link href="/planes">Planes</Link>
+                </SoloEnWeb>
                 <Link href="/login">Abrir EOS</Link>
                 <Link href="/login">Iniciar sesión</Link>
               </div>

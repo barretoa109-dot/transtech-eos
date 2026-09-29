@@ -2,8 +2,25 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { destinoSeguro } from "@/lib/auth/destino";
+import { DESTINO_EN_APP, esAppNativa, esRutaDeCompra } from "@/lib/app-nativa/plataforma";
 
 export async function proxy(request: NextRequest) {
+  /*
+   * Planes y pago no existen dentro de la app nativa: las tiendas no dejan
+   * vender por fuera de su cobro. A la web le llega todo igual que antes, y
+   * sin pasar por Supabase: estas rutas no estaban en el matcher hasta que
+   * hizo falta esta regla, y no necesitan refrescar la sesión acá.
+   */
+  if (esRutaDeCompra(request.nextUrl.pathname)) {
+    if (esAppNativa(request.headers.get("user-agent"))) {
+      const destino = request.nextUrl.clone();
+      destino.pathname = DESTINO_EN_APP;
+      destino.search = "";
+      return NextResponse.redirect(destino);
+    }
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({
     request,
   });
@@ -102,5 +119,7 @@ export const config = {
     "/eos/chat/:path*",
     "/eos/onboarding/:path*",
     "/mobile/:path*",
+    "/planes/:path*",
+    "/pago/:path*",
   ],
 };

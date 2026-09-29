@@ -22,6 +22,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Vuelta a la app después de iniciar sesión con Google o Apple en el
+                 navegador del sistema: com.transtech.eos://auth/callback?code=...
+                 Ver lib/app-nativa/plataforma.ts y docs/app-nativa/tiendas.md. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.transtech.eos" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider

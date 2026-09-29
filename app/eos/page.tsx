@@ -5,6 +5,7 @@ import AmbientBackground from "@/components/effects/AmbientBackground";
 import AnimatedTitle from "@/components/effects/AnimatedTitle";
 import { eosTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 export default function EOSLandingPage() {
   const scrolled = useNavScrolled();
@@ -31,7 +32,9 @@ export default function EOSLandingPage() {
             <a href="#como-funciona">Cómo funciona</a>
             <a href="#capacidades">Capacidades</a>
             <a href="#diferencias">Diferencias</a>
-            <Link href="/planes">Planes</Link>
+            <SoloEnWeb>
+              <Link href="/planes">Planes</Link>
+            </SoloEnWeb>
           </div>
 
           <div className="nav-actions">

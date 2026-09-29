@@ -69,6 +69,7 @@ import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
+import { mensajeDeCupo } from "@/lib/eos/mensaje-cupo";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
@@ -178,6 +179,12 @@ export type EntradaProcesamiento = {
   nombreFallback?: string;
   /** Origen absoluto usado para armar enlaces en la respuesta (ej. `/eos/autonomy`). */
   requestOrigin: string;
+  /**
+   * El mensaje llega desde la app nativa de iOS o Android. Ahí las respuestas
+   * no invitan a comprar por fuera de la tienda (ver `lib/app-nativa/plataforma.ts`).
+   * WhatsApp y la web lo dejan sin definir.
+   */
+  appNativa?: boolean;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -1021,18 +1028,13 @@ export async function procesarMensajeEOS(
       return {
         status: isReplayConflict ? 409 : isLimit ? 429 : 402,
         body: {
-          respuesta: isLimit
-            ? isFree
-              ? "Llegaste a tus 5 mensajes gratuitos de hoy. Tu cupo se renueva mañana según la hora de Paraguay. Si querés seguir ahora, podés elegir un plan en Planes."
-              : "Llegaste al límite de mensajes de tu plan actual. Podés revisar tus opciones en Planes."
-            : isInProgress
-              ? "Este mensaje ya se está procesando. Esperá la respuesta antes de volver a enviarlo."
-              : isConsumedReplay
-                ? "Este mensaje ya fue procesado. Para continuar, enviá un mensaje nuevo."
-                : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
+          respuesta: mensajeDeCupo(
+            isLimit ? "limite" : isInProgress ? "en_proceso" : isConsumedReplay ? "ya_procesado" : "suscripcion",
+            { planGratis: isFree, appNativa: entrada.appNativa === true },
+          ),
           code,
           commercial: quota,
-          ...(isLimit || !isReplayConflict ? { upgrade_url: "/planes" } : {}),
+          ...((isLimit || !isReplayConflict) && entrada.appNativa !== true ? { upgrade_url: "/planes" } : {}),
         },
       };
     }

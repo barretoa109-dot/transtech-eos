@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { DIAS_AVISO_VENCIMIENTO } from "@/lib/modulos/catalogo";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 /**
  * Qué funciones tiene contratadas el usuario, y hasta cuándo.
@@ -122,14 +123,16 @@ export default function MisModulos() {
         <p className="prose" style={{ marginTop: 10, color: "var(--amber)", fontSize: 13 }}>
           {porVencerPronto.length === 1
             ? `${porVencerPronto[0].nombre} vence pronto.`
-            : `${porVencerPronto.length} funciones vencen dentro de ${DIAS_AVISO_VENCIMIENTO} días.`}{" "}
-          Renovalas antes de que dejen de andar.
+            : `${porVencerPronto.length} funciones vencen dentro de ${DIAS_AVISO_VENCIMIENTO} días.`}
+          <SoloEnWeb> Renovalas antes de que dejen de andar.</SoloEnWeb>
         </p>
       )}
 
-      <Link className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-        {activos.length === 0 ? "Armar mi EOS" : "Cambiar mis funciones"}
-      </Link>
+      <SoloEnWeb>
+        <Link className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+          {activos.length === 0 ? "Armar mi EOS" : "Cambiar mis funciones"}
+        </Link>
+      </SoloEnWeb>
     </div>
   );
 }

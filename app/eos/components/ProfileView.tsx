@@ -13,6 +13,7 @@ import MiEmpresa from "./MiEmpresa";
 import Cajas from "./negocio/Cajas";
 import VincularWhatsApp from "./VincularWhatsApp";
 import { NUMERO_WHATSAPP_EOS, enlaceWhatsappEOS } from "@/lib/whatsapp/numero-eos";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 type ProfileViewProps = {
   nombre: string;
@@ -119,9 +120,11 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
             */}
             <div className="plan-badge">Tu EOS</div>
           </div>
-          <Link href="/planes" className="ghost-btn">
-            Cambiar mis funciones
-          </Link>
+          <SoloEnWeb>
+            <Link href="/planes" className="ghost-btn">
+              Cambiar mis funciones
+            </Link>
+          </SoloEnWeb>
         </div>
 
         <div className="card">
@@ -251,9 +254,11 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
               </div>
             </>
           )}
-          <Link href="/planes" className="reco-btn" style={{ display: "inline-flex", marginTop: 10 }}>
-            Cambiar mi cupo de mensajes
-          </Link>
+          <SoloEnWeb>
+            <Link href="/planes" className="reco-btn" style={{ display: "inline-flex", marginTop: 10 }}>
+              Cambiar mi cupo de mensajes
+            </Link>
+          </SoloEnWeb>
         </div>
       </div>
 

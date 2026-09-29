@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
+import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
 /**
  * Los datos con los que el usuario factura.
@@ -150,9 +151,11 @@ export default function Emisor() {
         <p className="prose">
           Emite documentos electrónicos sobre las ventas que ya cargás, sin volver a tipear nada.
         </p>
-        <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-          Ver cómo sumarla
-        </a>
+        <SoloEnWeb>
+          <a className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
+            Ver cómo sumarla
+          </a>
+        </SoloEnWeb>
       </div>
     );
   }
