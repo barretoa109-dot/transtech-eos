@@ -328,6 +328,7 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
         porCobrar: cartera.documentos
           .filter((d) => estaPendiente(d) && d.moneda === "PYG")
           .map((d) => ({ total: saldoDe(d), contacto_id: d.contacto_id })),
+        avisos: await avisosDelMes(admin, uid, p),
       };
     },
 
@@ -345,4 +346,24 @@ export function fuenteSupabase(admin: ClienteSinTipos): Fuente {
       await admin.from(TABLA).delete().eq("usuario_id", uid).eq("periodo", p.clave);
     },
   };
+}
+
+/**
+ * Los avisos que llegaron en el mes (v217). Si no se pueden leer, el informe
+ * sale sin esa línea: es un dato de más, no uno sin el cual el resto mienta.
+ */
+async function avisosDelMes(admin: ClienteSinTipos, uid: string, p: Periodo): Promise<{ tipo: string }[]> {
+  const { data, error } = await admin
+    .from("eos_avisos_historial_v217")
+    .select("tipo")
+    .eq("usuario_id", uid)
+    .eq("resultado", "entregado")
+    .gte("fecha", p.desde)
+    .lte("fecha", p.hasta)
+    .limit(1000);
+  if (error) {
+    console.error("Impacto: no se pudo leer la historia de avisos:", error);
+    return [];
+  }
+  return (data ?? []) as { tipo: string }[];
 }
