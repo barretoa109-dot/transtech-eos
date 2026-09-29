@@ -37,6 +37,7 @@
  * cada mensaje, y los tokens ya viajan en la respuesta.
  */
 
+import { esCaidaDeIA } from "../eos/en-espera.ts";
 import { EntradaInvalida, prepararEntrada } from "./entrada.ts";
 import { armarPrompt, type Prompt } from "./prompt.ts";
 import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
@@ -44,7 +45,6 @@ import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
 import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
-import { esCaidaDeIA } from "../eos/en-espera.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
