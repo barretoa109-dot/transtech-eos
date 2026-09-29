@@ -43,7 +43,7 @@ import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGatewa
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
-import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
+import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "./sistema.ts";
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -166,6 +166,9 @@ async function preguntarAlModelo(clave: string, modelo: string, contenido: Promp
       },
       body: JSON.stringify({
         model: modelo,
+        // Solo al principal: el esfuerzo se eligió midiendo ESE modelo, y el
+        // barato del enrutamiento puede no aceptar el mismo valor.
+        ...(modelo === MODELO ? { reasoning: { effort: ESFUERZO } } : {}),
         input: [
           { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
           { role: "user", content: contenido },
@@ -253,6 +256,10 @@ export async function conversar(
 
   const { contenido } = armarPrompt(entrada);
 
+  // Cuánto se esperó al modelo y cuánto a las acciones: van a la metadata y de
+  // ahí a `tiempos` en eos_message_usage_v40 (encargado-02 del tablero).
+  const antesDelModelo = Date.now();
+
   const pedido = opciones.modelo?.trim() ?? "";
   const barato = pedido && pedido !== MODELO ? pedido : null;
   let cuerpo: RespuestaGateway | null = null;
@@ -291,6 +298,7 @@ export async function conversar(
    * mensaje (`tarifasDelModelo`).
    */
   cuerpo.metadata.modelo = modelo;
+  cuerpo.metadata.modelo_ms = Date.now() - antesDelModelo;
   if (enrutado) cuerpo.metadata.enrutado = enrutado;
 
   if (!cuerpo.requiere_worker) {
@@ -330,7 +338,9 @@ export async function conversar(
    * y no un permiso. Lo que falle se informa como error en la respuesta, que
    * es lo mismo que hace n8n hoy.
    */
+  const antesDelWorker = Date.now();
   const resultados = await ejecutarJobs(jobs, config);
+  cuerpo.metadata.worker_ms = Date.now() - antesDelWorker;
 
   const final = juntarResultados(
     {
