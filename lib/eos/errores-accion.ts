@@ -100,7 +100,16 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ACCION_CONTACTO_NO_RESUELTO",
     mensaje: (d) =>
       `No encontré a "${d}" entre tus contactos. Pedime que lo agende primero ` +
-      `—"agendá a ${d}"— y después registramos la venta a su nombre.`,
+      `—"agendá a ${d}"— y después lo registramos a su nombre.`,
+  },
+  {
+    // v215: una venta a un cliente nuevo lo agenda sola. Esto queda para cuando
+    // el nombre se parece a alguien que ya está: adivinar partiría la cuenta
+    // de ese cliente en dos.
+    codigo: "EOS_ACCION_CONTACTO_AMBIGUO",
+    mensaje: (d) =>
+      `"${d}" se parece a alguien que ya tenés agendado. Decime el nombre como lo tenés en tus contactos ` +
+      `y registro la venta. Si es otra persona, decime "es un cliente nuevo".`,
   },
   {
     codigo: "EOS_ACCION_CONTACTO_SIN_NOMBRE",
