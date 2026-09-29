@@ -40,6 +40,18 @@ import { type ClienteSinTipos } from "../supabase/sin-tipos.ts";
  * siempre.
  */
 
+/**
+ * El orden de los avisos cuando no entran todos (tope de dos por día, v217):
+ * primero la plata que se debe o que se va, después el stock.
+ */
+const PRIORIDAD: Record<RiesgoNegocio["tipo"], number> = {
+  pagos_a_proveedores: 0,
+  cobros_demorados: 1,
+  gasto_anormal: 2,
+  inventario_bajo: 3,
+  stock_por_agotarse: 4,
+};
+
 /** Tope por corrida: un cron que se cuelga no avisa a nadie. */
 const MAX_USUARIOS = 50;
 
@@ -197,6 +209,12 @@ export async function avisarRiesgosNegocio(
         }
       }
 
+      /*
+       * Primero lo que pone más plata en juego: hay dos avisos por día para todo
+       * (v217, encargado-05) y el que no entra hoy se intenta mañana.
+       */
+      riesgos.sort((x, y) => PRIORIDAD[x.tipo] - PRIORIDAD[y.tipo]);
+
       for (const riesgo of riesgos) {
         if (yaAvisado.get(riesgo.tipo) === riesgo.clave) {
           resumen.omitidos_por_repetido += 1;
@@ -204,7 +222,11 @@ export async function avisarRiesgosNegocio(
         }
 
         const texto = redactarRiesgoNegocio(riesgo, formatearMonto);
-        const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo);
+        const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo, {
+          familia: "negocio",
+          tipo: riesgo.tipo,
+          clave: riesgo.clave,
+        });
 
         if (!entregado) {
           // Sin canal no se anota: si mañana activa el correo, tiene que

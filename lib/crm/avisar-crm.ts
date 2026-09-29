@@ -178,7 +178,11 @@ export async function avisarSeguimientosCRM(admin: ClienteSinTipos, opciones: De
         continue;
       }
 
-      const entregado = await entregar(admin, uid, redactarAvisoSeguimientos(urgentes), opciones.enviarCorreo);
+      const entregado = await entregar(admin, uid, redactarAvisoSeguimientos(urgentes), opciones.enviarCorreo, {
+        familia: "crm",
+        tipo: TIPO_AVISO,
+        clave,
+      });
 
       if (!entregado) {
         // Sin canal no se anota: si mañana activa el correo, tiene que enterarse.
