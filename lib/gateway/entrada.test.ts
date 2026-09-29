@@ -84,7 +84,7 @@ test("el historial se queda con los últimos turnos, no los primeros", () => {
   const historial = Array.from({ length: 25 }, (_, i) => ({ rol: "usuario", texto: `m${i}` }));
   const e = prepararEntrada(payload({ historial }));
   assert.equal(e.historial.length, TURNOS_DE_HISTORIAL);
-  assert.equal(e.historial[0].texto, "m15", "se guardaron los turnos viejos en vez de los recientes");
+  assert.equal(e.historial[0].texto, `m${25 - TURNOS_DE_HISTORIAL}`, "se guardaron los turnos viejos en vez de los recientes");
   assert.equal(e.historial.at(-1)?.texto, "m24");
 });
 

@@ -10,6 +10,7 @@ import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { desarmarVideoDeWhatsapp } from "@/lib/whatsapp/video";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
+import { HISTORIAL_MAXIMO, enOrdenDeTurno, historialDeLaSesion } from "@/lib/eos/historial";
 import {
   ESPERA_RAFAGA_MS,
   avisoNoLegible,
@@ -40,8 +41,6 @@ import {
  * de WhatsApp: verificar que el mensaje sea de Meta, encontrar a qué cuenta
  * de EOS corresponde el número, y mandar la respuesta de vuelta por acá.
  */
-
-const HISTORIAL_LIMITE = 10;
 
 type MensajeEntrante = MensajeWhatsapp;
 
@@ -694,15 +693,19 @@ async function atenderMensajeVinculado(
     mensajeTexto = mensajeConCitaDeWhatsapp(mensajeTexto, citado);
   }
 
+  // La sesión de trabajo entera, no solo los últimos cinco turnos, y cada
+  // pregunta antes de su respuesta. Ver `lib/eos/historial.ts`.
   const { data: historialFilas } = await admin
     .from("mensajes")
-    .select("rol, texto")
+    .select("rol, texto, created_at")
     .eq("conversacion_id", conversacionId)
     .eq("usuario_id", usuarioId)
     .order("created_at", { ascending: false })
-    .limit(HISTORIAL_LIMITE);
+    .limit(HISTORIAL_MAXIMO);
 
-  const historial = (historialFilas ?? []).slice().reverse();
+  const historial = historialDeLaSesion(
+    enOrdenDeTurno((historialFilas ?? []) as Array<{ rol: string; texto: string; created_at: string }>),
+  ).map(({ rol, texto }) => ({ rol, texto }));
 
   const resultado = await procesarMensajeEOS(usuarioId, {
     mensaje: mensajeTexto,

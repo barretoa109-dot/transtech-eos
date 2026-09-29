@@ -1,6 +1,7 @@
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import type { Cita } from "@/lib/eos/cita";
 import { enviarHastaQueLlegue, type ConsultaBuzon } from "@/lib/eos/envio-confiable";
+import { HISTORIAL_MAXIMO } from "@/lib/eos/historial";
 
 type EnviarEOSParams = {
   usuarioId: string;
@@ -183,7 +184,7 @@ function enviarAlServidor(params: EnviarEOSParams, requestId: string): Promise<R
       plan:params.plan,
       mensaje:params.mensaje,
       // Los avisos de error no son algo que EOS dijo: no van como contexto.
-      historial:params.historial.filter(m=>m.estado!=="error"&&!m.texto.includes("Este es un nuevo chat")).slice(-10),
+      historial:params.historial.filter(m=>m.estado!=="error"&&!m.texto.includes("Este es un nuevo chat")).slice(-HISTORIAL_MAXIMO),
       nuevo_chat:params.nuevoChat,
       /*
        * Los dos campos, y no uno.

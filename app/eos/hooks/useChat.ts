@@ -16,6 +16,7 @@ import {
   type FotoGuardada,
 } from "@/lib/eos/fotos-chat";
 import { formatoDuracion, notaDelVideo } from "@/lib/eos/videos";
+import { HISTORIAL_MAXIMO } from "@/lib/eos/historial";
 import {
   guardarMensaje,
   subirFotoDelChat,
@@ -333,7 +334,7 @@ export function useChat({
           mensaje: notaParaEOS
             ? `${textoUsuario}\n\n${notaParaEOS}`
             : textoUsuario,
-          historial: historialParaContexto.slice(-10),
+          historial: historialParaContexto.slice(-HISTORIAL_MAXIMO),
           nuevoChat: historialParaContexto.length === 0,
           archivos,
           cita: citaDelEnvio,
@@ -552,7 +553,7 @@ export function useChat({
     };
 
     const historialAntesDelEnvio =
-      historial.slice(-10);
+      historial.slice(-HISTORIAL_MAXIMO);
 
     setMensaje("");
     setArchivosAdjuntos([]);
@@ -636,7 +637,7 @@ export function useChat({
       textoUsuario,
       conversacionActiva: conversacionId,
       historialParaContexto:
-        historialSinUltimaRespuesta.slice(-10),
+        historialSinUltimaRespuesta.slice(-HISTORIAL_MAXIMO),
       // Solo si son de ESTA conversación: el último envío pudo ser en otra.
       archivos:
         archivosDelUltimoEnvio.current.conversacionId === conversacionId
