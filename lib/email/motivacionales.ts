@@ -32,7 +32,10 @@ import { lineaPersonal } from "./consejoDeObjetivo.ts";
 export const MOTIVO_BAJA = "motivacionales";
 const TABLA = "eos_emails_motivacionales_v188";
 const DIAS_POR_CICLO = 3;
-const DIAS_DE_GRACIA_CUENTA_NUEVA = 3;
+// 8 y no 3: la primera semana la acompañan los correos de los primeros días
+// (lib/email/primeros-dias.ts, 29/09/2026), que miran lo que hizo ESA cuenta.
+// Con 3, el motivacional caía el mismo día que el del día 3.
+const DIAS_DE_GRACIA_CUENTA_NUEVA = 8;
 const PAGINA = 500;
 
 export type Mensaje = {
