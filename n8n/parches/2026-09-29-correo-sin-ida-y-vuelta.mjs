@@ -159,6 +159,10 @@ async function aplicar() {
     return;
   }
 
+  // La API rechaza claves de nodo que no conoce ("Unrecognized key(s) in object: settings"):
+  // el nodo de Gmail de este flujo, armado en julio, trae una `settings` suelta.
+  for (const n of flujo.nodes) delete n.settings;
+
   const r = await fetch(`${BASE}/api/v1/workflows/${CORREO}`, {
     method: "PUT",
     headers: CABECERAS,
