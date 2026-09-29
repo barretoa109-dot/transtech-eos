@@ -1495,7 +1495,16 @@ export async function procesarMensajeEOS(
             "https://n8n-production-6cdb.up.railway.app/webhook/eos-decision-capture",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            /*
+             * El webhook es público y su URL está en este repositorio, que
+             * también es público. Sin el secreto, cualquiera podía hacerle
+             * gastar OpenAI y escribir decisiones en la cuenta de otro
+             * (`n8n/parches/2026-09-28-decisiones-con-secreto.mjs`).
+             */
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.EOS_WORKER_GATE_SECRET ?? ""}`,
+            },
             body: JSON.stringify({
               usuario_id: payload.usuario_id,
               request_id: payload.request_id,
