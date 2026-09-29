@@ -5,7 +5,8 @@ import { atenderOnboardingPorChat, TEXTO_AL_VINCULAR } from "@/lib/eos/onboardin
 import { textoPorDefecto } from "@/lib/eos/adjuntos";
 import { renderizarDocumento } from "@/lib/documentos/renderizar";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
-import { enviarTexto, enviarDocumento } from "@/lib/whatsapp/enviar";
+import { enviarTexto, enviarTextoConId, enviarDocumento } from "@/lib/whatsapp/enviar";
+import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { desarmarVideoDeWhatsapp } from "@/lib/whatsapp/video";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
@@ -491,6 +492,35 @@ async function altaPorWhatsapp(
   return { usuario_id: usuarioId, conversacion_id: null };
 }
 
+/**
+ * El texto del mensaje que la persona citó con "Responder", buscado por el id
+ * de WhatsApp que quedó anotado al guardarlo. Solo entre los de esa cuenta.
+ */
+async function buscarCitado(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  waId: string,
+): Promise<Citado> {
+  const { data, error } = await admin
+    .from("mensajes")
+    .select("rol, texto")
+    .eq("usuario_id", usuarioId)
+    .contains("metadata", { wa_ids: [waId] })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("WhatsApp: no se pudo buscar el mensaje citado:", error);
+    return "no-encontrado";
+  }
+
+  const fila = data as { rol?: string; texto?: string } | null;
+  if (!fila?.texto) return "no-encontrado";
+
+  return { rol: fila.rol === "eos" ? "eos" : "usuario", texto: fila.texto };
+}
+
 async function atenderMensajeVinculado(
   admin: ReturnType<typeof adminSinTipos>,
   vinculo: { usuario_id: string; conversacion_id: string | null },
@@ -653,6 +683,17 @@ async function atenderMensajeVinculado(
     return;
   }
 
+  /*
+   * "Responder" sobre un mensaje anterior: Meta manda solo su id. Sin buscar
+   * el texto, "Aquí está" le llega al modelo solo y EOS contesta "no me llegó
+   * el dato" (Sofía, 29/09/2026). Va después del onboarding, que lee el texto
+   * tal cual lo escribió la persona. Ver `lib/whatsapp/cita.ts`.
+   */
+  if (lote.contextoWaId) {
+    const citado = await buscarCitado(admin, usuarioId, lote.contextoWaId);
+    mensajeTexto = mensajeConCitaDeWhatsapp(mensajeTexto, citado);
+  }
+
   const { data: historialFilas } = await admin
     .from("mensajes")
     .select("rol, texto")
@@ -703,22 +744,27 @@ async function atenderMensajeVinculado(
       ? `${respuestaTexto}\n\n${archivoUrl}`
       : respuestaTexto;
 
-  const { error: guardarError } = await admin.from("mensajes").insert([
-    {
-      conversacion_id: conversacionId,
-      usuario_id: usuarioId,
-      rol: "usuario",
-      texto: mensajeTexto || "[adjunto]",
-      origen: "whatsapp",
-    },
-    {
-      conversacion_id: conversacionId,
-      usuario_id: usuarioId,
-      rol: "eos",
-      texto: textoParaWhatsapp,
-      origen: "whatsapp",
-    },
-  ]);
+  const { data: guardadas, error: guardarError } = await admin
+    .from("mensajes")
+    .insert([
+      {
+        conversacion_id: conversacionId,
+        usuario_id: usuarioId,
+        rol: "usuario",
+        texto: mensajeTexto || "[adjunto]",
+        origen: "whatsapp",
+        // Los ids de WhatsApp de este pedido: si después lo citan, se encuentra.
+        metadata: lote.waIds.length > 0 ? { wa_ids: lote.waIds } : {},
+      },
+      {
+        conversacion_id: conversacionId,
+        usuario_id: usuarioId,
+        rol: "eos",
+        texto: textoParaWhatsapp,
+        origen: "whatsapp",
+      },
+    ])
+    .select("id, rol");
 
   if (guardarError) {
     // No es motivo para no contestar: perder la fila de historial es peor
@@ -726,7 +772,19 @@ async function atenderMensajeVinculado(
     console.error("WhatsApp: no se pudo guardar el historial de la conversación:", guardarError);
   }
 
-  await enviarTexto(desde, textoParaWhatsapp);
+  const enviado = await enviarTextoConId(desde, textoParaWhatsapp);
+
+  // El id que Meta le puso a la respuesta recién se sabe al mandarla. Es lo
+  // único que llega cuando la persona la cita con "Responder".
+  const filaEos = ((guardadas ?? []) as Array<{ id: string; rol: string }>).find((f) => f.rol === "eos");
+  if (enviado.waId && filaEos) {
+    const { error: idError } = await admin
+      .from("mensajes")
+      .update({ metadata: { wa_ids: [enviado.waId] } })
+      .eq("id", filaEos.id)
+      .eq("usuario_id", usuarioId);
+    if (idError) console.error("WhatsApp: no se pudo anotar el id de la respuesta:", idError);
+  }
 
   if (idDocumento) {
     const enviado = await mandarDocumentoGenerado(
