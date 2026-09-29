@@ -1485,6 +1485,7 @@ export async function procesarMensajeEOS(
     const diagnostico = {
       soloMemoria,
       verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
+      tokens: { entrada: tokensEntrada, cacheada: tokens.entradaCacheada, salida: tokensSalida },
     };
     after(() =>
       guardarTiempos(
