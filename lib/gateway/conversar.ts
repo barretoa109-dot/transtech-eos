@@ -37,6 +37,7 @@
  * cada mensaje, y los tokens ya viajan en la respuesta.
  */
 
+import { esCaidaDeIA } from "../eos/en-espera.ts";
 import { EntradaInvalida, prepararEntrada } from "./entrada.ts";
 import { armarPrompt, type Prompt } from "./prompt.ts";
 import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGateway } from "./respuesta.ts";
@@ -150,7 +151,7 @@ export type Resultado =
   /** Hay acciones y la etapa 2 está apagada: las arma n8n. */
   | { estado: "delegar"; motivo: string };
 
-type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red" };
+type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red"; status?: number };
 
 /** Una llamada a la Responses API. Nunca lanza. */
 async function preguntarAlModelo(clave: string, modelo: string, contenido: Prompt["contenido"]): Promise<Llamada> {
@@ -187,7 +188,7 @@ async function preguntarAlModelo(clave: string, modelo: string, contenido: Promp
        */
       if (modelo === MODELO) console.error("Gateway TS: OpenAI respondió", respuesta.status);
       else console.error("Gateway TS: el modelo simple respondió", respuesta.status);
-      return { ok: false, motivo: "http" };
+      return { ok: false, motivo: "http", status: respuesta.status };
     }
 
     return { ok: true, ai: await respuesta.json() };
@@ -227,10 +228,16 @@ export type Enrutado = "simple" | "volvio_por_accion" | "volvio_por_error";
  * paso 4 del enrutamiento, `lib/eos/enrutamiento-modelo.ts`). Si falla o su
  * respuesta no sirve (`sirveRespuestaSimple`), se vuelve a preguntar al de
  * siempre ANTES de hacer nada: con el barato no sale ninguna acción.
+ *
+ * Con `alFallarIA`, avisa cuando el `null` es porque OpenAI no responde
+ * (timeout, red, 429 o 5xx del modelo principal). n8n llama al mismo OpenAI,
+ * así que esperar 90 s más ahí no arregla nada: quien llama puede dejar el
+ * mensaje en espera (`lib/eos/en-espera.ts`). Pasa siempre antes de ejecutar
+ * ninguna acción, porque el modelo es lo primero que se llama.
  */
 export async function conversar(
   payload: Record<string, unknown>,
-  opciones: { modelo?: string | null } = {},
+  opciones: { modelo?: string | null; alFallarIA?: (motivo: string) => void } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
@@ -288,7 +295,12 @@ export async function conversar(
 
   if (!cuerpo) {
     const llamada = await preguntarAlModelo(clave, MODELO, contenido);
-    if (!llamada.ok) return null;
+    if (!llamada.ok) {
+      if (esCaidaDeIA(llamada)) {
+        opciones.alFallarIA?.(llamada.status ? `${llamada.motivo}_${llamada.status}` : llamada.motivo);
+      }
+      return null;
+    }
     cuerpo = prepararRespuesta(entrada, llamada.ai);
   }
 
