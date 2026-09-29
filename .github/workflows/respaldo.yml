@@ -67,6 +67,16 @@ jobs:
             echo "::error::RESPALDO_CLAVE tiene que tener 24 caracteres o más"
             exit 1
           fi
+          # Si no es una URI, pg_dump la toma como NOMBRE de base y busca un
+          # Postgres local ("connection to server on socket ... failed"), que no
+          # dice nada de qué está mal. Pasó en la primera corrida (2026-09-29).
+          case "$SUPABASE_DB_URL" in
+            postgresql://*@*pooler.supabase.com:5432/*|postgres://*@*pooler.supabase.com:5432/*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL tiene que empezar con postgresql:// (sin espacios, comillas ni 'SUPABASE_DB_URL=' adelante) y apuntar al Session pooler (…pooler.supabase.com:5432/postgres)"
+              exit 1
+              ;;
+          esac
 
       # La base corre Postgres 17: pg_dump tiene que ser de la misma versión o
       # más nueva, y Ubuntu trae la 16.
@@ -81,9 +91,13 @@ jobs:
       - name: Volcado
         run: |
           mkdir -p salida
-          pg_dump "$SUPABASE_DB_URL" --format=custom \
+          # A un archivo aparte y renombrado solo si terminó: un volcado cortado
+          # a la mitad no puede quedar con el nombre del bueno (el paso "Cifrar"
+          # lo subiría como si fuera un respaldo).
+          pg_dump --dbname="$SUPABASE_DB_URL" --format=custom \
             --schema=public --schema=auth --schema=storage \
-            --file=salida/eos.dump
+            --file=parcial.dump
+          mv parcial.dump salida/eos.dump
           echo "volcado: $(du -h salida/eos.dump | cut -f1)"
 
       - name: Ensayo de restauración

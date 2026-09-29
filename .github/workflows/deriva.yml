@@ -39,7 +39,11 @@ jobs:
             echo "::error::Falta SUPABASE_DB_URL. Ver docs/respaldo-nocturno.md"
             exit 1
           fi
-          psql "$SUPABASE_DB_URL" -At \
+          case "$SUPABASE_DB_URL" in
+            postgresql://*|postgres://*) ;;
+            *) echo "::error::SUPABASE_DB_URL tiene que empezar con postgresql:// (sin espacios ni comillas adelante)"; exit 1 ;;
+          esac
+          psql --dbname="$SUPABASE_DB_URL" -At \
             -c "select version from supabase_migrations.schema_migrations order by 1" > versiones.txt
 
       - name: Comparar con main
