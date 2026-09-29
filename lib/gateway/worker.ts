@@ -171,17 +171,56 @@ export async function ejecutarJob(job: Job, config: Config | null): Promise<Resu
   }
 }
 
+/** Las que reemplazan una anulación: si la anulación falla, no van solas. */
+const REEMPLAZO: Record<string, string> = {
+  ANULAR_VENTA: "REGISTRAR_VENTA",
+  ANULAR_COMPRA: "REGISTRAR_COMPRA",
+};
+
+export const REEMPLAZO_SIN_ANULAR =
+  "No registré la nueva porque no pude anular la anterior: habría quedado repetida. " +
+  "Decime el monto o el día de la que hay que anular y la reemplazo.";
+
+function fallo(r: ResultadoWorker): boolean {
+  return Boolean(r && (r.ok === false || r.error || r.estado === "error"));
+}
+
 /**
  * Todos los jobs, en orden, hasta terminar.
  *
  * No corta ante el primer error: si la persona pidió dos cosas y la primera
  * falla, la segunda igual se intenta. Cortar dejaría la mitad hecha sin decir
  * cuál mitad.
+ *
+ * Con una excepción, del 29/09/2026 (Sofía, WhatsApp):
+ *
+ *   · Una anulación que falla seguida de la venta que la reemplazaba. EOS
+ *     intentó corregir una venta anulándola y registrándola de nuevo; la
+ *     anulación no encontró la venta y la nueva se registró igual: quedó
+ *     duplicada, con el stock en −2. Sin anulación, el reemplazo no va.
  */
-export async function ejecutarJobs(jobs: Job[], config: Config | null): Promise<ResultadoWorker[]> {
+export async function ejecutarJobs(
+  jobs: Job[],
+  config: Config | null,
+  ejecutar: (job: Job, config: Config | null) => Promise<ResultadoWorker> = ejecutarJob,
+): Promise<ResultadoWorker[]> {
   const resultados: ResultadoWorker[] = [];
+  const anulacionesFallidas = new Set<string>();
+
   for (const job of jobs) {
-    resultados.push(await ejecutarJob(job, config));
+    const tipo = job.accion.tipo;
+
+    if (anulacionesFallidas.has(tipo)) {
+      resultados.push({ ok: false, accion: tipo, codigo: "EOS_ACCION_REEMPLAZO_SIN_ANULAR", respuesta: REEMPLAZO_SIN_ANULAR });
+      continue;
+    }
+
+    const resultado = await ejecutar(job, config);
+
+    if (REEMPLAZO[tipo] && fallo(resultado)) anulacionesFallidas.add(REEMPLAZO[tipo]);
+
+    resultados.push(resultado);
   }
+
   return resultados;
 }
