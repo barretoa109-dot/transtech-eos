@@ -132,3 +132,22 @@ test("el incidente real del 16 de septiembre (6 de 30) tiene que alarmar", () =>
 
   assert.equal(r.ok, false);
 });
+
+test("la alerta de salud no se repite en la misma hora por el mismo problema", async () => {
+  const { claveDeAlerta } = await import("./salud.ts");
+  const falla = (nombre: string, detalle = "x") => ({ nombre, ok: false, detalle });
+  const a = claveDeAlerta({ fallos: [falla("Briefing diario", "2 fallaron hoy")] }, new Date("2026-09-29T18:05:00Z"));
+  const b = claveDeAlerta({ fallos: [falla("Briefing diario", "3 fallaron hoy")] }, new Date("2026-09-29T18:55:00Z"));
+  assert.equal(a, b, "el mismo problema, con otro detalle, en la misma hora");
+  assert.notEqual(a, claveDeAlerta({ fallos: [falla("Briefing diario")] }, new Date("2026-09-29T19:00:00Z")), "una hora después vuelve a avisar");
+  assert.notEqual(
+    a,
+    claveDeAlerta({ fallos: [falla("Briefing diario"), falla("Chat de cuentas reales (24 h)")] }, new Date("2026-09-29T18:10:00Z")),
+    "si se rompe otra cosa, avisa en el acto",
+  );
+  assert.equal(
+    claveDeAlerta({ fallos: [falla("B"), falla("A")] }, new Date("2026-09-29T18:00:00Z")),
+    claveDeAlerta({ fallos: [falla("A"), falla("B")] }, new Date("2026-09-29T18:30:00Z")),
+    "el orden de los chequeos no cambia la clave",
+  );
+});
