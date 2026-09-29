@@ -127,3 +127,12 @@ test('atenderOnboardingPorChat: pedir ordenar la plata arranca el cuestionario, 
   assert.equal(escrituras[0].paso, 'cuentas');
   assert.equal(escrituras[0].completado_en, undefined);
 });
+
+test("al vincular WhatsApp se dice qué escribir, no solo que se puede", async () => {
+  const { TEXTO_AL_VINCULAR } = await import("./onboarding-chat.ts");
+  assert.match(TEXTO_AL_VINCULAR, /vinculado/);
+  assert.match(TEXTO_AL_VINCULAR, /Vendí 2 remeras/);
+  assert.match(TEXTO_AL_VINCULAR, /mi plata/);
+  // Un mensaje de WhatsApp admite 4.096 caracteres; este tiene que leerse de un vistazo.
+  assert.ok(TEXTO_AL_VINCULAR.length < 600, `largo ${TEXTO_AL_VINCULAR.length}`);
+});
