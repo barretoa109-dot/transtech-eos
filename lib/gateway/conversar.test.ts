@@ -635,3 +635,52 @@ test("la conversación pura no toca el worker aunque la etapa 2 esté prendida",
   assert.equal(resultado?.estado, "respondido");
   assert.equal(alWorker, 0, "se dio la vuelta al worker para no hacer nada");
 });
+
+// ---------------------------------------------------------------------------
+// encargado-08: cuando la IA no responde, quien llama se entera
+// ---------------------------------------------------------------------------
+
+async function motivoDeCaida(responder: () => Promise<Response> | Response, modelo: string | null = null) {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+  globalThis.fetch = (async () => responder()) as unknown as typeof fetch;
+  let motivo: string | null = null;
+  try {
+    const resultado = await conversar(payload({ mensaje: "vendí 3 bolsas a 180 mil" }), {
+      modelo,
+      alFallarIA: (m) => {
+        motivo = m;
+      },
+    });
+    return { resultado, motivo };
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+}
+
+test("un 503 de OpenAI se avisa como caída, y sigue devolviendo null", async () => {
+  const { resultado, motivo } = await motivoDeCaida(() => new Response("", { status: 503 }));
+  assert.equal(resultado, null);
+  assert.equal(motivo, "http_503");
+});
+
+test("un 429 y un corte de red también son caída", async () => {
+  assert.equal((await motivoDeCaida(() => new Response("", { status: 429 }))).motivo, "http_429");
+  assert.equal(
+    (
+      await motivoDeCaida(() => {
+        throw new Error("ECONNRESET");
+      })
+    ).motivo,
+    "red",
+  );
+});
+
+test("una clave rechazada NO es caída: no se arregla esperando, va a n8n", async () => {
+  const { resultado, motivo } = await motivoDeCaida(() => new Response("", { status: 401 }));
+  assert.equal(resultado, null);
+  assert.equal(motivo, null);
+});

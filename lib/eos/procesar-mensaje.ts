@@ -70,6 +70,7 @@ import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
 import { mensajeDeCupo } from "@/lib/eos/mensaje-cupo";
+import { TEXTO_EN_ESPERA, ponerEnEspera, puedeEsperar } from "@/lib/eos/en-espera";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
@@ -185,6 +186,12 @@ export type EntradaProcesamiento = {
    * WhatsApp y la web lo dejan sin definir.
    */
   appNativa?: boolean;
+  /**
+   * Es el reintento de un mensaje que quedó en espera (id de su fila en
+   * eos_mensajes_en_espera_v214). Si la IA sigue sin responder, no se vuelve
+   * a guardar: lo maneja `reintentarEnEspera`.
+   */
+  reintentoDe?: string;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -259,6 +266,8 @@ const AVISOS_DE_FALLA = [
   "EOS tardó más de lo esperado en responder",
   "EOS recibió tu mensaje, pero tuvo un problema procesándolo",
   "no pudo generar una respuesta clara en este momento",
+  // El aviso de `lib/eos/en-espera.ts`: el mensaje se reintenta aparte.
+  "ahora mismo no lo puedo procesar",
 ];
 
 function esAvisoDeFalla(texto: string): boolean {
@@ -1149,12 +1158,48 @@ export async function procesarMensajeEOS(
     }
 
     if (n8nResponse === null && atiendeTypeScript(turnoDeAccion)) {
-      const propio = await conversar(payload, { modelo: modeloDelTurno(enrutamiento) });
+      let iaCaida: string | null = null;
+      const propio = await conversar(payload, {
+        modelo: modeloDelTurno(enrutamiento),
+        alFallarIA: (motivo) => {
+          iaCaida = motivo;
+        },
+      });
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
         n8nResponse = Response.json(propio.cuerpo);
       } else if (propio?.estado === "delegar") {
         console.info("Gateway TS: delega en n8n por", propio.motivo);
+      }
+
+      /*
+       * OpenAI no responde (encargado-08). Va con 200 y no 202: para la web, 202 es "en proceso"
+       * (lib/eos/envio-confiable.ts). n8n llama al mismo OpenAI y
+       * esperarlo sumaba hasta 90 s para terminar en "probá nuevamente". El
+       * mensaje queda en espera, se reintenta solo y la respuesta llega por
+       * el mismo canal. Nada se ejecutó todavía: el modelo es lo primero que
+       * se llama. Si no se puede guardar, sigue a n8n como siempre.
+       */
+      if (n8nResponse === null && iaCaida && puedeEsperar(entrada)) {
+        const guardado = await ponerEnEspera(adminSinTipos(), {
+          usuarioId,
+          conversacionId,
+          origen,
+          mensaje,
+          appNativa: entrada.appNativa === true,
+          motivo: `ia_${iaCaida}`,
+        });
+        if (guardado) {
+          await releaseQuota(`ia_no_responde_${iaCaida}`);
+          console.info("EOS: mensaje en espera porque la IA no responde:", {
+            request_id: payload.request_id,
+            motivo: iaCaida,
+          });
+          return {
+            status: 200,
+            body: { respuesta: TEXTO_EN_ESPERA, code: "EOS_EN_ESPERA" },
+          };
+        }
       }
     }
 
