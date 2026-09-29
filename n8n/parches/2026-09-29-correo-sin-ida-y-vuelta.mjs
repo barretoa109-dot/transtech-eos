@@ -22,6 +22,24 @@
  * Gmail y los hilos con tres o más "Re:", y pone un tope de tres respuestas
  * por remitente y por día guardado en los datos estáticos del workflow
  * (sobrevive entre ejecuciones y no necesita base).
+ *
+ * ============================================================
+ * Y POR QUÉ NUNCA CORRIÓ
+ * ============================================================
+ *
+ * El 29/09 el flujo figuraba activo pero no registraba ninguna ejecución, ni
+ * con un correo entregado a la casilla. Al abrirlo, n8n decía "Unrecognized
+ * node type: n8n-nodes-resend.resend": el envío usaba un nodo de la comunidad
+ * que ya no está instalado en la instancia de Railway (los nodos de la
+ * comunidad viven en el disco del contenedor y se pierden en un redeploy). Sin
+ * ese tipo de nodo el workflow entero no arranca.
+ *
+ * Se reemplaza por un "HTTP Request" de n8n contra la API de Resend, con el
+ * mismo nombre para no tocar las conexiones. La clave sale de
+ * `$env.RESEND_API_KEY` (variable de entorno de n8n en Railway), igual que el
+ * gateway lee `$env.EOS_WORKER_GATE_SECRET`: no hay credencial que cargar.
+ * Si la variable no está, Resend contesta 401 y la ejecución queda en error a
+ * la vista, sin mandar nada.
  */
 
 import fs from "node:fs";
@@ -88,13 +106,19 @@ async function aplicar() {
 
   const nodo = flujo.nodes.find((n) => n.name === "Preparar correo EOS1");
   if (!nodo) throw new Error('No existe "Preparar correo EOS1". No se tocó nada.');
+  const envio = flujo.nodes.find((n) => n.name === "Enviar respuesta por Resend1");
+  if (!envio) throw new Error('No existe "Enviar respuesta por Resend1". No se tocó nada.');
 
   const codigo = nodo.parameters.jsCode.replace(/\r\n/g, "\n");
-  if (codigo.includes("getWorkflowStaticData")) {
-    console.log("El flujo ya tiene los frenos. Nada que hacer.");
+  const faltanFrenos = !codigo.includes("getWorkflowStaticData");
+  const faltaEnvio = envio.type !== "n8n-nodes-base.httpRequest";
+  if (!faltanFrenos && !faltaEnvio) {
+    console.log("El flujo ya tiene los frenos y el envío estándar. Nada que hacer.");
     return;
   }
-  if (!codigo.includes(ANCLA)) throw new Error("El nodo cambió desde que se escribió este parche. No se tocó nada.");
+  if (faltanFrenos && !codigo.includes(ANCLA)) {
+    throw new Error("El nodo cambió desde que se escribió este parche. No se tocó nada.");
+  }
   if (nodo.parameters.mode === "runOnceForEachItem") {
     throw new Error("El nodo corre por ítem: `return []` ahí es un error. Revisar antes de aplicar.");
   }
@@ -105,7 +129,29 @@ async function aplicar() {
   fs.writeFileSync(respaldo, JSON.stringify(flujo, null, 2));
   console.log(`respaldo: ${path.relative(RAIZ, respaldo)} (updatedAt ${flujo.updatedAt})`);
 
-  nodo.parameters.jsCode = codigo.replace(ANCLA, ANCLA + FRENOS);
+  if (faltanFrenos) nodo.parameters.jsCode = codigo.replace(ANCLA, ANCLA + FRENOS);
+
+  if (faltaEnvio) {
+    envio.type = "n8n-nodes-base.httpRequest";
+    envio.typeVersion = 4.2;
+    delete envio.credentials;
+    envio.parameters = {
+      method: "POST",
+      url: "https://api.resend.com/emails",
+      sendHeaders: true,
+      headerParameters: {
+        parameters: [
+          { name: "Authorization", value: "={{ 'Bearer ' + $env.RESEND_API_KEY }}" },
+          { name: "Content-Type", value: "application/json" },
+        ],
+      },
+      sendBody: true,
+      specifyBody: "json",
+      jsonBody: "={{ JSON.stringify({ from: $json.from, to: [$json.to], subject: $json.subject, html: $json.html }) }}",
+      options: { timeout: 30000 },
+    };
+  }
+
   console.log(`verificado correo: ${verificarFlujo(flujo, "correo")} nodos compilan`);
 
   if (process.env.SECO === "1") {
