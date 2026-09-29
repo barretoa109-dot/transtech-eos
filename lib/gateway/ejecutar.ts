@@ -244,12 +244,16 @@ async function ramaInterna(
     origen: "vercel-gateway-ts",
   };
 
+  // Cuánto tarda cada puerta: va a `turno` (lib/eos/tiempos.ts). El 29/09 dos
+  // acciones sumaron 5,3 s y no se sabía cuál de las dos puertas era.
+  const antesDeAutorizar = Date.now();
   const auth = await enProceso(
     puertas.autorizar,
     "https://eos.internal/api/internal/worker-authorize/v1",
     cuerpoAuth,
     secreto,
   );
+  const autorizarMs = Date.now() - antesDeAutorizar;
 
   const puedeEjecutar = auth.ok === true && auth.execute === true && esUuid(auth.command_id);
 
@@ -283,18 +287,21 @@ async function ramaInterna(
     };
   }
 
+  const antesDelEfecto = Date.now();
   const resultado = await enProceso(
     puertas.efecto,
     "https://eos.internal/api/internal/action-effects/v1",
     { command_id: auth.command_id },
     secreto,
   );
+  const efectoMs = Date.now() - antesDelEfecto;
 
   const salioBien = resultado.ok === true && Boolean(resultado.command_id);
 
   return {
     ok: salioBien,
     executed: salioBien,
+    ms: { autorizar: autorizarMs, efecto: efectoMs },
     idempotent: resultado.idempotent === true,
     request_id: job.request_id,
     command_id: resultado.command_id ?? auth.command_id,
