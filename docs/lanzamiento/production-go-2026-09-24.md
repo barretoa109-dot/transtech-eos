@@ -256,3 +256,15 @@ tarjeta de prueba de Bancard se activaba un plan pago sin que entrara dinero
 prueba en `demo@transtech.com.py` y correr `npm run certificar -- 3 6`. Son los
 dos casos que hoy quedan sin verificar y cubren el cobro con tarjeta guardada
 que se modificó en esta auditoría.
+
+## Corrida del 29/09/2026 (tarde)
+
+Sobre `main` en `e37983e`, que es lo que sirve producción (`npm run go` lo compara con el commit desplegado).
+
+- **`npm run go`: 9/9 automáticos en GO.** Gateway en TypeScript en etapa 3; v197 aplicada; RLS en todas las tablas de `public`; aislamiento 24/24; n8n autoriza contra producción; salud sana; sin cobros pendientes viejos; webhook de Bancard rechaza basura (400); sin sesión no hay datos (401).
+- **Deriva** (workflow `deriva`): 309 migraciones en `main` y 309 en producción.
+- **Certificación, caso 12 (aislamiento):** 13/13. 127 tablas con datos de personas descubiertas en las migraciones, 104 consultadas por un intruso con sesión y sin ella: ninguna fila ajena; no puede cambiar precios, borrar productos ni plantar movimientos; exportar y borrar datos solo alcanzan a quien llama.
+- **Certificación, casos 3, 6 y 11 (cobros):** 17/19. Pago duplicado, demorado y reversado, en verde completo. Los dos que faltan (recorrido con tarjeta y recuperación con tarjeta) necesitan una tarjeta de prueba catastrada en Bancard staging para la cuenta de certificación.
+- **Respaldo nocturno** con restauración: verde desde el 29/09 (ver `docs/respaldo-nocturno.md`).
+
+Siguen manuales: los dos casos con tarjeta, el recorrido en iPhone y Android, y dos cuentas QA reales.
