@@ -12,6 +12,8 @@
  * sea el único, el que tiene que gritar si llega algo raro es este archivo.
  */
 
+import { HISTORIAL_MAXIMO } from "../eos/historial.ts";
+
 export type ArchivoEntrada = {
   nombre: string;
   tipo: string;
@@ -85,8 +87,12 @@ export type HistorialItem = {
  */
 export const TOPE_CONTEXTO = 6000;
 
-/** Solo los últimos diez turnos, igual que n8n. */
-export const TURNOS_DE_HISTORIAL = 10;
+/**
+ * Los últimos 24 mensajes, igual que n8n (parche 2026-09-29): la sesión de
+ * trabajo entera y no solo cinco turnos. Qué entra de esos 24 lo decide quien
+ * arma el historial (`lib/eos/historial.ts`); esto es solo el tope.
+ */
+export const TURNOS_DE_HISTORIAL = HISTORIAL_MAXIMO;
 
 /**
  * El tope de la cita, igual que el del cliente.

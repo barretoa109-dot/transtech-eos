@@ -22,6 +22,7 @@
  */
 
 import type { adminSinTipos } from "../supabase/sin-tipos.ts";
+import { HISTORIAL_MAXIMO, enOrdenDeTurno, historialDeLaSesion } from "./historial.ts";
 
 export const TABLA = "eos_mensajes_en_espera_v214";
 
@@ -255,14 +256,16 @@ async function historialPrevio(admin: ClienteEnEspera, fila: FilaEnEspera): Prom
   try {
     const { data } = await admin
       .from("mensajes")
-      .select("rol, texto")
+      .select("rol, texto, created_at")
       .eq("conversacion_id", fila.conversacion_id as string)
       .eq("usuario_id", fila.usuario_id)
       // mensajes.created_at es timestamp sin zona, en UTC.
       .lt("created_at", new Date(fila.created_at).toISOString().replace("Z", ""))
       .order("created_at", { ascending: false })
-      .limit(10);
-    return (data ?? []).slice().reverse();
+      .limit(HISTORIAL_MAXIMO);
+    // La sesión se mide desde el mensaje en espera, no desde el reintento.
+    const filas = enOrdenDeTurno((data ?? []) as Array<{ rol: string; texto: string; created_at: string }>);
+    return historialDeLaSesion(filas, new Date(fila.created_at).getTime()).map(({ rol, texto }) => ({ rol, texto }));
   } catch {
     return [];
   }

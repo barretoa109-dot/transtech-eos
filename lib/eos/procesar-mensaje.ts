@@ -57,6 +57,7 @@ import {
 } from "@/lib/eos/acciones-chat";
 import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
 import { limpiarSeleccion } from "@/lib/eos/cita";
+import { HISTORIAL_MAXIMO, MAX_TEXTO_HISTORIAL, historialDeLaSesion } from "@/lib/eos/historial";
 import { transcribirAudio } from "@/lib/eos/transcribir-audio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
@@ -96,7 +97,8 @@ const N8N_EOS_URL =
   "https://n8n-production-6cdb.up.railway.app/webhook/eos-chat";
 
 export const MAX_MESSAGE_LENGTH = 12_000;
-const MAX_HISTORY_ITEMS = 10;
+/** La sesión de trabajo, no solo cinco turnos: ver `lib/eos/historial.ts`. */
+const MAX_HISTORY_ITEMS = HISTORIAL_MAXIMO;
 export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 export const MAX_FILE_BASE64_LENGTH = 21 * 1024 * 1024;
 const N8N_TIMEOUT_MS = 90_000;
@@ -280,8 +282,22 @@ function normalizarHistorial(valor: unknown) {
     return [];
   }
 
-  return valor
-    .slice(-MAX_HISTORY_ITEMS)
+  /*
+   * La web manda sus mensajes con `creado_en`: con eso, lo de otro día no se
+   * arrastra y una tarde de trabajo entra entera (`lib/eos/historial.ts`).
+   * WhatsApp ya lo manda recortado; sin fechas entran los últimos 24.
+   */
+  const conFecha = valor.slice(-MAX_HISTORY_ITEMS).map((item) => {
+    const r = (item && typeof item === "object" ? item : {}) as HistorialItem & {
+      creado_en?: unknown;
+      created_at?: unknown;
+    };
+    const fecha = typeof r.creado_en === "string" ? r.creado_en : typeof r.created_at === "string" ? r.created_at : null;
+    return { item, rol: String(r.rol ?? ""), texto: typeof r.texto === "string" ? r.texto : "", created_at: fecha };
+  });
+
+  return historialDeLaSesion(conFecha)
+    .map(({ item }) => item)
     .map((item): { rol: "usuario" | "eos"; texto: string } | null => {
       if (!item || typeof item !== "object") {
         return null;
@@ -296,7 +312,7 @@ function normalizarHistorial(valor: unknown) {
 
       const texto =
         typeof registro.texto === "string"
-          ? registro.texto.trim().slice(0, MAX_MESSAGE_LENGTH)
+          ? registro.texto.trim().slice(0, MAX_TEXTO_HISTORIAL)
           : "";
 
       if (!rol || !texto) {
