@@ -257,7 +257,7 @@ export async function conversar(
   const { contenido } = armarPrompt(entrada);
 
   // Cuánto se esperó al modelo y cuánto a las acciones: van a la metadata y de
-  // ahí a `tiempos` en eos_message_usage_v40 (encargado-02 del tablero).
+  // ahí a `turno` en eos_message_usage_v40 (encargado-02 del tablero).
   const antesDelModelo = Date.now();
 
   const pedido = opciones.modelo?.trim() ?? "";

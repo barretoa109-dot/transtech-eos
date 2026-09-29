@@ -603,7 +603,7 @@ export async function procesarMensajeEOS(
    * Milisegundos desde `comienzo` al terminar cada etapa. La meta del tablero
    * (encargado-02) es una mediana de menos de 8 s, y sin partirla no se sabe a
    * qué parte apuntar: el modelo solo, medido con la batería, tarda ~3 s.
-   * Se guardan en `tiempos` de eos_message_usage_v40 (ver `guardarTiempos`).
+   * Se guardan en `turno` de eos_message_usage_v40 (ver `guardarTiempos`).
    */
   const tiempos: Record<string, number> = {};
   const marcar = (etapa: string) => {
@@ -1437,8 +1437,17 @@ export async function procesarMensajeEOS(
     marcar("cierre");
 
     // Corre después de la respuesta: para entonces ya está marcado el "fin".
+    const diagnostico = {
+      soloMemoria,
+      verificacion: verificaciones.map((v) => `${v.accion}:${v.estado}`),
+    };
     after(() =>
-      guardarTiempos(quotaAdmin, usuarioId, payload.request_id, tiemposDelTurno(tiempos, resultado.metadata)),
+      guardarTiempos(
+        quotaAdmin,
+        usuarioId,
+        payload.request_id,
+        tiemposDelTurno(tiempos, resultado.metadata, diagnostico),
+      ),
     );
 
     /*

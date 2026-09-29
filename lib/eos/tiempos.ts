@@ -7,9 +7,15 @@
  * mediana entre reservar y cerrar. La batería midió el modelo solo en ~3 s,
  * así que la mitad del tiempo estaba en otro lado y no se podía decir dónde.
  *
- * Cada mensaje guarda ahora sus etapas en `tiempos` de eos_message_usage_v40,
+ * Cada mensaje guarda ahora sus etapas en `turno` de eos_message_usage_v40,
  * la fila de la reserva de cupo, que ya existe por cada mensaje y ya está
  * atada al usuario y al request_id.
+ *
+ * En el mismo lugar van dos cosas que hasta ahora vivían solo en ese log: si
+ * la respuesta afirmó haber anotado algo que quedó solo como memoria
+ * (`solo_memoria`, tarea encargado-03) y cómo terminó cada acción
+ * (`verificacion`, para el error del circuito de encargado-01). Nunca el texto
+ * del mensaje ni de la respuesta.
  */
 
 /** Las etapas, en milisegundos desde que empezó a procesarse el mensaje. */
@@ -30,7 +36,13 @@ export type Tiempos = {
   acciones?: number;
   /** Quién atendió: ts, directa o n8n. */
   gateway?: string;
+  /** La respuesta afirmó haber anotado algo que quedó solo como memoria. */
+  solo_memoria?: boolean;
+  /** Cómo terminó cada acción, como "REGISTRAR_VENTA:confirmada". */
+  verificacion?: string[];
 };
+
+export type Diagnostico = { soloMemoria?: boolean; verificacion?: ReadonlyArray<string> };
 
 const ms = (valor: unknown): number | undefined =>
   typeof valor === "number" && Number.isFinite(valor) && valor >= 0 ? Math.round(valor) : undefined;
@@ -43,6 +55,7 @@ const ms = (valor: unknown): number | undefined =>
 export function tiemposDelTurno(
   marcas: Readonly<Record<string, number>>,
   metadata: Readonly<Record<string, unknown>> | null | undefined,
+  diagnostico: Diagnostico = {},
 ): Tiempos {
   const salida: Tiempos = {};
   for (const etapa of ["contexto", "cupo", "respuesta", "cierre", "fin"] as const) {
@@ -55,6 +68,9 @@ export function tiemposDelTurno(
   if (acciones !== undefined) salida.acciones = acciones;
   const gateway = metadata?.gateway;
   salida.gateway = gateway === "ts" || gateway === "directa" ? gateway : "n8n";
+  if (diagnostico.soloMemoria === true) salida.solo_memoria = true;
+  const verificacion = (diagnostico.verificacion ?? []).map((v) => String(v).slice(0, 80)).slice(0, 20);
+  if (verificacion.length > 0) salida.verificacion = verificacion;
   return salida;
 }
 
@@ -78,7 +94,7 @@ export async function guardarTiempos(
   try {
     const { error } = await admin
       .from("eos_message_usage_v40")
-      .update({ tiempos })
+      .update({ turno: tiempos })
       .eq("usuario_id", usuarioId)
       .eq("request_id", requestId);
     if (error) console.error("Tiempos: no se pudieron guardar:", error);
