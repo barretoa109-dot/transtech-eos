@@ -6,6 +6,7 @@ import { convieneAvisar, TITULO_AVISO } from "./avisos.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
+import { hoyEnParaguay } from "../fecha.ts";
 
 /**
  * Que el aviso salga solo.
@@ -225,7 +226,11 @@ export async function avisarRiesgos(
       }
 
       const texto = redactarAviso(riesgo, principal);
-      const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo);
+      const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo, {
+        familia: "finanzas",
+        tipo: "faltante",
+        clave: riesgo.fecha,
+      });
 
       if (!entregado) {
         // Sin canal no se anota el aviso: si mañana el usuario activa el push,
@@ -293,7 +298,64 @@ export const PIE_DE_AVISO_POR_CORREO =
   "\n\n—\nRecibís este aviso porque afecta tu plata o tu negocio. Si no querés recibirlo por correo, " +
   "desactivalo en EOS, en la pantalla de Briefing (\"Avisos importantes por correo\").";
 
+/** Cuántos avisos no pedidos puede recibir una cuenta por día (encargado-05). */
+export const TOPE_AVISOS_POR_DIA = 2;
+
+/** Qué aviso es: va a la historia (v217) y cuenta para el tope del día. */
+export type RegistroDeAviso = { familia: "negocio" | "finanzas" | "crm"; tipo: string; clave: string | null };
+
+/**
+ * Entrega un aviso no pedido, respetando el tope de dos por día (v217).
+ *
+ * Con `registro`, primero toma un lugar del día (`eos_reservar_aviso_v217`).
+ * Si no hay, devuelve `false` sin mandar nada: para quien llama es igual que
+ * "sin canal", no anota el aviso como dado, y mañana lo vuelve a intentar si
+ * el problema sigue. Así lo que no entró hoy no se pierde.
+ *
+ * Si la reserva falla por un error (no por falta de lugar), el aviso sale
+ * igual: un error de la historia no puede callar un aviso de plata.
+ */
 export async function entregarAviso(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver arriba
+  admin: any,
+  usuarioId: string,
+  texto: string,
+  enviarCorreo?: EnviarCorreo,
+  registro?: RegistroDeAviso,
+  hoy: string = hoyEnParaguay(),
+): Promise<boolean> {
+  if (!registro) return entregarPorCanal(admin, usuarioId, texto, enviarCorreo);
+
+  const { data: reserva, error } = await admin.rpc("eos_reservar_aviso_v217", {
+    p_usuario_id: usuarioId,
+    p_fecha: hoy,
+    p_familia: registro.familia,
+    p_tipo: registro.tipo,
+    p_clave: registro.clave,
+    p_tope: TOPE_AVISOS_POR_DIA,
+  });
+
+  if (error) {
+    console.error("Avisos: no se pudo reservar el lugar del día; sale igual:", error.message ?? error);
+    return entregarPorCanal(admin, usuarioId, texto, enviarCorreo);
+  }
+
+  if (!reserva) return false;
+
+  let entregado = false;
+  try {
+    entregado = await entregarPorCanal(admin, usuarioId, texto, enviarCorreo);
+    return entregado;
+  } finally {
+    await admin
+      .from("eos_avisos_historial_v217")
+      .update({ resultado: entregado ? "entregado" : "sin_canal" })
+      .eq("id", reserva)
+      .eq("usuario_id", usuarioId);
+  }
+}
+
+async function entregarPorCanal(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ver arriba
   admin: any,
   usuarioId: string,
