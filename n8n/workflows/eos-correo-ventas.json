@@ -105,13 +105,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://api.resend.com/emails",
+        "url": "https://www.transtech.com.py/api/internal/correo-ventas",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ 'Bearer ' + $env.RESEND_API_KEY }}"
+              "value": "={{ 'Bearer ' + $env.EOS_WORKER_GATE_SECRET }}"
             },
             {
               "name": "Content-Type",
@@ -121,7 +121,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ from: $json.from, to: [$json.to], subject: $json.subject, html: $json.html }) }}",
+        "jsonBody": "={{ JSON.stringify({ to: $json.to, subject: $json.subject, html: $json.html }) }}",
         "options": {
           "timeout": 30000
         }
