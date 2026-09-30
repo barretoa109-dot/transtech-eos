@@ -555,6 +555,27 @@ const REGLAS: Regla[] = [
       `${d || "Ese cliente"} pidió no recibir más mensajes, así que no le escribo. ` +
       "Si cambió de opinión, registralo en su ficha.",
   },
+  /*
+   * v227 (caso Green, 29/09/2026): un pago de tarjeta sin monto dicho no se
+   * anota con el mínimo guardado. El detalle viene como "Green · 188000.00".
+   * Se pregunta, y se aclara que no se anotó nada: si la persona solo lo
+   * contaba al pasar ("ya pagué el mínimo"), no hace falta que haga nada.
+   */
+  {
+    codigo: "EOS_ACCION_PAGO_TARJETA_SIN_MONTO",
+    mensaje: (d) => {
+      const [tarjeta, minimo] = d.split(" · ").map((p) => p.trim());
+      const cuanto = Number(minimo);
+      const pregunta =
+        Number.isFinite(cuanto) && cuanto > 0
+          ? `¿Pagaste el mínimo de ${formatearMonto(cuanto, "PYG")}?`
+          : "¿Cuánto pagaste?";
+      return (
+        `No anoté ningún pago de la ${tarjeta || "tarjeta"} porque no me dijiste el monto. ${pregunta} ` +
+        "Decime cuánto y cuándo, y lo anoto. Si solo me lo contabas, no hace falta nada más."
+      );
+    },
+  },
 ];
 
 /**
