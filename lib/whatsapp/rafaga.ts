@@ -39,10 +39,10 @@ export type EntradaRafaga = {
   mime_type: string | null;
   nombre_archivo: string | null;
   /**
-   * El mensaje al que responde, si usó "Responder" en WhatsApp (v217).
+   * El mensaje al que responde, si usó "Responder" en WhatsApp (v219).
    *
    * Opcional: la clave solo viaja cuando hay cita, así un upsert sin citas no
-   * nombra la columna y sigue andando aunque la v217 todavía no esté aplicada.
+   * nombra la columna y sigue andando aunque la v219 todavía no esté aplicada.
    */
   contexto_wa_id?: string | null;
 };
