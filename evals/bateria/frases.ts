@@ -36,6 +36,8 @@ export type Frase = {
   porque: string;
   /** El rubro de la frase (evals/bateria/rubros.ts). Sin rubro, el almacén de CONTEXTO_NEGOCIO. */
   rubro?: string;
+  /** Un contexto propio, cuando el caso depende de lo que la cuenta tiene cargado. Manda sobre el rubro. */
+  contexto?: string;
 };
 
 /** El negocio de prueba: lo mismo que vería el modelo de una cuenta real chica. */
@@ -261,10 +263,82 @@ const FRASES_BASE: Frase[] = [
   },
 ];
 
+/*
+ * El caso Green (29/09/2026). El contexto es el que veía el modelo esa tarde,
+ * leído de `eos_contexto_negocio` de la cuenta: la Green con su mínimo de
+ * 188.000 guardado y, al lado, otra tarjeta llamada "Banco Basa". De ahí salió
+ * el pago de 188.000 que nadie dijo y el "Green de Banco Basa".
+ */
+const CONTEXTO_GREEN = JSON.stringify({
+  mes: "2026-09",
+  personal: [{ gastos_mes: 1131264, ingresos_mes: 200000, moneda: "PYG", neto_mes: -931264 }],
+  posicion: {
+    cuentas: [{ al: "2026-09-24", moneda: "PYG", nombre: "Caja de Ahorros Ueno", saldo: 8450000 }],
+    tarjetas: [
+      { moneda: "PYG", nombre: "Banco Basa" },
+      { cierra: 15, minimo: 188000, moneda: "PYG", nombre: "Green ****7450", resumen_al: "2026-09-23", vence: 6 },
+    ],
+  },
+});
+
+const GREEN_ANOTADA: Turno[] = [
+  {
+    rol: "usuario",
+    texto: "Gaste 46.000gs en Punto Farma con mi tarjeta de crédito Green que por cierto ya pagué el pago mínimo, y gané también 100.000gs recién",
+  },
+  {
+    rol: "eos",
+    texto:
+      "Anoté Punto Farma por ₲ 46.000 en Green ****7450. No es un gasto de este mes: sale cuando pagues el resumen. La ves en Personal › Tengo y debo › Tarjetas.\n\nEntró ₲ 100.000 — Ingreso. Lo anoté en Personal › Mi mes › Movimientos. No toca las cuentas del negocio.",
+  },
+];
+
+const FRASES_GREEN: Frase[] = [
+  {
+    id: "green-varias-cosas",
+    grupo: "personal",
+    contexto: CONTEXTO_GREEN,
+    mensaje: GREEN_ANOTADA[0].texto,
+    esperado: [["REGISTRAR_COMPRA_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL"]],
+    prohibido: ["REGISTRAR_PAGO_DEUDA", "REGISTRAR_TARJETA"],
+    porque: "La compra va a la tarjeta y el ingreso a Personal; 'ya pagué el mínimo' es contexto y el 188.000 del contexto no es un pago.",
+  },
+  {
+    id: "green-donde-esta",
+    grupo: "personal",
+    contexto: CONTEXTO_GREEN,
+    historial: GREEN_ANOTADA,
+    mensaje: "En donde se supone que lo anotaste? Porque en el apartado Personal no está",
+    esperado: NADA,
+    prohibido: ["REGISTRAR_COMPRA_TARJETA", "REGISTRAR_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL"],
+    porque: "Ya está anotada: se dice dónde verla. Cada 'no está' la volvía a mandar (cinco compras).",
+  },
+  {
+    id: "green-no-hiciste-nada",
+    grupo: "personal",
+    contexto: CONTEXTO_GREEN,
+    historial: GREEN_ANOTADA,
+    mensaje: "No está, no hiciste nada",
+    esperado: [[], ["REGISTRAR_COMPRA_TARJETA"]],
+    prohibido: ["REGISTRAR_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL", "REGISTRAR_PAGO_DEUDA"],
+    porque: "Reenviar la compra ya no duplica (v221), pero tocar la tarjeta con datos del contexto le cambió el emisor y el resumen.",
+  },
+  {
+    id: "green-pague-el-minimo",
+    grupo: "personal",
+    contexto: CONTEXTO_GREEN,
+    mensaje: "ya pagué el mínimo de la Green",
+    esperado: [["REGISTRAR_PAGO_DEUDA"]],
+    prohibido: ["REGISTRAR_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL"],
+    porque:
+      "Acá pagar ES el pedido: va por REGISTRAR_PAGO_DEUDA (v222). Con el mínimo en el contexto, ni tocar la tarjeta ni anotarlo además como gasto.",
+  },
+];
+
 /** Todas: las del almacén y las de cada rubro. */
-export const FRASES: Frase[] = [...FRASES_BASE, ...FRASES_RUBROS];
+export const FRASES: Frase[] = [...FRASES_BASE, ...FRASES_GREEN, ...FRASES_RUBROS];
 
 /** Lo que ve el modelo como negocio de quien escribe, según el rubro de la frase. */
 export function contextoDe(frase: Frase): string {
-  return (frase.rubro && CONTEXTOS_RUBRO[frase.rubro]) || CONTEXTO_NEGOCIO;
+  return frase.contexto || (frase.rubro && CONTEXTOS_RUBRO[frase.rubro]) || CONTEXTO_NEGOCIO;
 }

@@ -430,3 +430,14 @@ test("una lista con un producto sin precio no se reemplaza por memoria", () => {
   assert.match(PROMPT_SISTEMA, /mandá igual los que sí lo tienen y pedí, por nombre, el precio/);
   assert.match(PROMPT_SISTEMA, /nunca la reemplaces por\s+GUARDAR_MEMORIA/);
 });
+
+test("caso Green (29/09/2026): 'ya pagué' al pasar es contexto, el contexto no se reenvía, lo confirmado tampoco", () => {
+  assert.match(PROMPT_SISTEMA, /ES CONTEXTO, NO UN\n  PEDIDO/);
+  assert.match(PROMPT_SISTEMA, /Esto vale cuando pagar ES lo que pide el mensaje/);
+  assert.match(PROMPT_SISTEMA, /si falta el monto de un pago, lo\n  completa el sistema, no vos/);
+  assert.match(PROMPT_SISTEMA, /NUNCA le pongas el emisor, el banco o la terminación de otra/);
+  assert.match(PROMPT_SISTEMA, /LO QUE YA CONFIRMASTE NO SE VUELVE A MANDAR/);
+  assert.match(PROMPT_SISTEMA, /Personal › Tengo y debo › Tarjetas, no en Movimientos/);
+  // La regla vieja decía lo contrario: "mandá esa acción de nuevo" sin mirar si se había confirmado.
+  assert.doesNotMatch(PROMPT_SISTEMA, /qué quedó sin hacer o falló, y mandá esa\n  acción de nuevo/);
+});

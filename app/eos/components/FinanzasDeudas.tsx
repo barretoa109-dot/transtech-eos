@@ -84,7 +84,12 @@ const ESTADO: Record<Deuda["estado"], { texto: string; clase: string }> = {
   saldada: { texto: "Saldada", clase: "is-ok" },
 };
 
-export default function FinanzasDeudas() {
+export default function FinanzasDeudas({
+  onHayDatos,
+}: {
+  /** Avisa si hay alguna deuda viva, para que la pantalla no diga "no hay nada" arriba de ellas. */
+  onHayDatos?: (hay: boolean) => void;
+} = {}) {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
 
@@ -104,9 +109,12 @@ export default function FinanzasDeudas() {
   useEffect(() => {
     fetch("/api/finanzas/deudas", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
-      .then(setData)
+      .then((d: Respuesta) => {
+        setData(d);
+        onHayDatos?.((d?.deudas ?? []).some((x) => x.estado !== "saldada"));
+      })
       .catch(() => setError(true));
-  }, [version]);
+  }, [version, onHayDatos]);
 
   async function borrar(d: Deuda) {
     setFallo("");

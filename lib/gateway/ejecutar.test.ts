@@ -498,6 +498,20 @@ test("compra con tarjeta: si la tarjeta se creó en el momento, se pide su ciclo
   assert.match(fraseDeCompraConTarjeta({ tarjeta_creada: true, tarjeta: "Banco Basa" }), /Banco Basa no estaba cargada.*cierra.*vence/);
 });
 
+test("compra con tarjeta: con el resultado real dice qué, cuánto, en cuál y dónde verla (29/09)", async () => {
+  const { fraseDeCompraConTarjeta } = await import("./ejecutar.ts");
+  // El resultado que devolvió el ejecutor en el caso real.
+  const real = {
+    id: "db9e4d8d-be8a-4e38-bd54-ab5aa79954ea", cuotas: 1, moneda: "PYG", tarjeta: "Green ****7450",
+    descripcion: "Punto Farma", monto_cuota: 46000, monto_total: 46000, no_es_gasto: true,
+    primera_cuota: "2026-09-29", cuota_estimada: false, cuotas_pagadas: 0, tarjeta_creada: false,
+  };
+  const frase = fraseDeCompraConTarjeta(real);
+  assert.ok(frase.startsWith("Anoté Punto Farma por ₲ 46.000 en Green ****7450."), frase);
+  assert.match(frase, /Personal › Tengo y debo › Tarjetas/);
+  assert.match(fraseDeCompraConTarjeta({ ...real, ya_estaba: true, anotada_a_las: "17:34" }), /^Ya estaba anotada desde las 17:34.*No la anoté otra vez/);
+});
+
 test("la venta dice si agendó al cliente nuevo (v215)", async () => {
   const { fraseDeVenta } = await import("./ejecutar.ts");
   assert.equal(fraseDeVenta({}), "La venta quedó registrada. La ves en Negocio > Ventas.");
@@ -512,11 +526,13 @@ test("el pago dice cuánto, de qué y dónde se ve (v222)", async () => {
   const { fraseDePago } = await import("./ejecutar.ts");
   assert.equal(
     fraseDePago({ es_tarjeta: true, tarjeta: "Green ****7450", pagado: 188000, saldo_despues: 2644181 }),
-    "Anoté el pago ₲188.000 de Green ****7450. Te queda usado ₲2.644.181. Lo ves en Personal, en Tarjetas, y la salida en Movimientos.",
+    // La misma frase que dice n8n (frases-finanzas.ts): antes n8n contestaba
+    // "No quedó registrado el pago." sobre un pago de tarjeta que sí quedó.
+    "Anoté el pago de ₲ 188.000 de Green ****7450. Te queda usado ₲ 2.644.181. Lo ves en Personal › Tengo y debo › Tarjetas, y la salida de plata en Personal › Mi mes › Movimientos.",
   );
   assert.equal(
     fraseDePago({ es_tarjeta: true, tarjeta: "la azul", pagado: 320000, saldo_despues: null }),
-    "Anoté el pago ₲320.000 de la azul. Lo ves en Personal, en Tarjetas, y la salida en Movimientos.",
+    "Anoté el pago de ₲ 320.000 de la azul. Lo ves en Personal › Tengo y debo › Tarjetas, y la salida de plata en Personal › Mi mes › Movimientos.",
   );
   assert.equal(fraseDePago({ acreedor: "Ueno", pagado: 800000, saldo_despues: 4200000 }), "Anoté el pago ₲800.000 a Ueno. Te queda ₲4.200.000.");
   assert.equal(fraseDePago({ acreedor: "Ueno", pagado: 800000, saldo_despues: 0, saldada: true }), "Anoté el pago ₲800.000 a Ueno. Quedó saldada.");

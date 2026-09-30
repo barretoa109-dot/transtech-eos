@@ -110,7 +110,14 @@ const VACIA: Editable = {
  * Presentar ese número como el total del resumen haría que alguien pague de
  * menos y entre en mora. Va escrito al lado, no en una nota al pie.
  */
-export default function FinanzasTarjetas({ moneda = "PYG" }: { moneda?: string }) {
+export default function FinanzasTarjetas({
+  moneda = "PYG",
+  onHayDatos,
+}: {
+  moneda?: string;
+  /** Avisa si hay alguna tarjeta cargada, para que la pantalla no diga "no hay nada" arriba de ellas. */
+  onHayDatos?: (hay: boolean) => void;
+}) {
   const [datos, setDatos] = useState<Respuesta | null>(null);
   const [editables, setEditables] = useState<Editable[]>([]);
   const [editando, setEditando] = useState(false);
@@ -122,6 +129,7 @@ export default function FinanzasTarjetas({ moneda = "PYG" }: { moneda?: string }
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
       .then((payload: Respuesta) => {
         setDatos(payload);
+        onHayDatos?.((payload.tarjetas ?? []).length > 0);
         setEditables(
           (payload.tarjetas ?? []).map((t) => ({
             emisor: t.emisor,
@@ -147,22 +155,27 @@ export default function FinanzasTarjetas({ moneda = "PYG" }: { moneda?: string }
         );
       })
       .catch(() => setDatos(null));
-  }, []);
+  }, [onHayDatos]);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
 
-  /*
-   * Sin la configuración de finanzas se esconde, SALVO que ya haya tarjetas.
-   * El chat las carga ("pagué con la Green") sin pasar por la configuración, y
-   * esconderlas hacía que la persona leyera "Tarjetas vacío", le dijera a EOS
-   * que no había anotado nada y EOS la volviera a anotar: cinco veces la misma
-   * compra el 29/09/2026.
-   */
-  if (!datos || (datos.configurado === false && (datos.tarjetas ?? []).length === 0)) return null;
+  if (!datos) return null;
 
   const tarjetas = datos.tarjetas ?? [];
+
+  /*
+   * Sin datos base se calla SOLO si no hay nada que mostrar.
+   *
+   * Hasta el 29/09/2026 se callaba siempre que faltara la Constitución
+   * Financiera, aunque hubiera tarjetas cargadas. El chat carga tarjetas y
+   * compras sin pasar por esa configuración: una persona dictó una compra con
+   * la Green, el ejecutor la guardó —cinco veces, porque cada "no está" la
+   * volvía a mandar— y esta pantalla seguía diciendo "Todavía no hay nada que
+   * mostrar acá". Lo que está guardado se muestra.
+   */
+  if (datos.configurado === false && tarjetas.length === 0) return null;
   const fmt = (n: number, m = moneda) => formatearMonto(n, m);
 
   async function guardar() {
