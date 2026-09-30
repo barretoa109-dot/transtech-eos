@@ -492,8 +492,9 @@ test("los parámetros que /descargar sí lee llegan bien", async () => {
 
 test("compra con tarjeta: si la tarjeta se creó en el momento, se pide su ciclo (v208)", async () => {
   const { fraseDeCompraConTarjeta } = await import("./ejecutar.ts");
-  assert.equal(fraseDeCompraConTarjeta({ tarjeta_creada: false }), "Anoté la compra.");
-  assert.equal(fraseDeCompraConTarjeta(undefined), "Anoté la compra.");
+  const HECHO_COMPRA_TARJETA = "Anoté la compra en la tarjeta. La ves en Personal, en Tarjetas (no en Movimientos: se paga con el resumen).";
+  assert.equal(fraseDeCompraConTarjeta({ tarjeta_creada: false }), HECHO_COMPRA_TARJETA);
+  assert.equal(fraseDeCompraConTarjeta(undefined), HECHO_COMPRA_TARJETA);
   assert.match(fraseDeCompraConTarjeta({ tarjeta_creada: true, tarjeta: "Banco Basa" }), /Banco Basa no estaba cargada.*cierra.*vence/);
 });
 
@@ -505,4 +506,29 @@ test("la venta dice si agendó al cliente nuevo (v215)", async () => {
     fraseDeVenta({ contacto_creado: "Sheyla Ortiz" }),
     "La venta quedó registrada. La ves en Negocio > Ventas. Sheyla Ortiz no estaba en tus contactos: lo agendé como cliente.",
   );
+});
+
+test("el pago dice cuánto, de qué y dónde se ve (v222)", async () => {
+  const { fraseDePago } = await import("./ejecutar.ts");
+  assert.equal(
+    fraseDePago({ es_tarjeta: true, tarjeta: "Green ****7450", pagado: 188000, saldo_despues: 2644181 }),
+    "Anoté el pago ₲188.000 de Green ****7450. Te queda usado ₲2.644.181. Lo ves en Personal, en Tarjetas, y la salida en Movimientos.",
+  );
+  assert.equal(
+    fraseDePago({ es_tarjeta: true, tarjeta: "la azul", pagado: 320000, saldo_despues: null }),
+    "Anoté el pago ₲320.000 de la azul. Lo ves en Personal, en Tarjetas, y la salida en Movimientos.",
+  );
+  assert.equal(fraseDePago({ acreedor: "Ueno", pagado: 800000, saldo_despues: 4200000 }), "Anoté el pago ₲800.000 a Ueno. Te queda ₲4.200.000.");
+  assert.equal(fraseDePago({ acreedor: "Ueno", pagado: 800000, saldo_despues: 0, saldada: true }), "Anoté el pago ₲800.000 a Ueno. Quedó saldada.");
+  assert.equal(fraseDePago(undefined), "Anoté el pago.");
+});
+
+test("el cambio de vencimiento dice de quién, cuánto y la fecha nueva (v225)", async () => {
+  const { fraseDeVencimiento } = await import("./ejecutar.ts");
+  assert.equal(
+    fraseDeVencimiento({ venta_id: "x", vence_el: "2026-11-05", contacto: "Zayas Villalba", total: 950000 }),
+    "Listo: la venta de Zayas Villalba por ₲950.000 ahora vence el 5/11. La ves en Negocio > Ventas.",
+  );
+  assert.equal(fraseDeVencimiento({ venta_id: "x", total: 185000 }), "", "una corrección de cantidad no es un cambio de vencimiento");
+  assert.equal(fraseDeVencimiento(undefined), "");
 });

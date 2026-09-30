@@ -89,7 +89,12 @@ export async function GET() {
     supabase.from("eos_onboarding").select("paso").eq("usuario_id", usuarioId).maybeSingle(),
   ]);
 
-  const politica = politicaRes.data;
+  /*
+   * Lo mismo que objetivos: si el chat ya declaró cuentas, bienes o deudas,
+   * se muestran aunque la persona no haya pasado por la configuración.
+   */
+  const hayDatos = [cuentasRes.data, bienesRes.data, deudasRes.data].some((d) => (d ?? []).length > 0);
+  const politica = politicaRes.data ?? (hayDatos ? { moneda: null } : null);
   if (!politica) {
     return NextResponse.json({ configurado: false }, { headers: noStore() });
   }

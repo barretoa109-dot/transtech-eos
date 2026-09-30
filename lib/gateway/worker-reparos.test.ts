@@ -3,7 +3,10 @@ import test from "node:test";
 
 import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
-import { REEMPLAZO_SIN_ANULAR, ejecutarJobs } from "./worker.ts";
+import { REEMPLAZO_SIN_ANULAR, VENTANA_REPETIDO_MS, claveDeRepeticion, ejecutarJobs, type Anotada } from "./worker.ts";
+
+/** Sin nada anotado antes: para las pruebas que no son de repetidos. */
+const SIN_ANOTADAS = { anotadas: async (): Promise<Anotada[]> => [] };
 
 /**
  * La venta duplicada de la tarde de Sofía (29/09/2026), con los payloads que
@@ -50,6 +53,7 @@ test("anular falla y la venta de reemplazo NO se registra: no queda duplicada", 
     ],
     null,
     ejecutar,
+    SIN_ANOTADAS,
   );
 
   assert.deepEqual(llamadas.map((j) => j.accion.tipo), ["ANULAR_VENTA"], "la venta nueva se mandó igual");
@@ -60,7 +64,7 @@ test("anular falla y la venta de reemplazo NO se registra: no queda duplicada", 
 
 test("lo mismo con las compras", async () => {
   const { ejecutar, llamadas } = workerFalso();
-  await ejecutarJobs([job("ANULAR_COMPRA", { referencia: "lechones" }), job("REGISTRAR_COMPRA", { items: [] })], null, ejecutar);
+  await ejecutarJobs([job("ANULAR_COMPRA", { referencia: "lechones" }), job("REGISTRAR_COMPRA", { items: [] })], null, ejecutar, SIN_ANOTADAS);
   assert.deepEqual(llamadas.map((j) => j.accion.tipo), ["ANULAR_COMPRA"]);
 });
 
@@ -70,12 +74,83 @@ test("una anulación fallida no frena lo que no la reemplaza", async () => {
     [job("ANULAR_VENTA", { referencia: "x" }), job("CREAR_CONTACTO", { nombre: "Sheyla" }), job("REGISTRAR_COMPRA", { items: [] })],
     null,
     ejecutar,
+    SIN_ANOTADAS,
   );
   assert.deepEqual(llamadas.map((j) => j.accion.tipo), ["ANULAR_VENTA", "CREAR_CONTACTO", "REGISTRAR_COMPRA"]);
 });
 
 test("una venta sin anulación previa sigue igual que siempre", async () => {
   const { ejecutar, llamadas } = workerFalso();
-  await ejecutarJobs([job("CREAR_CONTACTO", { nombre: "Sheyla" }), job("REGISTRAR_VENTA", VENTA_SHEYLA)], null, ejecutar);
+  await ejecutarJobs([job("CREAR_CONTACTO", { nombre: "Sheyla" }), job("REGISTRAR_VENTA", VENTA_SHEYLA)], null, ejecutar, SIN_ANOTADAS);
   assert.deepEqual(llamadas.map((j) => j.accion.tipo), ["CREAR_CONTACTO", "REGISTRAR_VENTA"]);
+});
+
+// ---------------------------------------------------------------------------
+// Lo mismo anotado otra vez (29/09): cinco compras de ₲46.000 con la Green en
+// diez minutos, cada vez que la persona dijo "no está".
+// ---------------------------------------------------------------------------
+
+const AHORA = Date.parse("2026-09-29T20:37:42Z");
+const COMPRA = { total: 46000, tarjeta: "Green", descripcion: "Punto Farma" };
+
+function anotadaHace(minutos: number, datos: Record<string, unknown>, request_id = "33333333-3333-4333-8333-333333333333"): Anotada {
+  return { request_id, created_at: new Date(AHORA - minutos * 60_000).toISOString(), datos };
+}
+
+test("la misma compra con tarjeta, desde otro mensaje, no se anota dos veces", async () => {
+  const { ejecutar, llamadas } = workerFalso();
+  const resultados = await ejecutarJobs([job("REGISTRAR_COMPRA_TARJETA", { ...COMPRA, tarjeta: "Green ****7450" })], null, ejecutar, {
+    anotadas: async () => [anotadaHace(3, COMPRA)],
+    ahora: () => AHORA,
+  });
+  assert.deepEqual(llamadas, [], "se volvió a mandar una compra ya anotada");
+  assert.equal(resultados[0].ok, true, "no es un error: ya está anotada");
+  assert.equal(resultados[0].idempotent, true);
+  assert.match(String(resultados[0].respuesta), /ya lo anoté hace 3 minutos/);
+  assert.match(String(resultados[0].respuesta), /es otra/);
+});
+
+test("'es otra igual' (repetir: true) sí se anota", async () => {
+  const { ejecutar, llamadas } = workerFalso();
+  await ejecutarJobs([job("REGISTRAR_COMPRA_TARJETA", { ...COMPRA, repetir: true })], null, ejecutar, {
+    anotadas: async () => [anotadaHace(3, COMPRA)],
+    ahora: () => AHORA,
+  });
+  assert.equal(llamadas.length, 1);
+});
+
+test("otro monto, otra cosa: se anota", async () => {
+  const { ejecutar, llamadas } = workerFalso();
+  await ejecutarJobs([job("REGISTRAR_COMPRA_TARJETA", { ...COMPRA, total: 46500 })], null, ejecutar, {
+    anotadas: async () => [anotadaHace(3, COMPRA)],
+    ahora: () => AHORA,
+  });
+  assert.equal(llamadas.length, 1);
+});
+
+test("el reintento del MISMO mensaje no se frena acá: eso lo resuelve el gate", async () => {
+  const { ejecutar, llamadas } = workerFalso();
+  await ejecutarJobs([job("REGISTRAR_COMPRA_TARJETA", COMPRA)], null, ejecutar, {
+    anotadas: async () => [anotadaHace(1, COMPRA, REQUEST)],
+    ahora: () => AHORA,
+  });
+  assert.equal(llamadas.length, 1);
+});
+
+test("un costo o un contacto no se frenan: repetirlos no duplica nada", async () => {
+  const { ejecutar, llamadas } = workerFalso();
+  await ejecutarJobs([job("ACTUALIZAR_PRODUCTO", { productos: [{ nombre: "x", costo: 1 }] })], null, ejecutar, {
+    anotadas: async () => [anotadaHace(1, { productos: [{ nombre: "x", costo: 1 }] })],
+    ahora: () => AHORA,
+  });
+  assert.equal(llamadas.length, 1);
+});
+
+test("la clave ignora mayúsculas, espacios y el nombre de la tarjeta, pero no el monto", () => {
+  const a = claveDeRepeticion("REGISTRAR_COMPRA_TARJETA", { total: 46000, tarjeta: "Green", descripcion: "Punto Farma " });
+  const b = claveDeRepeticion("REGISTRAR_COMPRA_TARJETA", { descripcion: "punto farma", tarjeta: "Green ****7450", total: 46000 });
+  const c = claveDeRepeticion("REGISTRAR_COMPRA_TARJETA", { total: 46001, tarjeta: "Green", descripcion: "Punto Farma" });
+  assert.equal(a, b);
+  assert.notEqual(a, c);
+  assert.ok(VENTANA_REPETIDO_MS >= 5 * 60_000);
 });

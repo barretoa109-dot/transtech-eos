@@ -57,3 +57,18 @@ test("el prompt de los dos gateways dice que lo citado manda sobre el último te
   assert.ok(PROMPT_SISTEMA.includes(MARCA), "sistema.ts no tiene la regla de la respuesta citada");
   assert.equal(aplicarPrompt(PROMPT_SISTEMA, "prueba"), PROMPT_SISTEMA, "el parche no es idempotente");
 });
+
+test("el prompt de los dos gateways: pago de tarjeta y no reenviar lo ya confirmado", async () => {
+  const { MARCA, aplicarPrompt } = await import("../../n8n/parches/cambios-no-repetir-y-tarjeta.mjs");
+  const { PROMPT_SISTEMA } = await import("../gateway/sistema.ts");
+  assert.ok(PROMPT_SISTEMA.includes(MARCA));
+  assert.ok(PROMPT_SISTEMA.includes("el pago del resumen de una TARJETA"));
+  assert.ok(PROMPT_SISTEMA.includes('"repetir": true'));
+  assert.equal(aplicarPrompt(PROMPT_SISTEMA, "prueba"), PROMPT_SISTEMA);
+});
+
+test("el prompt sabe cambiar el vencimiento de una venta (v225)", async () => {
+  const { PROMPT_SISTEMA } = await import("../gateway/sistema.ts");
+  assert.ok(PROMPT_SISTEMA.includes("Y el VENCIMIENTO de una venta a crédito"));
+  assert.ok(PROMPT_SISTEMA.includes("Nunca digas que no se puede."));
+});

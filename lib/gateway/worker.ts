@@ -41,6 +41,7 @@
 
 import { ejecutarEnProceso } from "./ejecutar.ts";
 import type { Job } from "./jobs.ts";
+import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 
 /** El mismo que usa n8n en el nodo 07. */
@@ -186,13 +187,99 @@ function fallo(r: ResultadoWorker): boolean {
 }
 
 /**
+ * Las que dejan plata o mercadería anotada: repetirlas por error duplica.
+ * Quedan afuera las que son idempotentes por naturaleza (poner un costo,
+ * ajustar el stock a un número, agendar a alguien que ya existe).
+ */
+export const DUPLICABLES = new Set([
+  "REGISTRAR_VENTA",
+  "REGISTRAR_COMPRA",
+  "REGISTRAR_COMPRA_TARJETA",
+  "REGISTRAR_MOVIMIENTO_PERSONAL",
+  "REGISTRAR_COBRO",
+  "REGISTRAR_PAGO_COMPRA",
+  "REGISTRAR_PAGO_DEUDA",
+  "REGISTRAR_TRANSFERENCIA",
+]);
+
+/** Cuánto hacia atrás se mira para reconocer que algo ya se anotó. */
+export const VENTANA_REPETIDO_MS = 10 * 60_000;
+
+function canonico(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonico);
+  if (typeof v === "string") return v.trim().toLowerCase();
+  if (!v || typeof v !== "object") return v;
+  return Object.keys(v as Record<string, unknown>)
+    .filter((k) => k !== "repetir")
+    .sort()
+    .reduce<Record<string, unknown>>((acc, k) => {
+      acc[k] = canonico((v as Record<string, unknown>)[k]);
+      return acc;
+    }, {});
+}
+
+/**
+ * Qué hace que dos acciones sean "la misma". Casi siempre, los datos enteros.
+ * La compra con tarjeta, sin el nombre de la tarjeta: el modelo la nombra
+ * "Green" en un mensaje y "Green ****7450" en el siguiente, y es la misma.
+ */
+export function claveDeRepeticion(tipo: string, datos: Record<string, unknown>): string {
+  if (tipo === "REGISTRAR_COMPRA_TARJETA") {
+    const { tarjeta: _t, ...resto } = datos;
+    void _t;
+    return JSON.stringify(canonico(resto));
+  }
+  return JSON.stringify(canonico(datos));
+}
+
+export type Anotada = { request_id: string; created_at: string; datos: Record<string, unknown> };
+
+/** Las órdenes completadas hace poco de esta acción, o [] si no se pudieron leer. */
+async function anotadasRecientes(usuarioId: string, accion: string, desde: string): Promise<Anotada[]> {
+  try {
+    const { data, error } = await adminSinTipos()
+      .from("eos_action_commands")
+      .select("request_id, created_at, payload")
+      .eq("usuario_id", usuarioId)
+      .eq("accion", accion)
+      .eq("estado", "completada")
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) return [];
+    return ((data ?? []) as Array<{ request_id: string; created_at: string; payload?: { datos?: unknown } }>).map((f) => ({
+      request_id: f.request_id,
+      created_at: f.created_at,
+      datos: (f.payload?.datos && typeof f.payload.datos === "object" ? f.payload.datos : {}) as Record<string, unknown>,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export function avisoDeRepetido(minutos: number): string {
+  const hace = minutos < 1 ? "recién" : minutos === 1 ? "hace un minuto" : `hace ${minutos} minutos`;
+  return (
+    `Eso ya lo anoté ${hace}, así que no lo cargué de nuevo: habría quedado repetido. ` +
+    'Si es otra igual, decime "es otra" y la cargo.'
+  );
+}
+
+/**
  * Todos los jobs, en orden, hasta terminar.
  *
  * No corta ante el primer error: si la persona pidió dos cosas y la primera
  * falla, la segunda igual se intenta. Cortar dejaría la mitad hecha sin decir
  * cuál mitad.
  *
- * Con una excepción, del 29/09/2026 (Sofía, WhatsApp):
+ * Con dos excepciones, del 29/09/2026:
+ *
+ *   · Lo mismo anotado otra vez. La persona dijo "no está" (la pantalla de
+ *     Tarjetas no se mostraba) y EOS volvió a mandar la misma compra con
+ *     tarjeta: cinco veces en diez minutos. Una acción que deja plata anotada
+ *     y que es IGUAL a una completada en los últimos diez minutos, desde otro
+ *     mensaje, no se repite: se avisa. `repetir: true` en los datos la fuerza
+ *     ("es otra igual").
  *
  *   · Una anulación que falla seguida de la venta que la reemplazaba. EOS
  *     intentó corregir una venta anulándola y registrándola de nuevo; la
@@ -203,6 +290,13 @@ export async function ejecutarJobs(
   jobs: Job[],
   config: Config | null,
   ejecutar: (job: Job, config: Config | null) => Promise<ResultadoWorker> = ejecutarJob,
+  {
+    anotadas = anotadasRecientes,
+    ahora = () => Date.now(),
+  }: {
+    anotadas?: (usuarioId: string, accion: string, desde: string) => Promise<Anotada[]>;
+    ahora?: () => number;
+  } = {},
 ): Promise<ResultadoWorker[]> {
   const resultados: ResultadoWorker[] = [];
   const anulacionesFallidas = new Set<string>();
@@ -213,6 +307,21 @@ export async function ejecutarJobs(
     if (anulacionesFallidas.has(tipo)) {
       resultados.push({ ok: false, accion: tipo, codigo: "EOS_ACCION_REEMPLAZO_SIN_ANULAR", respuesta: REEMPLAZO_SIN_ANULAR });
       continue;
+    }
+
+    const datos = (job.accion.datos ?? {}) as Record<string, unknown>;
+    if (DUPLICABLES.has(tipo) && datos.repetir !== true) {
+      const clave = claveDeRepeticion(tipo, datos);
+      const desde = new Date(ahora() - VENTANA_REPETIDO_MS).toISOString();
+      const previa = (await anotadas(job.usuario_id, tipo, desde)).find(
+        (a) => a.request_id !== job.request_id && claveDeRepeticion(tipo, a.datos) === clave,
+      );
+      if (previa) {
+        const minutos = Math.max(0, Math.round((ahora() - new Date(previa.created_at).getTime()) / 60_000));
+        // No es un error: ya está anotado. Cuenta como repetida, no como hecha de nuevo.
+        resultados.push({ ok: true, executed: false, idempotent: true, accion: tipo, respuesta: avisoDeRepetido(minutos) });
+        continue;
+      }
     }
 
     const resultado = await ejecutar(job, config);

@@ -142,8 +142,10 @@ const HECHO: Record<string, string> = {
   DECLARAR_SALDO: "Anoté el saldo.",
   REGISTRAR_COBRO: "Registré el cobro.",
   REGISTRAR_PAGO_COMPRA: "Registré el pago.",
-  REGISTRAR_TARJETA: "Anoté la tarjeta.",
-  REGISTRAR_COMPRA_TARJETA: "Anoté la compra.",
+  REGISTRAR_TARJETA: "Anoté la tarjeta. La ves en Personal, en Tarjetas.",
+  // Dónde está: la compra con tarjeta NO aparece en Movimientos, y sin decirlo
+  // la persona la busca ahí, no la ve y pide que se anote otra vez (29/09/2026).
+  REGISTRAR_COMPRA_TARJETA: "Anoté la compra en la tarjeta. La ves en Personal, en Tarjetas (no en Movimientos: se paga con el resumen).",
   REGISTRAR_OPORTUNIDAD: "Anoté la oportunidad.",
   // Se reemplaza por lo que Meta contestó de verdad: ver `frasesDelEnvio`.
   ENVIAR_WHATSAPP_CLIENTE: "Le escribí por WhatsApp.",
@@ -161,7 +163,7 @@ export function fraseDeCompraConTarjeta(resultado: unknown): string {
   if (r.tarjeta_creada !== true) return HECHO.REGISTRAR_COMPRA_TARJETA;
 
   const nombre = typeof r.tarjeta === "string" && r.tarjeta.trim() ? r.tarjeta.trim() : "esa tarjeta";
-  return `Anoté la compra. ${nombre} no estaba cargada: la agregué. Decime qué día cierra y qué día vence, así sé cuándo cae.`;
+  return `Anoté la compra en la tarjeta. ${nombre} no estaba cargada: la agregué. Decime qué día cierra y qué día vence, así sé cuándo cae.`;
 }
 
 /**
@@ -172,6 +174,51 @@ export function fraseDeCompraConTarjeta(resultado: unknown): string {
  * agenda y la venta se registra; la persona tiene que enterarse, por si el
  * nombre estaba mal escrito.
  */
+/** Guaraníes con punto de miles, como los escribe la gente acá. */
+function guaranies(n: number): string {
+  return `₲${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+}
+
+/**
+ * El pago de una cuota o del resumen de una tarjeta (v222), diciendo cuánto y
+ * dónde se ve. Hasta el 29/09/2026 decía "La acción quedó completada": la
+ * persona no sabía si había bajado la deuda, la tarjeta o nada.
+ */
+export function fraseDePago(resultado: unknown): string {
+  const r = (resultado ?? {}) as Record<string, unknown>;
+  const pagado = Number(r.pagado);
+  const monto = Number.isFinite(pagado) && pagado > 0 ? `${guaranies(pagado)} ` : "";
+  const despues = r.saldo_despues === null || r.saldo_despues === undefined ? Number.NaN : Number(r.saldo_despues);
+
+  if (r.es_tarjeta === true) {
+    const nombre = typeof r.tarjeta === "string" && r.tarjeta.trim() ? r.tarjeta.trim() : "la tarjeta";
+    const saldo = Number.isFinite(despues) ? ` Te queda usado ${guaranies(despues)}.` : "";
+    return `Anoté el pago ${monto}de ${nombre}.${saldo} Lo ves en Personal, en Tarjetas, y la salida en Movimientos.`
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const acreedor = typeof r.acreedor === "string" && r.acreedor.trim() ? r.acreedor.trim() : "";
+  if (!acreedor) return "Anoté el pago.";
+  const resto = r.saldada === true ? " Quedó saldada." : Number.isFinite(despues) ? ` Te queda ${guaranies(despues)}.` : "";
+  return `Anoté el pago ${monto}a ${acreedor}.${resto}`.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * El vencimiento cambiado por chat (v225), con la fecha en palabras. Vacía si
+ * el resultado no es de un cambio de vencimiento: ahí sigue la frase de siempre.
+ */
+export function fraseDeVencimiento(resultado: unknown): string {
+  const r = (resultado ?? {}) as Record<string, unknown>;
+  const nueva = typeof r.vence_el === "string" ? r.vence_el : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nueva)) return "";
+  const [, mes, dia] = nueva.split("-");
+  const quien = typeof r.contacto === "string" && r.contacto.trim() ? ` de ${r.contacto.trim()}` : "";
+  const total = Number(r.total);
+  const cuanto = Number.isFinite(total) && total > 0 ? ` por ${guaranies(total)}` : "";
+  return `Listo: la venta${quien}${cuanto} ahora vence el ${Number(dia)}/${Number(mes)}. La ves en Negocio > Ventas.`;
+}
+
 export function fraseDeVenta(resultado: unknown): string {
   const r = (resultado ?? {}) as { contacto_creado?: unknown };
   const nuevo = typeof r.contacto_creado === "string" ? r.contacto_creado.trim() : "";
@@ -320,7 +367,11 @@ async function ramaInterna(
           ? fraseDeCompraConTarjeta(resultado.resultado)
           : job.accion.tipo === "REGISTRAR_VENTA"
             ? fraseDeVenta(resultado.resultado)
-            : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
+            : job.accion.tipo === "REGISTRAR_PAGO_DEUDA"
+              ? fraseDePago(resultado.resultado)
+              : job.accion.tipo === "CORREGIR_VENTA" && fraseDeVencimiento(resultado.resultado)
+                ? fraseDeVencimiento(resultado.resultado)
+                : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
       : String(resultado.error ?? "No fue posible completar la acción interna."),
   };
 }
