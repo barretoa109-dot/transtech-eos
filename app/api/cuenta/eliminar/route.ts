@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DELETE as eliminarTarjetaBancard } from "@/app/api/pagos/bancard/tarjetas/[id]/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { borrarArchivosDeLaCuenta, type ClienteStorage } from "@/lib/cuenta/borrar-archivos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,8 @@ export const maxDuration = 120;
  *      Si se borrara primero lo local, perderíamos las referencias necesarias
  *      para pedirle a Bancard que elimine el token, y quedaría registrado ahí
  *      para siempre.
- *   2. Datos en nuestra base, vía RPC que recorre el catálogo.
+ *   2. Datos en nuestra base, vía RPC que recorre el catálogo, y después los
+ *      archivos de Storage de la cuenta (fotos del chat, documentos).
  *   3. El usuario de auth, al final: mientras exista, el resto es recuperable
  *      por soporte; una vez que se va, no hay vuelta.
  */
@@ -108,6 +110,24 @@ export async function POST(request: Request) {
       },
       { status: 500 },
     );
+  }
+
+  // ---- 2b. Los archivos (best effort) -----------------------------------
+  //
+  // Fotos del chat y documentos subidos. Sin esto quedaban en Storage después
+  // de la baja, contra lo que promete /privacidad. Los comprobantes de pago se
+  // conservan con la facturación. Ver lib/cuenta/borrar-archivos.ts.
+  try {
+    const archivos = await borrarArchivosDeLaCuenta(admin as unknown as ClienteStorage, user.id);
+    const conError = archivos.filter((a) => a.error);
+    if (conError.length > 0) {
+      console.error(
+        `Baja de cuenta ${user.id}: archivos que quedaron en Storage:`,
+        conError.map((a) => `${a.bucket}: ${a.error}`).join("; "),
+      );
+    }
+  } catch (error) {
+    console.error(`Baja de cuenta ${user.id}: no se pudieron borrar los archivos:`, error);
   }
 
   // ---- 3. El usuario de auth ------------------------------------------
