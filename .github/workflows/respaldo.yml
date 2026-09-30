@@ -111,7 +111,7 @@ jobs:
       # desde el volcado (docs/respaldo-nocturno.md). Corre aunque el primero
       # falle, y su resultado también queda cifrado en el artifact.
       - name: Ensayo desde las migraciones
-        if: always() && hashFiles(salida/eos.dump) != 
+        if: always() && hashFiles('salida/eos.dump') != ''
         env:
           ENSAYO_URL: postgresql://postgres:ensayo@localhost:5432/postgres
           DUMP: salida/eos.dump
