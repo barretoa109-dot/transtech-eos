@@ -107,6 +107,17 @@ jobs:
           SALIDA: salida
         run: bash scripts/respaldo/ensayo-restauracion.sh
 
+      # El camino de desastre de verdad: esquema desde las migraciones y datos
+      # desde el volcado (docs/respaldo-nocturno.md). Corre aunque el primero
+      # falle, y su resultado también queda cifrado en el artifact.
+      - name: Ensayo desde las migraciones
+        if: always() && hashFiles('salida/eos.dump') != ''
+        env:
+          ENSAYO_URL: postgresql://postgres:ensayo@localhost:5432/postgres
+          DUMP: salida/eos.dump
+          SALIDA: salida
+        run: bash scripts/respaldo/ensayo-desde-migraciones.sh
+
       # Aunque el ensayo falle, el volcado se guarda: puede estar sano y ser lo
       # único que haya. El job igual queda en rojo y avisa.
       - name: Cifrar

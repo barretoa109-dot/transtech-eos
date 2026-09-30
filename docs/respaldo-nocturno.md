@@ -5,7 +5,11 @@
 1. `pg_dump` de los esquemas `public`, `auth` y `storage` de producción;
 2. **lo restaura** en un Postgres 17 descartable y compara la cantidad de filas
    de cada tabla contra la base viva (`scripts/respaldo/ensayo-restauracion.sh`);
-3. lo cifra con AES-256 y lo guarda como artifact del run, **14 días**.
+3. **levanta otra base desde cero con las migraciones** de `supabase/migrations/`,
+   le carga los datos del volcado y vuelve a comparar tabla por tabla
+   (`scripts/respaldo/ensayo-desde-migraciones.sh`): es el camino de desastre
+   de abajo, ensayado cada noche;
+4. lo cifra con AES-256 y lo guarda como artifact del run, **14 días**.
 
 Si el volcado o el ensayo fallan, el job queda en rojo y GitHub le manda un
 correo a quien modificó este workflow por última vez.
@@ -72,12 +76,16 @@ PGOPTIONS="-c session_replication_role=replica" pg_restore --data-only --no-owne
   -n public -d "$URL_NUEVA" eos.dump
 ```
 
-Si una tabla que las migraciones ya siembran (por ejemplo `planes`) choca por
-clave duplicada, vaciarla y repetir esa tabla. **Este segundo camino no está
-ensayado**: lo que se prueba cada noche es que el volcado vuelve completo, no
-la carga en un proyecto de Supabase nuevo. Además, los objetos que viven en la
-base sin migración (ver `docs/rollback-runbook.md`) no están en las
-migraciones y hay que revisarlos.
+Antes de cargar `public`, vaciar lo que las migraciones siembran (por ejemplo
+`planes`): los datos vienen del respaldo. Es lo que hace el ensayo nocturno.
+
+**Ensayado cada noche desde el 30/09/2026**, sobre un Postgres 17 con los roles
+y el `auth.users` mínimos de `supabase/pruebas/local/bootstrap.sql`: las 318
+migraciones aplicaron desde cero y las 151 tablas de `public` entraron completas,
+sin errores y con las mismas filas que producción (7 s). Eso también prueba que
+producción no tiene tablas ni columnas de `public` fuera de las migraciones.
+Lo que el ensayo no cubre es lo propio de Supabase: Auth completo (en un
+proyecto real `auth.users` trae más columnas), Storage, el vault y los cron.
 
 ## Lo que NO cubre
 
