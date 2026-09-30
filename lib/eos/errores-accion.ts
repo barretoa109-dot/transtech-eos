@@ -394,10 +394,15 @@ const REGLAS: Regla[] = [
     mensaje: (d) =>
       `Me falta cuánto le debés a "${d}". Sin el saldo no puedo ordenar tus pagos ni decirte en cuánto salís.`,
   },
+  /*
+   * Sin un monto de ejemplo. Hasta el 29/09/2026 decía `"debo 8 millones a
+   * Green"`, y leído en el chat parecía que EOS le atribuía a la persona una
+   * deuda de 8 millones que nadie había dicho.
+   */
   {
     codigo: "EOS_ACCION_DEUDA_NO_ENCONTRADA",
     mensaje: (d) =>
-      `No tengo ninguna deuda con "${d}". Contame cuánto le debés y la anoto: "debo 8 millones a ${d}".`,
+      `No tengo ninguna deuda con "${d}", así que no anoté ningún pago. Si le debés, decime cuánto y la cargo.`,
   },
   {
     codigo: "EOS_ACCION_PAGO_SIN_MONTO",

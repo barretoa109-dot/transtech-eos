@@ -314,6 +314,15 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
    */
   const [finanzasConfigurada, setFinanzasConfigurada] = useState<boolean | null>(null);
 
+  /*
+   * Si "Tengo y debo" ya tiene tarjetas o deudas cargadas. El aviso de "no hay
+   * nada" va solo cuando de verdad no hay nada: el chat carga tarjetas y deudas
+   * sin pasar por la configuración, y el 29/09/2026 ese aviso tapaba una
+   * tarjeta con cinco compras guardadas.
+   */
+  const [hayTarjetas, setHayTarjetas] = useState(false);
+  const [hayDeudas, setHayDeudas] = useState(false);
+
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [entendido, setEntendido] = useState("");
@@ -698,16 +707,17 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         plan ordena lo que ya se debe. Las tarjetas aparte: son una deuda con
         calendario propio.
       */}
-      {(subarea === "deudas" || subarea === "tarjetas") && finanzasConfigurada === false && (
+      {((subarea === "deudas" && !hayDeudas) || (subarea === "tarjetas" && !hayTarjetas)) &&
+        finanzasConfigurada === false && (
         <AvisoSinConfigurar texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago." />
       )}
       {subarea === "deudas" && (
         <>
-          <FinanzasDeudas />
+          <FinanzasDeudas onHayDatos={setHayDeudas} />
           <FinanzasPlanDeudas moneda={monedaPrincipal} />
         </>
       )}
-      {subarea === "tarjetas" && <FinanzasTarjetas moneda={monedaPrincipal} />}
+      {subarea === "tarjetas" && <FinanzasTarjetas moneda={monedaPrincipal} onHayDatos={setHayTarjetas} />}
 
       {/*
         El fondo va primero porque sostiene a los objetivos: juntar para un

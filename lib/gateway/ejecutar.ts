@@ -59,6 +59,7 @@ import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 import { fraseDelEnvio, type EnvioDeChat } from "../whatsapp-crm/envio-por-chat.ts";
+import { fraseDeCompraTarjeta, fraseDePagoTarjeta, fraseDePersonal, fraseDeTarjeta } from "./frases-finanzas.ts";
 
 /**
  * Los handlers que este ejecutor orquesta.
@@ -159,6 +160,11 @@ const HECHO: Record<string, string> = {
  * le falta es el ciclo, y eso es lo que hay que pedir.
  */
 export function fraseDeCompraConTarjeta(resultado: unknown): string {
+  // Con el resultado del ejecutor, la frase completa: qué, por cuánto, en cuál
+  // tarjeta, dónde verla y si ya estaba (ver frases-finanzas.ts, 29/09/2026).
+  const completa = fraseDeCompraTarjeta({ resultado });
+  if (completa) return completa;
+
   const r = (resultado ?? {}) as { tarjeta_creada?: unknown; tarjeta?: unknown };
   if (r.tarjeta_creada !== true) return HECHO.REGISTRAR_COMPRA_TARJETA;
 
@@ -189,6 +195,10 @@ export function fraseDePago(resultado: unknown): string {
   const pagado = Number(r.pagado);
   const monto = Number.isFinite(pagado) && pagado > 0 ? `${guaranies(pagado)} ` : "";
   const despues = r.saldo_despues === null || r.saldo_despues === undefined ? Number.NaN : Number(r.saldo_despues);
+
+  // La del resumen de una tarjeta es la misma que dice n8n (frases-finanzas.ts).
+  const deTarjeta = fraseDePagoTarjeta({ resultado });
+  if (deTarjeta) return deTarjeta;
 
   if (r.es_tarjeta === true) {
     const nombre = typeof r.tarjeta === "string" && r.tarjeta.trim() ? r.tarjeta.trim() : "la tarjeta";
@@ -350,6 +360,10 @@ async function ramaInterna(
           )
         : job.accion.tipo === "REGISTRAR_COMPRA_TARJETA"
           ? fraseDeCompraConTarjeta(resultado.resultado)
+          : job.accion.tipo === "REGISTRAR_TARJETA"
+            ? (fraseDeTarjeta({ resultado: resultado.resultado }) ?? HECHO.REGISTRAR_TARJETA)
+          : job.accion.tipo === "REGISTRAR_MOVIMIENTO_PERSONAL"
+            ? fraseDePersonal({ resultado: resultado.resultado })
           : job.accion.tipo === "REGISTRAR_VENTA"
             ? fraseDeVenta(resultado.resultado)
             : job.accion.tipo === "REGISTRAR_PAGO_DEUDA"

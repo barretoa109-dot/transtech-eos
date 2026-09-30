@@ -23,6 +23,8 @@
  * fuera la respuesta.
  */
 
+import { anunciosContradichos, sinAnuncios } from "./sin-anuncios.ts";
+
 export type ResultadoWorker = Record<string, unknown>;
 
 export type Base = {
@@ -134,7 +136,13 @@ export function juntarResultados(base: Base, resultados: ResultadoWorker[]): Fin
   );
   const archivoUrl = String(archivo?.archivo_url ?? "").trim();
 
-  let respuesta = extraerTexto(base.respuesta) || "Listo.";
+  /*
+   * Si algo falló o ya estaba, lo que el modelo anunció antes de ejecutar no
+   * vale: se sacan sus anuncios y mandan los comprobantes (29/09/2026, ver
+   * `sin-anuncios.ts`). Si todo salió bien, el texto queda como está.
+   */
+  const delModelo = extraerTexto(base.respuesta);
+  let respuesta = anunciosContradichos(resultados) ? sinAnuncios(delModelo) : delModelo || "Listo.";
 
   /*
    * Lo que dijo el Worker, sin repetir lo que ya dijo el modelo.
@@ -213,6 +221,8 @@ export function juntarResultados(base: Base, resultados: ResultadoWorker[]): Fin
       respuesta = `${respuesta}\n\nNo pude completar automáticamente: ${acciones.join(", ")}.`.trim();
     }
   }
+
+  if (!respuesta.trim()) respuesta = "Listo.";
 
   const ejecutadas = validos
     .filter((r) => (r.executed === true || r.estado === "completada") && !esRepetido(r))
