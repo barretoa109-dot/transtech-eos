@@ -206,7 +206,8 @@ const FRASES_BASE: Frase[] = [
     id: "pago-tarjeta-minimo",
     grupo: "personal",
     mensaje: "ya pagué el mínimo de la Visa",
-    esperado: [["REGISTRAR_PAGO_DEUDA"]],
+    // v227: sin el mínimo de la Visa a la vista, lo correcto es preguntar cuánto.
+    esperado: [["REGISTRAR_PAGO_DEUDA"], []],
     prohibido: ["REGISTRAR_MOVIMIENTO_PERSONAL", "REGISTRAR_COMPRA_TARJETA"],
     porque: "El pago del resumen va por REGISTRAR_PAGO_DEUDA con acreedor = la tarjeta (v222); como movimiento quedaría contado dos veces.",
   },
@@ -328,7 +329,8 @@ const FRASES_GREEN: Frase[] = [
     grupo: "personal",
     contexto: CONTEXTO_GREEN,
     mensaje: "ya pagué el mínimo de la Green",
-    esperado: [["REGISTRAR_PAGO_DEUDA"]],
+    // v227: con el monto del mínimo del contexto, o sin acción y preguntando.
+    esperado: [["REGISTRAR_PAGO_DEUDA"], []],
     prohibido: ["REGISTRAR_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL"],
     porque:
       "Acá pagar ES el pedido: va por REGISTRAR_PAGO_DEUDA (v222). Con el mínimo en el contexto, ni tocar la tarjeta ni anotarlo además como gasto.",

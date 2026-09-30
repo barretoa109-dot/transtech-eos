@@ -35,6 +35,8 @@
 export const CAMBIOS = [
   {
     donde: "pago de tarjeta (v222): solo cuando pagar es el pedido",
+    // La v227 (cambios-pago-tarjeta-sin-monto.mjs) corrige la primera línea.
+    luego: "Mandá siempre el monto: el que dijo",
     viejo: "  persona. Si no dice cuánto, el sistema usa el pago mínimo del resumen.\n",
     nuevo: [
       "  persona. Si no dice cuánto, el sistema usa el pago mínimo del resumen.",
@@ -78,6 +80,8 @@ export const CAMBIOS = [
   },
   {
     donde: "ya pagué: es contexto, no un pedido",
+    // La v227 (cambios-pago-tarjeta-sin-monto.mjs) corrige "lo completa el sistema".
+    luego: "—salvo el mínimo o el total del",
     viejo: "  otra tarjeta cargada ni le agregues el emisor de otra.\n",
     nuevo: [
       "  otra tarjeta cargada ni le agregues el emisor de otra.",
@@ -123,8 +127,8 @@ export function aplicar(texto, etiqueta) {
       );
     }
 
-    // Ya aplicado: no se aplica dos veces.
-    if (salida.includes(c.nuevo)) continue;
+    // Ya aplicado, o ya corregido por un parche posterior: no se aplica dos veces.
+    if (salida.includes(c.nuevo) || (c.luego && salida.includes(c.luego))) continue;
 
     const partes = salida.split(c.viejo);
     if (partes.length !== 2) {
