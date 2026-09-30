@@ -1,4 +1,4 @@
--- v223: lo que ya está anotado no se anota otra vez, y lo que se cambia se dice.
+-- v226: lo que ya está anotado no se anota otra vez, y lo que se cambia se dice.
 --
 -- ============================================================
 -- EL CASO (29/09/2026, 17:34 a 17:45)
@@ -54,7 +54,7 @@
 -- Regla del proyecto (ver docs y la v160): una función que otra sesión puede
 -- estar tocando se parchea leyendo `pg_get_functiondef`, con el texto anclado.
 -- Si el ancla no está, se frena con error en vez de pisar. Si el parche ya
--- está (la marca `v223`), se saltea: la migración es idempotente. Los
+-- está (la marca `v226`), se saltea: la migración es idempotente. Los
 -- retornos de carro se sacan antes de buscar las anclas: las funciones se
 -- escribieron en Windows y en la base quedaron con CRLF.
 
@@ -68,19 +68,19 @@ begin
   ------------------------------------------------------------------
   v_def := replace(pg_get_functiondef('public.eos_finanzas_compra_tarjeta_v153(uuid, uuid, jsonb)'::regprocedure), chr(13), '');
 
-  if position('v223' in v_def) > 0 then
-    raise notice 'v223: compra_tarjeta ya parcheada';
+  if position('v226' in v_def) > 0 then
+    raise notice 'v226: compra_tarjeta ya parcheada';
   else
     if position(E'  v_alta jsonb;\nbegin' in v_def) = 0
        or position(E'  insert into public.eos_finanzas_tarjeta_compras (' in v_def) = 0 then
-      raise exception 'v223: compra_tarjeta cambió, no encuentro las anclas';
+      raise exception 'v226: compra_tarjeta cambió, no encuentro las anclas';
     end if;
 
     v_nueva := replace(v_def, E'  v_alta jsonb;\nbegin', E'  v_alta jsonb;\n  v_previa_id uuid;\n  v_previa_en timestamptz;\nbegin');
 
     v_nueva := replace(v_nueva, E'  insert into public.eos_finanzas_tarjeta_compras (', $parche$
   /*
-   * v223: la misma compra, dicha otra vez, no se anota dos veces.
+   * v226: la misma compra, dicha otra vez, no se anota dos veces.
    *
    * El 29/09/2026 una compra de 46.000 quedó cinco veces en la Green: la
    * pantalla la escondía y cada "no está" la volvía a mandar. Se devuelve la
@@ -133,20 +133,20 @@ begin
   ------------------------------------------------------------------
   v_def := replace(pg_get_functiondef('public.eos_finanzas_registrar_personal_v136(uuid, uuid, jsonb)'::regprocedure), chr(13), '');
 
-  if position('v223' in v_def) > 0 then
-    raise notice 'v223: registrar_personal ya parcheada';
+  if position('v226' in v_def) > 0 then
+    raise notice 'v226: registrar_personal ya parcheada';
   else
     if position(E'  v_vuelve numeric := 0;\nbegin' in v_def) = 0
        or position(E'    insert into public.eos_movimientos_financieros (' in v_def) = 0
        or position(E'  return jsonb_build_object(\n    ''primero'', v_primero,' in v_def) = 0 then
-      raise exception 'v223: registrar_personal cambió, no encuentro las anclas';
+      raise exception 'v226: registrar_personal cambió, no encuentro las anclas';
     end if;
 
     v_nueva := replace(v_def, E'  v_vuelve numeric := 0;\nbegin', E'  v_vuelve numeric := 0;\n  v_previa_id uuid;\n  v_previa_desc text;\n  v_previa_en timestamptz;\n  v_repetidos jsonb := ''[]''::jsonb;\n  v_hoy date := (now() at time zone ''America/Asuncion'')::date;\nbegin');
 
     v_nueva := replace(v_nueva, E'    insert into public.eos_movimientos_financieros (', $parche$
     /*
-     * v223: lo que ya está anotado no se anota otra vez.
+     * v226: lo que ya está anotado no se anota otra vez.
      *
      * El 29/09/2026 un gasto de 22.650 del 27/09 se cargó de nuevo, leído de
      * una captura de la misma app y con otra descripción. Cargado de atrás,
@@ -195,7 +195,7 @@ begin
     insert into public.eos_movimientos_financieros ($parche$);
 
     v_nueva := replace(v_nueva, E'  return jsonb_build_object(\n    ''primero'', v_primero,', $parche$
-  -- v223: si todo estaba, el "primero" es el que ya estaba (el efecto necesita un id).
+  -- v226: si todo estaba, el "primero" es el que ya estaba (el efecto necesita un id).
   if v_primero is null and jsonb_array_length(v_repetidos) > 0 then
     v_primero := (v_repetidos -> 0 ->> 'id')::uuid;
   end if;
@@ -212,13 +212,13 @@ begin
   ------------------------------------------------------------------
   v_def := replace(pg_get_functiondef('public.eos_finanzas_registrar_tarjeta_v153(uuid, uuid, jsonb)'::regprocedure), chr(13), '');
 
-  if position('v223' in v_def) > 0 then
-    raise notice 'v223: registrar_tarjeta ya parcheada';
+  if position('v226' in v_def) > 0 then
+    raise notice 'v226: registrar_tarjeta ya parcheada';
   else
     if position(E'  v_hoy date;\nbegin' in v_def) = 0
        or position(E'  else\n    update public.eos_finanzas_tarjetas t' in v_def) = 0
        or position(E'      ''falta_ciclo'', t.dia_cierre is null or t.dia_vencimiento is null\n    )' in v_def) = 0 then
-      raise exception 'v223: registrar_tarjeta cambió, no encuentro las anclas';
+      raise exception 'v226: registrar_tarjeta cambió, no encuentro las anclas';
     end if;
 
     v_nueva := replace(v_def, E'  v_hoy date;\nbegin', E'  v_hoy date;\n  v_antes jsonb;\n  v_despues jsonb;\n  v_cambios jsonb := ''[]''::jsonb;\n  v_campo text;\nbegin');
@@ -228,7 +228,7 @@ begin
     select to_jsonb(t) into v_antes from public.eos_finanzas_tarjetas t where t.id = v_id;
 
     /*
-     * v223: el mismo resumen dictado de nuevo no es un resumen nuevo.
+     * v226: el mismo resumen dictado de nuevo no es un resumen nuevo.
      *
      * El 29/09/2026 el modelo volvió a mandar el mínimo que ya tenía la
      * tarjeta (188.000) y eso movió la fecha del resumen del 23/09 a hoy: la
@@ -248,7 +248,7 @@ begin
     -- Los cambios se calculan justo antes del return final.
     v_nueva := replace(v_nueva, E'  return (\n    select jsonb_build_object(\n      ''id'', t.id,', $parche$
   /*
-   * v223: "Actualicé Green" sin decir qué, no. Cada campo que cambió va con su
+   * v226: "Actualicé Green" sin decir qué, no. Cada campo que cambió va con su
    * antes y su después, para que un dato que nadie dijo se vea en la respuesta.
    */
   if v_antes is not null then
@@ -270,7 +270,7 @@ begin
       'id', t.id,$parche$);
 
     if position('v_despues' in v_nueva) = 0 then
-      raise exception 'v223: registrar_tarjeta, no encuentro el return final';
+      raise exception 'v226: registrar_tarjeta, no encuentro el return final';
     end if;
 
     execute v_nueva;

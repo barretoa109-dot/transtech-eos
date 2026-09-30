@@ -352,3 +352,14 @@ test("el catálogo entra en el contexto del negocio", () => {
   assert.ok(texto.includes("Conjunto verde oliva M"));
   assert.match(texto, /14 más/);
 });
+
+test("un producto con costo lo muestra: EOS no puede decir que no lo tiene (v224)", () => {
+  const texto = textoCatalogo([{ nombre: "Cjto Celeste jeans", precio: 140000, costo: 101200, sin_costo: false, stock: 3 }]);
+  assert.match(texto, /Cjto Celeste jeans — .*140\.000, costo .*101\.200 \(quedan 3\)/);
+});
+
+test("sin costo, ni número ni cero: la marca de siempre", () => {
+  const texto = textoCatalogo([{ nombre: "Campera", precio: 250000, costo: null, sin_costo: true }]);
+  assert.ok(!texto.includes("costo ₲"));
+  assert.match(texto, /sin costo cargado/);
+});

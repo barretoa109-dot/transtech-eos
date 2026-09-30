@@ -448,6 +448,18 @@ const REGLAS: Regla[] = [
       `No encontré ninguna venta tuya de los últimos siete días que coincida con "${d}". ` +
       "Si es más vieja, anulala desde Negocio > Ventas.",
   },
+  // v225: cambiar cuándo vence una venta a crédito.
+  {
+    codigo: "EOS_ACCION_VENTA_NO_ES_CREDITO",
+    mensaje: () =>
+      "Esa venta fue al contado, así que no tiene vencimiento. Si en realidad fue a crédito, " +
+      "decime y la paso a crédito con la fecha que me digas.",
+  },
+  {
+    codigo: "EOS_ACCION_VENCIMIENTO_INVALIDO",
+    mensaje: () =>
+      'No entendí para cuándo lo pasamos. Decime el día ("el 5 de noviembre") o en cuántos días ("en 15 días").',
+  },
   {
     codigo: "EOS_VENTA_CON_FACTURA",
     mensaje: () =>

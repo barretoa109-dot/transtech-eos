@@ -8,6 +8,7 @@ const PAGINAS: { ruta: string; prioridad: number }[] = [
   { ruta: "/planes", prioridad: 0.9 },
   { ruta: "/login", prioridad: 0.5 },
   { ruta: "/privacidad", prioridad: 0.3 },
+  { ruta: "/eliminar-cuenta", prioridad: 0.2 },
   { ruta: "/terminos", prioridad: 0.3 },
 ];
 

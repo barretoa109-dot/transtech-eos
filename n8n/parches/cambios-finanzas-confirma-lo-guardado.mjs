@@ -25,7 +25,7 @@
  * "LO QUE YA CONFIRMASTE NO SE VUELVE A MANDAR". Esto va encima: separa el
  * pago pedido del mencionado al pasar, saca la regla vieja que decía lo
  * contrario ("mandá esa acción de nuevo"), y frena el reenvío de los datos
- * del contexto. La base ya no deja que 2, 3 y 4 dañen nada (v223): una
+ * del contexto. La base ya no deja que 2, 3 y 4 dañen nada (v226): una
  * barrera no reemplaza a la otra.
  *
  * Sin comillas invertidas en el texto: en n8n el prompt vive dentro de un

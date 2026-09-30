@@ -86,6 +86,40 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
     .eq("usuario_id", puerta.usuarioId)
     .maybeSingle();
 
+  /*
+   * ¿Lo único que cambió es cuándo vence? (v225)
+   *
+   * Editar ANULA la venta y registra otra, y con cobros registrados eso no se
+   * puede: el 28/09/2026 una clienta intentó pasar el vencimiento de un
+   * sobrepedido con seña ocho veces y las ocho vio "no se puede". Cambiar la
+   * fecha no toca stock ni plata: va por una función que cambia solo eso.
+   */
+  if (venceEl && (await soloCambiaElVencimiento(admin, puerta.usuarioId, id, items, cuerpo))) {
+    const { data: cambio, error: errorCambio } = await admin.rpc("eos_erp_cambiar_vencimiento_v225", {
+      p_usuario_id: puerta.usuarioId,
+      p_venta_id: id,
+      p_vence_el: venceEl,
+    });
+
+    if (!errorCambio) {
+      await registrarOperacionErp(admin, {
+        usuarioId: puerta.usuarioId,
+        empresaId,
+        evento: "venta_editada",
+        origen: "panel",
+        resumen: `Vencimiento de la venta ${id.slice(0, 8)}: ${cambio?.vence_antes ?? "sin fecha"} → ${venceEl}`,
+        referencia: id,
+        resultado: "ok",
+        motivo,
+        extra: { solo_vencimiento: true },
+      });
+      return NextResponse.json({ ...cambio, venta_id: id }, { status: 200, headers: noStore() });
+    }
+
+    // Si la función nueva todavía no está (o falló), sigue el camino de siempre.
+    console.error("ERP: no se pudo cambiar solo el vencimiento:", errorCambio);
+  }
+
   const { data, error } = await admin.rpc("eos_erp_editar_venta", {
     p_usuario_id: puerta.usuarioId,
     p_venta_id: id,
@@ -174,4 +208,49 @@ function respuesta(error: string, status: number) {
 
 function noStore() {
   return { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
+}
+
+type ItemPedido = { producto_id: string | null; cantidad: number; precio_unitario: number | null };
+
+/**
+ * ¿El pedido deja la venta igual salvo el vencimiento? Mismo cliente, sigue a
+ * crédito, misma fecha y los mismos renglones (producto, cantidad y precio).
+ * Ante cualquier duda, no: va por la edición completa de siempre.
+ */
+async function soloCambiaElVencimiento(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  ventaId: string,
+  items: ItemPedido[],
+  cuerpo: Record<string, unknown> | null,
+): Promise<boolean> {
+  if (cuerpo?.condicion !== "credito") return false;
+
+  const { data, error } = await admin
+    .from("eos_erp_ventas")
+    .select("contacto_id, condicion, fecha, estado, items:eos_erp_venta_items(producto_id, cantidad, precio_unitario)")
+    .eq("id", ventaId)
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+
+  const venta = data as {
+    contacto_id: string | null;
+    condicion: string;
+    fecha: string;
+    estado: string;
+    items: Array<{ producto_id: string | null; cantidad: number | string; precio_unitario: number | string | null }>;
+  };
+
+  if (venta.estado === "anulada" || venta.condicion !== "credito") return false;
+  if ((typeof cuerpo?.contacto_id === "string" ? cuerpo.contacto_id : null) !== venta.contacto_id) return false;
+  if (typeof cuerpo?.fecha === "string" && cuerpo.fecha && cuerpo.fecha !== venta.fecha) return false;
+
+  const clave = (i: { producto_id: string | null; cantidad: number | string; precio_unitario: number | string | null }) =>
+    `${i.producto_id ?? ""}|${Number(i.cantidad)}|${i.precio_unitario === null ? "" : Number(i.precio_unitario)}`;
+  const antes = (venta.items ?? []).map(clave).sort();
+  const ahora = items.map(clave).sort();
+
+  return antes.length === ahora.length && antes.every((k, i) => k === ahora[i]);
 }

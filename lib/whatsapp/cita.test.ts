@@ -66,3 +66,9 @@ test("el prompt de los dos gateways: pago de tarjeta y no reenviar lo ya confirm
   assert.ok(PROMPT_SISTEMA.includes('"repetir": true'));
   assert.equal(aplicarPrompt(PROMPT_SISTEMA, "prueba"), PROMPT_SISTEMA);
 });
+
+test("el prompt sabe cambiar el vencimiento de una venta (v225)", async () => {
+  const { PROMPT_SISTEMA } = await import("../gateway/sistema.ts");
+  assert.ok(PROMPT_SISTEMA.includes("Y el VENCIMIENTO de una venta a crédito"));
+  assert.ok(PROMPT_SISTEMA.includes("Nunca digas que no se puede."));
+});

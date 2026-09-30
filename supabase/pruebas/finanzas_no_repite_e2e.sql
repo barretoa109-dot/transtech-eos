@@ -1,14 +1,15 @@
--- Prueba de la v223: el caso Green del 29/09/2026, de punta a punta en la base.
+-- Prueba de la v226: el caso Green del 29/09/2026, de punta a punta en la base.
 --
 -- Corre la migración y la prueba en UNA transacción que termina en un error a
 -- propósito, con los resultados adentro del mensaje: no queda nada escrito.
 --
 --     cat supabase/pruebas/finanzas_no_repite_e2e_inicio.sql \
---         supabase/migrations/20260929212000_eos_finanzas_no_repite_v223.sql \
---         supabase/pruebas/finanzas_no_repite_e2e.sql > /tmp/e2e221.sql
---     npx supabase db query --linked -f /tmp/e2e221.sql
+--         supabase/migrations/20260930101000_eos_pago_de_tarjeta_v222.sql \
+--         supabase/migrations/20260930104000_eos_finanzas_no_repite_v226.sql \
+--         supabase/pruebas/finanzas_no_repite_e2e.sql > /tmp/e2e226.sql
+--     npx supabase db query --linked -f /tmp/e2e226.sql
 --
--- (Con la v222 y la v223 ya aplicadas, alcanza con el inicio y este archivo.)
+-- (Con la v222 y la v226 ya aplicadas, alcanza con el inicio y este archivo.)
 --
 -- Reproduce lo que pasó: una tarjeta Green cargada el 23/09, un gasto de
 -- 22.650 del 27/09 ya anotado, y el mensaje "gasté 46.000 en Punto Farma con
@@ -55,7 +56,7 @@ begin
   perform set_config('request.jwt.claim.role', 'service_role', true);
 
   insert into auth.users (id, aud, role, email, raw_user_meta_data)
-  values (ua, 'authenticated', 'authenticated', 'e2e-v223-' || ua || '@test.invalid', '{}');
+  values (ua, 'authenticated', 'authenticated', 'e2e-v226-' || ua || '@test.invalid', '{}');
 
   -- Lo que ya tenía la cuenta antes del mensaje.
   salida := pg_temp.accion(ua, 'REGISTRAR_TARJETA', jsonb_build_object(
@@ -158,6 +159,6 @@ $$;
 -- Los resultados viajan en el error, que además deshace todo.
 do $$
 begin
-  raise exception 'EOS_E2E_V223 %', (select string_agg(case when ok then 'OK    ' || prueba else 'FALLA ' || prueba || '  ->  ' || left(detalle, 400) end, ' ## ' order by n) from _r);
+  raise exception 'EOS_E2E_V226 %', (select string_agg(case when ok then 'OK    ' || prueba else 'FALLA ' || prueba || '  ->  ' || left(detalle, 400) end, ' ## ' order by n) from _r);
 end;
 $$;

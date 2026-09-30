@@ -214,6 +214,21 @@ export function fraseDePago(resultado: unknown): string {
   return `Anoté el pago ${monto}a ${acreedor}.${resto}`.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * El vencimiento cambiado por chat (v225), con la fecha en palabras. Vacía si
+ * el resultado no es de un cambio de vencimiento: ahí sigue la frase de siempre.
+ */
+export function fraseDeVencimiento(resultado: unknown): string {
+  const r = (resultado ?? {}) as Record<string, unknown>;
+  const nueva = typeof r.vence_el === "string" ? r.vence_el : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nueva)) return "";
+  const [, mes, dia] = nueva.split("-");
+  const quien = typeof r.contacto === "string" && r.contacto.trim() ? ` de ${r.contacto.trim()}` : "";
+  const total = Number(r.total);
+  const cuanto = Number.isFinite(total) && total > 0 ? ` por ${guaranies(total)}` : "";
+  return `Listo: la venta${quien}${cuanto} ahora vence el ${Number(dia)}/${Number(mes)}. La ves en Negocio > Ventas.`;
+}
+
 export function fraseDeVenta(resultado: unknown): string {
   const r = (resultado ?? {}) as { contacto_creado?: unknown };
   const nuevo = typeof r.contacto_creado === "string" ? r.contacto_creado.trim() : "";
@@ -368,7 +383,9 @@ async function ramaInterna(
             ? fraseDeVenta(resultado.resultado)
             : job.accion.tipo === "REGISTRAR_PAGO_DEUDA"
               ? fraseDePago(resultado.resultado)
-              : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
+              : job.accion.tipo === "CORREGIR_VENTA" && fraseDeVencimiento(resultado.resultado)
+                ? fraseDeVencimiento(resultado.resultado)
+                : (HECHO[job.accion.tipo] ?? "La acción quedó completada.")
       : String(resultado.error ?? "No fue posible completar la acción interna."),
   };
 }
