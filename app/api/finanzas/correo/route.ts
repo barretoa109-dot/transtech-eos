@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   /*
-   * Mismo criterio que los webhooks de Bancard y Pagopar: un techo pensado
+   * Mismo criterio que el webhook de Bancard: un techo pensado
    * para el proveedor, no para una persona. Alto a propósito — un negocio con
    * varias cuentas puede recibir varios avisos bancarios seguidos, y frenar
    * eso de más deja plata real sin registrar sin que nadie lo note.
