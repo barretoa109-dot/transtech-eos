@@ -66,6 +66,7 @@ const frases = FRASES.filter(
   (f) => (!grupo || f.grupo === grupo) && (!rubro || (f.rubro ?? "almacen") === rubro) && (!ids || ids.includes(f.id)),
 );
 const PARALELO = 4;
+const TOKENS = { entrada: 0, cacheada: 0, salida: 0 };
 
 type Resultado = {
   frase: Frase;
@@ -125,6 +126,12 @@ async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: strin
   const ai = await respuesta.json();
   const ms = Date.now() - comienzo;
   const razonamiento = Number(ai?.usage?.output_tokens_details?.reasoning_tokens ?? 0);
+  // Para comparar modelos por lo que cuesta de verdad, no por el precio de lista.
+  const entradaTotal = Number(ai?.usage?.input_tokens ?? 0);
+  const cacheada = Number(ai?.usage?.input_tokens_details?.cached_tokens ?? 0);
+  TOKENS.entrada += entradaTotal - cacheada;
+  TOKENS.cacheada += cacheada;
+  TOKENS.salida += Number(ai?.usage?.output_tokens ?? 0);
   const cuerpo = prepararRespuesta(entrada, ai);
   const verbos = cuerpo.acciones.map((a) => String(a.tipo ?? "").toUpperCase()).filter(Boolean);
   // Los documentos a pedido no viajan como acción: el modelo los manda en el
@@ -224,6 +231,29 @@ function tiempos(rs: Resultado[]): string[] {
 }
 
 const resultados = await correr();
+
+/** Precios por millón de tokens (entrada, cacheada, salida), de developers.openai.com/api/docs/pricing el 30/09/2026. */
+const PRECIOS: Record<string, [number, number, number]> = {
+  "gpt-5.5": [5, 0.5, 30],
+  "gpt-6-sol": [2, 0.2, 10],
+  "gpt-6.1-sol": [2, 0.1, 10],
+  "gpt-6-luna": [0.1, 0.01, 0.5],
+  "gpt-5.4-mini": [0.75, 0.075, 4.5],
+};
+
+function costo(): string[] {
+  const p = PRECIOS[modelo];
+  const tokens = `${TOKENS.entrada} de entrada sin caché, ${TOKENS.cacheada} en caché, ${TOKENS.salida} de salida`;
+  if (!p) return ["## Costo", "", `Tokens: ${tokens}. Sin precio cargado para \`${modelo}\`.`, ""];
+  const usd = (TOKENS.entrada * p[0] + TOKENS.cacheada * p[1] + TOKENS.salida * p[2]) / 1e6;
+  const porFrase = usd / Math.max(resultados.length, 1);
+  return [
+    "## Costo",
+    "",
+    `Tokens: ${tokens}. **USD ${usd.toFixed(4)} la corrida · USD ${porFrase.toFixed(5)} por mensaje.**`,
+    "",
+  ];
+}
 // Con la hora: dos corridas del mismo día no se pisan (el registro es evidencia).
 const fecha = new Date().toISOString().slice(0, 10);
 const marca = new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "");
@@ -249,6 +279,7 @@ const lineas: string[] = [
   }),
   "",
   ...tiempos(resultados),
+  ...costo(),
   ...largoDeConfirmaciones(resultados),
   "## Las que fallaron",
   "",

@@ -24,7 +24,7 @@ import sharp from "sharp";
 import { prepararEntrada } from "../../lib/gateway/entrada.ts";
 import { armarPrompt } from "../../lib/gateway/prompt.ts";
 import { prepararRespuesta } from "../../lib/gateway/respuesta.ts";
-import { MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
+import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
 
@@ -136,7 +136,8 @@ async function probar(img: { id: string; base64: string; tipo: string }, clave: 
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${clave}` },
     body: JSON.stringify({
-      model: MODELO,
+      model: modeloFoto,
+      reasoning: { effort: ESFUERZO },
       input: [
         { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
         { role: "user", content: contenido },
@@ -166,6 +167,12 @@ async function probar(img: { id: string; base64: string; tipo: string }, clave: 
   return { id: img.id, pedidos: productos.length, conPrecioBien, mal, ms, respuesta: cuerpo.respuesta };
 }
 
+/** `--modelo gpt-6-sol`: el modelo a medir (sin la bandera, el de producción). */
+const modeloFoto = (() => {
+  const i = process.argv.indexOf("--modelo");
+  return i >= 0 ? (process.argv[i + 1] ?? MODELO) : MODELO;
+})();
+
 /*
  * `--achicar`: cada imagen se agranda primero a 4000 px (como sale de la cámara
  * de un celular) y después pasa por `achicarImagen`, que es lo que hace el
@@ -188,7 +195,7 @@ for (const img of await imagenes()) resultados.push(await probar(achicar ? await
 const lineas = [
   `# Catálogo desde una foto — ${new Date().toISOString().slice(0, 10)}`,
   "",
-  `Modelo \`${MODELO}\`. Lista de ${LISTA.length} productos. Meta (inicio-08): los ${LISTA.length} con su precio.`,
+  `Modelo \`${modeloFoto}\` · esfuerzo \`${ESFUERZO}\`. Lista de ${LISTA.length} productos. Meta (inicio-08): los ${LISTA.length} con su precio.`,
   "",
   "| Imagen | Productos pedidos | Con el precio correcto | Tiempo |",
   "|---|---|---|---|",
@@ -206,7 +213,7 @@ const lineas = [
 
 const carpeta = path.join(RAIZ, "evals", "bateria", "resultados");
 fs.mkdirSync(carpeta, { recursive: true });
-const archivo = path.join(carpeta, `${new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "")}-foto-catalogo.md`);
+const archivo = path.join(carpeta, `${new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "")}-foto-catalogo-${modeloFoto}.md`);
 fs.writeFileSync(archivo, lineas.join("\n"));
 console.log(lineas.join("\n"));
 console.log(`Guardado en ${path.relative(RAIZ, archivo)}`);

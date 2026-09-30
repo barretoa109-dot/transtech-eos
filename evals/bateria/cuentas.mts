@@ -1,7 +1,7 @@
 /**
  * ¿Las cuentas salen bien? (complemento de la batería, 30/09/2026).
  *
- *     node --experimental-strip-types evals/bateria/cuentas.mts --esfuerzo low
+ *     node --experimental-strip-types evals/bateria/cuentas.mts --esfuerzo low [--modelo gpt-6-sol]
  *
  * La batería mide qué verbo elige el modelo; esto mide si los NÚMEROS de la
  * respuesta son los correctos: tipo de cambio, margen, envío repartido, IVA,
@@ -66,6 +66,7 @@ export function numerosDe(texto: string): number[] {
 
 const clave = leerClave();
 const esfuerzo = argumento("esfuerzo") ?? ESFUERZO;
+const modelo = argumento("modelo") ?? MODELO;
 
 async function probar(c: Caso) {
   const entrada = prepararEntrada({
@@ -85,7 +86,7 @@ async function probar(c: Caso) {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${clave}` },
     body: JSON.stringify({
-      model: MODELO,
+      model: modelo,
       reasoning: { effort: esfuerzo },
       input: [
         { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
@@ -118,6 +119,6 @@ const lineas = [
   "",
 ];
 const carpeta = path.join(RAIZ, "evals", "bateria", "resultados");
-const archivo = path.join(carpeta, `${new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "")}-cuentas-${esfuerzo}.md`);
+const archivo = path.join(carpeta, `${new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "")}-cuentas-${modelo}-${esfuerzo}.md`);
 fs.writeFileSync(archivo, lineas.join("\n"));
 console.log(lineas.join("\n"));
