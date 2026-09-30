@@ -53,9 +53,10 @@ end $$;
 SQL
 
 # 3. Las cuentas de acceso: solo id, correo y alta. El auth.users de acá es el
-#    mínimo de bootstrap.sql; el real lo recrea Supabase.
+#    mínimo de bootstrap.sql; el real lo recrea Supabase. Sin triggers: si no,
+#    handle_new_user da de alta perfil y módulos, que vienen del respaldo.
 psql "$VOLCADO" -q -c "\copy (select id, email, created_at from auth.users) to stdout" \
-  | psql "$MIG" -q -c "\copy auth.users (id, email, created_at) from stdin"
+  | PGOPTIONS="-c session_replication_role=replica" psql "$MIG" -q -c "\copy auth.users (id, email, created_at) from stdin"
 
 # 4. Los datos de public, sin disparar triggers ni revisar claves foráneas
 #    mientras entran (el orden de las tablas en el volcado no es el de las FK).
