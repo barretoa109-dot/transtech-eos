@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { modeloSimple } from "@/lib/eos/enrutamiento-modelo";
-import { etapaDelGateway } from "@/lib/gateway/conversar";
+import { adjuntosEnTypeScript, etapaDelGateway } from "@/lib/gateway/conversar";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
  * `gateway` es la etapa del gateway en TypeScript que está atendiendo (0 a 3,
  * ver `etapaDelGateway`): un número, nunca el valor de una variable. Lo mismo
  * `modelo_simple`: si los mensajes simples van al modelo barato (paso 4 de
- * `lib/eos/enrutamiento-modelo.ts`), sí o no, sin decir cuál.
+ * `lib/eos/enrutamiento-modelo.ts`), sí o no, sin decir cuál. Y `fotos`: si los
+ * mensajes con foto también los atiende el gateway en TypeScript o siguen yendo
+ * a n8n (`EOS_GATEWAY_TS_IMAGENES`, prendida el 30/09/2026).
  */
 export function GET() {
   return NextResponse.json(
@@ -26,6 +28,7 @@ export function GET() {
       gateway: etapaDelGateway(),
       // Solo lo atiende el gateway en TypeScript: con la etapa 0 no corre.
       modelo_simple: etapaDelGateway() > 0 && modeloSimple() !== null,
+      fotos: etapaDelGateway() > 0 && adjuntosEnTypeScript() ? "typescript" : "n8n",
     },
     { headers: { "Cache-Control": "no-store" } },
   );
