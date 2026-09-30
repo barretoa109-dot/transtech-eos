@@ -65,6 +65,19 @@
   background: radial-gradient(circle at 30% 30%, var(--eos-blue-bright), var(--eos-blue-dark) 70%);
   animation: eos-drift 25s ease-in-out infinite;
 }
+/*
+ * En teléfonos y con movimiento reducido, la aurora queda quieta y con menos
+ * desenfoque. Tres círculos de hasta 580 px con blur(80px) animados sin parar
+ * se repintan en cada cuadro: en la medición del 30/09 (Lighthouse móvil) la
+ * portada pasaba ~2 s en estilos y dibujo y el texto principal aparecía 2,2 s
+ * tarde. Quieta, se pinta una vez y se ve casi igual.
+ */
+@media (max-width: 899px), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .eos-aurora span {
+    animation: none;
+    filter: blur(48px);
+  }
+}
 [data-eos-theme="dark"] .eos-aurora span {
   opacity: 0.26;
 }
