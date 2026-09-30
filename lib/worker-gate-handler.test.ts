@@ -2,10 +2,16 @@ import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { registerHooks } from "node:module";
+import * as modulo from "node:module";
 
 // Fuera de Next, Node no resuelve `next/server` sin la extensión (el paquete no
 // declara `exports`). Solo para esta prueba: la puerta importa NextResponse.
+// `registerHooks` existe desde Node 23.5 (el CI corre 24), pero los tipos del
+// proyecto son de Node 20: se declara acá.
+type Siguiente = (especificador: string, contexto: unknown) => unknown;
+const { registerHooks } = modulo as unknown as {
+  registerHooks: (ganchos: { resolve: (especificador: string, contexto: unknown, siguiente: Siguiente) => unknown }) => void;
+};
 registerHooks({
   resolve(especificador, contexto, siguiente) {
     return siguiente(especificador === "next/server" ? "next/server.js" : especificador, contexto);
