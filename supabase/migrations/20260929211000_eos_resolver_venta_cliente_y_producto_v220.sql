@@ -38,18 +38,18 @@
 -- Como la v176: en su lugar, leyendo `pg_get_functiondef`. Si el texto
 -- esperado no está, falla sin tocar nada; si ya está aplicada, avisa y sale.
 
-do $v218$
+do $v220$
 declare
   v_oid oid;
   v_def text;
   v_nuevo text;
-  v_marca constant text := 'v218: producto y cliente juntos';
+  v_marca constant text := 'v220: producto y cliente juntos';
 begin
   v_oid := 'public.eos_erp_resolver_venta(uuid, text, integer)'::regprocedure;
   v_def := pg_get_functiondef(v_oid);
 
   if position(v_marca in v_def) > 0 then
-    raise notice 'v218: eos_erp_resolver_venta ya estaba parchada.';
+    raise notice 'v220: eos_erp_resolver_venta ya estaba parchada.';
     return;
   end if;
 
@@ -57,7 +57,7 @@ begin
     v_def,
     'exists\s*\(\s*select\s+1\s+from\s+public\.eos_crm_contactos\s+c\s+where\s+c\.id\s*=\s*v\.contacto_id\s+and\s+v_tokens\s*<@\s*public\.eos_tokens\(c\.nombre,\s*false\)\s*\)',
     '\&
-        or /* v218: producto y cliente juntos */ v_tokens <@ (
+        or /* v220: producto y cliente juntos */ v_tokens <@ (
           select coalesce(array_agg(distinct t.palabra), ''{}''::text[])
           from (
             select unnest(public.eos_tokens(coalesce(i.descripcion, ''''), true)) as palabra
@@ -72,9 +72,9 @@ begin
   );
 
   if v_nuevo = v_def then
-    raise exception 'v218: no encontré el bloque del cliente en eos_erp_resolver_venta; no se cambió nada.';
+    raise exception 'v220: no encontré el bloque del cliente en eos_erp_resolver_venta; no se cambió nada.';
   end if;
 
   execute v_nuevo;
 end;
-$v218$;
+$v220$;

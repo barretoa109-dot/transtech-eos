@@ -1,4 +1,4 @@
--- v217: "Responder" en WhatsApp — el mensaje citado le llega a EOS.
+-- v219: "Responder" en WhatsApp — el mensaje citado le llega a EOS.
 --
 -- El 29/09/2026 Sofía citó una respuesta de EOS con el tipo de cambio adentro
 -- y escribió "Aquí está". EOS contestó "No me llegó el dato": Meta manda solo
@@ -16,4 +16,4 @@ alter table public.eos_whatsapp_rafaga_v199
   add column if not exists contexto_wa_id text;
 
 comment on column public.eos_whatsapp_rafaga_v199.contexto_wa_id is
-  'v217: id de WhatsApp del mensaje al que responde (context.id de Meta), si la persona usó "Responder". Ver lib/whatsapp/cita.ts.';
+  'v219: id de WhatsApp del mensaje al que responde (context.id de Meta), si la persona usó "Responder". Ver lib/whatsapp/cita.ts.';
