@@ -166,9 +166,24 @@ async function probar(img: { id: string; base64: string; tipo: string }, clave: 
   return { id: img.id, pedidos: productos.length, conPrecioBien, mal, ms, respuesta: cuerpo.respuesta };
 }
 
+/*
+ * `--achicar`: cada imagen se agranda primero a 4000 px (como sale de la cámara
+ * de un celular) y después pasa por `achicarImagen`, que es lo que hace el
+ * webhook de WhatsApp desde el 29/09 (encargado-11). Mide que achicar no le
+ * haga perder lectura al modelo.
+ */
+async function comoLlegaDeWhatsapp(img: { id: string; base64: string; tipo: string }) {
+  const { achicarImagen } = await import("../../lib/whatsapp/achicar.ts");
+  const deCamara = await sharp(Buffer.from(img.base64, "base64")).resize({ width: 4000 }).jpeg({ quality: 92 }).toBuffer();
+  const r = await achicarImagen(deCamara, "image/jpeg");
+  console.log(`${img.id}: ${Math.round(deCamara.length / 1024)} KB de cámara → ${Math.round(r.bytes.length / 1024)} KB`);
+  return { id: `${img.id}-achicada`, base64: r.bytes.toString("base64"), tipo: r.tipo };
+}
+
 const clave = leerClave();
+const achicar = process.argv.includes("--achicar");
 const resultados = [];
-for (const img of await imagenes()) resultados.push(await probar(img, clave));
+for (const img of await imagenes()) resultados.push(await probar(achicar ? await comoLlegaDeWhatsapp(img) : img, clave));
 
 const lineas = [
   `# Catálogo desde una foto — ${new Date().toISOString().slice(0, 10)}`,

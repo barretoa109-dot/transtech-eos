@@ -1,4 +1,5 @@
 import { normalizarArchivo, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
+import { achicarImagen } from "@/lib/whatsapp/achicar";
 
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
 
@@ -22,12 +23,16 @@ export async function descargarMedia(
   const bajado = await descargarBytes(mediaId, mimeType);
   if (!bajado) return null;
 
+  // Las fotos, al tamaño que el modelo aprovecha (ver `achicar.ts`).
+  const archivo = bajado.tipo.startsWith("image/") ? await achicarImagen(bajado.bytes, bajado.tipo) : bajado;
+
   try {
     return normalizarArchivo({
-      nombre: nombreSugerido,
-      tipo: bajado.tipo,
-      base64: bajado.bytes.toString("base64"),
-      tamanio: bajado.bytes.length,
+      // Si se pasó a JPEG, el nombre lo dice: el tipo y la extensión no se contradicen.
+      nombre: "achicada" in archivo && archivo.achicada ? nombreSugerido.replace(/\.[a-z0-9]+$/i, "") + ".jpg" : nombreSugerido,
+      tipo: archivo.tipo,
+      base64: archivo.bytes.toString("base64"),
+      tamanio: archivo.bytes.length,
     });
   } catch (error) {
     console.error("WhatsApp: el adjunto no se pudo usar:", error);
