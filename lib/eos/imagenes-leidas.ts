@@ -27,7 +27,8 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = 25_000;
 /** Cuánto del historial de imágenes vuelve al modelo. */
 export const LECTURAS_RECIENTES = 3;
-const VENTANA_MS = 48 * 3_600_000;
+/** Una imagen de hace más de un día ya no es "estos": es otra conversación. */
+const VENTANA_MS = 24 * 3_600_000;
 const MAX_CONTENIDO = 4_000;
 
 export type ImagenParaLeer = { nombre: string; tipo: string; base64: string };
@@ -118,14 +119,44 @@ export function textoDeRespuesta(datos: unknown): string | null {
   return texto ? texto.slice(0, MAX_CONTENIDO) : null;
 }
 
-/** Cómo entran las imágenes de mensajes anteriores al contexto. */
-export function bloqueDeContexto(lecturas: { contenido: string; creado_en?: string | null }[]): string {
+export type Lectura = { contenido: string; creado_en?: string | null; anotada?: boolean };
+
+/** "hace 5 minutos", "hace 3 horas". Sin fecha, nada. */
+export function antiguedad(creadoEn: string | null | undefined, ahora = Date.now()): string {
+  const t = creadoEn ? new Date(creadoEn).getTime() : Number.NaN;
+  if (!Number.isFinite(t)) return "";
+  const minutos = Math.max(0, Math.round((ahora - t) / 60_000));
+  if (minutos < 2) return "recién";
+  if (minutos < 60) return `hace ${minutos} minutos`;
+  const horas = Math.round(minutos / 60);
+  return horas === 1 ? "hace una hora" : `hace ${horas} horas`;
+}
+
+/**
+ * Cómo entran las imágenes de mensajes anteriores al contexto.
+ *
+ * Hasta el 29/09/2026 la regla era "si pide cargar algo sin nombrarlo, se
+ * refiere a esto", sin decir de cuándo era la imagen ni si ya se había
+ * anotado. La persona escribió "gasté 46.000 en Punto Farma con la Green" y EOS
+ * agregó un débito de ₲22.650 que sacó de una captura de dos días antes. Ahora
+ * cada imagen dice cuándo llegó y si lo que tenía ya se anotó, y un mensaje que
+ * trae sus propios datos manda sobre cualquier imagen vieja.
+ */
+export function bloqueDeContexto(lecturas: Lectura[], ahora = Date.now()): string {
   if (lecturas.length === 0) return "";
   return [
     "IMÁGENES QUE LA PERSONA MANDÓ ANTES EN ESTA CONVERSACIÓN (la más reciente primero).",
-    "Si dice \"estos\", \"los de la foto\", \"la imagen\" o pide sumar, convertir o cargar algo",
-    "sin nombrarlo, se refiere a esto. Usalo directamente: no le pidas que repita datos que ya están acá.",
-    ...lecturas.map((l, i) => `--- Imagen ${i + 1} ---\n${l.contenido}`),
+    "Usalas SOLO si el mensaje actual se refiere a una imagen (\"estos\", \"los de la foto\",",
+    "\"la captura\") o pide sumar, convertir o cargar algo sin decir qué: ahí usalo directamente,",
+    "no le pidas que repita datos que ya están acá. Si el mensaje trae sus propios datos (monto,",
+    "lugar, producto), esos mandan: no le agregues nada de una imagen anterior. Lo que dice",
+    "\"ya se anotó\" no se vuelve a anotar.",
+    ...lecturas.map((l, i) => {
+      const notas = [antiguedad(l.creado_en, ahora), l.anotada ? "lo que tenía ya se anotó" : ""]
+        .filter(Boolean)
+        .join("; ");
+      return `--- Imagen ${i + 1}${notas ? ` (${notas})` : ""} ---\n${l.contenido}`;
+    }),
   ].join("\n");
 }
 
@@ -161,19 +192,39 @@ export async function lecturasRecientes(
   admin: Admin,
   usuarioId: string,
   conversacionId: string | null,
-): Promise<{ contenido: string; creado_en: string | null }[]> {
+): Promise<Lectura[]> {
   if (!conversacionId) return [];
   try {
     const { data, error } = await admin
       .from("eos_imagenes_leidas_v197")
-      .select("contenido, creado_en")
+      .select("contenido, creado_en, request_id")
       .eq("usuario_id", usuarioId)
       .eq("conversacion_id", conversacionId)
       .gte("creado_en", new Date(Date.now() - VENTANA_MS).toISOString())
       .order("creado_en", { ascending: false })
       .limit(LECTURAS_RECIENTES);
     if (error) return [];
-    return (data ?? []) as { contenido: string; creado_en: string | null }[];
+    const filas = (data ?? []) as { contenido: string; creado_en: string | null; request_id: string | null }[];
+
+    // ¿Lo que tenía cada imagen ya quedó anotado? La primera acción de cada
+    // tipo conserva el request_id del mensaje que trajo la imagen.
+    const ids = [...new Set(filas.map((f) => f.request_id).filter((x): x is string => Boolean(x)))];
+    let anotados = new Set<string>();
+    if (ids.length > 0) {
+      const { data: hechas } = await admin
+        .from("eos_action_commands")
+        .select("request_id")
+        .eq("usuario_id", usuarioId)
+        .eq("estado", "completada")
+        .in("request_id", ids);
+      anotados = new Set(((hechas ?? []) as { request_id: string }[]).map((h) => h.request_id));
+    }
+
+    return filas.map((f) => ({
+      contenido: f.contenido,
+      creado_en: f.creado_en,
+      anotada: Boolean(f.request_id && anotados.has(f.request_id)),
+    }));
   } catch {
     return [];
   }

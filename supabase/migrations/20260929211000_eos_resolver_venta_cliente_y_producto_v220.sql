@@ -48,7 +48,9 @@ begin
   v_oid := 'public.eos_erp_resolver_venta(uuid, text, integer)'::regprocedure;
   v_def := pg_get_functiondef(v_oid);
 
-  if position(v_marca in v_def) > 0 then
+  -- La misma migración quedó también como 20260929192000_..._v218 (dos sesiones
+  -- la renumeraron a la vez): cualquiera de las dos marcas cuenta como aplicada.
+  if position('producto y cliente juntos' in v_def) > 0 then
     raise notice 'v220: eos_erp_resolver_venta ya estaba parchada.';
     return;
   end if;

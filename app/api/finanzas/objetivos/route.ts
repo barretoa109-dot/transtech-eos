@@ -123,7 +123,14 @@ export async function GET() {
         .neq("estado", "saldada"),
     ]);
 
-  const politica = politicaRes.data;
+  /*
+   * Sin la configuración de finanzas no hay nada que mostrar... salvo que el
+   * chat ya haya creado objetivos ("quiero juntar 5 millones para el viaje").
+   * Esconderlos hacía que la persona creyera que EOS no los había guardado.
+   * Sin política: moneda por defecto y sin porcentaje de ahorro.
+   */
+  const hayObjetivos = (objetivosRes.data ?? []).length > 0;
+  const politica = politicaRes.data ?? (hayObjetivos ? { moneda: null, porcentaje_ahorro: 0 } : null);
   if (!politica) {
     return NextResponse.json({ configurado: false }, { headers: noStore() });
   }

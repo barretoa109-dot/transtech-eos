@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { bloqueDeContexto, leerImagen, textoDeRespuesta } from "./imagenes-leidas.ts";
+import { antiguedad, bloqueDeContexto, leerImagen, textoDeRespuesta } from "./imagenes-leidas.ts";
 
 test("lee el texto de la Responses API en sus dos formas", () => {
   assert.equal(textoDeRespuesta({ output_text: "  Vestido azul claro 1 x USD 120  " }), "Vestido azul claro 1 x USD 120");
@@ -73,4 +73,24 @@ test("la lectura de una imagen informa lo que costó, para sumarlo al consumo de
     for (const clave of Object.keys(process.env)) if (!(clave in antes)) delete process.env[clave];
     Object.assign(process.env, antes);
   }
+});
+
+test("el caso del 29/09: la imagen vieja dice de cuándo es y si ya se anotó, y el mensaje con datos propios manda", () => {
+  const ahora = Date.parse("2026-09-29T20:36:00Z");
+  const bloque = bloqueDeContexto(
+    [{ contenido: "Punto Farma débito Ueno 22.650", creado_en: "2026-09-29T08:36:00Z", anotada: true }],
+    ahora,
+  );
+  assert.ok(bloque.includes("--- Imagen 1 (hace 12 horas; lo que tenía ya se anotó) ---"));
+  assert.ok(bloque.includes("Si el mensaje trae sus propios datos"));
+  assert.ok(bloque.includes("no se vuelve a anotar"));
+});
+
+test("la antigüedad se dice en palabras", () => {
+  const ahora = Date.parse("2026-09-29T20:00:00Z");
+  assert.equal(antiguedad("2026-09-29T19:59:30Z", ahora), "recién");
+  assert.equal(antiguedad("2026-09-29T19:45:00Z", ahora), "hace 15 minutos");
+  assert.equal(antiguedad("2026-09-29T19:00:00Z", ahora), "hace una hora");
+  assert.equal(antiguedad("2026-09-29T15:00:00Z", ahora), "hace 5 horas");
+  assert.equal(antiguedad(null, ahora), "");
 });

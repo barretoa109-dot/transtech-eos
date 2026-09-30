@@ -153,7 +153,14 @@ export default function FinanzasTarjetas({ moneda = "PYG" }: { moneda?: string }
     void cargar();
   }, [cargar]);
 
-  if (!datos || datos.configurado === false) return null;
+  /*
+   * Sin la configuración de finanzas se esconde, SALVO que ya haya tarjetas.
+   * El chat las carga ("pagué con la Green") sin pasar por la configuración, y
+   * esconderlas hacía que la persona leyera "Tarjetas vacío", le dijera a EOS
+   * que no había anotado nada y EOS la volviera a anotar: cinco veces la misma
+   * compra el 29/09/2026.
+   */
+  if (!datos || (datos.configurado === false && (datos.tarjetas ?? []).length === 0)) return null;
 
   const tarjetas = datos.tarjetas ?? [];
   const fmt = (n: number, m = moneda) => formatearMonto(n, m);

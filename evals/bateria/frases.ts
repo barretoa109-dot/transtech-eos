@@ -127,6 +127,39 @@ const FRASES_BASE: Frase[] = [
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
 
+  // Tarjetas y lo ya anotado (29/09, finanzas personales).
+  {
+    id: "pago-tarjeta-minimo",
+    grupo: "personal",
+    mensaje: "ya pagué el mínimo de la Visa",
+    esperado: [["REGISTRAR_PAGO_DEUDA"]],
+    prohibido: ["REGISTRAR_MOVIMIENTO_PERSONAL", "REGISTRAR_COMPRA_TARJETA"],
+    porque: "El pago del resumen va por REGISTRAR_PAGO_DEUDA con acreedor = la tarjeta (v222); como movimiento quedaría contado dos veces.",
+  },
+  {
+    id: "no-lo-veo-no-reenviar",
+    grupo: "personal",
+    historial: [
+      { rol: "usuario", texto: "compré unas zapatillas de 350 mil con la Visa" },
+      { rol: "eos", texto: "Anoté la compra en la tarjeta. La ves en Personal, en Tarjetas (no en Movimientos: se paga con el resumen)." },
+    ],
+    mensaje: "no está, no anotaste nada",
+    esperado: [[]],
+    prohibido: ["REGISTRAR_COMPRA_TARJETA", "REGISTRAR_MOVIMIENTO_PERSONAL"],
+    porque: "Cinco veces la misma compra el 29/09: si ya se confirmó, se dice dónde está y no se reenvía.",
+  },
+  {
+    id: "es-otra-igual",
+    grupo: "personal",
+    historial: [
+      { rol: "usuario", texto: "compré unas zapatillas de 350 mil con la Visa" },
+      { rol: "eos", texto: "Anoté la compra en la tarjeta. La ves en Personal, en Tarjetas (no en Movimientos: se paga con el resumen)." },
+    ],
+    mensaje: "compré otras iguales para mi hijo, también con la Visa",
+    esperado: [["REGISTRAR_COMPRA_TARJETA"]],
+    porque: "Una segunda compra igual de verdad sí se anota (con repetir: true).",
+  },
+
   // "Responder" en WhatsApp: el pedido es sobre el mensaje citado (29/09, Sofía).
   {
     id: "cita-envio-otro-tema",
