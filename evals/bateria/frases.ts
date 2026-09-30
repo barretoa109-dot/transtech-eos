@@ -169,6 +169,36 @@ const FRASES_BASE: Frase[] = [
     porque: "El costo está en el catálogo: pedirlo es lo que se lee como que EOS no entiende (16/09).",
   },
 
+  // Cambiar cuándo vence (28/09: ocho intentos por la pantalla y "no tengo una acción segura" por chat).
+  {
+    id: "vencimiento-fecha",
+    grupo: "correccion",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "le vendí a crédito 5 conjuntos negros a Camila por 925 mil, me paga el 21" },
+      { rol: "eos", texto: "Registré la venta a crédito a Camila por ₲925.000, con pago el 21." },
+    ],
+    mensaje: "pasale el vencimiento de la venta de Camila al 5 de noviembre",
+    esperado: [["CORREGIR_VENTA"]],
+    prohibido: ["ANULAR_VENTA", "REGISTRAR_VENTA"],
+    noDebeDecir: ["no (tengo|hay) (una )?acci[oó]n", "soporte", "no (se )?puedo cambiar"],
+    porque: "Cambiar la fecha no rehace la venta (v225): funciona aunque tenga seña.",
+  },
+  {
+    id: "vencimiento-dias-mas",
+    grupo: "correccion",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "le vendí a crédito 5 conjuntos negros a Camila por 925 mil, me paga el 21" },
+      { rol: "eos", texto: "Registré la venta a crédito a Camila por ₲925.000, con pago el 21." },
+    ],
+    mensaje: "a Camila dale 15 días para pagar esa venta",
+    esperado: [["CORREGIR_VENTA"]],
+    prohibido: ["ANULAR_VENTA", "REGISTRAR_VENTA"],
+    noDebeDecir: ["soporte", "no (se )?puedo cambiar"],
+    porque: "Correr el plazo es cambiar el vencimiento, no rehacer la venta.",
+  },
+
   // Tarjetas y lo ya anotado (29/09, finanzas personales).
   {
     id: "pago-tarjeta-minimo",

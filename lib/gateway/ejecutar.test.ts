@@ -522,3 +522,13 @@ test("el pago dice cuánto, de qué y dónde se ve (v222)", async () => {
   assert.equal(fraseDePago({ acreedor: "Ueno", pagado: 800000, saldo_despues: 0, saldada: true }), "Anoté el pago ₲800.000 a Ueno. Quedó saldada.");
   assert.equal(fraseDePago(undefined), "Anoté el pago.");
 });
+
+test("el cambio de vencimiento dice de quién, cuánto y la fecha nueva (v225)", async () => {
+  const { fraseDeVencimiento } = await import("./ejecutar.ts");
+  assert.equal(
+    fraseDeVencimiento({ venta_id: "x", vence_el: "2026-11-05", contacto: "Zayas Villalba", total: 950000 }),
+    "Listo: la venta de Zayas Villalba por ₲950.000 ahora vence el 5/11. La ves en Negocio > Ventas.",
+  );
+  assert.equal(fraseDeVencimiento({ venta_id: "x", total: 185000 }), "", "una corrección de cantidad no es un cambio de vencimiento");
+  assert.equal(fraseDeVencimiento(undefined), "");
+});

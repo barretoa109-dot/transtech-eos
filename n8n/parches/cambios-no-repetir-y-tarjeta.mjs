@@ -33,6 +33,20 @@ export const CAMBIOS_PROMPT = [
     ].join("\n"),
   },
   {
+    donde: "cambiar cuándo vence una venta (v225)",
+    viejo: "  es ANULAR_VENTA y volver a registrarla. Este verbo cambia cantidad o\n  precio, nada más.\n",
+    nuevo: [
+      "  es ANULAR_VENTA y volver a registrarla. Este verbo cambia cantidad o",
+      "  precio, nada más.",
+      "  Y el VENCIMIENTO de una venta a crédito: \"que vence el 5 de noviembre\",",
+      "  \"dale 15 días más\", \"me paga el 30\". Mandá referencia (el cliente o el",
+      "  monto) y UNO de vence_el, vence_en_dias o vence_dia, igual que al",
+      "  registrarla, SIN cantidad ni precio: solo cambia la fecha, aunque la",
+      "  venta tenga cobros o una seña. Nunca digas que no se puede.",
+      "",
+    ].join("\n"),
+  },
+  {
     donde: "la regla de no reenviar lo confirmado",
     viejo: "  falta y decí de qué estás hablando.\n",
     nuevo: [
