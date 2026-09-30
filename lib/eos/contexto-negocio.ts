@@ -101,7 +101,7 @@ export type ContextoNegocio = {
      * guardado —y la venta moría al resolverlo— o preguntaba cuál de todos
      * cuando había uno solo.
      */
-    catalogo?: Array<{ nombre: string; precio?: number; sin_costo?: boolean; moneda?: string | null }>;
+    catalogo?: Array<{ nombre: string; precio?: number; costo?: number | null; sin_costo?: boolean; moneda?: string | null }>;
     /** Cuántos hay en total. La lista viene recortada a 40; ver la v158. */
     catalogo_total?: number;
   };
@@ -175,6 +175,8 @@ export type ProductoDelCatalogo = {
   nombre: string;
   precio?: number;
   sin_costo?: boolean;
+  /** Cuánto le cuesta una unidad (v224), o null si no se cargó. */
+  costo?: number | null;
   /*
    * Solo viene para el producto que CONTROLA stock (v166). El que no lo
    * controla no tiene una cantidad de la que EOS pueda estar seguro, y
@@ -196,9 +198,13 @@ export function textoCatalogo(catalogo: unknown, total?: number): string {
     // Cada precio en su moneda: un producto a USD 120 no es "Gs. 120" (v204).
     const moneda = typeof p.moneda === "string" && p.moneda.trim() ? p.moneda.trim().toUpperCase() : "PYG";
     const detalle = precio > 0 ? ` — ${formatearMonto(precio, moneda)}` : "";
+    // El costo, cuando está (v224). Sin el número, EOS decía "no tengo a mano
+    // su costo" de un producto con el costo cargado (16/09/2026).
+    const costo = Number(p.costo);
+    const conCosto = !p.sin_costo && Number.isFinite(costo) && costo > 0 ? `, costo ${formatearMonto(costo, moneda)}` : "";
     const stock = typeof p.stock === "number" ? ` (quedan ${p.stock})` : "";
     // "sin costo" y no "costo: null": el modelo lee castellano, no esquemas.
-    return `  ${p.nombre}${detalle}${stock}${p.sin_costo ? " (sin costo cargado)" : ""}`;
+    return `  ${p.nombre}${detalle}${conCosto}${stock}${p.sin_costo ? " (sin costo cargado)" : ""}`;
   });
 
   const faltan = Number(total ?? 0) - items.length;
