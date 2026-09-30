@@ -83,7 +83,10 @@ function clave_(verbos: string[]): string {
   return [...new Set(verbos)].sort().join("+");
 }
 
-export function evaluar(frase: Frase, obtenido: string[]): { ok: boolean; motivo: string } {
+export function evaluar(frase: Frase, obtenido: string[], texto = ""): { ok: boolean; motivo: string } {
+  const dicho = (frase.noDebeDecir ?? []).find((patron) => new RegExp(patron, "i").test(texto));
+  if (dicho) return { ok: false, motivo: `dijo algo que no debía (/${dicho}/): pidió un dato que estaba a la vista` };
+
   const sinResponder = obtenido.filter((v) => v !== "RESPONDER");
   const prohibido = sinResponder.find((v) => frase.prohibido?.includes(v));
   if (prohibido) return { ok: false, motivo: `usó ${prohibido}, que está prohibido acá` };
@@ -142,7 +145,7 @@ async function correr(): Promise<Resultado[]> {
       const frase = frases[siguiente++];
       try {
         const { verbos: obtenido, texto, ms, razonamiento } = await preguntar(frase);
-        const { ok, motivo } = evaluar(frase, obtenido);
+        const { ok, motivo } = evaluar(frase, obtenido, texto);
         resultados.push({ frase, obtenido, ok, motivo, texto, ms, razonamiento });
         process.stdout.write(ok ? "." : "x");
       } catch (error) {

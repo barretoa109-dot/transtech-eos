@@ -26,6 +26,13 @@ export type Frase = {
   /** Combinaciones aceptadas de verbos (sin RESPONDER). `[[]]` = ninguna acción. */
   esperado: string[][];
   prohibido?: string[];
+  /**
+   * Lo que la respuesta NO puede decir (expresiones regulares, sin importar
+   * mayúsculas). Para los casos donde el dato está a la vista y EOS lo pide
+   * igual —"necesito el tipo de cambio", "no tengo a mano el costo"—, que es
+   * la queja más repetida del uso real y que mirar solo el verbo no ve.
+   */
+  noDebeDecir?: string[];
   porque: string;
   /** El rubro de la frase (evals/bateria/rubros.ts). Sin rubro, el almacén de CONTEXTO_NEGOCIO. */
   rubro?: string;
@@ -126,6 +133,41 @@ const FRASES_BASE: Frase[] = [
   { id: "excel", grupo: "otro", mensaje: "pasame en excel las ventas del mes", esperado: [["DOCUMENTO"], ["GENERAR_EXCEL"]], porque: "Documento a pedido: viaja en el campo documento." },
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
+
+  // El dato está a la vista: no se pide (16/09 y 29/09, cuentas reales).
+  {
+    id: "sesion-larga-tipo-de-cambio",
+    grupo: "producto",
+    rubro: "ropa",
+    historial: [
+      { rol: "usuario", texto: "Pasar a guaranies, dolar 6.014,85" },
+      { rol: "eos", texto: "Vestido rojo lino: USD 14,92 × 6.014,85 = ₲89.742\nBlusa crema: USD 12,37 × 6.014,85 = ₲74.404\nTotal: USD 27,29 = ₲164.146" },
+      { rol: "usuario", texto: "pasar a guaranies dolar 5.917,48" },
+      { rol: "eos", texto: "Top blanco bordado: USD 10,88 × 5.917,48 = ₲64.382" },
+      { rol: "usuario", texto: "agregale el envio al top 16.496,5gs" },
+      { rol: "eos", texto: "Top blanco bordado: ₲64.382 + ₲16.497 = ₲80.879 de costo final. Si querés cargarlo, decime a cuánto lo vendés." },
+      { rol: "usuario", texto: "a cuanto deberia vender el top" },
+      { rol: "eos", texto: "Con costo ₲80.879: al 35 % de margen, ₲125.000. Yo lo publicaría a ₲125.000." },
+      { rol: "usuario", texto: "vendí un conjunto negro M a Lorena a 185 mil" },
+      { rol: "eos", texto: "Registré la venta de 1 Conjunto deportivo negro talle M a Lorena por ₲185.000." },
+      { rol: "usuario", texto: "agendá a Tamara, es clienta nueva" },
+      { rol: "eos", texto: "El contacto quedó guardado. Lo ves en CRM > Contactos." },
+    ],
+    mensaje: "agregale el costo de envio al vestido rojo 35.503gs",
+    esperado: [[], ["ACTUALIZAR_PRODUCTO"], ["CREAR_PRODUCTO"]],
+    prohibido: ["REGISTRAR_VENTA"],
+    noDebeDecir: ["tipo de cambio", "costo base", "no tengo (a mano )?(el|su) costo", "no me lleg"],
+    porque: "La conversión estaba siete turnos atrás: con 10 mensajes de historial quedaba afuera y EOS pedía el tipo de cambio (29/09).",
+  },
+  {
+    id: "margen-con-costo-a-la-vista",
+    grupo: "pregunta",
+    rubro: "ropa",
+    mensaje: "cuanto gano con cada conjunto negro que vendo?",
+    esperado: [[]],
+    noDebeDecir: ["no tengo (a mano )?(el|su) costo", "pasame el costo", "decime (el|cu[aá]nto) (te )?cuesta"],
+    porque: "El costo está en el catálogo: pedirlo es lo que se lee como que EOS no entiende (16/09).",
+  },
 
   // Tarjetas y lo ya anotado (29/09, finanzas personales).
   {
