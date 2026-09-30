@@ -251,11 +251,31 @@ export async function POST(request: Request) {
 
     const admin = adminSinTipos();
 
-    const { data: userExists, error: userError } = await admin
-      .from("usuarios")
-      .select("id")
-      .eq("id", usuarioId)
-      .maybeSingle();
+    /*
+     * Todas las lecturas a la vez, y las validaciones después, en el mismo
+     * orden de siempre (29/09/2026).
+     *
+     * Eran tres tandas seguidas —el usuario, la orden, y seis lecturas de
+     * autonomía— y la puerta se evalúa dos veces por acción. Medido en
+     * producción: autorizar una acción tardaba 1,7 s, y crear la orden en la
+     * base, 2 ms; el resto eran viajes de ida y vuelta. Ninguna de estas ocho
+     * lecturas escribe ni depende de otra, así que pedirlas juntas no cambia
+     * ninguna decisión: si el usuario no existe o la orden no calza, se corta
+     * igual que antes, antes de mirar lo demás.
+     */
+    const [userResult, commandResult, lecturasDeAutonomia] = await Promise.all([
+      admin.from("usuarios").select("id").eq("id", usuarioId).maybeSingle(),
+      commandId
+        ? admin
+            .from("eos_action_commands")
+            .select("id,usuario_id,request_id,accion,estado")
+            .eq("id", commandId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      leerAutonomia(admin, usuarioId, requestId, action),
+    ]);
+
+    const { data: userExists, error: userError } = userResult;
 
     if (userError || !userExists) {
       return NextResponse.json(
@@ -278,11 +298,7 @@ export async function POST(request: Request) {
     } | null = null;
 
     if (commandId) {
-      const { data: commandData, error: commandError } = await admin
-        .from("eos_action_commands")
-        .select("id,usuario_id,request_id,accion,estado")
-        .eq("id", commandId)
-        .maybeSingle();
+      const { data: commandData, error: commandError } = commandResult;
 
       if (commandError || !commandData) {
         return blockResponse("command_id no corresponde a una orden existente.", 404);
@@ -314,54 +330,7 @@ export async function POST(request: Request) {
       priorEventResult,
       dailyEventsResult,
       masterContextResult,
-    ] = await Promise.all([
-      admin
-        .from("eos_autonomy_profiles_v12")
-        .select(
-          "default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled",
-        )
-        .eq("usuario_id", usuarioId)
-        .maybeSingle(),
-      admin
-        .from("eos_autonomy_rules_v12")
-        .select(
-          "autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context",
-        )
-        .eq("usuario_id", usuarioId)
-        .eq("accion", action)
-        .maybeSingle(),
-      admin
-        .from("eos_action_approvals_v12")
-        .select(
-          "id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,decided_at,created_at",
-        )
-        .eq("usuario_id", usuarioId)
-        .eq("request_id", requestId)
-        .eq("accion", action)
-        .maybeSingle(),
-      admin
-        .from("eos_autonomy_events_v12")
-        .select("id,command_id,event_type,detail,created_at")
-        .eq("usuario_id", usuarioId)
-        .contains("detail", { request_id: requestId, accion: action })
-        .order("created_at", { ascending: false })
-        .limit(1),
-      admin
-        .from("eos_autonomy_events_v12")
-        .select("event_type,detail,created_at")
-        .eq("usuario_id", usuarioId)
-        .eq("event_type", "auto_allowed")
-        .gte("created_at", inicioVentanaDiaria(new Date())),
-      admin
-        .from("eos_master_context_v8")
-        .select("id,version,necesita_actualizacion,vigente_hasta,updated_at")
-        .eq("usuario_id", usuarioId)
-        .order("version", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    ] = lecturasDeAutonomia;
 
     const readError =
       profileResult.error ||
@@ -758,4 +727,64 @@ export async function POST(request: Request) {
       { status: 500, headers: noStoreHeaders() },
     );
   }
+}
+
+/**
+ * Las seis lecturas de autonomía que decide la puerta. Ninguna escribe: se
+ * piden juntas y con las del usuario y la orden (ver el POST).
+ */
+function leerAutonomia(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  requestId: string,
+  action: string,
+) {
+  return Promise.all([
+    admin
+      .from("eos_autonomy_profiles_v12")
+      .select(
+        "default_level,max_auto_actions_per_day,max_daily_risk_points,approval_ttl_minutes,enabled",
+      )
+      .eq("usuario_id", usuarioId)
+      .maybeSingle(),
+    admin
+      .from("eos_autonomy_rules_v12")
+      .select(
+        "autonomy_level,risk_tier,risk_points,max_auto_per_day,enabled,require_fresh_context",
+      )
+      .eq("usuario_id", usuarioId)
+      .eq("accion", action)
+      .maybeSingle(),
+    admin
+      .from("eos_action_approvals_v12")
+      .select(
+        "id,request_id,accion,status,risk_tier,risk_points,requested_level,effective_level,reason,expires_at,decided_at,created_at",
+      )
+      .eq("usuario_id", usuarioId)
+      .eq("request_id", requestId)
+      .eq("accion", action)
+      .maybeSingle(),
+    admin
+      .from("eos_autonomy_events_v12")
+      .select("id,command_id,event_type,detail,created_at")
+      .eq("usuario_id", usuarioId)
+      .contains("detail", { request_id: requestId, accion: action })
+      .order("created_at", { ascending: false })
+      .limit(1),
+    admin
+      .from("eos_autonomy_events_v12")
+      .select("event_type,detail,created_at")
+      .eq("usuario_id", usuarioId)
+      .eq("event_type", "auto_allowed")
+      .gte("created_at", inicioVentanaDiaria(new Date())),
+    admin
+      .from("eos_master_context_v8")
+      .select("id,version,necesita_actualizacion,vigente_hasta,updated_at")
+      .eq("usuario_id", usuarioId)
+      .order("version", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 }

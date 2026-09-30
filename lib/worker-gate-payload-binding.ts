@@ -113,12 +113,28 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
   if (!isUuid(usuarioId) || !isUuid(requestId) || !action) return null;
 
   const admin = adminSinTipos();
-  const { data: rule, error: ruleError } = await admin
-    .from("eos_autonomy_rules_v12")
-    .select("enabled,require_fresh_context")
-    .eq("usuario_id", usuarioId)
-    .eq("accion", action)
-    .maybeSingle();
+  const commandIdPedido = body?.command_id ?? null;
+
+  /*
+   * La regla y la orden, a la vez (29/09/2026): ninguna depende de la otra ni
+   * escribe nada, y esta verificación corre en cada autorización. Las
+   * validaciones de abajo siguen en el mismo orden: primero la regla.
+   */
+  const [{ data: rule, error: ruleError }, lecturaDeOrden] = await Promise.all([
+    admin
+      .from("eos_autonomy_rules_v12")
+      .select("enabled,require_fresh_context")
+      .eq("usuario_id", usuarioId)
+      .eq("accion", action)
+      .maybeSingle(),
+    isUuid(commandIdPedido)
+      ? admin
+          .from("eos_action_commands")
+          .select("id,usuario_id,request_id,accion,estado,payload")
+          .eq("id", commandIdPedido)
+          .maybeSingle()
+      : Promise.resolve(null),
+  ]);
 
   if (ruleError) {
     console.error(
@@ -171,11 +187,8 @@ export async function validateWorkerGatePayloadBinding(request: Request) {
   }
 
   const payload = safeObject(body?.payload);
-  const { data: command, error: commandError } = await admin
-    .from("eos_action_commands")
-    .select("id,usuario_id,request_id,accion,estado,payload")
-    .eq("id", commandId)
-    .maybeSingle();
+  // Ya leída arriba, junto con la regla: acá `commandId` es un uuid válido.
+  const { data: command, error: commandError } = lecturaDeOrden ?? { data: null, error: null };
 
   if (commandError) {
     console.error("Worker gate payload binding: no se pudo leer la orden:", commandError);
