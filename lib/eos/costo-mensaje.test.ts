@@ -142,3 +142,10 @@ test("sin tarifa cacheada del barato, sus cacheados se cobran a su entrada compl
   const sinCacheada = { ...CON_BARATO, EOS_USD_POR_MTOK_ENTRADA_CACHEADA_SIMPLE: undefined };
   assert.deepEqual(tarifasDelModelo("barato", sinCacheada), { entrada: 0.25, entradaCacheada: 0.25, salida: 2 });
 });
+
+test("gpt-6-sol se cobra a su precio; gpt-5.5 sigue con las variables de siempre (01/10/2026)", () => {
+  const env = { EOS_USD_POR_MTOK_ENTRADA: "5", EOS_USD_POR_MTOK_ENTRADA_CACHEADA: "0.5", EOS_USD_POR_MTOK_SALIDA: "30" };
+  assert.deepEqual(tarifasDelModelo("gpt-6-sol", env), { entrada: 2, entradaCacheada: 0.2, salida: 10 });
+  assert.deepEqual(tarifasDelModelo("gpt-5.5", env), { entrada: 5, entradaCacheada: 0.5, salida: 30 });
+  assert.deepEqual(tarifasDelModelo(null, env), { entrada: 5, entradaCacheada: 0.5, salida: 30 });
+});

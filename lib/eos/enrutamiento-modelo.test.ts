@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { MODELO, MODELO_PRINCIPAL } from "../gateway/sistema.ts";
 import {
   clasificarTurno,
+  elegirModelo,
   modeloDelTurno,
   modeloSimple,
   pareceAccion,
@@ -125,4 +127,64 @@ test("prendido, solo los turnos simples van al barato", () => {
 
 test("apagado, ningún turno va al barato", () => {
   assert.equal(modeloDelTurno(clasificarTurno(turno("hola")), {}), null);
+});
+
+// ------------------------------------------------------------------
+// GPT 6 Sol para la mayoría, GPT 5.5 para lo complejo (01/10/2026)
+// ------------------------------------------------------------------
+
+
+const SIN_ENV = {};
+const elegido = (mensaje: string, extra: Partial<TurnoParaClasificar> = {}) =>
+  elegirModelo(turno(mensaje, extra), SIN_ENV);
+
+test("lo de todos los días lo contesta el principal (gpt-6-sol)", () => {
+  for (const m of [
+    "vendí 3 bolsas de balanceado a 180 mil",
+    "compré 20 bolsas de balanceado a 140 mil cada una a Agro Sur",
+    "hola, buen día",
+    "¿cuánto vendí esta semana?",
+    "eran 3, no 30",
+    "anulá la última",
+  ]) {
+    assert.deepEqual(elegido(m), { modelo: MODELO_PRINCIPAL, motivo: "principal" }, m);
+  }
+});
+
+test("el caso Green (dos montos en un mensaje) va al completo", () => {
+  assert.deepEqual(
+    elegido("Gaste 46.000gs en Punto Farma con mi tarjeta de crédito Green que por cierto ya pagué el pago mínimo, y gané también 100.000gs recién"),
+    { modelo: MODELO, motivo: "varias_operaciones" },
+  );
+  assert.equal(elegido("vendí 2 balanceados a 180 y compré 10 harinas a 45 mil").motivo, "varias_operaciones");
+});
+
+test("los reclamos van al completo", () => {
+  for (const m of ["No está, no hiciste nada", "en donde se supone que lo anotaste? no está", "te equivocaste otra vez", "de donde sacaste eso?"]) {
+    assert.equal(elegido(m).modelo, MODELO, m);
+    assert.equal(elegido(m).motivo, "reclamo", m);
+  }
+});
+
+test("fotos, documentos y mensajes largos van al completo", () => {
+  assert.equal(elegido("esto", { adjuntos: 1 }).motivo, "adjunto");
+  assert.equal(elegido("pasame en excel las ventas del mes").motivo, "documento");
+  assert.equal(elegido("a".repeat(281)).motivo, "largo");
+});
+
+test("donde Sol preguntaba en vez de actuar, va al completo", () => {
+  assert.equal(elegido("mandale a Juan un mensaje que ya llegó su pedido").motivo, "whatsapp");
+  assert.equal(elegido("le pagué a Agro Sur lo del balanceado").motivo, "cartera");
+  assert.equal(elegido("osẽ 10 varilla ko'ẽme").motivo, "jopara");
+});
+
+test("un teléfono no son varios montos", () => {
+  assert.equal(elegido("agendá a Nati, 0985 444 000").motivo, "agenda");
+  assert.equal(elegido("el número de Pedro es +595 981 123456").motivo, "principal");
+});
+
+test("EOS_MODELO_PRINCIPAL=gpt-5.5 devuelve todo al completo; otro nombre lo reemplaza", () => {
+  assert.deepEqual(elegirModelo(turno("vendí 3 panes"), { EOS_MODELO_PRINCIPAL: MODELO }), { modelo: MODELO, motivo: "unico" });
+  assert.deepEqual(elegirModelo(turno("vendí 3 panes"), { EOS_MODELO_PRINCIPAL: "otro" }), { modelo: "otro", motivo: "principal" });
+  assert.equal(elegirModelo(turno("No está, no hiciste nada"), { EOS_MODELO_PRINCIPAL: "otro" }).modelo, MODELO);
 });

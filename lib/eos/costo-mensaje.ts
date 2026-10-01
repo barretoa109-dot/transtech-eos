@@ -103,6 +103,11 @@ export function tarifasDelModelo(
 ): TarifasUsd {
   const simple = String(env.EOS_MODELO_SIMPLE ?? "").trim();
   const pedido = typeof modelo === "string" ? modelo.trim() : "";
+
+  // Un modelo con precio conocido se cobra a ese precio (ver TARIFAS_CONOCIDAS).
+  const conocida = TARIFAS_CONOCIDAS[pedido];
+  if (conocida && pedido !== simple) return conocida;
+
   // Entrada y salida, las dos: con una sola, la otra se cobraría a cero.
   const configuradas =
     tarifa(env.EOS_USD_POR_MTOK_ENTRADA_SIMPLE) > 0 && tarifa(env.EOS_USD_POR_MTOK_SALIDA_SIMPLE) > 0;
@@ -114,6 +119,20 @@ export function tarifasDelModelo(
     EOS_USD_POR_MTOK_SALIDA: env.EOS_USD_POR_MTOK_SALIDA_SIMPLE,
   });
 }
+
+/**
+ * Precios por millón de tokens de los modelos que no son el de siempre.
+ *
+ * gpt-5.5 NO está acá a propósito: se sigue cobrando con las variables
+ * `EOS_USD_POR_MTOK_*` de Vercel, como hasta ahora. gpt-6-sol contesta la
+ * mayoría desde el 01/10/2026 (`MODELO_PRINCIPAL`); sin su precio acá, se
+ * cobraría a la tarifa de gpt-5.5, unas 2,5 veces más, y el aviso interno de
+ * los Gs. 70.000 saltaría con un tercio del consumo real. Precios de
+ * developers.openai.com/api/docs/pricing tomados el 30/09/2026.
+ */
+export const TARIFAS_CONOCIDAS: Record<string, TarifasUsd> = {
+  "gpt-6-sol": { entrada: 2, entradaCacheada: 0.2, salida: 10 },
+};
 
 /** El costo del mensaje en USD. Siempre finito y nunca negativo. */
 export function costoDelMensaje(tokens: TokensMensaje, tarifas: TarifasUsd): number {

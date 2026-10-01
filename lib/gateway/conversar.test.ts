@@ -9,7 +9,7 @@ import {
   etapaDelGateway,
   gatewayEnTypeScript,
 } from "./conversar.ts";
-import { MODELO, PROMPT_SISTEMA } from "./sistema.ts";
+import { MODELO, MODELO_PRINCIPAL, PROMPT_SISTEMA } from "./sistema.ts";
 
 const UUID_A = "11111111-1111-4111-8111-111111111111";
 const UUID_B = "22222222-2222-4222-9222-222222222222";
@@ -683,4 +683,60 @@ test("una clave rechazada NO es caída: no se arregla esperando, va a n8n", asyn
   const { resultado, motivo } = await motivoDeCaida(() => new Response("", { status: 401 }));
   assert.equal(resultado, null);
   assert.equal(motivo, null);
+});
+
+// ---------------------------------------------------------------------------
+// GPT 6 Sol como principal, GPT 5.5 de respaldo (01/10/2026)
+// ---------------------------------------------------------------------------
+
+async function conPrincipal(
+  respuestas: Array<() => Promise<Response> | Response>,
+  principal: string | null = MODELO_PRINCIPAL,
+): Promise<{ resultado: Awaited<ReturnType<typeof conversar>>; modelos: string[]; esfuerzos: unknown[] }> {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  const modelos: string[] = [];
+  const esfuerzos: unknown[] = [];
+  globalThis.fetch = (async (_url: unknown, opciones?: { body?: string }) => {
+    const cuerpo = JSON.parse(opciones?.body ?? "{}");
+    modelos.push(String(cuerpo.model));
+    esfuerzos.push(cuerpo.reasoning?.effort);
+    const responder = respuestas[modelos.length - 1];
+    if (!responder) throw new Error("llamada de más");
+    return responder();
+  }) as unknown as typeof fetch;
+
+  try {
+    return { resultado: await conversar(payload({ mensaje: "¿cómo vengo?" }), { principal }), modelos, esfuerzos };
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+}
+
+test("con principal, lo contesta gpt-6-sol con una sola llamada, con el esfuerzo medido, y se anota", async () => {
+  const { resultado, modelos, esfuerzos } = await conPrincipal([charla("Vas bien.")]);
+  assert.deepEqual(modelos, [MODELO_PRINCIPAL]);
+  assert.deepEqual(esfuerzos, ["low"]);
+  assert.ok(resultado?.estado === "respondido");
+  assert.equal(resultado.cuerpo.metadata.modelo, MODELO_PRINCIPAL);
+  assert.equal(resultado.cuerpo.metadata.enrutado, "principal");
+});
+
+test("si el principal contesta algo ilegible o falla, lo contesta gpt-5.5 antes de hacer nada", async () => {
+  for (const malo of [() => ok({ sin: "texto" }), () => new Response("", { status: 404 })]) {
+    const { resultado, modelos } = await conPrincipal([malo, charla("Vas bien.")]);
+    assert.deepEqual(modelos, [MODELO_PRINCIPAL, MODELO]);
+    assert.ok(resultado?.estado === "respondido" && resultado.cuerpo.respuesta === "Vas bien.");
+    assert.equal(resultado.cuerpo.metadata.modelo, MODELO);
+    assert.equal(resultado.cuerpo.metadata.enrutado, "principal_volvio");
+  }
+});
+
+test("si el turno es complejo (principal = gpt-5.5), una sola llamada al completo", async () => {
+  const { modelos } = await conPrincipal([charla("Vas bien.")], MODELO);
+  assert.deepEqual(modelos, [MODELO]);
 });

@@ -35,6 +35,8 @@
  * adjunto, con una cita, o con vocabulario de negocio o de plata.
  */
 
+import { MODELO, MODELO_PRINCIPAL } from "../gateway/sistema.ts";
+
 export type ClaseTurno = "simple" | "completo";
 
 export type Clasificacion = {
@@ -249,4 +251,93 @@ export function modeloDelTurno(
   env: Record<string, string | undefined> = process.env,
 ): string | null {
   return clasificacion.clase === "simple" ? modeloSimple(env) : null;
+}
+
+// ------------------------------------------------------------------
+// GPT 6 Sol para la mayoría, GPT 5.5 para lo complejo (01/10/2026)
+// ------------------------------------------------------------------
+
+/*
+ * Lo de arriba manda al modelo BARATO solo los saludos. Esto es la decisión
+ * del dueño del 01/10/2026: el principal (`MODELO_PRINCIPAL`, gpt-6-sol)
+ * contesta la mayoría —incluidas las acciones, que midió al 98 %— y el
+ * completo (`MODELO`, gpt-5.5) los turnos donde equivocarse cuesta más o donde
+ * Sol falló en la batería del 30/09:
+ *
+ *   adjunto             leer una foto, un comprobante, un catálogo: lo medido
+ *                       (foto-catalogo, 20/20) es con gpt-5.5.
+ *   reclamo             "no está", "no hiciste nada": el caso Green del 29/09
+ *                       fue una cadena de reclamos mal contestados.
+ *   varias_operaciones  dos montos o más en un mensaje: el caso Green también.
+ *   largo               más de 280 caracteres.
+ *   documento           planillas, informes, PDF.
+ *   whatsapp            escribirle a un cliente: Sol preguntaba en vez de mandar.
+ *   agenda              "agendá a Nati": Sol preguntaba día y hora.
+ *   cartera             cobros y pagos de lo que se debe: Sol preguntaba si era
+ *                       todo o una parte en vez de anotarlo.
+ *   jopara              guaraní mezclado: Sol leyó "osẽ … ko'ẽme" como futuro.
+ *
+ * Sin otra llamada a un modelo para decidir: una regla fija, auditable en el
+ * log (`motivo`), que no suma ni costo ni demora.
+ */
+
+export type Eleccion = {
+  modelo: string;
+  /** "principal", "unico" o el motivo por el que fue al completo. */
+  motivo: string;
+};
+
+const RECLAMO =
+  /\bno (esta|aparece|figura|lo anotaste|la anotaste|los anotaste|anotaste|hiciste|registraste|cargaste|guardaste|lo veo|la veo|los veo)\b|no hiciste nada|te equivocaste|te estas equivocando|esta mal|de donde sacaste|sos tont|inutil|no entendes|no sirve/;
+
+const DOCUMENTO = /\b(excel|pdf|word|planilla|informe|reporte|documento)\b/;
+const WHATSAPP = /\b(mandale|mandales|escribile|escribiles|avisale|avisales|whatsapp|wpp|wsp)\b|manda(le)? un mensaje/;
+const AGENDA = /\bagend/;
+const CARTERA = /\b(le pague|les pague|pague a|me pago|me pagaron|cobre|cobramos|abono|abonaron|me debe|le debo)\b/;
+const JOPARA = /[ẽỹĩũãõ]/;
+
+/** Montos de plata: un número de 3 cifras o más, o seguido de mil, millón o lucas. */
+const MONTO = /\d{1,3}(?:[.,]\d{3})+|\d{3,}|\d+(?:[.,]\d+)?\s*(?:mil\b|millon|millones|lucas|palo)/gi;
+
+const TELEFONO = /\+?595[\s-]?\d{2,3}[\s-]?\d{3}[\s-]?\d{3,4}|\b0\d{3}[\s-]?\d{3}[\s-]?\d{3}\b/g;
+
+const MAX_CARACTERES = 280;
+
+/** Por qué este turno va al modelo completo, o `null` si lo contesta el principal. */
+export function motivoComplejo(turno: TurnoParaClasificar): string | null {
+  if (turno.adjuntos > 0) return "adjunto";
+
+  const crudo = String(turno.mensaje ?? "");
+  if (crudo.length > MAX_CARACTERES) return "largo";
+  // Un teléfono ("0985 444 000", "+595 981 123456") no son tres montos.
+  const sinTelefonos = crudo.replace(TELEFONO, " ");
+  if ((sinTelefonos.match(MONTO) ?? []).length >= 2) return "varias_operaciones";
+  if (JOPARA.test(crudo)) return "jopara";
+
+  const texto = normalizar(crudo);
+  if (RECLAMO.test(texto)) return "reclamo";
+  if (DOCUMENTO.test(texto)) return "documento";
+  if (WHATSAPP.test(texto)) return "whatsapp";
+  if (AGENDA.test(texto)) return "agenda";
+  if (CARTERA.test(texto)) return "cartera";
+
+  return null;
+}
+
+/**
+ * Qué modelo contesta este turno.
+ *
+ * `EOS_MODELO_PRINCIPAL` reemplaza al principal; igual a `MODELO` (gpt-5.5),
+ * todo vuelve al modelo completo: es el interruptor para deshacer esto desde
+ * Vercel sin tocar código.
+ */
+export function elegirModelo(
+  turno: TurnoParaClasificar,
+  env: Record<string, string | undefined> = process.env,
+): Eleccion {
+  const principal = String(env.EOS_MODELO_PRINCIPAL ?? "").trim() || MODELO_PRINCIPAL;
+  if (principal === MODELO) return { modelo: MODELO, motivo: "unico" };
+
+  const motivo = motivoComplejo(turno);
+  return motivo ? { modelo: MODELO, motivo } : { modelo: principal, motivo: "principal" };
 }
