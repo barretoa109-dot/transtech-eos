@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { metadatosDePagina } from "@/lib/seo/metadatos";
 import PaginaLegal, { Lista, Seccion } from "@/components/legal/PaginaLegal";
 
-export const metadata: Metadata = {
-  title: "Política de privacidad · TransTech EOS",
-  description:
+export const metadata: Metadata = metadatosDePagina({
+  titulo: "Política de privacidad · TransTech EOS",
+  descripcion:
     "Qué datos recoge TransTech EOS, para qué los usa, con quién los comparte y cómo ejercer tus derechos.",
-};
+  ruta: "/privacidad",
+});
 
 const li = { marginBottom: 7 };
 
