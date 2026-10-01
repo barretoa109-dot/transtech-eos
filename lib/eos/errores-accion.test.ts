@@ -155,3 +155,14 @@ test("un nombre parecido a un contacto pregunta cuál, sin mandar a agendar (v21
   assert.match(e.mensaje, /"Gladys Velilla" se parece a alguien que ya tenés agendado/);
   assert.doesNotMatch(e.mensaje, /agendá a/);
 });
+
+test("un pago de tarjeta sin monto pregunta y dice que no anotó nada (v227, caso Green)", () => {
+  const e = errorDeAccion("EOS_ACCION_PAGO_TARJETA_SIN_MONTO: Green · 188000.00")!;
+  assert.match(e.mensaje, /^No anoté ningún pago de la Green porque no me dijiste el monto\./);
+  assert.match(e.mensaje, /¿Pagaste el mínimo de ₲\s?188\.000\?/);
+  assert.match(e.mensaje, /Si solo me lo contabas, no hace falta nada más\./);
+  // Sin mínimo guardado, pregunta a secas; nunca un monto inventado.
+  const sinMinimo = errorDeAccion("EOS_ACCION_PAGO_TARJETA_SIN_MONTO: Green · ")!;
+  assert.match(sinMinimo.mensaje, /¿Cuánto pagaste\?/);
+  assert.doesNotMatch(sinMinimo.mensaje, /\d/);
+});

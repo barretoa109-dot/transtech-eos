@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { transformarGateway, transformarWorker } from "../../n8n/parches/transformar-finanzas-confirma-lo-guardado.mjs";
+import { transformarGateway as transformarGatewayV227 } from "../../n8n/parches/cambios-pago-tarjeta-sin-monto.mjs";
 import { verificarFlujo } from "../../n8n/parches/verificar.mjs";
 import { fraseDeCompraTarjeta, fraseDePagoTarjeta, fraseDePersonal, fraseDeTarjeta } from "./frases-finanzas.ts";
 
@@ -92,4 +93,11 @@ test("la transformación es idempotente: aplicada dos veces, queda igual", () =>
   assert.equal(JSON.stringify(transformarWorker(JSON.parse(una))), una);
   const g = JSON.stringify(gateway);
   assert.equal(JSON.stringify(transformarGateway(JSON.parse(g))), g);
+});
+
+test("v227: el parche del prompt ya está en el exportado y no se aplica dos veces", () => {
+  const g = JSON.stringify(gateway);
+  assert.equal(JSON.stringify(transformarGatewayV227(JSON.parse(g))), g);
+  const prompt = gateway.nodes.find((n) => n.name === "HTTP Request")!.parameters.jsonBody;
+  assert.doesNotMatch(prompt, /el sistema usa el pago mínimo/);
 });
