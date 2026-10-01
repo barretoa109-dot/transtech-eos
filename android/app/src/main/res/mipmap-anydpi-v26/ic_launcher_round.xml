@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono adaptativo de TransTech EOS: fondo azul noche y el emblema al 58 %,
+     dentro de la zona segura (66 %) que respeta cualquier forma de máscara.
+     Sin inset: el primer plano ya trae su margen (assets/icon-foreground.png). -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background"/>
-    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
