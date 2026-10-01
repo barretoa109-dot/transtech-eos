@@ -137,6 +137,8 @@ type ChatViewProps = {
   nombre: string;
   mensaje: string;
   cargando: boolean;
+  /** "buscando_web" mientras el servidor investiga en la web. */
+  fase?: string | null;
   archivosAdjuntos: ArchivoAdjunto[];
   chatRef: React.RefObject<HTMLDivElement | null>;
   onMensajeChange: (value: string) => void;
@@ -160,6 +162,7 @@ export default function ChatView({
   nombre,
   mensaje,
   cargando,
+  fase = null,
   archivosAdjuntos,
   chatRef,
   onMensajeChange,
@@ -345,6 +348,11 @@ export default function ChatView({
                     <span />
                     <span />
                   </div>
+                  {fase === "buscando_web" && (
+                    <p className="estado-busqueda" role="status" aria-live="polite">
+                      Estoy buscando información actual…
+                    </p>
+                  )}
                 </div>
               </div>
             )}

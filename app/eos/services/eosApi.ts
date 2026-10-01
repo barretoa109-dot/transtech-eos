@@ -13,6 +13,8 @@ type EnviarEOSParams = {
   nuevoChat: boolean;
   archivos?: ArchivoAdjunto[];
   cita?: Cita | null;
+  /** La etapa en que está el pedido en el servidor ("buscando_web"), mientras se espera. */
+  alCambiarFase?: (fase: string | null) => void;
 };
 
 export type RespuestaEOS = {
@@ -143,8 +145,53 @@ async function consultarBuzon(requestId: string): Promise<ConsultaBuzon | null> 
   };
 }
 
+/**
+ * Mientras se espera, la fase del pedido (01/10/2026): si el servidor está
+ * buscando en la web, se dice. Empieza a los 3 s (un mensaje común ya llegó) y
+ * se corta al terminar. Una consulta liviana; si falla, no pasa nada.
+ */
+function vigilarFase(requestId: string, alCambiar?: (fase: string | null) => void): () => void {
+  if (!alCambiar) return () => {};
+  let activo = true;
+  let ultima: string | null = null;
+  const consultar = async () => {
+    if (!activo) return;
+    try {
+      const r = await fetch(`/api/eos/resultado?request_id=${encodeURIComponent(requestId)}`, { cache: "no-store" });
+      const data = (await r.json().catch(() => null)) as { fase?: unknown } | null;
+      const fase = typeof data?.fase === "string" ? data.fase : null;
+      if (activo && fase !== ultima) {
+        ultima = fase;
+        alCambiar(fase);
+      }
+    } catch {
+      // Sin red no hay fase: el envío tiene su propia recuperación.
+    }
+  };
+  const inicio = setTimeout(() => {
+    void consultar();
+    intervalo = setInterval(() => void consultar(), 2_500);
+  }, 3_000);
+  let intervalo: ReturnType<typeof setInterval> | null = null;
+  return () => {
+    activo = false;
+    clearTimeout(inicio);
+    if (intervalo) clearInterval(intervalo);
+    alCambiar(null);
+  };
+}
+
 export async function enviarMensajeAEOS(params: EnviarEOSParams): Promise<RespuestaEOS>{
   const requestId = nuevoRequestId();
+  const dejarDeVigilar = vigilarFase(requestId, params.alCambiarFase);
+  try {
+    return await enviarYLeer(params, requestId);
+  } finally {
+    dejarDeVigilar();
+  }
+}
+
+async function enviarYLeer(params: EnviarEOSParams, requestId: string): Promise<RespuestaEOS>{
 
   const llegada = await enviarHastaQueLlegue({
     enviar: async () => {

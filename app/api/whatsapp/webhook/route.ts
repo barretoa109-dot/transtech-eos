@@ -758,6 +758,10 @@ async function atenderMensajeVinculado(
     cita: null,
     requestId: idDeterministico(lote.ultimoId || mensaje.id || `${usuarioId}:${Date.now()}`),
     requestOrigin: process.env.EOS_APP_BASE_URL || "https://www.transtech.com.py",
+    // Buscar en la web tarda 10-20 s: que la persona sepa que no se colgó.
+    alBuscar: () => {
+      void enviarTexto(desde, "Estoy buscando información actual…").catch(() => {});
+    },
   });
 
   if (resultado.status === 409) {
