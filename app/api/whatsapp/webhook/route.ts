@@ -9,6 +9,7 @@ import { enviarTexto, enviarTextoConId, enviarDocumento } from "@/lib/whatsapp/e
 import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { DOCUMENTO_GUARDADO, textoConEnlace } from "@/lib/whatsapp/texto-con-enlace";
+import { respuestaParaWhatsapp } from "@/lib/eos/fuentes-web";
 import {
   LINEA_ENLACE_AUTONOMIA,
   codigoDeAprobacion,
@@ -793,7 +794,10 @@ async function atenderMensajeVinculado(
   // no se puede resubir: se deja como texto, que WhatsApp muestra clickeable.
   const idDocumento = archivoUrl.match(DOCUMENTO_GUARDADO);
 
-  const textoParaWhatsapp = textoConEnlace(respuestaTexto, archivoUrl);
+  // En el historial queda el formato con [n] (el modelo lo entiende y la web lo
+  // muestra con tarjetas); por WhatsApp va sin corchetes, con superíndices.
+  const textoParaHistorial = textoConEnlace(respuestaTexto, archivoUrl);
+  const textoParaWhatsapp = respuestaParaWhatsapp(textoParaHistorial);
 
   const { data: guardadas, error: guardarError } = await admin
     .from("mensajes")
@@ -811,7 +815,7 @@ async function atenderMensajeVinculado(
         conversacion_id: conversacionId,
         usuario_id: usuarioId,
         rol: "eos",
-        texto: textoParaWhatsapp,
+        texto: textoParaHistorial,
         origen: "whatsapp",
       },
     ])

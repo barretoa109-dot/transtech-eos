@@ -62,7 +62,7 @@ export function respuestaSinBusqueda(codigo: string): string {
 }
 
 export function respuestaSinEvidencia(inv: { nombrePais: string }, consulta: string): string {
-  return `Busqué en la web (${inv.nombrePais}) y no encontré fuentes que respondan "${consulta}" con datos confiables. Si me decís un producto, marca o tienda más concreto, vuelvo a buscar.`;
+  return `Busqué en la web, en ${inv.nombrePais}, y no encontré fuentes que respondan "${consulta}" con datos confiables. Si me decís un producto, marca o tienda más concreto, vuelvo a buscar.`;
 }
 
 /**
@@ -98,7 +98,7 @@ export function respuestaConFuentes(texto: string, inv: Extract<Investigacion, {
   const consultadas = listadas.length === 0;
   const fuentes = consultadas ? inv.fuentes.slice(0, 3) : listadas;
 
-  const encabezado = `🔎 Busqué en la web el ${fechaLegible(inv.consultadoEl)} (${inv.nombrePais}).`;
+  const encabezado = `🔎 Busqué en la web el ${fechaLegible(inv.consultadoEl)} · ${inv.nombrePais}.`;
   const titulo = consultadas ? "Fuentes consultadas:" : "Fuentes:";
   const lista = fuentes.map((f) => `[${f.n}] ${f.titulo} — ${f.sitio}\n${f.url}`).join("\n");
 
