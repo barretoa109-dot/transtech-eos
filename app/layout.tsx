@@ -22,11 +22,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.transtech.com.py"),
   title: {
     default: "TransTech EOS",
     template: "%s | TransTech EOS",
   },
-  description: "Tecnología inteligente para personas y empresas.",
+  description: "Inteligencia artificial, automatización y gestión para que personas y empresas tomen mejores decisiones y crezcan con más control.",
   applicationName: "TransTech EOS",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -49,13 +50,14 @@ export const metadata: Metadata = {
     locale: "es_PY",
     siteName: "TransTech EOS",
     title: "TransTech EOS",
-    description: "Tecnología inteligente para personas y empresas.",
+    description: "Inteligencia artificial, automatización y gestión para que personas y empresas tomen mejores decisiones y crezcan con más control.",
+    url: "/",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "TransTech EOS" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "TransTech EOS",
-    description: "Tecnología inteligente para personas y empresas.",
+    description: "Inteligencia artificial, automatización y gestión para que personas y empresas tomen mejores decisiones y crezcan con más control.",
     images: ["/og-image.png"],
   },
 };

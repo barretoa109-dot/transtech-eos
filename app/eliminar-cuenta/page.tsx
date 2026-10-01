@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { metadatosDePagina } from "@/lib/seo/metadatos";
 import PaginaLegal, { Lista, Seccion } from "@/components/legal/PaginaLegal";
 
 /**
@@ -11,10 +12,12 @@ import PaginaLegal, { Lista, Seccion } from "@/components/legal/PaginaLegal";
  * llegar a él y qué hacer si alguien ya no puede entrar. Lo que dice sobre qué
  * se borra y qué se conserva tiene que coincidir con /privacidad.
  */
-export const metadata: Metadata = {
-  title: "Eliminar tu cuenta · TransTech EOS",
-  description: "Cómo eliminar tu cuenta de TransTech EOS y qué pasa con tus datos.",
-};
+export const metadata: Metadata = metadatosDePagina({
+  titulo: "Eliminar tu cuenta · TransTech EOS",
+  descripcion:
+    "Cómo eliminar tu cuenta de TransTech EOS y qué pasa con tus datos.",
+  ruta: "/eliminar-cuenta",
+});
 
 const li = { marginBottom: 7 };
 const enlace = { color: "#2563eb" };

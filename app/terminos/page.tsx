@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { metadatosDePagina } from "@/lib/seo/metadatos";
 import PaginaLegal, { Lista, Seccion } from "@/components/legal/PaginaLegal";
 
-export const metadata: Metadata = {
-  title: "Términos del servicio · TransTech EOS",
-  description:
+export const metadata: Metadata = metadatosDePagina({
+  titulo: "Términos del servicio · TransTech EOS",
+  descripcion:
     "Condiciones de uso de TransTech EOS: cuenta, planes y pagos, límites de responsabilidad y cancelación.",
-};
+  ruta: "/terminos",
+});
 
 const li = { marginBottom: 7 };
 
