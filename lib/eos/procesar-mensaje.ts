@@ -65,7 +65,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/costo-mensaje";
-import { clasificarTurno, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
@@ -1142,6 +1142,17 @@ export async function procesarMensajeEOS(
      * antes de la bandera. Con la etapa 2 prendida entran: ya no hay doble
      * llamada. Ver `atiendeTypeScript`.
      */
+    /*
+     * GPT 6 Sol para la mayoría, GPT 5.5 para lo complejo (decisión del dueño,
+     * 01/10/2026). Con el mensaje ORIGINAL, igual que `clasificarTurno`.
+     */
+    const eleccion = elegirModelo({
+      mensaje,
+      adjuntos: archivos.length,
+      conCita: Boolean(payload.cita),
+      historial: payload.historial,
+    });
+
     const turnoDeAccion = pareceAccion({
       mensaje,
       adjuntos: archivos.length,
@@ -1190,6 +1201,7 @@ export async function procesarMensajeEOS(
       let iaCaida: string | null = null;
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
+        principal: eleccion.modelo,
         alFallarIA: (motivo) => {
           iaCaida = motivo;
         },
@@ -1453,11 +1465,9 @@ export async function procesarMensajeEOS(
     const tokensEntrada = tokens.entrada;
     const tokensSalida = tokens.salida;
 
-    // Las tarifas del modelo barato solo si fue él quien contestó.
-    const costoEstimado = costoDelMensaje(
-      tokens,
-      tarifasDelModelo(resultado.metadata?.enrutado === "simple" ? resultado.metadata?.modelo : null),
-    );
+    // Las tarifas del modelo que contestó: el barato, el principal o el de
+    // siempre. Lo que atiende n8n no trae modelo y va a las de siempre.
+    const costoEstimado = costoDelMensaje(tokens, tarifasDelModelo(resultado.metadata?.modelo));
 
     const { data: finalizeRaw, error: finalizeError } = await quotaAdmin.rpc(
       "eos_finalize_message_quota_server_v75",
@@ -1661,6 +1671,8 @@ export async function procesarMensajeEOS(
         tokens: { entrada: tokensEntrada, entrada_cacheada: tokens.entradaCacheada, salida: tokensSalida },
         enrutamiento: registroDeEnrutamiento(enrutamiento, resultado.acciones.length),
         modelo: typeof resultado.metadata?.modelo === "string" ? resultado.metadata.modelo : null,
+        // Por qué ese modelo: "principal", o el motivo por el que fue al completo.
+        motivo_modelo: eleccion.motivo,
         enrutado: typeof resultado.metadata?.enrutado === "string" ? resultado.metadata.enrutado : null,
         camino_accion: turnoDeAccion,
         solo_memoria: soloMemoria,

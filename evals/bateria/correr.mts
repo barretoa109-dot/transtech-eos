@@ -24,8 +24,9 @@ import { randomUUID } from "node:crypto";
 
 import { prepararEntrada } from "../../lib/gateway/entrada.ts";
 import { armarPrompt } from "../../lib/gateway/prompt.ts";
-import { prepararRespuesta } from "../../lib/gateway/respuesta.ts";
+import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta } from "../../lib/gateway/respuesta.ts";
 import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
+import { elegirModelo } from "../../lib/eos/enrutamiento-modelo.ts";
 import { FRASES, contextoDe, type Frase } from "./frases.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
@@ -52,7 +53,13 @@ if (!clave) {
   process.exit(1);
 }
 
-const modelo = argumento("modelo") ?? MODELO;
+/*
+ * Sin `--modelo`, cada frase va al modelo que le elegiría producción
+ * (`elegirModelo`: gpt-6-sol o gpt-5.5, 01/10/2026), con la misma vuelta al
+ * completo si el principal contesta algo ilegible. Con `--modelo`, todas a ese.
+ */
+const modeloFijo = argumento("modelo");
+const modelo = modeloFijo ?? "ruteo";
 const grupo = argumento("grupo");
 /*
  * El esfuerzo de razonamiento. Sin la bandera se usa el mismo que el gateway
@@ -77,6 +84,9 @@ type Resultado = {
   ms: number;
   /** Tokens de razonamiento: se pagan y se esperan sin que se vean. */
   razonamiento: number;
+  /** El modelo que contestó y por qué (con el ruteo de producción). */
+  usado: string;
+  porQue: string;
 };
 
 function clave_(verbos: string[]): string {
@@ -96,7 +106,31 @@ export function evaluar(frase: Frase, obtenido: string[], texto = ""): { ok: boo
   return { ok, motivo: ok ? "" : `esperaba ${frase.esperado.map((c) => clave_(c) || "(nada)").join(" o ")}` };
 }
 
-async function preguntar(frase: Frase): Promise<{ verbos: string[]; texto: string; ms: number; razonamiento: number }> {
+async function preguntar(
+  frase: Frase,
+): Promise<{ verbos: string[]; texto: string; ms: number; razonamiento: number; usado: string; porQue: string }> {
+  const eleccion = modeloFijo
+    ? { modelo: modeloFijo, motivo: "fijo" }
+    : elegirModelo({
+        mensaje: frase.mensaje,
+        adjuntos: 0,
+        conCita: frase.mensaje.startsWith("En respuesta a este mensaje"),
+        historial: frase.historial ?? [],
+      });
+  const primera = await preguntarA(frase, eleccion.modelo);
+  // Como producción (lib/gateway/conversar.ts): si el principal contesta algo
+  // ilegible, se le pregunta al completo antes de hacer nada.
+  if (!modeloFijo && eleccion.modelo !== MODELO && (primera.texto === SIN_INTERPRETAR || primera.texto === SIN_RESPUESTA)) {
+    const segunda = await preguntarA(frase, MODELO);
+    return { ...segunda, ms: primera.ms + segunda.ms, usado: MODELO, porQue: "principal_volvio" };
+  }
+  return { ...primera, usado: eleccion.modelo, porQue: eleccion.motivo };
+}
+
+async function preguntarA(
+  frase: Frase,
+  modelo: string,
+): Promise<{ verbos: string[]; texto: string; ms: number; razonamiento: number }> {
   const entrada = prepararEntrada({
     request_id: randomUUID(),
     usuario_id: randomUUID(),
@@ -144,9 +178,9 @@ async function correr(): Promise<Resultado[]> {
     while (siguiente < frases.length) {
       const frase = frases[siguiente++];
       try {
-        const { verbos: obtenido, texto, ms, razonamiento } = await preguntar(frase);
+        const { verbos: obtenido, texto, ms, razonamiento, usado, porQue } = await preguntar(frase);
         const { ok, motivo } = evaluar(frase, obtenido, texto);
-        resultados.push({ frase, obtenido, ok, motivo, texto, ms, razonamiento });
+        resultados.push({ frase, obtenido, ok, motivo, texto, ms, razonamiento, usado, porQue });
         process.stdout.write(ok ? "." : "x");
       } catch (error) {
         resultados.push({
@@ -157,6 +191,8 @@ async function correr(): Promise<Resultado[]> {
           texto: "",
           ms: 0,
           razonamiento: 0,
+          usado: "",
+          porQue: "error",
         });
         process.stdout.write("E");
       }
@@ -227,6 +263,23 @@ function tiempos(rs: Resultado[]): string[] {
 }
 
 const resultados = await correr();
+/** Con el ruteo: cuántas frases contestó cada modelo, su acierto y por qué fueron ahí. */
+function reparto(rs: Resultado[]): string[] {
+  if (modeloFijo) return [];
+  const modelos = [...new Set(rs.map((r) => r.usado).filter(Boolean))];
+  const motivos = [...new Set(rs.map((r) => r.porQue))];
+  return [
+    "## Ruteo de producción",
+    "",
+    ...modelos.map((m) => {
+      const del = rs.filter((r) => r.usado === m);
+      return `- \`${m}\`: ${del.length} frases, ${del.filter((r) => r.ok).length} bien (${porcentaje(del)} %)`;
+    }),
+    `- Motivos: ${motivos.map((m) => `${m} ${rs.filter((r) => r.porQue === m).length}`).join(", ")}`,
+    "",
+  ];
+}
+
 // Con la hora: dos corridas del mismo día no se pisan (el registro es evidencia).
 const fecha = new Date().toISOString().slice(0, 10);
 const marca = new Date().toISOString().slice(0, 16).replace("T", "-").replace(":", "");
@@ -235,6 +288,7 @@ const grupos = [...new Set(resultados.map((r) => r.frase.grupo))];
 const lineas: string[] = [
   `# Batería de frases — ${fecha}`,
   "",
+  ...reparto(resultados),
   `Modelo: \`${modelo}\` · esfuerzo \`${esfuerzo}\` · ${resultados.length} frases · **${porcentaje(resultados)} % de verbo correcto** (meta: ≥ 95 %).`,
   "",
   "| Grupo | Acierto |",
@@ -258,7 +312,7 @@ const lineas: string[] = [
   ...(resultados.some((r) => !r.ok)
     ? resultados
         .filter((r) => !r.ok)
-        .map((r) => `- \`${r.frase.id}\` — "${r.frase.mensaje}" → ${clave_(r.obtenido) || "(nada)"}; ${r.motivo}. _${r.frase.porque}_ Respondió: «${r.texto.replace(/\s*\n+\s*/g, " ⏎ ")}»`)
+        .map((r) => `- \`${r.frase.id}\` (${r.usado || "?"}) — "${r.frase.mensaje}" → ${clave_(r.obtenido) || "(nada)"}; ${r.motivo}. _${r.frase.porque}_ Respondió: «${r.texto.replace(/\s*\n+\s*/g, " ⏎ ")}»`)
     : ["Ninguna."]),
   "",
 ];
@@ -266,7 +320,7 @@ const lineas: string[] = [
 const carpeta = path.join(RAIZ, "evals", "bateria", "resultados");
 fs.mkdirSync(carpeta, { recursive: true });
 const sufijo =
-  (modelo === MODELO ? "" : `-${modelo.replace(/[^a-z0-9.-]/gi, "_")}`) +
+  (modeloFijo ? `-${modeloFijo.replace(/[^a-z0-9.-]/gi, "_")}` : "") +
   (esfuerzo === ESFUERZO ? "" : `-esfuerzo-${esfuerzo.replace(/[^a-z]/gi, "")}`);
 const archivo = path.join(carpeta, `${marca}${grupo ? `-${grupo}` : ""}${sufijo}.md`);
 fs.writeFileSync(archivo, lineas.join("\n"));

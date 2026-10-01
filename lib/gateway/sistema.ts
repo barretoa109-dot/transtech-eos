@@ -19,8 +19,30 @@
  * comentario se borra.
  */
 
-/** El mismo modelo que usa n8n. Cambiarlo acá solo cambiaría la mitad. */
+/**
+ * El modelo COMPLETO: el de los turnos complejos y el de respaldo.
+ *
+ * Es también el que usa n8n, que quedó de respaldo del gateway en TypeScript.
+ * Desde el 01/10/2026 no es el que contesta la mayoría: ver `MODELO_PRINCIPAL`.
+ */
 export const MODELO = "gpt-5.5";
+
+/**
+ * El modelo que contesta la mayoría de los mensajes, desde el 01/10/2026.
+ *
+ * Decisión del dueño: "GPT 6 Sol y GPT 5.5 para las tareas más complejas, así
+ * ahorramos dinero sin perder potencia". Medido con la batería de 203 frases
+ * (esfuerzo low): gpt-6-sol 98 % de verbo correcto contra 99,5 % de gpt-5.5,
+ * con la misma mediana de tiempo y cerca de un tercio del costo por mensaje
+ * (USD 2 / 0,20 / 10 por millón contra 5 / 0,50 / 30). Sus cuatro fallas
+ * fueron preguntar en vez de actuar (WhatsApp a un cliente, agendar, pago a un
+ * proveedor, jopara): esos turnos, y los demás difíciles, van a `MODELO`. La
+ * regla está en `elegirModelo` (lib/eos/enrutamiento-modelo.ts).
+ *
+ * `EOS_MODELO_PRINCIPAL` en el entorno lo reemplaza sin tocar código:
+ * `EOS_MODELO_PRINCIPAL=gpt-5.5` devuelve todo al modelo completo.
+ */
+export const MODELO_PRINCIPAL = "gpt-6-sol";
 
 /**
  * Cuánto razona el modelo antes de contestar.

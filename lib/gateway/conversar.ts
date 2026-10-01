@@ -44,7 +44,14 @@ import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGatewa
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
-import { ESFUERZO, MODELO, PROMPT_SISTEMA } from "./sistema.ts";
+import { ESFUERZO, MODELO, MODELO_PRINCIPAL, PROMPT_SISTEMA } from "./sistema.ts";
+
+/**
+ * Los modelos a los que se les manda `ESFUERZO`: los dos que se midieron con
+ * él (batería del 30/09/2026, esfuerzo low). Un modelo puesto a mano por
+ * `EOS_MODELO_PRINCIPAL` o `EOS_MODELO_SIMPLE` puede no aceptar el valor.
+ */
+const CON_ESFUERZO = new Set([MODELO, MODELO_PRINCIPAL]);
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -167,9 +174,8 @@ async function preguntarAlModelo(clave: string, modelo: string, contenido: Promp
       },
       body: JSON.stringify({
         model: modelo,
-        // Solo al principal: el esfuerzo se eligió midiendo ESE modelo, y el
-        // barato del enrutamiento puede no aceptar el mismo valor.
-        ...(modelo === MODELO ? { reasoning: { effort: ESFUERZO } } : {}),
+        // Solo a los medidos con ese esfuerzo: ver `CON_ESFUERZO`.
+        ...(CON_ESFUERZO.has(modelo) ? { reasoning: { effort: ESFUERZO } } : {}),
         input: [
           { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
           { role: "user", content: contenido },
@@ -215,7 +221,14 @@ export function sirveRespuestaSimple(cuerpo: RespuestaGateway): boolean {
 }
 
 /** Qué pasó con el modelo barato en este turno; va a la metadata y al log. */
-export type Enrutado = "simple" | "volvio_por_accion" | "volvio_por_error";
+export type Enrutado =
+  | "simple"
+  | "volvio_por_accion"
+  | "volvio_por_error"
+  /** Lo contestó el principal (gpt-6-sol). */
+  | "principal"
+  /** El principal falló o contestó algo ilegible; lo contestó el completo. */
+  | "principal_volvio";
 
 /**
  * Atiende un mensaje de punta a punta cuando no hay acciones de por medio.
@@ -237,7 +250,17 @@ export type Enrutado = "simple" | "volvio_por_accion" | "volvio_por_error";
  */
 export async function conversar(
   payload: Record<string, unknown>,
-  opciones: { modelo?: string | null; alFallarIA?: (motivo: string) => void } = {},
+  opciones: {
+    modelo?: string | null;
+    /**
+     * El modelo para un turno completo, elegido por `elegirModelo`
+     * (lib/eos/enrutamiento-modelo.ts). Sin él, o igual a `MODELO`, el de
+     * siempre. Si falla o contesta algo ilegible, se le pregunta a `MODELO`
+     * antes de ejecutar nada.
+     */
+    principal?: string | null;
+    alFallarIA?: (motivo: string) => void;
+  } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
@@ -290,6 +313,30 @@ export async function conversar(
       // una llamada fallida y rápida, y la persona no se entera.
       enrutado = propuesta ? "volvio_por_accion" : "volvio_por_error";
       console.info("Gateway TS: el modelo simple no alcanzó, vuelve al de siempre:", enrutado);
+    }
+  }
+
+  /*
+   * El principal (gpt-6-sol) para los turnos que no son complejos.
+   *
+   * Si contesta algo que no se puede leer, el turno se vuelve a preguntar al
+   * completo ANTES de armar ninguna acción: un JSON roto no se ejecuta a
+   * medias. Un timeout no se reintenta (ya pasaron los 20 s): va a n8n, que
+   * usa el completo, como cualquier otro timeout de acá.
+   */
+  const principal = opciones.principal?.trim() || MODELO;
+  if (!cuerpo && principal !== MODELO) {
+    const intento = await preguntarAlModelo(clave, principal, contenido);
+    if (!intento.ok && intento.motivo === "timeout") return null;
+
+    const propuesta = intento.ok ? prepararRespuesta(entrada, intento.ai) : null;
+    if (propuesta && propuesta.respuesta !== SIN_INTERPRETAR && propuesta.respuesta !== SIN_RESPUESTA) {
+      cuerpo = propuesta;
+      modelo = principal;
+      enrutado = enrutado ?? "principal";
+    } else {
+      enrutado = "principal_volvio";
+      console.info("Gateway TS: el modelo principal no contestó algo legible, vuelve al completo.");
     }
   }
 
