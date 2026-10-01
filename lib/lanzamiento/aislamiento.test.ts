@@ -10,7 +10,10 @@ import { MARCA_FIN, MARCA_INICIO, filasDelError, sqlParaApi } from "../../script
  * devuelve la última sentencia. Las filas ahora vuelven dentro del error.
  */
 
-const PRUEBA = readFileSync(new URL("../../supabase/pruebas/aislamiento_rls_e2e.sql", import.meta.url), "utf8");
+// En LF siempre: en un checkout de Windows el archivo llega con CRLF, y las
+// pruebas de abajo comparan contra el texto (y la segunda agrega el CRLF ella).
+const PRUEBA = readFileSync(new URL("../../supabase/pruebas/aislamiento_rls_e2e.sql", import.meta.url), "utf8")
+  .replace(/\r\n/g, "\n");
 
 test("el cierre se cambia por un bloque que aborta con las filas; ya no hay rollback suelto", () => {
   const sql = sqlParaApi(PRUEBA);

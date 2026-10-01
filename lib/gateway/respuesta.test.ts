@@ -322,3 +322,62 @@ test("devuelve exactamente los campos que espera app/api/eos/route.ts", () => {
   assert.equal(r.tipo, "texto");
   assert.equal(r.accion, "RESPONDER");
 });
+
+// ---------------------------------------------------------------------------
+// Prosa con el JSON pegado al final (QA del 01/10/2026, gpt-6-luna)
+// ---------------------------------------------------------------------------
+
+const MEMORIA = {
+  tipo: "GUARDAR_MEMORIA",
+  datos: { titulo: "Prioridad", contenido: "Los préstamos van primero." },
+};
+
+test("prosa + el objeto entero: respuesta y acciones se recuperan", () => {
+  const texto = `Reservá primero las cuotas.\n${JSON.stringify({ respuesta: "Reservá primero las cuotas.", acciones: [MEMORIA] }, null, 2)}`;
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.equal(r.respuesta, "Reservá primero las cuotas.");
+  assert.deepEqual(r.acciones.map((a) => a.tipo), ["GUARDAR_MEMORIA"]);
+  assert.equal(r.metadata.formato_recuperado, true);
+  assert.doesNotMatch(r.respuesta, /acciones|\{/);
+});
+
+test('prosa + solo `"acciones": [...]}`: se recupera', () => {
+  const texto = `Primero las cuotas.\n\n"acciones":[${JSON.stringify(MEMORIA)}]}`;
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.equal(r.respuesta, "Primero las cuotas.");
+  assert.deepEqual(r.acciones.map((a) => a.tipo), ["GUARDAR_MEMORIA"]);
+});
+
+test("prosa + una acción suelta: se recupera como lista de una", () => {
+  const texto = `Primero las cuotas.\n\n${JSON.stringify(MEMORIA, null, 2)}`;
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.equal(r.respuesta, "Primero las cuotas.");
+  assert.deepEqual(r.acciones.map((a) => a.tipo), ["GUARDAR_MEMORIA"]);
+});
+
+test("una acción recuperada igual pasa por la lista blanca", () => {
+  const texto = `Listo.\n${JSON.stringify({ tipo: "BORRAR_TODO", datos: {} })}`;
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.deepEqual(r.acciones, []);
+});
+
+test("prosa con llaves que no son JSON queda como estaba", () => {
+  const texto = "Usá {nombre} como plantilla, y el total {aprox} sale del Excel.";
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.equal(r.respuesta, texto);
+  assert.deepEqual(r.acciones, []);
+  assert.equal(r.metadata.formato_recuperado, undefined);
+});
+
+test("un JSON al final que no es respuesta ni acción no se toma", () => {
+  const texto = 'Te paso el dato: {"saldo": 1000}';
+  const r = prepararRespuesta(entrada(), ai(texto));
+  assert.equal(r.respuesta, texto);
+  assert.deepEqual(r.acciones, []);
+});
+
+test("el JSON bien formado sigue por el camino de siempre", () => {
+  const r = prepararRespuesta(entrada(), ai(JSON.stringify({ respuesta: "Hola", acciones: [MEMORIA] })));
+  assert.equal(r.respuesta, "Hola");
+  assert.equal(r.metadata.formato_recuperado, undefined);
+});

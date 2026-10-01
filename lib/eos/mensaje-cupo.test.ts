@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { mensajeDeCupo, type SituacionCupo } from "./mensaje-cupo.ts";
+import { mensajeDeCupo, planDelCupo, type SituacionCupo } from "./mensaje-cupo.ts";
 
 const SITUACIONES: SituacionCupo[] = ["limite", "en_proceso", "ya_procesado", "suscripcion"];
 
@@ -36,4 +36,15 @@ test("los textos de la web no cambiaron", () => {
     mensajeDeCupo("suscripcion", { planGratis: false, appNativa: false }),
     "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.",
   );
+});
+
+test("el plan del mensaje es el que decidió el cupo (INC-09)", () => {
+  // Plan de la cuenta free, tramo plus pago vigente: la base dice pro.
+  assert.equal(planDelCupo("pro", "free"), "pro");
+  assert.equal(planDelCupo(" Business ", "free"), "business");
+  // Sin plan legible en la reserva, queda el del perfil.
+  assert.equal(planDelCupo(undefined, "free"), "free");
+  assert.equal(planDelCupo(null, "pro"), "pro");
+  assert.equal(planDelCupo("", "pro"), "pro");
+  assert.equal(planDelCupo("pro; drop", "free"), "free");
 });
