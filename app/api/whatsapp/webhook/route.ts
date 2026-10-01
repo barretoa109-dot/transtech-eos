@@ -8,6 +8,7 @@ import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarTextoConId, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
 import { descargarMedia } from "@/lib/whatsapp/media";
+import { DOCUMENTO_GUARDADO, textoConEnlace } from "@/lib/whatsapp/texto-con-enlace";
 import { desarmarVideoDeWhatsapp } from "@/lib/whatsapp/video";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
 import { HISTORIAL_MAXIMO, enOrdenDeTurno, historialDeLaSesion } from "@/lib/eos/historial";
@@ -740,12 +741,9 @@ async function atenderMensajeVinculado(
   // (`guardarDocumento`, en lib/documentos/guardar.ts). Cualquier otro link
   // —uno que el modelo haya escrito suelto en la respuesta— no es nuestro y
   // no se puede resubir: se deja como texto, que WhatsApp muestra clickeable.
-  const idDocumento = archivoUrl.match(/^\/api\/documentos\/([0-9a-f-]{36})\?formato=([a-z]+)$/i);
+  const idDocumento = archivoUrl.match(DOCUMENTO_GUARDADO);
 
-  const textoParaWhatsapp =
-    archivoUrl && !idDocumento && archivoUrl.startsWith("http")
-      ? `${respuestaTexto}\n\n${archivoUrl}`
-      : respuestaTexto;
+  const textoParaWhatsapp = textoConEnlace(respuestaTexto, archivoUrl);
 
   const { data: guardadas, error: guardarError } = await admin
     .from("mensajes")

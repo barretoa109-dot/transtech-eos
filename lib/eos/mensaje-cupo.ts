@@ -34,3 +34,15 @@ export function mensajeDeCupo(
         : "Tu suscripción no permite enviar mensajes en este momento. Revisá tu plan para continuar.";
   }
 }
+
+/**
+ * El plan con el que se atiende un mensaje: el que devolvió la reserva de
+ * cupo, que es la base decidiendo (v228: cuenta un tramo de conversaciones
+ * pago aunque `usuarios.plan` diga free). Si la respuesta no trae un plan
+ * legible, queda el que calculó el servidor con el perfil.
+ */
+export function planDelCupo(planDeLaReserva: unknown, planDelPerfil: string): string {
+  if (typeof planDeLaReserva !== "string") return planDelPerfil;
+  const plan = planDeLaReserva.trim().toLowerCase();
+  return /^[a-z_]{2,40}$/.test(plan) ? plan : planDelPerfil;
+}

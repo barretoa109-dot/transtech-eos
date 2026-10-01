@@ -71,7 +71,7 @@ import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
-import { mensajeDeCupo } from "@/lib/eos/mensaje-cupo";
+import { mensajeDeCupo, planDelCupo } from "@/lib/eos/mensaje-cupo";
 import { TEXTO_EN_ESPERA, ponerEnEspera, puedeEsperar } from "@/lib/eos/en-espera";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
@@ -1075,6 +1075,11 @@ export async function procesarMensajeEOS(
         },
       };
     }
+
+    // El plan con el que se atiende es el que usó el cupo: la base lo decide
+    // (v228) y cuenta un tramo de conversaciones pago aunque `usuarios.plan`
+    // diga free. Sin esto el prompt podía decir "free" a quien paga.
+    payload.plan = planDelCupo(quota.plan, payload.plan);
 
     let quotaReleased = false;
     const releaseQuota = async (reason: string) => {

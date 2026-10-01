@@ -178,6 +178,63 @@ export function sinCercos(texto: string): string {
     .trim();
 }
 
+function objetoDe(texto: string): Record<string, unknown> | null {
+  try {
+    const v = JSON.parse(texto);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prosa con el JSON pegado al final (01/10/2026).
+ *
+ * A veces el modelo escribe la respuesta suelta y DESPUÉS el JSON: el objeto
+ * entero, solo `"acciones": [...]}` o una acción `{ "tipo", "datos" }`. Con
+ * gpt-6-luna pasó 1 de cada 3 veces en la QA; no se vio con gpt-6-sol ni
+ * gpt-5.5, pero nada lo impide. Sin esto el `JSON.parse` falla, la persona ve
+ * el JSON crudo, las acciones se pierden en silencio y la vuelta al modelo
+ * completo no se dispara (la respuesta no es "ilegible": es prosa).
+ *
+ * Solo se recupera si el final es un JSON que parsea ENTERO y trae acciones,
+ * respuesta o una acción. Si no, se devuelve null y queda como estaba.
+ */
+export function separarJsonFinal(crudo: string): Record<string, unknown> | null {
+  const candidatos: { prosa: string; objeto: Record<string, unknown> }[] = [];
+
+  for (let i = crudo.indexOf("{", 1); i > 0; i = crudo.indexOf("{", i + 1)) {
+    const objeto = objetoDe(crudo.slice(i).trim());
+    if (objeto) {
+      candidatos.push({ prosa: crudo.slice(0, i), objeto });
+      break;
+    }
+  }
+
+  if (candidatos.length === 0) {
+    const k = crudo.search(/"acciones"\s*:/);
+    if (k > 0) {
+      const objeto = objetoDe(`{${crudo.slice(k).trim()}`);
+      if (objeto) candidatos.push({ prosa: crudo.slice(0, k).replace(/[{,\s]+$/, ""), objeto });
+    }
+  }
+
+  const c = candidatos[0];
+  if (!c) return null;
+
+  const prosa = c.prosa.trim();
+  const { objeto } = c;
+  const respuesta = typeof objeto.respuesta === "string" && objeto.respuesta.trim() ? objeto.respuesta : prosa;
+
+  if (Array.isArray(objeto.acciones) || "respuesta" in objeto || "documento" in objeto) {
+    return { ...objeto, respuesta, acciones: Array.isArray(objeto.acciones) ? objeto.acciones : [] };
+  }
+  if (typeof objeto.tipo === "string") {
+    return { respuesta: prosa, acciones: [objeto] };
+  }
+  return null;
+}
+
 /**
  * Normaliza lo que devolvió el modelo a la forma que consume
  * `app/api/eos/route.ts`.
@@ -200,6 +257,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
   const crudo = sinCercos(extraerTexto(ai));
 
   let resultado: Record<string, unknown>;
+  let formatoRecuperado = false;
   try {
     const parseado = JSON.parse(crudo);
     // Un JSON válido que no es un objeto —un número, un array— no es una
@@ -209,9 +267,11 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
         ? (parseado as Record<string, unknown>)
         : { respuesta: crudo, acciones: [] };
   } catch {
-    // Si el modelo contesta prosa en vez de JSON, no se rompe el gateway: se
-    // usa la prosa como respuesta, que es lo que la persona quería igual.
-    resultado = { respuesta: crudo || SIN_INTERPRETAR, acciones: [] };
+    // Prosa con el JSON pegado al final: se recupera (ver separarJsonFinal).
+    // Si no, la prosa es la respuesta, que es lo que la persona quería igual.
+    const recuperado = separarJsonFinal(crudo);
+    formatoRecuperado = recuperado !== null;
+    resultado = recuperado ?? { respuesta: crudo || SIN_INTERPRETAR, acciones: [] };
   }
 
   const respuesta =
@@ -277,6 +337,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
       openai_response_id: String(datosAi.id ?? ""),
       openai_status: String(datosAi.status ?? ""),
       openai_model: String(datosAi.model ?? ""),
+      ...(formatoRecuperado ? { formato_recuperado: true } : {}),
       // Se esperan y se pagan como salida sin que se vean: van a `turno`.
       tokens_razonamiento:
         Number(
