@@ -128,6 +128,7 @@ export default function EOSPage() {
     nuevaConversacion,
     abrirConversacion,
     actualizarTituloSiHaceFalta,
+    mejorarTitulo,
     renombrar,
     archivar,
     eliminar,
@@ -143,6 +144,7 @@ export default function EOSPage() {
     nuevaConversacion,
     actualizarTituloSiHaceFalta,
     cargarBriefing,
+    alResponder: (id) => void mejorarTitulo(id),
   });
 
   async function iniciarEOS() {

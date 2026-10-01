@@ -2,6 +2,7 @@ import { supabase } from "../../../lib/supabase";
 import { fotosDeMetadata, type FotoGuardada } from "@/lib/eos/fotos-chat";
 import { MINIMO_PARA_BUSCAR, fragmento, patronIlike } from "@/lib/eos/buscar-chats";
 import type { Conversacion, Mensaje } from "../types/chat";
+import { tituloProvisional } from "@/lib/eos/titulo-chat";
 
 export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
   const { data, error } = await supabase
@@ -169,53 +170,35 @@ export async function guardarMensaje(
   }
 }
 
+/**
+ * El título provisional, apenas se manda el primer mensaje: sale del mensaje,
+ * no de una categoría. Con la primera respuesta lo reemplaza uno escrito por
+ * un modelo (/api/eos/titulo, lib/eos/titulo-chat.ts).
+ */
 export async function actualizarTituloConversacion(
   conversacionId: string,
   textoUsuario: string
 ) {
-  const texto = textoUsuario.toLowerCase();
-  let titulo = "Nueva conversación EOS";
-
-  if (texto.includes("excel") || texto.includes("planilla") || texto.includes("archivo")) {
-    titulo = "Documento profesional";
-  } else if (
-    texto.includes("finanza") ||
-    texto.includes("gasto") ||
-    texto.includes("deuda") ||
-    texto.includes("ahorro")
-  ) {
-    titulo = "Plan financiero";
-  } else if (
-    texto.includes("negocio") ||
-    texto.includes("venta") ||
-    texto.includes("empresa") ||
-    texto.includes("cliente")
-  ) {
-    titulo = "Estrategia de negocio";
-  } else if (
-    texto.includes("objetivo") ||
-    texto.includes("tarea") ||
-    texto.includes("organizar")
-  ) {
-    titulo = "Objetivos y organización";
-  } else if (texto.includes("hola") || texto.includes("buenas")) {
-    titulo = "Inicio con EOS";
-  } else {
-    const palabras = textoUsuario
-      .replace(/[¿?¡!.,]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .filter(Boolean);
-
-    titulo = palabras.slice(0, 6).join(" ");
-    if (titulo.length < 8) titulo = "Conversación EOS";
-    if (titulo.length > 48) titulo = titulo.slice(0, 48) + "...";
-  }
+  const titulo = tituloProvisional(textoUsuario);
 
   await supabase.from("conversaciones").update({ titulo }).eq("id", conversacionId);
 
   return titulo;
+}
+
+/** Pide el título escrito por el modelo. Devuelve el nuevo, o null si no cambió. */
+export async function pedirTituloInteligente(conversacionId: string): Promise<{ titulo: string | null; sinTema: boolean }> {
+  try {
+    const r = await fetch("/api/eos/titulo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversacion_id: conversacionId }),
+    });
+    const data = (await r.json().catch(() => null)) as { titulo?: string; cambiado?: boolean; sin_tema?: boolean } | null;
+    return { titulo: data?.cambiado && data.titulo ? data.titulo : null, sinTema: data?.sin_tema === true };
+  } catch {
+    return { titulo: null, sinTema: false };
+  }
 }
 /** Lo más largo que se deja poner a mano como título de un chat. */
 export const MAX_TITULO_CHAT = 80;

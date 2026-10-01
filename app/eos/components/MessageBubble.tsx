@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   Download,
+  Globe,
   MessageSquareQuote,
   RefreshCw,
   Play,
@@ -16,6 +17,8 @@ import {
 import { armarCita, type Cita } from "@/lib/eos/cita";
 import { textoSinReferenciaDeFotos } from "@/lib/eos/fotos-chat";
 import { formatoDuracion } from "@/lib/eos/videos";
+import { leerRespuestaConFuentes, sitioDe } from "@/lib/eos/fuentes-web";
+import RespuestaWeb from "./RespuestaWeb";
 import type { ImagenDelMensaje } from "../types/chat";
 
 type MessageBubbleProps = {
@@ -38,6 +41,21 @@ function esEnlace(texto: string) {
     texto.startsWith("https://") ||
     texto.startsWith("/descargar")
   );
+}
+
+/**
+ * ¿Es un archivo que generó EOS? Solo entonces la tarjeta dice "Descargar
+ * archivo". Cualquier otro enlace (una fuente, una página) se abre: antes
+ * todos decían "Documento generado por EOS", aunque fueran de un diario.
+ */
+function esArchivoDeEOS(enlace: string): boolean {
+  if (enlace.startsWith("/descargar") || enlace.startsWith("/api/documentos/")) return true;
+  try {
+    const u = new URL(enlace);
+    return /(^|\.)transtech\.com\.py$|\.vercel\.app$/.test(u.hostname) && /^\/(descargar|api\/documentos\/)/.test(u.pathname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -111,6 +129,8 @@ export default function MessageBubble({
   const textoVisible =
     fotos.length > 0 ? textoSinReferenciaDeFotos(texto, fotos.length) : texto;
   const lineas = textoVisible.split("\n");
+  // Una respuesta con búsqueda web se muestra con citas tocables y tarjetas de fuentes.
+  const conFuentes = esUsuario ? null : leerRespuestaConFuentes(textoVisible);
   // Un mensaje de solo fotos no lleva burbuja de texto vacía debajo.
   const mostrarBurbuja = !esUsuario || fotos.length === 0 || textoVisible.trim().length > 0;
   const [fotoAbierta, setFotoAbierta] = useState<ImagenDelMensaje | null>(null);
@@ -297,7 +317,9 @@ export default function MessageBubble({
             ) : null}
 
             <div className="message-content">
-              {lineas.map((linea, index) => {
+              {conFuentes ? (
+                <RespuestaWeb datos={conFuentes} renderizarTexto={renderizarTextoEnLinea} />
+              ) : lineas.map((linea, index) => {
                 const limpio = linea.trim();
 
                 if (!limpio) {
@@ -367,12 +389,21 @@ export default function MessageBubble({
                       className="message-file"
                     >
                       <span className="message-file-icon">
-                        <Download size={18} />
+                        {esArchivoDeEOS(limpio) ? <Download size={18} /> : <Globe size={18} />}
                       </span>
 
                       <span className="message-file-text">
-                        <strong>Descargar archivo</strong>
-                        <small>Documento generado por EOS</small>
+                        {esArchivoDeEOS(limpio) ? (
+                          <>
+                            <strong>Descargar archivo</strong>
+                            <small>Documento generado por EOS</small>
+                          </>
+                        ) : (
+                          <>
+                            <strong>Abrir enlace</strong>
+                            <small>{sitioDe(limpio) || limpio}</small>
+                          </>
+                        )}
                       </span>
 
                       <ArrowUpRight size={17} />

@@ -45,6 +45,9 @@ type UseChatParams = {
   cargarBriefing: (
     usuarioId: string,
   ) => Promise<void>;
+
+  /** Después de cada respuesta: el título de la conversación se escribe solo (lib/eos/titulo-chat.ts). */
+  alResponder?: (conversacionId: string) => void;
 };
 
 type EjecutarEOSParams = {
@@ -257,6 +260,7 @@ export function useChat({
   nuevaConversacion,
   actualizarTituloSiHaceFalta,
   cargarBriefing,
+  alResponder,
 }: UseChatParams) {
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -389,6 +393,8 @@ export function useChat({
           textoEOS,
         );
 
+        alResponder?.(conversacionActiva);
+
         setHistorial((actual) => {
           if (!reemplazarUltimaRespuesta) {
             return [...actual, mensajeEOS];
@@ -447,6 +453,7 @@ export function useChat({
     },
     [
       actualizarTituloSiHaceFalta,
+      alResponder,
       cargarBriefing,
       nombre,
       plan,

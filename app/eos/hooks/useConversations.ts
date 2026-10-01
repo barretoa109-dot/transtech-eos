@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Conversacion, Mensaje } from "../types/chat";
 import {
   actualizarTituloConversacion,
@@ -9,8 +9,10 @@ import {
   eliminarConversacion,
   obtenerConversaciones,
   obtenerMensajes,
+  pedirTituloInteligente,
   renombrarConversacion,
 } from "../services/supabaseChat";
+import { TITULOS_AUTOMATICOS } from "@/lib/eos/titulo-chat";
 
 const TITULOS_POR_DEFECTO = new Set(["Nuevo chat", "Nuevo proceso EOS", "Diagnóstico actual"]);
 
@@ -69,6 +71,38 @@ export function useConversations() {
     setConversacionId(id);
     const mensajes = await obtenerMensajes(id);
     setHistorial(mensajes);
+
+    // Una conversación vieja con título genérico ("Inicio con EOS", "Plan
+    // financiero") recibe el suyo al abrirla, si ya tiene una respuesta.
+    const conversacion = conversaciones.find((c) => c.id === id);
+    if (conversacion && TITULOS_AUTOMATICOS.has(conversacion.titulo ?? "") && mensajes.some((m) => m.rol === "eos")) {
+      void mejorarTitulo(id);
+    }
+  }
+
+  /*
+   * El título escrito por el modelo, como en Claude. Se pide después de cada
+   * respuesta mientras el título siga siendo automático (el provisional del
+   * primer mensaje o uno de fábrica), hasta 3 veces: si el primer mensaje fue
+   * un saludo, el tema aparece en el segundo o el tercero. Un título que la
+   * persona renombró no se toca (el servidor también lo controla).
+   */
+  const provisionales = useRef(new Map<string, string>());
+  const intentos = useRef(new Map<string, number>());
+
+  async function mejorarTitulo(id: string) {
+    const conversacion = conversaciones.find((c) => c.id === id);
+    const actual = conversacion?.titulo ?? "";
+    const automatico = TITULOS_AUTOMATICOS.has(actual) || provisionales.current.get(id) === actual || !conversacion;
+    const hechos = intentos.current.get(id) ?? 0;
+    if (!automatico || hechos >= 3) return;
+    intentos.current.set(id, hechos + 1);
+
+    const { titulo } = await pedirTituloInteligente(id);
+    if (!titulo) return;
+    provisionales.current.delete(id);
+    intentos.current.set(id, 3);
+    setConversaciones((prev) => prev.map((c) => (c.id === id ? { ...c, titulo } : c)));
   }
 
   async function actualizarTituloSiHaceFalta(id: string, textoUsuario: string) {
@@ -76,6 +110,7 @@ export function useConversations() {
 
     if (!conversacionActual || tieneTituloPorDefecto(conversacionActual)) {
       const titulo = await actualizarTituloConversacion(id, textoUsuario);
+      provisionales.current.set(id, titulo);
 
       setConversaciones((prev) =>
         prev.map((c) => (c.id === id ? { ...c, titulo } : c))
@@ -140,6 +175,7 @@ export function useConversations() {
     nuevaConversacion,
     abrirConversacion,
     actualizarTituloSiHaceFalta,
+    mejorarTitulo,
     renombrar,
     archivar,
     eliminar,
