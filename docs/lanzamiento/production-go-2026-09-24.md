@@ -268,3 +268,14 @@ Sobre `main` en `e37983e`, que es lo que sirve producción (`npm run go` lo comp
 - **Respaldo nocturno** con restauración: verde desde el 29/09 (ver `docs/respaldo-nocturno.md`).
 
 Siguen manuales: los dos casos con tarjeta, el recorrido en iPhone y Android, y dos cuentas QA reales.
+
+## Corrida del 01/10/2026 (después de la auditoría de cierre, #221)
+
+Sobre `main` en `c97dfa9`, que es lo que sirve producción.
+
+- **`npm run go`: 9/9 automáticos en GO.** Gateway TS etapa 3, fotos por TypeScript; v197; RLS en todo `public`; aislamiento 24/24; n8n autoriza contra producción; salud sana; sin cobros pendientes viejos; Bancard rechaza basura (400); sin sesión no hay datos (401).
+- **v228 aplicada** desde `eos-db-push` en `origin/main`: la función existe, la reserva la usa, `anon` no la ejecuta. E2E `plan_efectivo_e2e.sql` repetida ya aplicada: 10/10, sin residuos. Las 16 cuentas reales conservan el mismo plan efectivo que antes.
+- **Parche de n8n** `2026-10-01-lo-que-la-persona-decidio.mjs` corrido desde main; el reexporte del gateway es idéntico al de main (solo fines de línea). Los 5 workflows versionados, leídos por API, son iguales a main y sin referencias rotas.
+- **Deriva** (corrida a mano): 326 migraciones en main y 326 en producción. n8n no se compara en el CI: faltan `N8N_BASE_URL`/`N8N_API_KEY` en los secretos de GitHub.
+
+Siguen manuales: `certificar 3 6 11` (tarjeta de prueba de Bancard), iPhone y Android con micrófono, dos cuentas QA reales, y el caso Green por el chat con una cuenta QA.
