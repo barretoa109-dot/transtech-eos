@@ -114,10 +114,6 @@ const PERMITIDAS = new Map([
     "Webhook de Bancard: lo llama Bancard, no un usuario logueado. Busca la solicitud por `referencia_externa`, que es el identificador que el propio proveedor devuelve, y así resuelve de quién es el pago.",
   ],
   [
-    "app/api/pagos/pagopar/webhook/route.ts::solicitudes_pago",
-    "Webhook de Pagopar, mismo criterio: la firma del proveedor se verifica antes (401 si no coincide) y el `hash_pedido` es lo que identifica la solicitud.",
-  ],
-  [
     "app/api/whatsapp/webhook/route.ts::eos_whatsapp_rafaga_v199",
     "Webhook de Meta (firma verificada antes, 401 si no coincide). Solo INSERTA los mensajes que acaban de llegar, cada uno con el `telefono` de quien lo mandó y su `wa_id`; nunca lee ni cambia filas de otro. La tabla no es por usuario sino una sala de espera por número (v199), y lo único que la lee es `eos_whatsapp_rafaga_tomar_v199`, acotada por teléfono.",
   ],
@@ -132,10 +128,6 @@ const PERMITIDAS = new Map([
   [
     "app/api/cron/briefing-diario/route.ts::eos_followup_preferences",
     "El cron del briefing pregunta quiénes lo quieren por correo. La respuesta es una lista de usuarios; filtrarla por uno no tendría sentido.",
-  ],
-  [
-    "app/api/pagos/pagopar/webhook/route.ts::eventos_pago",
-    "`eventos_pago` es la bitácora de eventos del proveedor, indexada por `evento_externo_id`, no una tabla por usuario. Y el que llama es Pagopar, no una sesión: la autenticación es la firma del proveedor.",
   ],
   [
     "app/api/whatsapp/webhook/route.ts::eos_whatsapp_vinculos_v162",
