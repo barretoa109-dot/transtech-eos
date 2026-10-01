@@ -27,7 +27,8 @@ export type RespuestaConFuentes = {
   soloConsultadas: boolean;
 };
 
-const ENCABEZADO = /^🔎\s*Busqué en la web el (\d{2}\/\d{2}\/\d{4})\s*(?:·\s*([^.\n]+?)|\(([^)\n]+)\))\.?\s*$/m;
+// El país es opcional: las respuestas viejas lo traían ("· Paraguay" o "(Paraguay)"), las nuevas no.
+const ENCABEZADO = /^🔎\s*Busqué en la web el (\d{2}\/\d{2}\/\d{4})\s*(?:·\s*([^.\n]+?)|\(([^)\n]+)\))?\.?\s*$/m;
 const TITULO_FUENTES = /^\s*(Fuentes|Fuentes consultadas):\s*$/m;
 
 /** null si el texto no es una respuesta con búsqueda web. */
@@ -105,7 +106,8 @@ export function respuestaParaWhatsapp(texto: string): string {
   const cuerpo = partirCitas(r.cuerpo, validas)
     .map((t) => (t.tipo === "texto" ? t.texto : superindice(t.n)))
     .join("");
-  const encabezado = r.fecha ? `🔎 Busqué en la web el ${r.fecha}${r.lugar ? ` · ${r.lugar}` : ""}` : "";
+  // Sin el país, también en los mensajes viejos: la búsqueda es en toda la web.
+  const encabezado = r.fecha ? `🔎 Busqué en la web el ${r.fecha}` : "";
   const lista = r.fuentes.map((f) => `${superindice(f.n)} ${f.titulo} · ${f.sitio}\n${f.url}`).join("\n");
   return [encabezado, cuerpo, `*${r.soloConsultadas ? "Fuentes consultadas" : "Fuentes"}*\n${lista}`]
     .filter(Boolean)

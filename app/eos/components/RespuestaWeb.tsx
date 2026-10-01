@@ -120,8 +120,8 @@ export default function RespuestaWeb({
         <p className="busqueda-web-encabezado">
           <Search size={13} aria-hidden="true" />
           <span>
+            {/* Sin el país: la búsqueda es en toda la web y solo prioriza uno. */}
             Búsqueda web · {datos.fecha}
-            {datos.lugar ? ` · ${datos.lugar}` : ""}
           </span>
         </p>
       ) : null}
