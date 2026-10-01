@@ -42,7 +42,9 @@ export async function GET(req: Request) {
   const guardada = await leerRespuesta(user.id, requestId);
   if (!guardada || guardada.estado_http === ESTADO_EN_PROCESO) {
     const recibido = Boolean(guardada) || (await pedidoRecibido(user.id, requestId));
-    return Response.json({ listo: false, recibido }, { headers });
+    // La etapa en la que está ("buscando_web"), para que la web lo diga mientras espera.
+    const fase = typeof guardada?.cuerpo?.fase === "string" ? guardada.cuerpo.fase : null;
+    return Response.json({ listo: false, recibido, ...(fase ? { fase } : {}) }, { headers });
   }
 
   return Response.json(

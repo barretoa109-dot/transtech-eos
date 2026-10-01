@@ -261,6 +261,8 @@ export function useChat({
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
   const [pensando, setPensando] = useState(false);
+  /** "buscando_web" mientras el servidor investiga; null el resto del tiempo. */
+  const [fase, setFase] = useState<string | null>(null);
 
   const [archivosAdjuntos, setArchivosAdjuntos] =
     useState<ArchivoAdjunto[]>([]);
@@ -338,6 +340,7 @@ export function useChat({
           nuevoChat: historialParaContexto.length === 0,
           archivos,
           cita: citaDelEnvio,
+          alCambiarFase: setFase,
         });
 
         const textoBase =
@@ -657,6 +660,7 @@ export function useChat({
     setMensaje,
 
     cargando,
+    fase,
     pensando,
 
     archivosAdjuntos,

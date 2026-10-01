@@ -1,0 +1,56 @@
+{
+  "model": "gpt-6-sol",
+  "usage": {
+    "input_tokens": 10074,
+    "input_tokens_details": {
+      "cache_write_tokens": 4402,
+      "cached_tokens": 0
+    },
+    "output_tokens": 224,
+    "output_tokens_details": {
+      "reasoning_tokens": 133
+    },
+    "total_tokens": 10298
+  },
+  "output": [
+    {
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "search"
+      }
+    },
+    {
+      "type": "web_search_call",
+      "status": "completed",
+      "action": {
+        "type": "open_page"
+      }
+    },
+    {
+      "type": "message",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Hoy, 1 de octubre de 2026: **₲ 5.850,69 por dólar** (tipo de cambio referencial interbancario al cierre). ([bcp.gov.py](https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante-interbancario))\nFuente: Banco Central del Paraguay; no es la cotización de compra o venta de una casa de cambios. ([bcp.gov.py](https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante-interbancario))",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "end_index": 204,
+              "start_index": 106,
+              "title": "Mercado Libre Fluctuante Interbancario - Diario",
+              "url": "https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante-interbancario"
+            },
+            {
+              "type": "url_citation",
+              "end_index": 401,
+              "start_index": 303,
+              "title": "Mercado Libre Fluctuante Interbancario - Diario",
+              "url": "https://www.bcp.gov.py/webapps/web/cotizacion/referencial-fluctuante-interbancario"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

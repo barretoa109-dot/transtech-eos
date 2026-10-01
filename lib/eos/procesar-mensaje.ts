@@ -68,6 +68,7 @@ import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/c
 import { clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
+import { crearBuscador } from "@/lib/busqueda/servicio";
 import { limpiarRespuestaVisible } from "@/lib/eos/respuesta-visible";
 import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
@@ -195,6 +196,11 @@ export type EntradaProcesamiento = {
    * a guardar: lo maneja `reintentarEnEspera`.
    */
   reintentoDe?: string;
+  /**
+   * Se llama cuando EOS empieza a buscar en la web (WhatsApp manda "Estoy
+   * buscando información actual…"). La web lo ve por la fase del pedido.
+   */
+  alBuscar?: () => void;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -1204,13 +1210,48 @@ export async function procesarMensajeEOS(
 
     if (n8nResponse === null && atiendeTypeScript(turnoDeAccion)) {
       let iaCaida: string | null = null;
+      const claveOpenAI = process.env.OPENAI_API_KEY ?? "";
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
         principal: eleccion.modelo,
         alFallarIA: (motivo) => {
           iaCaida = motivo;
         },
+        // Búsqueda web (lib/busqueda): la consulta sale limpia de los nombres
+        // privados de este contexto; límites, caché y métricas en la base.
+        // `EOS_BUSQUEDA_WEB=0` la apaga sin tocar código: EOS dice que no puede buscar.
+        buscar: claveOpenAI && process.env.EOS_BUSQUEDA_WEB !== "0"
+          ? crearBuscador({
+              admin: adminSinTipos(),
+              usuarioId,
+              contexto: contextoNegocio,
+              nombre: nombreServidor,
+              clave: claveOpenAI,
+              hoy: hoyEnParaguay(),
+              registrar: (tarea) => after(() => tarea.catch(() => {})),
+            })
+          : undefined,
+        alBuscar: () => {
+          entrada.alBuscar?.();
+          // La web pregunta por la fase mientras espera (/api/eos/resultado).
+          // Ya, no en after(): after() corre cuando la respuesta ya salió.
+          void Promise.resolve(
+            adminSinTipos()
+              .from("eos_respuestas_chat_v196")
+              .update({ cuerpo: { fase: "buscando_web" } })
+              .eq("request_id", payload.request_id)
+              .eq("usuario_id", usuarioId)
+              .eq("estado_http", 102),
+          ).catch(() => {});
+        },
       });
+
+      const costoBusqueda = Number(
+        (propio && propio.estado !== "delegar" ? (propio.cuerpo.metadata?.busqueda as { costo_usd?: unknown } | undefined)?.costo_usd : 0) ?? 0,
+      );
+      if (Number.isFinite(costoBusqueda) && costoBusqueda > 0) {
+        after(() => sumarCostoIA(usuarioId, costoBusqueda));
+      }
 
       if (propio?.estado === "respondido" || propio?.estado === "completado") {
         n8nResponse = Response.json(propio.cuerpo);

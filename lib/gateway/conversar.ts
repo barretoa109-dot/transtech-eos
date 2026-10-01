@@ -44,6 +44,7 @@ import { SIN_INTERPRETAR, SIN_RESPUESTA, prepararRespuesta, type RespuestaGatewa
 import { AccionNoPermitida, armarJobs } from "./jobs.ts";
 import { juntarResultados, type Final } from "./resultados.ts";
 import { configDelWorker, ejecutarJobs, workerEnProceso } from "./worker.ts";
+import { pidioBusqueda, resolverBusqueda, type DepsBusqueda } from "./con-busqueda.ts";
 import { ESFUERZO, MODELO, MODELO_PRINCIPAL, PROMPT_SISTEMA } from "./sistema.ts";
 
 /**
@@ -260,6 +261,10 @@ export async function conversar(
      */
     principal?: string | null;
     alFallarIA?: (motivo: string) => void;
+    /** Búsqueda web (lib/busqueda/servicio.ts). Sin ella, BUSCAR_WEB se contesta con "no pude buscar". */
+    buscar?: DepsBusqueda["buscar"];
+    /** Se llama justo antes de buscar (la web muestra el estado, WhatsApp manda un aviso). */
+    alBuscar?: () => void;
   } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
@@ -359,6 +364,20 @@ export async function conversar(
   cuerpo.metadata.modelo = modelo;
   cuerpo.metadata.modelo_ms = Date.now() - antesDelModelo;
   if (enrutado) cuerpo.metadata.enrutado = enrutado;
+
+  // Buscar en la web, si el modelo lo pidió: una vez, con el mismo modelo
+  // para la síntesis, y sin que la síntesis pueda mandar acciones.
+  if (pidioBusqueda(cuerpo)) {
+    const modeloSintesis = modelo;
+    await resolverBusqueda(cuerpo, contenido, {
+      buscar: opciones.buscar,
+      alBuscar: opciones.alBuscar,
+      sintetizar: async (extendido) => {
+        const llamada = await preguntarAlModelo(clave, modeloSintesis, extendido);
+        return llamada.ok ? prepararRespuesta(entrada, llamada.ai) : null;
+      },
+    });
+  }
 
   if (!cuerpo.requiere_worker) {
     return { estado: "respondido", cuerpo };

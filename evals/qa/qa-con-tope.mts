@@ -29,6 +29,7 @@ import { PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
 import { CAMBIOS } from "../../n8n/parches/cambios-lo-que-la-persona-decidio.mjs";
 import { CASOS_QA, type CasoQA } from "./casos.ts";
 import { CASOS_NATURALES } from "./natural.ts";
+import { CASOS_BUSQUEDA } from "./busqueda.ts";
 import { elegirModelo } from "../../lib/eos/enrutamiento-modelo.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
@@ -150,14 +151,15 @@ async function llamar(caso: CasoQA, modelo: string): Promise<Fila> {
 
   const cuerpo = prepararRespuesta(entrada, ai);
   const verbos = cuerpo.acciones.map((a) => String(a.tipo ?? "").toUpperCase()).filter(Boolean);
-  const { ok, motivo } = caso.evaluar(verbos, cuerpo.respuesta);
+  const { ok, motivo } = caso.evaluar(verbos, cuerpo.respuesta, cuerpo.acciones);
 
   return {
     caso,
     modelo,
     modeloRespuesta: String(ai?.model ?? "?"),
     verbos,
-    texto: cuerpo.respuesta,
+    texto: cuerpo.respuesta + cuerpo.acciones.filter((a) => a.tipo === "BUSCAR_WEB").map((a) => `
+[BUSCAR_WEB ${JSON.stringify(a.datos)}]`).join(""),
     entrada: tokensEntrada,
     cache: tokensCache,
     salida: tokensSalida,
@@ -168,7 +170,7 @@ async function llamar(caso: CasoQA, modelo: string): Promise<Fila> {
 }
 
 const TODOS =
-  conjunto === "natural" ? CASOS_NATURALES : conjunto === "todos" ? [...CASOS_QA, ...CASOS_NATURALES] : CASOS_QA;
+  conjunto === "natural" ? CASOS_NATURALES : conjunto === "busqueda" ? CASOS_BUSQUEDA : conjunto === "todos" ? [...CASOS_QA, ...CASOS_NATURALES, ...CASOS_BUSQUEDA] : CASOS_QA;
 const casos = TODOS.filter((c) => !ids || ids.includes(c.id));
 
 function modeloPara(caso: CasoQA): string {

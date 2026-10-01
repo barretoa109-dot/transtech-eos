@@ -133,7 +133,7 @@ export default function EOSPage() {
     eliminar,
   } = useConversations();
 
-  const { mensaje, setMensaje, cargando, archivosAdjuntos, setArchivosAdjuntos, cita, setCita, enviarMensaje, regenerarRespuesta } = useChat({
+  const { mensaje, setMensaje, cargando, fase, archivosAdjuntos, setArchivosAdjuntos, cita, setCita, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
     plan,
@@ -343,6 +343,7 @@ export default function EOSPage() {
             nombre={nombre}
             mensaje={mensaje}
             cargando={cargando}
+            fase={fase}
             archivosAdjuntos={archivosAdjuntos}
             cita={cita}
             onCitaChange={setCita}

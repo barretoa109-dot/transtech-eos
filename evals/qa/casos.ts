@@ -14,7 +14,7 @@ export type CasoQA = {
   mensaje: string;
   contexto: string;
   historial?: Turno[];
-  evaluar: (verbos: string[], texto: string) => { ok: boolean; motivo: string };
+  evaluar: (verbos: string[], texto: string, acciones?: { tipo: string; datos: Record<string, unknown> }[]) => { ok: boolean; motivo: string };
 };
 
 const PERSONAL: ContextoNegocio = {

@@ -82,6 +82,14 @@ export const ACCIONES_PERMITIDAS = new Set([
   "ENVIAR_WHATSAPP_CLIENTE",
 ]);
 
+/**
+ * Acciones que resuelve el gateway mismo y que NUNCA van al worker: no dejan
+ * nada escrito. Hoy, buscar en la web (lib/gateway/conversar.ts →
+ * lib/busqueda). Viven aparte de ACCIONES_PERMITIDAS a propósito: aquella es
+ * la lista de lo que el worker sabe ejecutar, y sus pruebas lo exigen.
+ */
+export const ACCIONES_DEL_GATEWAY = new Set(["BUSCAR_WEB"]);
+
 const ACCIONES_DE_ARCHIVO = new Set(["GENERAR_EXCEL", "GENERAR_PDF", "GENERAR_WORD"]);
 
 export type Accion = { tipo: string; datos: Record<string, unknown> };
@@ -292,7 +300,7 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
                 : {},
           };
         })
-        .filter((a) => ACCIONES_PERMITIDAS.has(a.tipo))
+        .filter((a) => ACCIONES_PERMITIDAS.has(a.tipo) || ACCIONES_DEL_GATEWAY.has(a.tipo))
     : [];
 
   const doc = resultado.documento;
