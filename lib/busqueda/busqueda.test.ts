@@ -166,7 +166,8 @@ test("1. precio en Paraguay: respuesta directa con fecha, ámbito y cada cifra c
     sintetizar: async () =>
       sintesis("La bolsa de 50 kg está entre ₲ 52.900 (promoción) [2] y ₲ 58.000 (precio publicado) [1]. Mi lectura: tu precio de ₲ 60.000 está apenas arriba del mercado."),
   });
-  assert.match(c.respuesta, /^🔎 Busqué en la web el 01\/10\/2026 · Paraguay\./);
+  assert.match(c.respuesta, /^🔎 Busqué en la web el 01\/10\/2026\.\n/);
+  assert.doesNotMatch(c.respuesta.split("\n")[0], /Paraguay/, "el encabezado no lleva el país");
   // Renumeradas por orden de aparición: la promoción (tienda) queda [1].
   assert.match(c.respuesta, /₲ 52\.900 \(promoción\) \[1\] y ₲ 58\.000 \(precio publicado\) \[2\]/);
   assert.match(c.respuesta, /Fuentes:\n\[1\] Cemento 50 kg — tienda\.com\.py\nhttps:\/\/tienda\.com\.py\/cemento-50\n\[2\] Cemento — Ferretería Uno/);
@@ -177,7 +178,8 @@ test("1. precio en Paraguay: respuesta directa con fecha, ámbito y cada cifra c
 
 test("2-3. tendencias y competidores: la síntesis recibe hallazgos, fuentes, fecha y las reglas", () => {
   const b = bloqueParaSintesis(inv(), PEDIDO.consulta);
-  assert.match(b, /Fecha: 01\/10\/2026\. Ámbito: Paraguay/);
+  assert.match(b, /Fecha: 01\/10\/2026\. Búsqueda en toda la web, con prioridad Paraguay/);
+  assert.match(b, /No aclares el país de la búsqueda/);
   assert.match(b, /\[1\] Cemento — Ferretería Uno — ferre\.com\.py/);
   assert.match(b, /Separá lo que dijo la persona/);
   assert.match(b, /Mi lectura:/);
@@ -185,9 +187,11 @@ test("2-3. tendencias y competidores: la síntesis recibe hallazgos, fuentes, fe
   assert.match(b, /no vuelvas a pedir BUSCAR_WEB/);
 });
 
-test("4. sin ubicación: el ámbito usado queda dicho en la respuesta", () => {
+test("4. sin ubicación: prioriza Paraguay sin ponerlo en el encabezado (la búsqueda es en toda la web)", () => {
   const r = respuestaConFuentes("Ronda los ₲ 58.000 [1].", inv());
-  assert.match(r, /· Paraguay\./);
+  assert.match(r, /^🔎 Busqué en la web el 01\/10\/2026\./);
+  assert.doesNotMatch(r.split("\n")[0], /Paraguay/);
+  assert.match(instruccionesDelInvestigador(PEDIDO), /con foco en Paraguay/);
 });
 
 test("5. fuentes contradictorias o viejas: los hallazgos las conservan y la síntesis lo tiene que decir", () => {

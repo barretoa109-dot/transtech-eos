@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { leerRespuestaConFuentes, partirCitas, respuestaParaWhatsapp } from "./fuentes-web.ts";
 
 const RESPUESTA = [
-  "🔎 Busqué en la web el 01/10/2026 · Paraguay.",
+  "🔎 Busqué en la web el 01/10/2026.",
   "",
   "Cerdo vivo: ₲7.000–7.500/kg [1] y ₲8.750/kg en frigoríficos [2].",
   "",
@@ -21,7 +21,7 @@ test("separa encabezado, cuerpo y fuentes", () => {
   const r = leerRespuestaConFuentes(RESPUESTA);
   assert.ok(r);
   assert.equal(r.fecha, "01/10/2026");
-  assert.equal(r.lugar, "Paraguay");
+  assert.equal(r.lugar, null);
   assert.equal(r.fuentes.length, 2);
   assert.deepEqual(r.fuentes[0], {
     n: 1,
@@ -32,9 +32,14 @@ test("separa encabezado, cuerpo y fuentes", () => {
   assert.doesNotMatch(r.cuerpo, /Busqué|Fuentes|https/);
 });
 
-test("lee también las respuestas viejas, con el país entre paréntesis", () => {
-  const vieja = RESPUESTA.replace("· Paraguay.", "(Paraguay).");
-  assert.equal(leerRespuestaConFuentes(vieja)?.lugar, "Paraguay");
+test("lee también las respuestas viejas, con el país; y por WhatsApp no lo muestra", () => {
+  for (const encabezado of ["🔎 Busqué en la web el 01/10/2026 · Paraguay.", "🔎 Busqué en la web el 01/10/2026 (Paraguay)."]) {
+    const vieja = RESPUESTA.replace("🔎 Busqué en la web el 01/10/2026.", encabezado);
+    const r = leerRespuestaConFuentes(vieja);
+    assert.equal(r?.fecha, "01/10/2026");
+    assert.doesNotMatch(r?.cuerpo ?? "", /Busqué/);
+    assert.doesNotMatch(respuestaParaWhatsapp(vieja).split("\n")[0], /Paraguay/);
+  }
 });
 
 test("un mensaje común no se toca", () => {
