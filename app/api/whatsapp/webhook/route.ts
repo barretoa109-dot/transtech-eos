@@ -9,6 +9,18 @@ import { enviarTexto, enviarTextoConId, enviarDocumento } from "@/lib/whatsapp/e
 import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { DOCUMENTO_GUARDADO, textoConEnlace } from "@/lib/whatsapp/texto-con-enlace";
+import {
+  LINEA_ENLACE_AUTONOMIA,
+  codigoDeAprobacion,
+  conInstruccionesDeWhatsapp,
+  leerRespuestaDeAprobacion,
+  textoDeAprobaciones,
+  textoDelResultado,
+  type AprobacionPendiente,
+  type RespuestaDeAprobacion,
+} from "@/lib/whatsapp/aprobacion";
+import { resolverAprobacion } from "@/lib/autonomia/resolver-aprobacion";
+import { registrarAuditoria } from "@/lib/auditoria/registrar";
 import { desarmarVideoDeWhatsapp } from "@/lib/whatsapp/video";
 import { idDeterministico } from "@/lib/whatsapp/id-determinista";
 import { HISTORIAL_MAXIMO, enOrdenDeTurno, historialDeLaSesion } from "@/lib/eos/historial";
@@ -684,6 +696,34 @@ async function atenderMensajeVinculado(
   }
 
   /*
+   * "SÍ 482913" / "NO 482913": la respuesta a una acción que quedó esperando
+   * aprobación. No pasa por el modelo ni consume cupo: es la misma decisión
+   * que el botón del panel. Ver `lib/whatsapp/aprobacion.ts`.
+   */
+  const pedidoDeAprobacion = lote.medios.length === 0 ? leerRespuestaDeAprobacion(lote.texto) : null;
+  if (pedidoDeAprobacion) {
+    const textoAprobacion = await atenderAprobacion(admin, usuarioId, pedidoDeAprobacion, lote.waIds);
+    if (textoAprobacion !== null) {
+      const { error: guardarAprobacionError } = await admin.from("mensajes").insert([
+        {
+          conversacion_id: conversacionId,
+          usuario_id: usuarioId,
+          rol: "usuario",
+          texto: lote.texto,
+          origen: "whatsapp",
+          metadata: lote.waIds.length > 0 ? { wa_ids: lote.waIds } : {},
+        },
+        { conversacion_id: conversacionId, usuario_id: usuarioId, rol: "eos", texto: textoAprobacion, origen: "whatsapp" },
+      ]);
+      if (guardarAprobacionError) {
+        console.error("WhatsApp: no se pudo guardar el historial de la aprobación:", guardarAprobacionError);
+      }
+      await enviarTexto(desde, textoAprobacion);
+      return;
+    }
+  }
+
+  /*
    * "Responder" sobre un mensaje anterior: Meta manda solo su id. Sin buscar
    * el texto, "Aquí está" le llega al modelo solo y EOS contesta "no me llegó
    * el dato" (Sofía, 29/09/2026). Va después del onboarding, que lee el texto
@@ -729,10 +769,16 @@ async function atenderMensajeVinculado(
   }
 
   const respuesta = resultado.body as Record<string, unknown>;
-  const respuestaTexto =
+  const respuestaDelMotor =
     typeof respuesta.respuesta === "string"
       ? respuesta.respuesta
       : "EOS tuvo un problema respondiendo tu mensaje. Probá nuevamente.";
+
+  // Si algo quedó esperando aprobación, por WhatsApp se aprueba acá mismo:
+  // el enlace a la web se cambia por el resumen y el código de cada acción.
+  const respuestaTexto = LINEA_ENLACE_AUTONOMIA.test(respuestaDelMotor)
+    ? conInstruccionesDeWhatsapp(respuestaDelMotor, await instruccionesDeAprobacion(admin, usuarioId))
+    : respuestaDelMotor;
 
   const archivoUrl = typeof respuesta.archivo_url === "string" ? respuesta.archivo_url : "";
   const archivoNombre = typeof respuesta.archivo_nombre === "string" ? respuesta.archivo_nombre : "";
@@ -842,4 +888,72 @@ async function mandarDocumentoGenerado(
   }
 
   return enviarDocumento(desde, renderizado.cuerpo, nombreSugerido || renderizado.nombre, renderizado.tipo);
+}
+
+/** Lo que espera aprobación de ESTA cuenta y todavía no venció. */
+async function pendientesDeAprobacion(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  estados: string[],
+): Promise<AprobacionPendiente[]> {
+  const { data, error } = await admin
+    .from("eos_action_approvals_v12")
+    .select("id,accion,payload_snapshot,expires_at")
+    .eq("usuario_id", usuarioId)
+    .in("status", estados)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    console.error("WhatsApp: no se pudieron leer las aprobaciones pendientes:", error);
+    return [];
+  }
+  return (data ?? []) as AprobacionPendiente[];
+}
+
+/** El texto con el resumen y el código de lo que espera aprobación ("" si no hay o no hay secreto). */
+async function instruccionesDeAprobacion(admin: ReturnType<typeof adminSinTipos>, usuarioId: string): Promise<string> {
+  const secreto = process.env.EOS_WORKER_GATE_SECRET;
+  if (!secreto) return "";
+  return textoDeAprobaciones(await pendientesDeAprobacion(admin, usuarioId, ["pending"]), secreto);
+}
+
+/**
+ * Resuelve "SÍ/NO + código". Devuelve el texto para contestar, o null si no
+ * se puede aprobar por acá (sin secreto): entonces el mensaje sigue al chat.
+ */
+async function atenderAprobacion(
+  admin: ReturnType<typeof adminSinTipos>,
+  usuarioId: string,
+  pedido: RespuestaDeAprobacion,
+  waIds: string[],
+): Promise<string | null> {
+  const secreto = process.env.EOS_WORKER_GATE_SECRET;
+  if (!secreto) return null;
+
+  // "approved" también: si un intento anterior autorizó pero no llegó a
+  // ejecutar, un segundo "SÍ" lo completa (el Worker Gate no ejecuta dos veces).
+  const candidatas = await pendientesDeAprobacion(admin, usuarioId, ["pending", "approved"]);
+  const elegida = candidatas.find((p) => codigoDeAprobacion(p.id, secreto) === pedido.codigo);
+
+  if (!elegida) {
+    return `No encontré nada esperando tu OK con el código ${pedido.codigo}. Puede que ya haya vencido o que ya esté resuelto.`;
+  }
+
+  const r = await resolverAprobacion(
+    {
+      usuarioId,
+      id: elegida.id,
+      decision: pedido.decision,
+      origen: "chat",
+      canal: "whatsapp",
+      detalle: { wa_ids: waIds },
+    },
+    { cliente: admin, auditar: (entrada) => registrarAuditoria(admin as never, entrada) },
+  );
+
+  if (r.tipo !== "ejecutada" && r.tipo !== "rechazada") {
+    console.error("WhatsApp: la aprobación no se completó:", r.tipo);
+  }
+  return textoDelResultado(r.tipo, elegida.accion);
 }
