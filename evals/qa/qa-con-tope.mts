@@ -28,6 +28,8 @@ import { prepararRespuesta } from "../../lib/gateway/respuesta.ts";
 import { PROMPT_SISTEMA } from "../../lib/gateway/sistema.ts";
 import { CAMBIOS } from "../../n8n/parches/cambios-lo-que-la-persona-decidio.mjs";
 import { CASOS_QA, type CasoQA } from "./casos.ts";
+import { CASOS_NATURALES } from "./natural.ts";
+import { elegirModelo } from "../../lib/eos/enrutamiento-modelo.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
 
@@ -52,15 +54,19 @@ const TOPE = Number(argumento("tope") ?? "1");
 const antes = process.argv.includes("--antes");
 const respaldo = argumento("respaldo");
 const ids = argumento("id")?.split(",") ?? null;
+/** Con --ruteo, cada caso va al modelo que le elegiría producción (gpt-6-sol o gpt-5.5). */
+const ruteo = process.argv.includes("--ruteo");
+const conjunto = argumento("conjunto") ?? "asesoria";
 
 /** USD por millón: entrada, entrada en caché, salida. Luna sale de la corrida del 30/09. */
 const TARIFAS: Record<string, { entrada: number; cache: number; salida: number }> = {
   "gpt-6-luna": { entrada: 0.1, cache: 0.01, salida: 0.5 },
   "gpt-6-sol": { entrada: 2, cache: 0.2, salida: 10 },
   "gpt-6.1-sol": { entrada: 2, cache: 0.2, salida: 10 },
+  "gpt-5.5": { entrada: 5, cache: 0.5, salida: 30 },
 };
 // Para estimar ANTES de llamar: el doble, por si la tarifa real es mayor.
-const MARGEN = 2;
+const MARGEN = Number(argumento("margen") ?? "2");
 
 const clave = process.env.OPENAI_API_KEY || leerEnv().OPENAI_API_KEY;
 if (!clave) throw new Error("Falta OPENAI_API_KEY.");
@@ -161,12 +167,19 @@ async function llamar(caso: CasoQA, modelo: string): Promise<Fila> {
   };
 }
 
-const casos = CASOS_QA.filter((c) => !ids || ids.includes(c.id));
+const TODOS =
+  conjunto === "natural" ? CASOS_NATURALES : conjunto === "todos" ? [...CASOS_QA, ...CASOS_NATURALES] : CASOS_QA;
+const casos = TODOS.filter((c) => !ids || ids.includes(c.id));
+
+function modeloPara(caso: CasoQA): string {
+  if (!ruteo) return MODELO_QA;
+  return elegirModelo({ mensaje: caso.mensaje, adjuntos: 0, conCita: false, historial: caso.historial ?? [] }).modelo;
+}
 const filas: Fila[] = [];
 
 for (const caso of casos) {
   try {
-    let fila = await llamar(caso, MODELO_QA);
+    let fila = await llamar(caso, modeloPara(caso));
     filas.push(fila);
     if (!fila.ok && caso.critico && respaldo) {
       fila = await llamar(caso, respaldo);
@@ -182,9 +195,9 @@ const linea = (f: Fila) =>
   `| ${f.caso.id} | \`${f.modelo}\` → \`${f.modeloRespuesta}\` | ${f.verbos.join(" + ") || "—"} | ${f.entrada} / ${f.cache} / ${f.salida} | ${f.usd.toFixed(5)} | ${f.ok ? "OK" : "FALLA: " + f.motivo} |`;
 
 const informe = [
-  `# QA con tope — ${antes ? "prompt ANTES de INC-19" : "prompt con INC-19"} (${new Date().toISOString().slice(0, 10)})`,
+  `# QA con tope — ${conjunto}${ruteo ? " · ruteo de producción" : ""}${antes ? " · prompt ANTES de INC-19" : ""} (${new Date().toISOString().slice(0, 10)})`,
   "",
-  `Modelo de QA \`${MODELO_QA}\`, razonamiento \`${ESFUERZO_QA}\`, \`max_output_tokens\` ${SALIDA_MAXIMA}, tope US$ ${TOPE}. Sin ejecutar acciones ni tocar la base.`,
+  `Modelo: ${ruteo ? "el de producción para cada caso (elegirModelo: gpt-6-sol o gpt-5.5)" : `\`${MODELO_QA}\``}, razonamiento \`${ESFUERZO_QA}\`, \`max_output_tokens\` ${SALIDA_MAXIMA}, tope US$ ${TOPE}. Sin ejecutar acciones ni tocar la base.`,
   "",
   "| Caso | Modelo pedido → respondido | Acciones | Tokens (entrada / caché / salida) | USD | Resultado |",
   "|---|---|---|---|---|---|",
@@ -197,7 +210,14 @@ const informe = [
   ...filas.flatMap((f) => [`### ${f.caso.id} (\`${f.modelo}\`)`, "", "> " + f.texto.replace(/\n/g, "\n> "), ""]),
 ].join("\n");
 
-const destino = path.join(RAIZ, "evals", "qa", "resultados", `${new Date().toISOString().slice(0, 10)}-${antes ? "antes" : "despues"}.md`);
+const sello = new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
+const destino = path.join(
+  RAIZ,
+  "evals",
+  "qa",
+  "resultados",
+  `${sello}-${conjunto}${ruteo ? "-ruteo" : ""}${antes ? "-antes" : ""}${ids ? "-parcial" : ""}.md`,
+);
 fs.mkdirSync(path.dirname(destino), { recursive: true });
 fs.writeFileSync(destino, informe);
 console.log(informe);

@@ -270,7 +270,7 @@ const FRASES_BASE: Frase[] = [
  * 188.000 guardado y, al lado, otra tarjeta llamada "Banco Basa". De ahí salió
  * el pago de 188.000 que nadie dijo y el "Green de Banco Basa".
  */
-const CONTEXTO_GREEN = JSON.stringify({
+export const CONTEXTO_GREEN = JSON.stringify({
   mes: "2026-09",
   personal: [{ gastos_mes: 1131264, ingresos_mes: 200000, moneda: "PYG", neto_mes: -931264 }],
   posicion: {
