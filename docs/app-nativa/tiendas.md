@@ -26,8 +26,8 @@ Eso tiene dos consecuencias que hay que tener presentes siempre:
 | Apple 4.2 | La app tiene que ser más que un sitio empaquetado. | **Pendiente**: notificaciones push nativas, “Compartir con EOS”, permisos nativos de micrófono y cámara. Ver “Qué falta”. |
 | Apple 4.8 | Si hay Google, también tiene que estar Sign in with Apple. | Los dos botones existen (`lib/auth/proveedores.ts`) y salen cuando el proveedor está configurado en Supabase. |
 | Google, OAuth | Google bloquea su inicio de sesión dentro de un WebView embebido (`disallowed_useragent`). | En la app, el inicio con Google o Apple se abre en el navegador del sistema y vuelve por `com.transtech.eos://auth/callback`. Ver “Inicio de sesión”. |
-| Apple 5.1.1(v) y Google | Se tiene que poder borrar la cuenta desde la app, y Google además pide una URL pública para pedirlo. | El endpoint existe (`app/api/cuenta/eliminar`). Falta verificar el recorrido desde la app y publicar la URL. |
-| Google, IA generativa | Una app con IA generativa tiene que dejar reportar una respuesta ofensiva sin salir de la app. | **Pendiente**. |
+| Apple 5.1.1(v) y Google | Se tiene que poder borrar la cuenta desde la app, y Google además pide una URL pública para pedirlo. | **Hecho**: "Eliminar cuenta" en Perfil (no está dentro de `SoloEnWeb`, se ve en la app) y la URL pública `https://www.transtech.com.py/eliminar-cuenta`. |
+| Google, IA generativa | Una app con IA generativa tiene que dejar reportar una respuesta ofensiva sin salir de la app. | **Hecho (01/10)**: botón "Reportar" en cada respuesta (`ReportarRespuesta.tsx` → `/api/eos/reportar` → `eos_reportes_respuesta_v230` + correo al dueño). |
 
 La opción de vender con la compra dentro de la app de cada tienda sigue abierta.
 Si se elige, `SoloEnWeb` y la regla del proxy son los únicos lugares que hay que
@@ -49,43 +49,37 @@ tocar.
 Mientras los plugins no estén instalados en la app, `puedeAbrirNavegadorDelSistema()`
 da `false` y el inicio sigue el camino web de siempre.
 
+## Estado al 1 de octubre de 2026
+
+Hecho desde el repo:
+
+- Íconos y pantalla de inicio de TransTech (emblema sobre azul noche
+  `#020817`) para Android e iOS, generados desde `assets/` con
+  `npx @capacitor/assets generate`. El ícono adaptativo de Android va sin
+  inset (el primer plano ya respeta la zona segura). El ícono de 1024 de iOS
+  no tiene transparencia, como pide App Store. **La fuente es de 512 px**: si
+  hay un logo en mayor resolución o vectorial, reemplazar `assets/*.png` y
+  volver a generar.
+- Plugins `@capacitor/app` y `@capacitor/browser` instalados y sincronizados.
+- Proyecto de iOS creado (`ios/`, Swift Package Manager, sin CocoaPods) con
+  `Info.plist`: esquema `com.transtech.eos`, textos de micrófono, cámara y
+  fotos, y `ITSAppUsesNonExemptEncryption = NO`.
+- Workflow `app-nativa` (GitHub Actions): compila Android (deja un APK de
+  prueba para instalar en un teléfono) e iOS para el simulador, sin firma.
+- Botón para reportar respuestas (política de IA de Google Play).
+
 ## Lo que tenés que hacer vos (no se puede desde una sesión de Code)
 
-1. **Instalar los dos plugins y sincronizar** (actualiza `package.json` y el lock):
-
-   ```bash
-   npm i @capacitor/app@^8 @capacitor/browser@^8
-   npx cap sync
-   ```
-
-   El código no los importa: los llama por nombre (`lib/app-nativa/cliente.ts`).
-   Hacen falta para que existan del lado nativo.
-
-2. **Permitir la vuelta a la app en Supabase.** Authentication → URL
+1. **Permitir la vuelta a la app en Supabase.** Authentication → URL
    Configuration → Redirect URLs: agregar `com.transtech.eos://auth/callback`.
-   Sin esto, Supabase rechaza el `redirectTo` de la app.
-
-3. **Crear el proyecto de iOS.** Necesita una Mac con Xcode (o un servicio de
-   compilación en la nube):
-
-   ```bash
-   npx cap add ios
-   npx cap sync ios
-   ```
-
-   Después, en `ios/App/App/Info.plist`:
-
-   - `CFBundleURLTypes` con el esquema `com.transtech.eos`, para volver del inicio de sesión.
-   - `NSMicrophoneUsageDescription`: “Para que le hables a EOS con audios.”
-   - `NSCameraUsageDescription`: “Para mandarle a EOS la foto de un comprobante o de tu lista de precios.”
-   - `NSPhotoLibraryUsageDescription`: “Para elegir fotos de comprobantes y mandárselas a EOS.”
-   - `ITSAppUsesNonExemptEncryption` = `NO` (solo usa HTTPS).
-
-4. **Compilar Android de nuevo** con `npx cap sync android` para que tome la
-   marca del user agent, la pantalla sin conexión y el filtro del enlace de
-   vuelta (`AndroidManifest.xml`).
-
-5. **Probar en teléfonos reales** (ver “Cómo probar”).
+   Sin esto, Supabase rechaza el `redirectTo` de la app (inicio con Google y Apple).
+2. **Cuentas de las tiendas**: Apple Developer (organización, con el D-U-N-S)
+   y Google Play Console (organización).
+3. **Firma**: en Apple, el equipo y el perfil de distribución en Xcode (o en un
+   servicio de compilación en la nube); en Google, la clave de subida
+   (`upload keystore`) y Play App Signing.
+4. **Probar en teléfonos reales** (ver “Cómo probar”). El APK de prueba de
+   Android sale del workflow `app-nativa` (artefacto `eos-android-debug`).
 
 ## Cómo probar en un teléfono
 
@@ -101,10 +95,8 @@ da `false` y el inicio sigue el camino web de siempre.
 
 1. Notificaciones push nativas (APNs y FCM), pedidas después del primer momento de valor.
 2. “Compartir con EOS” desde otras apps (un comprobante o una foto).
-3. Botón para reportar una respuesta de EOS (política de IA de Google Play).
-4. Recorrido de borrado de cuenta dentro de la app y URL pública de borrado.
-5. Enlaces universales y de app para los correos (verificación, resumen del lunes).
-6. Ícono, pantalla de inicio y barra de estado en los dos temas.
+3. Enlaces universales y de app para los correos (verificación, resumen del lunes).
+4. Barra de estado en los dos temas (el ícono y la pantalla de inicio ya están).
 
 ## Regla para lo que se despliega sin pasar por la tienda
 

@@ -19,6 +19,7 @@ import { textoSinReferenciaDeFotos } from "@/lib/eos/fotos-chat";
 import { formatoDuracion } from "@/lib/eos/videos";
 import { leerRespuestaConFuentes, sitioDe } from "@/lib/eos/fuentes-web";
 import RespuestaWeb from "./RespuestaWeb";
+import ReportarRespuesta from "./ReportarRespuesta";
 import type { ImagenDelMensaje } from "../types/chat";
 
 type MessageBubbleProps = {
@@ -541,6 +542,8 @@ export default function MessageBubble({
                 </span>
               </button>
             ) : null}
+
+            <ReportarRespuesta mensajeId={mensajeId} texto={texto} />
           </div>
         ) : null}
       </div>

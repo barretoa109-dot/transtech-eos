@@ -6938,3 +6938,125 @@
   background: currentColor;
   opacity: 0.65;
 }
+
+/* ---------------------------------------------------------------
+   Reportar una respuesta (política de IA de Google Play, 01/10/2026).
+   Ver app/eos/components/ReportarRespuesta.tsx.
+   --------------------------------------------------------------- */
+/* Más específico que el styled-jsx de la burbuja (que empata y gana por orden). */
+.eos-app .message-row .message-actions {
+  flex-wrap: wrap;
+}
+.eos-app .reportar-boton {
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.eos-app .reportar-boton:hover,
+.eos-app .reportar-boton:focus-visible,
+.eos-app .reportar-boton[aria-expanded="true"] {
+  border-color: var(--line);
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.eos-app .reportar-gracias {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.eos-app .reportar-panel {
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-sizing: border-box;
+}
+.eos-app .reportar-titulo {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.eos-app .reportar-motivos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.eos-app .reportar-motivo {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.eos-app .reportar-motivo-elegido {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-weight: 700;
+}
+.eos-app .reportar-comentario {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.eos-app .reportar-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--red);
+}
+.eos-app .reportar-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.eos-app .reportar-cancelar,
+.eos-app .reportar-enviar {
+  padding: 7px 12px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.eos-app .reportar-cancelar {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.eos-app .reportar-enviar {
+  border: 1px solid var(--blue);
+  background: var(--blue);
+  color: var(--panel);
+}
+.eos-app .reportar-enviar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
