@@ -3,31 +3,34 @@
  *
  * Una acción queda esperando aprobación cuando la persona configuró que la
  * quiere aprobar, o cuando el día ya pasó el presupuesto de acciones
- * automáticas (40 acciones o 240 puntos de riesgo: un comercio que anota
- * muchas ventas por WhatsApp llega). Hasta hoy la única salida era abrir
- * /eos/autonomy en la web. Desde WhatsApp eso no se hacía, y la aprobación
- * vencía: en agosto-septiembre vencieron 8 de 9 sin que nadie las aprobara.
+ * automáticas (40 acciones o 240 puntos de riesgo). Antes la única salida era
+ * abrir /eos/autonomy en la web; en ago-sep vencieron 8 de 9 sin decidir.
  *
  * ============================================================
- * POR QUÉ ES SEGURO
+ * CÓMO SE APRUEBA: "sí" o "no", sin códigos
  * ============================================================
  *
- * - IDENTIDAD: solo llega acá un mensaje de un número VINCULADO y verificado a
- *   la cuenta, con la firma de Meta comprobada por el webhook. La aprobación
- *   se busca con el `usuario_id` de ese vínculo: nadie aprueba lo de otro.
- * - QUÉ SE APRUEBA: cada aprobación tiene su código de 6 dígitos, derivado de
- *   su id con HMAC y un secreto del servidor. "Sí" suelto no aprueba nada: la
- *   persona tiene que contestar "SÍ" con el código de ESA acción, que va junto
- *   a su resumen. No hace falta guardarlo: se recalcula.
+ * Decisión del dueño (01/10/2026): pedir un código por acción sobra, porque el
+ * número ya está vinculado. Ahora:
+ *   - una acción esperando: "sí" (o "dale", "ok", "listo") la hace; "no" la descarta;
+ *   - varias: van numeradas; "sí" hace todas, "sí 2" solo la segunda, "no" descarta todas.
+ *
+ * ============================================================
+ * POR QUÉ SIGUE SIENDO SEGURO
+ * ============================================================
+ *
+ * - IDENTIDAD: solo llega acá un mensaje de un número VINCULADO, con la firma
+ *   de Meta comprobada; la aprobación se busca con el usuario de ese vínculo.
+ * - CONTEXTO: un "sí" suelto cuenta como aprobación SOLO si lo último que EOS
+ *   le mandó fue el pedido de OK (lleva `MARCA_PEDIDO_OK`). Si EOS había
+ *   preguntado otra cosa ("¿querés que lo anote?"), ese "sí" responde a eso y
+ *   va al chat: nunca aprueba algo por accidente.
  * - UNA SOLA VEZ: la decisión y la ejecución son las del panel
- *   (`lib/autonomia/resolver-aprobacion.ts`): `pending → approved` una vez, y
- *   el Worker Gate consume la aprobación de forma atómica. Un reenvío de Meta
- *   ni siquiera llega (índice único por `wa_id`).
- * - AUDITORÍA: queda "accion_autorizada" / "accion_rechazada" con canal
- *   whatsapp y el `wa_id` del mensaje.
+ *   (`lib/autonomia/resolver-aprobacion.ts`): `pending → approved` una vez y
+ *   el Worker Gate consume la aprobación de forma atómica.
+ * - AUDITORÍA: "accion_autorizada" / "accion_rechazada" con canal whatsapp.
  * - VENCIMIENTO: el mismo de la aprobación (60 min por defecto).
  */
-import { createHmac } from "node:crypto";
 
 export type AprobacionPendiente = {
   id: string;
@@ -36,18 +39,22 @@ export type AprobacionPendiente = {
   expires_at: string;
 };
 
-/** El código de 6 dígitos de una aprobación. Sin secreto no hay código. */
-export function codigoDeAprobacion(id: string, secreto: string): string {
-  const hmac = createHmac("sha256", `eos-aprobacion-whatsapp:${secreto}`).update(id).digest();
-  return String(hmac.readUInt32BE(0) % 1_000_000).padStart(6, "0");
-}
+/** Lo que identifica al mensaje que pide el OK (el "sí" siguiente se lee como aprobación). */
+export const MARCA_PEDIDO_OK = "esperando tu OK";
 
-export type RespuestaDeAprobacion = { decision: "approved" | "rejected"; codigo: string };
+export type RespuestaDeAprobacion = {
+  decision: "approved" | "rejected";
+  /** "sí 2": solo la segunda de la lista. Sin número: todas. */
+  numero: number | null;
+};
+
+const SI = "si|dale|ok|okey|okay|listo|aprobado|apruebo|aprobar|confirmo|confirmado|hacelo|de una|va|claro";
+const NO = "no|cancela|cancelar|descarta|descartar|rechazo|rechazar|no gracias|mejor no";
 
 /**
- * "SÍ 482913", "si 482913", "Sí, 482913", "NO 482913", "aprobar 482913".
- * Tiene que ser el mensaje entero: dentro de una frase más larga ("sí, y
- * además vendí 3…") no es una aprobación y va al chat como siempre.
+ * "sí", "Sí!", "dale", "sí a todo", "sí 2", "no", "no 1". Tiene que ser el
+ * mensaje entero: dentro de una frase más larga ("sí, y además vendí 3…") no
+ * es una aprobación y va al chat como siempre.
  */
 export function leerRespuestaDeAprobacion(texto: string): RespuestaDeAprobacion | null {
   const limpio = texto
@@ -55,11 +62,16 @@ export function leerRespuestaDeAprobacion(texto: string): RespuestaDeAprobacion 
     .replace(/[̀-ͯ]/g, "")
     .trim()
     .toLowerCase()
-    .replace(/[.!¡]+$/g, "");
-  const m = limpio.match(/^(si|sí|aprobar|apruebo|ok|no|rechazar|rechazo)[\s,:-]+(\d{6})$/);
+    .replace(/[.!¡,]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const m = limpio.match(new RegExp(`^(${SI}|${NO})(?: (?:a )?(todo|todas|todos)| ([0-9]{1,6}))?$`));
   if (!m) return null;
-  const decision = /^(no|rechazar|rechazo)$/.test(m[1]) ? "rejected" : "approved";
-  return { decision, codigo: m[2] };
+  const decision = new RegExp(`^(${NO})$`).test(m[1]) ? "rejected" : "approved";
+  // Un número de 3 o más cifras es un código de antes (respuestas a avisos
+  // viejos): vale como "sí"/"no" sin número.
+  const numero = m[3] && m[3].length <= 2 ? Number(m[3]) : null;
+  return { decision, numero };
 }
 
 const NOMBRES: Record<string, string> = {
@@ -126,23 +138,27 @@ export function resumenDeAccion(accion: string, payload: unknown): string {
 }
 
 /** El mensaje de WhatsApp con lo que espera aprobación y cómo aprobarlo. */
-export function textoDeAprobaciones(pendientes: AprobacionPendiente[], secreto: string, ahora = Date.now()): string {
-  const vigentes = pendientes.filter((p) => new Date(p.expires_at).getTime() > ahora);
+export function textoDeAprobaciones(pendientes: AprobacionPendiente[], ahora = Date.now()): string {
+  const vigentes = pendientes.filter((p) => new Date(p.expires_at).getTime() > ahora).slice(0, 5);
   if (vigentes.length === 0) return "";
 
-  const lineas = vigentes.slice(0, 5).map((p) => {
-    const codigo = codigoDeAprobacion(p.id, secreto);
-    const minutos = Math.max(1, Math.round((new Date(p.expires_at).getTime() - ahora) / 60_000));
-    return `• ${resumenDeAccion(p.accion, p.payload_snapshot)}\n  Para hacerlo respondé *SÍ ${codigo}* · para descartarlo, *NO ${codigo}* (vence en ${minutos} min)`;
-  });
+  const minutos = Math.max(1, Math.round((Math.min(...vigentes.map((p) => new Date(p.expires_at).getTime())) - ahora) / 60_000));
 
-  const encabezado =
-    vigentes.length === 1
-      ? "Esto quedó esperando tu OK antes de hacerlo:"
-      : `Estas ${vigentes.length} cosas quedaron esperando tu OK antes de hacerlas:`;
-  const resto = vigentes.length > 5 ? `\n\nHay ${vigentes.length - 5} más en la app, en Autonomía.` : "";
+  if (vigentes.length === 1) {
+    const p = vigentes[0];
+    return `Esto quedó ${MARCA_PEDIDO_OK} antes de hacerlo:
 
-  return `${encabezado}\n\n${lineas.join("\n\n")}${resto}`;
+• ${resumenDeAccion(p.accion, p.payload_snapshot)}
+
+Respondé *sí* para hacerlo o *no* para descartarlo (vence en ${minutos} min).`;
+  }
+
+  const lista = vigentes.map((p, i) => `${i + 1}. ${resumenDeAccion(p.accion, p.payload_snapshot)}`).join("\n");
+  return `Estas ${vigentes.length} cosas quedaron ${MARCA_PEDIDO_OK} antes de hacerlas:
+
+${lista}
+
+Respondé *sí* para hacer todo, *sí 2* para hacer solo una, o *no* para descartar todo (vence en ${minutos} min).`;
 }
 
 /** La línea del enlace web a /eos/autonomy, que por WhatsApp se reemplaza. */
@@ -176,4 +192,24 @@ export function textoDelResultado(tipo: string, accion: string): string {
     default:
       return "No pude registrar tu respuesta. Probá de nuevo en un momento o aprobalo desde la app, en Autonomía.";
   }
+}
+
+/** Cuando se resolvieron varias: una línea por acción con lo que pasó de verdad. */
+export function textoDeVariosResultados(items: { tipo: string; resumen: string }[]): string {
+  const estado = (tipo: string) =>
+    tipo === "ejecutada"
+      ? "hecho"
+      : tipo === "rechazada"
+        ? "descartado"
+        : tipo === "vencida"
+          ? "venció, no se hizo"
+          : tipo === "ya_resuelta"
+            ? "ya estaba resuelto"
+            : "no se pudo completar, no está registrado";
+  return items.map((i) => `• ${i.resumen}: ${estado(i.tipo)}`).join("\n");
+}
+
+/** ¿Lo último que EOS le mandó fue el pedido de OK? Solo entonces un "sí" suelto aprueba. */
+export function esRespuestaAlPedidoDeOk(ultimoMensajeDeEOS: string | null | undefined): boolean {
+  return typeof ultimoMensajeDeEOS === "string" && ultimoMensajeDeEOS.includes(MARCA_PEDIDO_OK);
 }

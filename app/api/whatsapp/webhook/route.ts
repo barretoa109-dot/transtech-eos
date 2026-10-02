@@ -12,7 +12,9 @@ import { DOCUMENTO_GUARDADO, textoConEnlace } from "@/lib/whatsapp/texto-con-enl
 import { respuestaParaWhatsapp } from "@/lib/eos/fuentes-web";
 import {
   LINEA_ENLACE_AUTONOMIA,
-  codigoDeAprobacion,
+  esRespuestaAlPedidoDeOk,
+  resumenDeAccion,
+  textoDeVariosResultados,
   conInstruccionesDeWhatsapp,
   leerRespuestaDeAprobacion,
   textoDeAprobaciones,
@@ -697,13 +699,14 @@ async function atenderMensajeVinculado(
   }
 
   /*
-   * "SÍ 482913" / "NO 482913": la respuesta a una acción que quedó esperando
-   * aprobación. No pasa por el modelo ni consume cupo: es la misma decisión
-   * que el botón del panel. Ver `lib/whatsapp/aprobacion.ts`.
+   * "sí" / "no" (o "sí 2"): la respuesta a lo que quedó esperando aprobación,
+   * solo si lo último que EOS mandó fue ese pedido. No pasa por el modelo ni
+   * consume cupo: es la misma decisión que el botón del panel. Ver
+   * `lib/whatsapp/aprobacion.ts`.
    */
   const pedidoDeAprobacion = lote.medios.length === 0 ? leerRespuestaDeAprobacion(lote.texto) : null;
   if (pedidoDeAprobacion) {
-    const textoAprobacion = await atenderAprobacion(admin, usuarioId, pedidoDeAprobacion, lote.waIds);
+    const textoAprobacion = await atenderAprobacion(admin, usuarioId, conversacionId, pedidoDeAprobacion, lote.waIds);
     if (textoAprobacion !== null) {
       const { error: guardarAprobacionError } = await admin.from("mensajes").insert([
         {
@@ -919,49 +922,62 @@ async function pendientesDeAprobacion(
   return (data ?? []) as AprobacionPendiente[];
 }
 
-/** El texto con el resumen y el código de lo que espera aprobación ("" si no hay o no hay secreto). */
+/** El texto con lo que espera aprobación y cómo aprobarlo ("" si no hay, o si no se puede ejecutar). */
 async function instruccionesDeAprobacion(admin: ReturnType<typeof adminSinTipos>, usuarioId: string): Promise<string> {
-  const secreto = process.env.EOS_WORKER_GATE_SECRET;
-  if (!secreto) return "";
-  return textoDeAprobaciones(await pendientesDeAprobacion(admin, usuarioId, ["pending"]), secreto);
+  if (!process.env.EOS_WORKER_GATE_SECRET) return "";
+  return textoDeAprobaciones(await pendientesDeAprobacion(admin, usuarioId, ["pending"]));
 }
 
 /**
- * Resuelve "SÍ/NO + código". Devuelve el texto para contestar, o null si no
- * se puede aprobar por acá (sin secreto): entonces el mensaje sigue al chat.
+ * Resuelve "sí" / "no" / "sí 2". Devuelve el texto para contestar, o null si
+ * el mensaje no es la respuesta a un pedido de OK (va al chat como siempre).
  */
 async function atenderAprobacion(
   admin: ReturnType<typeof adminSinTipos>,
   usuarioId: string,
+  conversacionId: string,
   pedido: RespuestaDeAprobacion,
   waIds: string[],
 ): Promise<string | null> {
-  const secreto = process.env.EOS_WORKER_GATE_SECRET;
-  if (!secreto) return null;
+  if (!process.env.EOS_WORKER_GATE_SECRET) return null;
 
-  // "approved" también: si un intento anterior autorizó pero no llegó a
-  // ejecutar, un segundo "SÍ" lo completa (el Worker Gate no ejecuta dos veces).
-  const candidatas = await pendientesDeAprobacion(admin, usuarioId, ["pending", "approved"]);
-  const elegida = candidatas.find((p) => codigoDeAprobacion(p.id, secreto) === pedido.codigo);
+  // Contexto: el "sí" solo aprueba si lo último que EOS mandó fue el pedido de OK.
+  const { data: ultimo } = await admin
+    .from("mensajes")
+    .select("texto")
+    .eq("conversacion_id", conversacionId)
+    .eq("usuario_id", usuarioId)
+    .eq("rol", "eos")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!esRespuestaAlPedidoDeOk((ultimo as { texto?: string } | null)?.texto)) return null;
 
-  if (!elegida) {
-    return `No encontré nada esperando tu OK con el código ${pedido.codigo}. Puede que ya haya vencido o que ya esté resuelto.`;
+  // La misma lista y el mismo orden que el aviso (pendientes, la más nueva primero).
+  // Si ya no queda ninguna pendiente, las aprobadas que no llegaron a ejecutarse:
+  // un segundo "sí" las completa (el Worker Gate no ejecuta dos veces).
+  let candidatas = (await pendientesDeAprobacion(admin, usuarioId, ["pending"])).slice(0, 5);
+  if (candidatas.length === 0) candidatas = (await pendientesDeAprobacion(admin, usuarioId, ["approved"])).slice(0, 5);
+  if (candidatas.length === 0) {
+    return "Ya no queda nada esperando tu OK: puede que haya vencido o que ya esté resuelto.";
   }
 
-  const r = await resolverAprobacion(
-    {
-      usuarioId,
-      id: elegida.id,
-      decision: pedido.decision,
-      origen: "chat",
-      canal: "whatsapp",
-      detalle: { wa_ids: waIds },
-    },
-    { cliente: admin, auditar: (entrada) => registrarAuditoria(admin as never, entrada) },
-  );
-
-  if (r.tipo !== "ejecutada" && r.tipo !== "rechazada") {
-    console.error("WhatsApp: la aprobación no se completó:", r.tipo);
+  let elegidas = candidatas;
+  if (pedido.numero !== null) {
+    const una = candidatas[pedido.numero - 1];
+    if (!una) return `No hay una acción ${pedido.numero} en la lista. Respondé *sí* para hacer todo o *sí 1* a *sí ${candidatas.length}*.`;
+    elegidas = [una];
   }
-  return textoDelResultado(r.tipo, elegida.accion);
+
+  const resultados: { tipo: string; accion: string; resumen: string }[] = [];
+  for (const elegida of elegidas) {
+    const r = await resolverAprobacion(
+      { usuarioId, id: elegida.id, decision: pedido.decision, origen: "chat", canal: "whatsapp", detalle: { wa_ids: waIds } },
+      { cliente: admin, auditar: (entrada) => registrarAuditoria(admin as never, entrada) },
+    );
+    if (r.tipo !== "ejecutada" && r.tipo !== "rechazada") console.error("WhatsApp: la aprobación no se completó:", r.tipo);
+    resultados.push({ tipo: r.tipo, accion: elegida.accion, resumen: resumenDeAccion(elegida.accion, elegida.payload_snapshot) });
+  }
+
+  return resultados.length === 1 ? textoDelResultado(resultados[0].tipo, resultados[0].accion) : textoDeVariosResultados(resultados);
 }
