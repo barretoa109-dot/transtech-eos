@@ -125,7 +125,7 @@ export async function GET() {
         .order("fecha", { ascending: true }),
       supabase
         .from("eos_finanzas_fijos")
-        .select("tipo,descripcion,monto,moneda,dia_del_mes")
+        .select("tipo,descripcion,monto,moneda,dia_del_mes,pagado_hasta")
         .eq("usuario_id", user.id)
         .eq("ambito", "personal")
         .eq("activo", true),
@@ -212,12 +212,14 @@ export async function GET() {
       monto: number | string;
       moneda: string | null;
       dia_del_mes: number;
+      pagado_hasta?: string | null;
     }[]
   ).map((f) => ({
     tipo: (f.tipo === "ingreso" ? "ingreso" : "gasto") as Fijo["tipo"],
     descripcion: f.descripcion,
     monto: num(f.monto),
     dia_del_mes: f.dia_del_mes,
+    pagado_hasta: (f.pagado_hasta as string | null | undefined) ?? null,
     moneda: codigoMoneda(f.moneda, principal),
   }));
 

@@ -117,7 +117,7 @@ export async function avisarRiesgos(
           .eq("usuario_id", uid),
         admin
           .from("eos_finanzas_fijos")
-          .select("tipo,descripcion,monto,moneda,dia_del_mes")
+          .select("tipo,descripcion,monto,moneda,dia_del_mes,pagado_hasta")
           .eq("usuario_id", uid)
           .eq("ambito", "personal")
           .eq("activo", true),
@@ -181,6 +181,7 @@ export async function avisarRiesgos(
           descripcion: f.descripcion as string,
           monto: num(f.monto),
           dia_del_mes: f.dia_del_mes as number,
+          pagado_hasta: (f.pagado_hasta as string | null | undefined) ?? null,
         })),
         deudas: (deLaPrincipal(deudas.data ?? []) as unknown as Deuda[]).map((d) => ({
           ...d,

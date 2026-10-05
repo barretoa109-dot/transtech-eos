@@ -6,6 +6,8 @@ import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { ivaIncluido, tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
+import { BUCKET_FOTOS_PRODUCTO, SEGUNDOS_ENLACE_FOTO_PRODUCTO, categoriaLimpia } from "@/lib/erp/fotos-producto";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 const COLUMNAS =
   "id,codigo,nombre,descripcion,unidad,precio_venta,costo,moneda,iva," +
-  "controla_stock,stock_actual,stock_minimo,activo,creado_en";
+  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,foto_ruta";
 
 const MAX_FILAS = 500;
 
@@ -70,7 +72,7 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ productos }, { headers: noStore() });
+  return NextResponse.json({ productos: await conFotos(productos) }, { headers: noStore() });
 }
 
 export async function POST(request: Request) {
@@ -162,6 +164,33 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ producto: data }, { status: 201, headers: noStore() });
+}
+
+/**
+ * Un enlace firmado por foto, en una sola llamada para todo el catálogo.
+ *
+ * Si Storage no contesta, el catálogo se muestra igual, sin fotos: una foto
+ * que no carga no puede dejar a la tienda sin su lista de precios.
+ */
+async function conFotos<T extends Record<string, unknown>>(productos: T[]): Promise<(T & { foto_url: string | null })[]> {
+  const rutas = productos.map((p) => p.foto_ruta).filter((r): r is string => typeof r === "string" && r.length > 0);
+  const firmadas = new Map<string, string>();
+
+  if (rutas.length > 0) {
+    const { data, error } = await createAdminClient()
+      .storage.from(BUCKET_FOTOS_PRODUCTO)
+      .createSignedUrls(rutas, SEGUNDOS_ENLACE_FOTO_PRODUCTO);
+
+    if (error) console.error("ERP: no se pudieron firmar las fotos del catálogo:", error);
+    for (const fila of data ?? []) {
+      if (fila.path && fila.signedUrl) firmadas.set(fila.path, fila.signedUrl);
+    }
+  }
+
+  return productos.map((p) => ({
+    ...p,
+    foto_url: typeof p.foto_ruta === "string" ? firmadas.get(p.foto_ruta) ?? null : null,
+  }));
 }
 
 function noStore() {

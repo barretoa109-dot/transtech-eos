@@ -200,7 +200,7 @@ async function armarPulso(): Promise<
         .eq("usuario_id", usuarioId),
       supabase
         .from("eos_finanzas_fijos")
-        .select("tipo,descripcion,monto,dia_del_mes")
+        .select("tipo,descripcion,monto,dia_del_mes,pagado_hasta")
         .eq("ambito", "personal")
         .eq("usuario_id", usuarioId)
         .eq("activo", true),
@@ -255,6 +255,7 @@ async function armarPulso(): Promise<
       descripcion: f.descripcion as string,
       monto: num(f.monto),
       dia_del_mes: f.dia_del_mes as number,
+      pagado_hasta: (f.pagado_hasta as string | null | undefined) ?? null,
     })),
     deudas,
     obligacionesTarjeta: lectura.obligaciones,
