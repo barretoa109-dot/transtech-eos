@@ -57,7 +57,7 @@ import {
 } from "@/lib/eos/acciones-chat";
 import { leerEvidencia, verificarAcciones } from "@/lib/eos/verificacion";
 import { limpiarSeleccion } from "@/lib/eos/cita";
-import { HISTORIAL_MAXIMO, MAX_TEXTO_HISTORIAL, historialDeLaSesion } from "@/lib/eos/historial";
+import { HISTORIAL_MAXIMO, MAX_TEXTO_HISTORIAL, historialDeLaSesion, marcaDeAntiguedad } from "@/lib/eos/historial";
 import { transcribirAudio } from "@/lib/eos/transcribir-audio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
@@ -303,8 +303,8 @@ function normalizarHistorial(valor: unknown) {
   });
 
   return historialDeLaSesion(conFecha)
-    .map(({ item }) => item)
-    .map((item): { rol: "usuario" | "eos"; texto: string } | null => {
+    .map((fila): { rol: "usuario" | "eos"; texto: string } | null => {
+      const { item } = fila;
       if (!item || typeof item !== "object") {
         return null;
       }
@@ -334,7 +334,12 @@ function normalizarHistorial(valor: unknown) {
 
       // Lo técnico que alguna vez se coló en una respuesta tampoco vuelve a
       // entrar como contexto.
-      return { rol, texto: rol === "eos" ? limpiarRespuestaVisible(texto, "").texto || texto : texto };
+      const limpio = rol === "eos" ? limpiarRespuestaVisible(texto, "").texto || texto : texto;
+
+      // Lo que no es de esta sesión llega marcado: una pregunta de hace días
+      // no es la que está pendiente (`marcaDeAntiguedad`).
+      const marca = marcaDeAntiguedad(fila.created_at);
+      return { rol, texto: marca ? `${marca} ${limpio}` : limpio };
     })
     .filter(
       (item): item is { rol: "usuario" | "eos"; texto: string } =>

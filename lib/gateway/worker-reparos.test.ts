@@ -139,7 +139,9 @@ test("el reintento del MISMO mensaje no se frena acá: eso lo resuelve el gate",
 
 test("un costo o un contacto no se frenan: repetirlos no duplica nada", async () => {
   const { ejecutar, llamadas } = workerFalso();
-  await ejecutarJobs([job("ACTUALIZAR_PRODUCTO", { productos: [{ nombre: "x", costo: 1 }] })], null, ejecutar, {
+  // Con el pedido en el mensaje: sin él, el cambio de catálogo no va (catalogo-pedido.ts).
+  const costo = { ...job("ACTUALIZAR_PRODUCTO", { productos: [{ nombre: "x", costo: 1 }] }), mensaje: "el x me cuesta 1" };
+  await ejecutarJobs([costo], null, ejecutar, {
     anotadas: async () => [anotadaHace(1, { productos: [{ nombre: "x", costo: 1 }] })],
     ahora: () => AHORA,
   });

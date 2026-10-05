@@ -81,6 +81,32 @@ export function enOrdenDeTurno<T extends FilaHistorial>(filas: T[]): T[] {
 }
 
 /**
+ * La marca de un mensaje que NO es de esta sesión de trabajo, o "" si lo es.
+ *
+ * Los últimos diez entran siempre, sean de cuando sean. Eso está bien —la
+ * charla de ayer sirve—, pero el modelo no sabía que eran de ayer. El 01/10/2026
+ * EOS le preguntó a Sofía "¿A cuánto lo cobraste?" por un chaleco; como esa
+ * pregunta no había quedado guardada, lo último que el modelo veía de sí mismo
+ * era del 29/09: "decime el costo base de la gorra". Ella contestó "155.000gs"
+ * y EOS lo tomó como la respuesta a ESA pregunta, de tres días antes, y le
+ * cambió el costo a la gorra. Con la marca, una pregunta vieja se lee como
+ * vieja y la que está pendiente es la de ahora.
+ */
+export function marcaDeAntiguedad(created_at: string | null | undefined, ahora = Date.now()): string {
+  const t = fechaDeFila(created_at);
+  if (!Number.isFinite(t)) return "";
+
+  const pasado = ahora - t;
+  if (pasado <= SESION_MS) return "";
+
+  const horas = Math.floor(pasado / 3_600_000);
+  if (horas < 24) return `[de hace ${horas} horas]`;
+
+  const dias = Math.floor(horas / 24);
+  return `[de hace ${dias} ${dias === 1 ? "día" : "días"}]`;
+}
+
+/**
  * Lo que ve el modelo: filas en orden cronológico (de la más vieja a la más
  * nueva). Sin fechas —el historial que manda la web— no hay forma de saber
  * qué es de esta sesión, y entran las últimas `HISTORIAL_MAXIMO`.
