@@ -38,8 +38,15 @@ test("citar un mensaje propio se dice como propio, no como de EOS", () => {
 
 test("una cita que no está guardada se avisa: el modelo pide el dato en vez de decir que no llegó", () => {
   const mensaje = mensajeConCitaDeWhatsapp("Aquí está", "no-encontrado");
-  assert.match(mensaje, /no tengo guardado/);
+  assert.match(mensaje, /no encontré guardado/);
   assert.match(mensaje, /Aquí está$/);
+});
+
+test("cita no encontrada (01/10/2026): primero la conversación, pedir que repita es lo último", () => {
+  const mensaje = mensajeConCitaDeWhatsapp("Registra la venta de esto", "no-encontrado");
+  assert.match(mensaje, /conversación reciente/);
+  assert.match(mensaje, /sin pedirle que lo repita/);
+  assert.match(mensaje, /solo el dato que falta/);
 });
 
 test("sin cita, el mensaje queda exactamente igual", () => {

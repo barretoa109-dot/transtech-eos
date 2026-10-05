@@ -7,6 +7,7 @@ import { renderizarDocumento } from "@/lib/documentos/renderizar";
 import { firmaWhatsappValida } from "@/lib/whatsapp/firma";
 import { enviarTexto, enviarTextoConId, enviarDocumento } from "@/lib/whatsapp/enviar";
 import { mensajeConCitaDeWhatsapp, type Citado } from "@/lib/whatsapp/cita";
+import { guardarTurno } from "@/lib/whatsapp/turno";
 import { descargarMedia } from "@/lib/whatsapp/media";
 import { DOCUMENTO_GUARDADO, textoConEnlace } from "@/lib/whatsapp/texto-con-enlace";
 import { respuestaParaWhatsapp } from "@/lib/eos/fuentes-web";
@@ -708,20 +709,14 @@ async function atenderMensajeVinculado(
   if (pedidoDeAprobacion) {
     const textoAprobacion = await atenderAprobacion(admin, usuarioId, conversacionId, pedidoDeAprobacion, lote.waIds);
     if (textoAprobacion !== null) {
-      const { error: guardarAprobacionError } = await admin.from("mensajes").insert([
-        {
-          conversacion_id: conversacionId,
-          usuario_id: usuarioId,
-          rol: "usuario",
-          texto: lote.texto,
-          origen: "whatsapp",
-          metadata: lote.waIds.length > 0 ? { wa_ids: lote.waIds } : {},
-        },
-        { conversacion_id: conversacionId, usuario_id: usuarioId, rol: "eos", texto: textoAprobacion, origen: "whatsapp" },
-      ]);
-      if (guardarAprobacionError) {
-        console.error("WhatsApp: no se pudo guardar el historial de la aprobación:", guardarAprobacionError);
-      }
+      // Mismas columnas en las dos filas: ver `lib/whatsapp/turno.ts`.
+      await guardarTurno(admin, {
+        conversacionId,
+        usuarioId,
+        textoUsuario: lote.texto,
+        textoEos: textoAprobacion,
+        waIds: lote.waIds,
+      });
       await enviarTexto(desde, textoAprobacion);
       return;
     }
@@ -748,9 +743,11 @@ async function atenderMensajeVinculado(
     .order("created_at", { ascending: false })
     .limit(HISTORIAL_MAXIMO);
 
+  // Con la fecha: lo que es de otro día llega marcado como tal, para que una
+  // pregunta de hace tres días no se lea como la que está pendiente ahora.
   const historial = historialDeLaSesion(
     enOrdenDeTurno((historialFilas ?? []) as Array<{ rol: string; texto: string; created_at: string }>),
-  ).map(({ rol, texto }) => ({ rol, texto }));
+  ).map(({ rol, texto, created_at }) => ({ rol, texto, created_at }));
 
   const resultado = await procesarMensajeEOS(usuarioId, {
     mensaje: mensajeTexto,
@@ -802,44 +799,29 @@ async function atenderMensajeVinculado(
   const textoParaHistorial = textoConEnlace(respuestaTexto, archivoUrl);
   const textoParaWhatsapp = respuestaParaWhatsapp(textoParaHistorial);
 
-  const { data: guardadas, error: guardarError } = await admin
-    .from("mensajes")
-    .insert([
-      {
-        conversacion_id: conversacionId,
-        usuario_id: usuarioId,
-        rol: "usuario",
-        texto: mensajeTexto || "[adjunto]",
-        origen: "whatsapp",
-        // Los ids de WhatsApp de este pedido: si después lo citan, se encuentra.
-        metadata: lote.waIds.length > 0 ? { wa_ids: lote.waIds } : {},
-      },
-      {
-        conversacion_id: conversacionId,
-        usuario_id: usuarioId,
-        rol: "eos",
-        texto: textoParaHistorial,
-        origen: "whatsapp",
-      },
-    ])
-    .select("id, rol");
-
-  if (guardarError) {
-    // No es motivo para no contestar: perder la fila de historial es peor
-    // solo si además no se manda la respuesta.
-    console.error("WhatsApp: no se pudo guardar el historial de la conversación:", guardarError);
-  }
+  /*
+   * Lo que dijo la persona (con los ids de WhatsApp, para encontrarlo si lo
+   * cita) y lo que contestó EOS. Las dos filas con las mismas columnas: del
+   * 29/09 al 05/10/2026 este insert fallaba entero y EOS conversaba sin
+   * historial. No es motivo para no contestar. Ver `lib/whatsapp/turno.ts`.
+   */
+  const guardado = await guardarTurno(admin, {
+    conversacionId,
+    usuarioId,
+    textoUsuario: mensajeTexto,
+    textoEos: textoParaHistorial,
+    waIds: lote.waIds,
+  });
 
   const enviado = await enviarTextoConId(desde, textoParaWhatsapp);
 
   // El id que Meta le puso a la respuesta recién se sabe al mandarla. Es lo
   // único que llega cuando la persona la cita con "Responder".
-  const filaEos = ((guardadas ?? []) as Array<{ id: string; rol: string }>).find((f) => f.rol === "eos");
-  if (enviado.waId && filaEos) {
+  if (enviado.waId && guardado.idEos) {
     const { error: idError } = await admin
       .from("mensajes")
       .update({ metadata: { wa_ids: [enviado.waId] } })
-      .eq("id", filaEos.id)
+      .eq("id", guardado.idEos)
       .eq("usuario_id", usuarioId);
     if (idError) console.error("WhatsApp: no se pudo anotar el id de la respuesta:", idError);
   }

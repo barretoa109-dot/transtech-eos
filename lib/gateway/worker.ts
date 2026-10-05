@@ -43,6 +43,7 @@ import { ejecutarEnProceso } from "./ejecutar.ts";
 import type { Job } from "./jobs.ts";
 import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { ResultadoWorker } from "./resultados.ts";
+import { avisoDeCatalogoSinPedido, nombresDeProductos, pideCambiarProducto } from "./catalogo-pedido.ts";
 
 /** El mismo que usa n8n en el nodo 07. */
 export const TIMEOUT_WORKER_MS = 120_000;
@@ -285,6 +286,11 @@ export function avisoDeRepetido(minutos: number): string {
  *     intentó corregir una venta anulándola y registrándola de nuevo; la
  *     anulación no encontró la venta y la nueva se registró igual: quedó
  *     duplicada, con el stock en −2. Sin anulación, el reemplazo no va.
+ *
+ * Y una del 01/10/2026: un cambio de catálogo que nadie pidió. "155.000gs"
+ * contestando "¿a cuánto lo cobraste?" terminó en el costo de otro producto.
+ * Un ACTUALIZAR_PRODUCTO sin pedido en el turno no va; se dice que no se tocó.
+ * Ver `catalogo-pedido.ts`.
  */
 export async function ejecutarJobs(
   jobs: Job[],
@@ -310,6 +316,17 @@ export async function ejecutarJobs(
     }
 
     const datos = (job.accion.datos ?? {}) as Record<string, unknown>;
+
+    if (tipo === "ACTUALIZAR_PRODUCTO" && !pideCambiarProducto(job.mensaje, job.historial)) {
+      resultados.push({
+        ok: false,
+        accion: tipo,
+        codigo: "EOS_ACCION_CATALOGO_SIN_PEDIDO",
+        respuesta: avisoDeCatalogoSinPedido(nombresDeProductos(datos)),
+      });
+      continue;
+    }
+
     if (DUPLICABLES.has(tipo) && datos.repetir !== true) {
       const clave = claveDeRepeticion(tipo, datos);
       const desde = new Date(ahora() - VENTANA_REPETIDO_MS).toISOString();

@@ -41,8 +41,12 @@ export function mensajeConCitaDeWhatsapp(mensaje: string, citado: Citado): strin
 
   if (citado === "no-encontrado") {
     // Que el modelo sepa que hubo una cita que no ve: sin esto, pide un dato
-    // que la persona cree haber mostrado ("no me llegó el dato").
-    return `(Responde a un mensaje anterior que no tengo guardado. Si hace falta un dato de ese mensaje, pedile que lo escriba.)\n\n${mensaje}`.trim();
+    // que la persona cree haber mostrado ("no me llegó el dato"). Pero que
+    // primero mire la conversación: el 01/10/2026 Sofía citó "Costo final del
+    // zapato marrón mocha…" con "Registra la venta de esto" y EOS contestó "No
+    // tengo el mensaje al que respondés. ¿Qué producto vendiste?" — con el
+    // zapato en lo último que habían hablado. Pedir que repita es lo último.
+    return `(Responde a un mensaje anterior que no encontré guardado. Si por la conversación reciente queda claro de qué habla, seguí con eso sin pedirle que lo repita. Si no, pedile solo el dato que falta de ese mensaje y decí lo que ya entendiste.)\n\n${mensaje}`.trim();
   }
 
   const texto = limpiarSeleccion(citado.texto);

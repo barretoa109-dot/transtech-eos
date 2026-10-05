@@ -30,6 +30,7 @@ import { CAMBIOS } from "../../n8n/parches/cambios-lo-que-la-persona-decidio.mjs
 import { CASOS_QA, type CasoQA } from "./casos.ts";
 import { CASOS_NATURALES } from "./natural.ts";
 import { CASOS_BUSQUEDA } from "./busqueda.ts";
+import { CASOS_CITAS } from "./venta-citada.ts";
 import { elegirModelo } from "../../lib/eos/enrutamiento-modelo.ts";
 
 const RAIZ = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
@@ -170,7 +171,7 @@ async function llamar(caso: CasoQA, modelo: string): Promise<Fila> {
 }
 
 const TODOS =
-  conjunto === "natural" ? CASOS_NATURALES : conjunto === "busqueda" ? CASOS_BUSQUEDA : conjunto === "todos" ? [...CASOS_QA, ...CASOS_NATURALES, ...CASOS_BUSQUEDA] : CASOS_QA;
+  conjunto === "natural" ? CASOS_NATURALES : conjunto === "busqueda" ? CASOS_BUSQUEDA : conjunto === "citas" ? CASOS_CITAS : conjunto === "todos" ? [...CASOS_QA, ...CASOS_NATURALES, ...CASOS_BUSQUEDA, ...CASOS_CITAS] : CASOS_QA;
 const casos = TODOS.filter((c) => !ids || ids.includes(c.id));
 
 function modeloPara(caso: CasoQA): string {
