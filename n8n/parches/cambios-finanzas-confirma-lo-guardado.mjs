@@ -68,6 +68,8 @@ export const CAMBIOS = [
   },
   {
     donde: "movimiento personal: uno igual a uno que ya está",
+    // El parche de categoría del chat (2026-10-06) reescribe esta misma frase.
+    luego: "Nunca le pidas que categorice.",
     viejo: "  al usuario que categorice es justo el trabajo que este producto le\n  saca.\n",
     nuevo: [
       "  al usuario que categorice es justo el trabajo que este producto le",
