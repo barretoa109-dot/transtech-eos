@@ -1,6 +1,7 @@
 import type { EnviarCorreo } from "../finanzas/avisarRiesgos.ts";
 import { hoyEnParaguay, sumarDias } from "../fecha.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
+import { avisarNativo } from "../push/nativo.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import type { EventoAgenda } from "./agenda.ts";
 import { agendaPropia } from "./fuentes.ts";
@@ -134,6 +135,8 @@ type Entregar = (
 
 /** Push si tiene dispositivo; si no, correo. Devuelve por dónde salió, o null si no pudo salir. */
 export const entregarAvisoAgenda: Entregar = async (admin, usuarioId, aviso, enviarCorreo) => {
+  let llegoAlgunPush = false;
+
   if (pushConfigurado()) {
     const { data } = await admin
       .from("eos_push_suscripciones")
@@ -160,9 +163,19 @@ export const entregarAvisoAgenda: Entregar = async (admin, usuarioId, aviso, env
           .in("id", resultado.muertas);
       }
 
-      if (resultado.enviados > 0) return "push";
+      if (resultado.enviados > 0) llegoAlgunPush = true;
     }
   }
+
+  // El teléfono Android con la app nativa. Sin FCM configurado no hace nada.
+  const nativo = await avisarNativo(admin, usuarioId, {
+    titulo: aviso.titulo,
+    cuerpo: resumirParaPush(aviso.texto, 160),
+    url: "/eos/chat?vista=calendario",
+  });
+  if (nativo.enviados > 0) llegoAlgunPush = true;
+
+  if (llegoAlgunPush) return "push";
 
   if (!enviarCorreo) return null;
 
