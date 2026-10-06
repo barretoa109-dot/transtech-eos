@@ -6,6 +6,7 @@ import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
+import { categoriaLimpia } from "@/lib/erp/fotos-producto";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export const dynamic = "force-dynamic";
 
 const COLUMNAS =
   "id,codigo,nombre,descripcion,unidad,precio_venta,costo,moneda,iva," +
-  "controla_stock,stock_actual,stock_minimo,activo,creado_en";
+  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,foto_ruta";
 
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
   const puerta = await exigirModulo("erp");
@@ -103,6 +104,8 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   if (cuerpo.descripcion !== undefined) {
     cambios.descripcion = String(cuerpo.descripcion ?? "").trim().slice(0, 2000) || null;
   }
+
+  if (cuerpo.categoria !== undefined) cambios.categoria = categoriaLimpia(cuerpo.categoria);
 
   if (cuerpo.unidad !== undefined) {
     cambios.unidad = String(cuerpo.unidad ?? "").trim().slice(0, 20) || "unidad";

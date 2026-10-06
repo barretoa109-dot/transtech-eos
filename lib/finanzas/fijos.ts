@@ -1,4 +1,5 @@
 import { normalizarDescripcion, type SerieRecurrente } from "./recurrencia.ts";
+import { proximoVencimientoSinPagar } from "./estado-fijo.ts";
 
 /**
  * Ingresos y gastos fijos declarados por el usuario.
@@ -24,6 +25,8 @@ export type Fijo = {
   monto: number;
   /** Día del mes en que ocurre. 1-31; se ajusta si el mes es más corto. */
   dia_del_mes: number;
+  /** Primer día del último mes con el pago registrado (v232). */
+  pagado_hasta?: string | null;
 };
 
 /** Confianza de lo declarado.
@@ -68,7 +71,7 @@ export function proximaFechaDelMes(dia: number, desde: string): string {
 /** Convierte una declaración en una serie que el proyector entiende. */
 function comoSerie(fijo: Fijo, hoy: string): SerieRecurrente {
   const nombre = normalizarDescripcion(fijo.descripcion);
-  const proxima = proximaFechaDelMes(fijo.dia_del_mes, hoy);
+  const proxima = proximoVencimientoSinPagar({ dia_del_mes: fijo.dia_del_mes, pagado_hasta: fijo.pagado_hasta, hoy });
 
   return {
     clave: `declarado::${fijo.tipo}::${nombre}`,

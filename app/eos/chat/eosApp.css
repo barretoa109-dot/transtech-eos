@@ -7060,3 +7060,727 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ============================================================
+   ESPACIOS: PERSONAL Y NEGOCIO (05/10/2026)
+   ============================================================
+
+   El selector de espacio va debajo de la marca, con el mismo lenguaje de los
+   renglones del lateral. Todo sale de los tokens de `eosApp.css`: se ve igual
+   de bien de día y de noche sin una regla aparte.
+   */
+
+.eos-app .espacio-selector {
+  position: relative;
+  margin: 0 0 8px;
+}
+.eos-app .espacio-boton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.eos-app .espacio-boton:hover,
+.eos-app .espacio-boton[aria-expanded="true"] {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-light);
+}
+.eos-app .espacio-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--blue-light);
+  color: var(--blue);
+  flex-shrink: 0;
+}
+.eos-app .espacio-ic.is-chico {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.eos-app .espacio-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+.eos-app .espacio-txt b {
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eos-app .espacio-txt span {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eos-app .espacio-chev {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.eos-app .espacio-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px var(--sombra), 0 2px 8px var(--sombra);
+}
+.eos-app .espacio-grupo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 10px 4px;
+  letter-spacing: 0.2px;
+}
+.eos-app .espacio-opcion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.eos-app .espacio-opcion:hover,
+.eos-app .espacio-opcion:focus-visible {
+  background: var(--line-soft);
+  outline: none;
+}
+.eos-app .espacio-opcion.is-activa {
+  background: var(--blue-light);
+}
+.eos-app .espacio-opcion.is-activa b {
+  color: var(--blue-dark);
+}
+.eos-app .espacio-check {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+.eos-app .espacio-pie {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 8px 10px 6px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.eos-app .espacio-pie svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 13px;
+  height: 13px;
+}
+.eos-sidebar.collapsed .espacio-txt,
+.eos-sidebar.collapsed .espacio-chev {
+  display: none;
+}
+.eos-sidebar.collapsed .espacio-boton {
+  justify-content: center;
+  padding: 6px;
+}
+.eos-sidebar.collapsed .espacio-menu {
+  right: auto;
+  width: 250px;
+}
+
+/* El menú del espacio vive adentro del área que se desplaza, junto con las
+   conversaciones: con once entradas, en una pantalla baja la lista de chats
+   quedaba en un renglón. */
+.eos-app .side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 2px;
+}
+.eos-app .side-aviso {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red-light);
+  color: var(--red);
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 17px;
+  text-align: center;
+}
+.eos-app .side-nota {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.eos-sidebar.collapsed .side-aviso,
+.eos-sidebar.collapsed .side-nota {
+  display: none;
+}
+
+/* El espacio activo en la barra de arriba: solo en el teléfono, al lado del
+   botón de menú (que es fijo y ocupa 42 px desde el borde). */
+.eos-app .topbar-espacio {
+  display: none;
+}
+@media (max-width: 860px) {
+  .eos-app .topbar-espacio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: calc(100% - 150px);
+    height: 42px;
+    margin: 0 auto 0 52px;
+    padding: 4px 10px 4px 5px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .eos-app .topbar-espacio .espacio-txt b {
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .eos-app .topbar-espacio .espacio-txt span {
+    font-size: 11px;
+  }
+}
+
+/* La línea que dice qué hay en la pestaña abierta. */
+.eos-app .sec-sub-linea {
+  display: block;
+  margin: 2px 0 14px;
+}
+
+/* Una pantalla completa mostrada adentro de otra (Dashboard en Números,
+   Decisiones y Aprendizajes en una sola sección): sin su propio scroll, sin
+   su margen y sin su encabezado, que ya lo pone la pantalla que la contiene. */
+.eos-app .incrustado > .view {
+  overflow: visible;
+  flex: none;
+  min-height: 0;
+}
+.eos-app .incrustado > .view > .page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.eos-app .incrustado > .view > .page > .page-header,
+.eos-app .incrustado > .view > .page > div > .page-header {
+  display: none;
+}
+
+/* ---------- Fijos y recurrentes ---------- */
+.eos-app .fijos-leyenda {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.eos-app .fijos-leyenda > div {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--linea-azul);
+  border-radius: 14px;
+  background: var(--panel-suave);
+}
+.eos-app .fijos-leyenda b {
+  display: block;
+  font-size: 13px;
+}
+.eos-app .fijos-leyenda small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.eos-app .fijos-leyenda .neg-pill {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.eos-app .fijos-aviso {
+  display: block;
+  margin: 0 0 12px;
+}
+.eos-app .fijos-totales {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+.eos-app .fijos-card {
+  margin-bottom: 14px;
+}
+.eos-app .fijo-cab,
+.eos-app .fijo-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.3fr) 96px auto;
+  gap: 12px;
+  align-items: center;
+}
+.eos-app .fijo-cab {
+  padding: 8px 0;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.eos-app .fijo-fila {
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.eos-app .fijo-concepto {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.eos-app .fijo-concepto b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.eos-app .fijo-concepto small,
+.eos-app .fijo-monto small,
+.eos-app .fijo-vence small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.eos-app .fijo-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.eos-app .fijo-monto span {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.eos-app .fijo-monto span.is-ingreso {
+  color: var(--green-texto);
+}
+.eos-app .fijo-vence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.eos-app .fijo-historial {
+  display: flex;
+  gap: 5px;
+}
+.eos-app .fijo-historial span {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.eos-app .fijo-punto {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+}
+.eos-app .fijo-punto.is-pagado {
+  background: var(--green);
+  border-color: var(--green);
+}
+.eos-app .fijo-punto.is-vencido {
+  border-color: var(--red);
+  background: var(--red-light);
+}
+.eos-app .fijo-punto.is-pendiente {
+  border-style: dashed;
+  border-color: var(--amber);
+}
+.eos-app .fijo-accion {
+  justify-self: end;
+}
+.eos-app .fijo-pagar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--bg-sidebar);
+}
+.eos-app .fijo-pagar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .fijo-pagar .neg-input {
+  width: 160px;
+}
+.eos-app .fijos-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.eos-app .fijos-editor-fila {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 2fr) minmax(0, 1fr) 64px 32px;
+  gap: 6px;
+  align-items: center;
+}
+.eos-app .mas-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.eos-app .mas-btn:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+.eos-app .fijos-nota {
+  margin-top: 4px;
+}
+
+/* ---------- Catálogo: buscar, filtrar y fotos ---------- */
+.eos-app .cat-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.eos-app .cat-buscar {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.eos-app .cat-buscar:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-light);
+}
+.eos-app .cat-buscar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  padding: 9px 0;
+  font: inherit;
+  font-size: 13px;
+}
+.eos-app .cat-select {
+  flex: 0 1 auto;
+  width: auto;
+}
+.eos-app .prod-principal {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.eos-app .prod-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.eos-app .prod-foto {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-sidebar);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: zoom-in;
+}
+.eos-app .prod-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.eos-app .prod-foto.is-vacia {
+  border-style: dashed;
+  cursor: default;
+}
+.eos-app .prod-categoria {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.eos-app .prod-foto-capa {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: rgba(7, 18, 38, 0.55);
+}
+.eos-app .prod-foto-grande {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 18px 48px var(--sombra);
+}
+.eos-app .prod-foto-grande-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.eos-app .prod-foto-grande-cab b {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.eos-app .prod-foto-grande img {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+}
+.eos-app .prod-foto-grande small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .prod-foto-editor {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+}
+.eos-app .prod-foto-muestra {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.eos-app .prod-foto-muestra.is-vacia {
+  border-style: dashed;
+}
+.eos-app .prod-foto-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.eos-app .prod-foto-titulo {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.eos-app .prod-foto-ayuda {
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .prod-foto-subir {
+  position: relative;
+  cursor: pointer;
+}
+.eos-app .prod-foto-subir.is-ocupado {
+  opacity: 0.6;
+  cursor: wait;
+}
+.eos-app .prod-foto-subir input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ---------- Ajustes del negocio ---------- */
+.eos-app .funciones-lista {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+.eos-app .funcion-fila {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.eos-app .funcion-fila:first-child {
+  border-top: 0;
+}
+.eos-app .funcion-fila > div {
+  flex: 1;
+  min-width: 0;
+}
+.eos-app .funcion-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.eos-app .funcion-detalle {
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .interruptor {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.eos-app .interruptor::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 1px 3px var(--sombra);
+  transition: left 0.15s;
+}
+.eos-app .interruptor.is-on {
+  background: var(--blue-solido);
+}
+.eos-app .interruptor.is-on::after {
+  left: 19px;
+}
+.eos-app .interruptor:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Teléfono ---------- */
+@media (max-width: 760px) {
+  .eos-app .fijos-leyenda,
+  .eos-app .fijos-totales {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .eos-app .fijo-cab {
+    display: none;
+  }
+  .eos-app .fijo-fila {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "concepto monto"
+      "vence vence"
+      "historial accion"
+      "pagar pagar";
+    row-gap: 8px;
+  }
+  .eos-app .fijo-concepto { grid-area: concepto; }
+  .eos-app .fijo-monto { grid-area: monto; text-align: right; }
+  .eos-app .fijo-vence { grid-area: vence; }
+  .eos-app .fijo-historial { grid-area: historial; }
+  .eos-app .fijo-accion { grid-area: accion; }
+  .eos-app .fijo-pagar { grid-area: pagar; }
+  .eos-app .fijos-editor-fila {
+    grid-template-columns: 90px minmax(0, 1fr) 32px;
+    grid-template-areas:
+      "tipo nombre quitar"
+      "monto monto dia";
+  }
+  .eos-app .fijos-editor-fila > :nth-child(1) { grid-area: tipo; }
+  .eos-app .fijos-editor-fila > :nth-child(2) { grid-area: nombre; }
+  .eos-app .fijos-editor-fila > :nth-child(3) { grid-area: monto; }
+  .eos-app .fijos-editor-fila > :nth-child(4) { grid-area: dia; width: 64px; }
+  .eos-app .fijos-editor-fila > :nth-child(5) { grid-area: quitar; }
+  .eos-app .cat-select {
+    flex: 1 1 140px;
+  }
+}
+.eos-app .fijo-pagar .neg-input {
+  flex: none;
+}
+.eos-app .fijo-vence .neg-pill,
+.eos-app .fijos-leyenda .neg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.eos-app .fijo-vence .neg-pill svg,
+.eos-app .fijos-leyenda .neg-pill svg {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+/* En el teléfono, el espacio activo le gana el lugar a "Sistema activo". */
+@media (max-width: 560px) {
+  .eos-app .topbar .status {
+    display: none;
+  }
+  .eos-app .topbar-espacio {
+    max-width: calc(100% - 140px);
+  }
+}

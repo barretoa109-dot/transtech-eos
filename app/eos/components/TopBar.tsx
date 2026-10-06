@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LifeBuoy, Moon, Sparkles, Sun } from "lucide-react";
+import { ChevronsUpDown, LifeBuoy, Moon, Sparkles, Store, Sun, User } from "lucide-react";
 
 import Soporte from "./Soporte";
 import type { ControlTema } from "./useTema";
@@ -19,7 +19,15 @@ import type { ControlTema } from "./useTema";
  * la tiene. Ofrecerla explícitamente en la barra costaría un desplegable para
  * un caso que casi nadie busca.
  */
-export default function TopBar({ tema, pantalla }: { tema?: ControlTema; pantalla?: string }) {
+type TopBarProps = {
+  tema?: ControlTema;
+  pantalla?: string;
+  /** El espacio activo. En el teléfono se muestra al lado del botón de menú. */
+  espacio?: { nombre: string; tipo: "personal" | "negocio" };
+  onAbrirEspacios?: () => void;
+};
+
+export default function TopBar({ tema, pantalla, espacio, onAbrirEspacios }: TopBarProps) {
   /*
    * Pedir ayuda desde cualquier pantalla (24/09/2026, antes del piloto).
    *
@@ -41,6 +49,29 @@ export default function TopBar({ tema, pantalla }: { tema?: ControlTema; pantall
 
   return (
     <div className="topbar">
+      {/*
+        El espacio activo, en el teléfono (05/10/2026). En la computadora ya
+        está a la vista en el lateral; en el teléfono el lateral está cerrado,
+        y sin esto no habría forma de saber si lo que se mira es de la persona
+        o del negocio. Tocarlo abre el menú con el selector desplegado.
+      */}
+      {espacio && onAbrirEspacios ? (
+        <button
+          type="button"
+          className="topbar-espacio"
+          onClick={onAbrirEspacios}
+          aria-label={`Cambiar de espacio. Estás en ${espacio.nombre}`}
+        >
+          <span className="espacio-ic is-chico">
+            {espacio.tipo === "personal" ? <User size={15} /> : <Store size={15} />}
+          </span>
+          <span className="espacio-txt">
+            <b>{espacio.nombre}</b>
+            <span>{espacio.tipo === "personal" ? "Personal" : "Negocio"}</span>
+          </span>
+          <ChevronsUpDown size={14} />
+        </button>
+      ) : null}
       <div className="status">
         <span className="dot-wrap">
           <span className="dot" />

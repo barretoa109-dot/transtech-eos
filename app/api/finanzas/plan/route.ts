@@ -59,7 +59,7 @@ export async function GET() {
         .eq("usuario_id", user.id),
       supabase
         .from("eos_finanzas_fijos")
-        .select("tipo,descripcion,monto,dia_del_mes")
+        .select("tipo,descripcion,monto,dia_del_mes,pagado_hasta")
         .eq("usuario_id", user.id)
         .eq("ambito", "personal")
         .eq("activo", true),
@@ -119,6 +119,7 @@ export async function GET() {
       descripcion: f.descripcion as string,
       monto: num(f.monto),
       dia_del_mes: f.dia_del_mes as number,
+      pagado_hasta: (f.pagado_hasta as string | null | undefined) ?? null,
     })),
   };
 

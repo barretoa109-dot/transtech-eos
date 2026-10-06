@@ -25,9 +25,9 @@ import { numeroEscrito } from "@/lib/finanzas/gastoRapido";
 import FinanzasPanel from "./FinanzasPanel";
 import FinanzasPulso, { FinanzasPuedoComprar } from "./FinanzasPulso";
 import FinanzasSetup from "./FinanzasSetup";
-import FinanzasFijos from "./FinanzasFijos";
 import FinanzasBuzon from "./FinanzasBuzon";
-import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
+import { SubNav, seccionDe, type Seccion } from "./SeccionNav";
+import { useEtiquetaEspacio } from "./EspacioContext";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasPresupuesto from "./FinanzasPresupuesto";
@@ -142,9 +142,9 @@ const VENTANAS = [
  * detrás de una pestaña la haría desaparecer. Queda arriba, siempre visible,
  * junto con el panel de "¿estoy bien?".
  */
-type SeccionPersonal = "hoy" | "mes" | "viene" | "tengo" | "metas" | "ajustes";
+export type SeccionPersonal = "hoy" | "mes" | "viene" | "tengo" | "metas" | "informes" | "ajustes";
 
-type Subarea =
+export type Subarea =
   | "estoy"
   | "comprar"
   | "presupuesto"
@@ -160,7 +160,6 @@ type Subarea =
   | "fondo"
   | "objetivos"
   | "base"
-  | "fijos"
   | "buzon";
 
 const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
@@ -169,7 +168,6 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
     etiqueta: "Hoy",
     subs: [
       { clave: "estoy", etiqueta: "¿Cómo estoy?", detalle: "Tu número, qué cambió y por qué" },
-      { clave: "comprar", etiqueta: "¿Puedo comprarlo?", detalle: "Probá una compra antes de hacerla" },
     ],
   },
   {
@@ -179,7 +177,6 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
       { clave: "presupuesto", etiqueta: "Cuánto me queda", detalle: "Lo que tenés para el día a día y cómo venís" },
       { clave: "fue", etiqueta: "En qué se fue", detalle: "A dónde va tu plata" },
       { clave: "movimientos", etiqueta: "Movimientos", detalle: "Todo lo anotado, para revisar o corregir" },
-      { clave: "balance", etiqueta: "Llevate tu balance", detalle: "Tus movimientos en PDF, Excel o Word" },
     ],
   },
   {
@@ -209,12 +206,19 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
     ],
   },
   {
+    clave: "informes",
+    etiqueta: "Informes",
+    subs: [
+      { clave: "balance", etiqueta: "Llevate tu balance", detalle: "Tus movimientos en PDF, Excel o Word" },
+      { clave: "comprar", etiqueta: "¿Puedo comprarlo?", detalle: "Probá una compra antes de hacerla" },
+    ],
+  },
+  {
     clave: "ajustes",
     etiqueta: "Ajustes",
     ajuste: true,
     subs: [
       { clave: "base", etiqueta: "Mis datos base", detalle: "Lo que EOS te preguntó una sola vez" },
-      { clave: "fijos", etiqueta: "Ingresos y gastos fijos", detalle: "Sueldo, alquiler y lo que se repite" },
       { clave: "buzon", etiqueta: "Avisos del banco", detalle: "Reenviá los correos del banco y EOS anota solo" },
     ],
   },
@@ -229,6 +233,20 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
  * pantalla vacía se lee como algo roto. Esto dice qué va a aparecer ahí y
  * cómo llegar. Las subpestañas que siempre muestran algo no están.
  */
+/** El título de cada sección de Personal, ahora que cada una es una entrada del menú. */
+const ENCABEZADOS: Record<SeccionPersonal, { titulo: string; sub: string }> = {
+  hoy: {
+    titulo: "Inicio",
+    sub: "Cómo estás hoy. Acá cuenta solo tu plata personal: lo del negocio está en su propio espacio.",
+  },
+  mes: { titulo: "Ingresos y gastos", sub: "Lo que entró y salió de tu bolsillo, en qué se fue y cada movimiento." },
+  viene: { titulo: "Lo que viene", sub: "Qué vence, qué cobrás y cómo va a quedar tu saldo." },
+  tengo: { titulo: "Tengo y debo", sub: "Tus cuentas, tu patrimonio, tus deudas y tus tarjetas." },
+  metas: { titulo: "Mis metas", sub: "Lo que querés lograr, dicho en plata por mes." },
+  informes: { titulo: "Informes", sub: "Tu balance para llevar y la prueba de una compra antes de hacerla." },
+  ajustes: { titulo: "Ajustes de Personal", sub: "Lo que EOS te preguntó una sola vez y los avisos del banco." },
+};
+
 const VACIO: Partial<Record<Subarea, string>> = {
   estoy: "Acá vas a ver tu puntaje financiero, qué cambió y por qué.",
   presupuesto: "Acá vas a ver cuánto te queda para el día a día hasta tu próximo cobro.",
@@ -259,8 +277,8 @@ function AvisoSinConfigurar({ texto }: { texto: string }) {
       <div className="card-title">Todavía no hay nada que mostrar acá</div>
       <p className="prose">{texto}</p>
       <p className="prose" style={{ marginTop: 8 }}>
-        Contale a EOS tu situación con una frase, o tocá <strong>Configurar mis finanzas</strong> en el
-        panel de arriba.
+        Contale a EOS tu situación con una frase, o tocá <strong>Configurar mis finanzas</strong> en
+        Ajustes de Personal.
       </p>
     </div>
   );
@@ -272,35 +290,41 @@ type GastosViewProps = {
       ("¿cuánto gasté en comida este mes?") no había ningún camino visible
       de vuelta al chat. */
   onOpenChat?: () => void;
+  /** La sección que eligió el menú del espacio (05/10/2026). */
+  seccion?: SeccionPersonal;
+  /** La parte que abrir primero, cuando se llega desde otra sección. */
+  subInicial?: Subarea;
+  /** Ir a una parte de OTRA sección: lo resuelve el menú. */
+  onNavegar?: (seccion: SeccionPersonal, sub: Subarea) => void;
 };
 
-export default function GastosView({ onOpenChat }: GastosViewProps) {
+export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, onNavegar }: GastosViewProps) {
+  const etiquetaEspacio = useEtiquetaEspacio();
+  const confSeccion = SECCIONES.find((x) => x.clave === seccion) ?? SECCIONES[0];
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState<Total[]>([]);
   const [ventana, setVentana] = useState<"semana" | "mes" | "trimestre">("mes");
-  const [subarea, setSubarea] = useState<Subarea>("estoy");
-  /** La última parte abierta de cada pestaña, para volver a donde estaba. */
-  const [ultima, setUltima] = useState<Partial<Record<SeccionPersonal, Subarea>>>({});
+  const [subarea, setSubarea] = useState<Subarea>(
+    subInicial && seccionDe(SECCIONES, subInicial) === seccion ? subInicial : confSeccion.subs[0].clave,
+  );
   /**
    * Sube cuando algo de Ajustes cambia lo que el panel de arriba calcula
    * (los datos base, los fijos). La `key` del panel lo vuelve a leer.
    */
   const [versionPanel, setVersionPanel] = useState(0);
-  const [estadoPanel, setEstadoPanel] = useState<{ moneda: string; fijosConfirmados: number } | null>(null);
   const [editandoBase, setEditandoBase] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [nuncaCargo, setNuncaCargo] = useState(true);
   const [error, setError] = useState("");
 
   function irA(destino: Subarea) {
+    const suya = seccionDe(SECCIONES, destino);
+    if (suya !== seccion && onNavegar) {
+      onNavegar(suya, destino);
+      return;
+    }
     setSubarea(destino);
     setEditandoBase(false);
-    setUltima((u) => ({ ...u, [seccionDe(SECCIONES, destino)]: destino }));
-  }
-
-  function abrirSeccion(seccion: SeccionPersonal) {
-    const conf = SECCIONES.find((s) => s.clave === seccion)!;
-    irA(ultima[seccion] ?? conf.subs[0].clave);
   }
 
   /** Qué fila está abierta para editar. Una sola por vez. */
@@ -322,6 +346,26 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
    */
   const [hayTarjetas, setHayTarjetas] = useState(false);
   const [hayDeudas, setHayDeudas] = useState(false);
+
+  /*
+   * Fuera de Inicio el panel no se muestra, pero las demás secciones igual
+   * necesitan saber si las finanzas están configuradas: es lo que decide si
+   * "Lo que viene" muestra la curva o el aviso de por dónde empezar. Se
+   * pregunta lo mismo que pregunta el panel, y con el mismo criterio.
+   */
+  useEffect(() => {
+    if (seccion === "hoy") return;
+    let vigente = true;
+    fetch("/api/finanzas/estado", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((datos) => {
+        if (vigente && datos) setFinanzasConfigurada(datos.configurado === true && !datos.desde_cuentas);
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [seccion, versionPanel]);
 
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -505,12 +549,9 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="page-header">
-            <div className="page-eyebrow">Personal</div>
-            <div className="page-title">Tu plata, aparte de la del negocio</div>
-            <div className="page-sub">
-              Lo que cobrás y lo que gastás vos. Nada de lo que anotes acá entra en las cuentas de
-              Negocio, ni al revés.
-            </div>
+            <div className="page-eyebrow">{etiquetaEspacio}</div>
+            <div className="page-title">{ENCABEZADOS[seccion].titulo}</div>
+            <div className="page-sub">{ENCABEZADOS[seccion].sub}</div>
           </div>
           {onOpenChat && (
             <button type="button" className="ghost-btn" onClick={onOpenChat} style={{ flexShrink: 0 }}>
@@ -534,19 +575,22 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
           hay algo. Los datos base, los fijos y el buzón del banco se
           configuran una vez y viven en el engranaje de Ajustes.
         */}
-        <FinanzasPanel
-          key={versionPanel}
-          modo="resumen"
-          sinAjustes
-          onConfiguradoChange={setFinanzasConfigurada}
-          onEstado={setEstadoPanel}
-          onVerDetalle={() => irA("estoy")}
-        />
+        {seccion === "hoy" && (
+          <FinanzasPanel
+            key={`resumen-${versionPanel}`}
+            modo="resumen"
+            sinAjustes
+            onConfiguradoChange={setFinanzasConfigurada}
+            onVerDetalle={() => irA("estoy")}
+          />
+        )}
 
         {/*
           La línea para anotar, en una sola fila como en Negocio: el ícono de
           EOS, la frase y el botón. Lo que EOS entendió aparece abajo.
         */}
+        {(seccion === "hoy" || seccion === "mes") && (
+        <>
         <div className="sec-decile">
           <span className="sec-decile-ico" aria-hidden="true">EOS</span>
           <input
@@ -568,6 +612,8 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
           Escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo 3.500.000». EOS entiende el monto, la
           fecha y en qué fue.
         </p>
+        </>
+        )}
 
         {/*
           Lo que EOS entendió se queda hasta la próxima carga a propósito: es la
@@ -577,14 +623,7 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
         {entendido && <p className="gastos-entendido">{entendido}</p>}
         {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
 
-      <SeccionNav
-        secciones={SECCIONES}
-        seccion={seccionDe(SECCIONES, subarea)}
-        sub={subarea}
-        onSeccion={abrirSeccion}
-        onSub={irA}
-        ariaLabel="Secciones de Personal"
-      />
+      <SubNav subs={confSeccion.subs} sub={subarea} onSub={irA} ariaLabel={`Partes de ${ENCABEZADOS[seccion].titulo}`} />
 
       <div className="sec-contenido" key={versionPanel}>
       {subarea === "estoy" && (
@@ -756,17 +795,6 @@ export default function GastosView({ onOpenChat }: GastosViewProps) {
               {finanzasConfigurada === false ? "Configurar mis finanzas" : "Revisar mis datos base"}
             </button>
           </div>
-        ))}
-
-      {subarea === "fijos" &&
-        (finanzasConfigurada === false ? (
-          <AvisoSinConfigurar texto="Los ingresos y gastos fijos se cargan después de tus datos base. Empezá por Ajustes › Mis datos base." />
-        ) : (
-          <FinanzasFijos
-            moneda={estadoPanel?.moneda ?? monedaPrincipal}
-            confirmados={estadoPanel?.fijosConfirmados ?? 0}
-            onGuardado={() => setVersionPanel((v) => v + 1)}
-          />
         ))}
 
       {subarea === "buzon" && <FinanzasBuzon explicarAusencia />}

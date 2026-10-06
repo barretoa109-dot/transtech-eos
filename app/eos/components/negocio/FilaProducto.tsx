@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Check, MoreHorizontal, Scale } from "lucide-react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Check, ImageIcon, MoreHorizontal, Scale, X } from "lucide-react";
+import { useEscape } from "../useEscape";
+import { achicarFoto } from "./foto";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import { tasaValida } from "@/lib/erp/impuestos";
@@ -57,6 +60,9 @@ function alcance(p: Producto, dias: number | undefined): { texto: string; tono: 
 export default function FilaProducto({ producto, diasRestantes, onCambio }: Props) {
   const [modo, setModo] = useState<"ver" | "editar" | "ajustar">("ver");
   const [masAbierto, setMasAbierto] = useState(false);
+  /** La foto grande, encima de todo. Se cierra tocando afuera o con Escape. */
+  const [verFoto, setVerFoto] = useState(false);
+  useEscape(verFoto, () => setVerFoto(false));
 
   /** La baja es lógica: las ventas que ya lo nombran no se tocan. */
   async function darDeBaja() {
@@ -89,9 +95,32 @@ export default function FilaProducto({ producto, diasRestantes, onCambio }: Prop
 
   return (
     <div className="neg-tabla-fila es-productos" role="row">
-      <span className="neg-tabla-principal">
+      <span className="neg-tabla-principal prod-principal">
+        {/*
+          La foto, chica (v232). En la lista mide lo mismo que una línea de
+          texto doble: identifica el producto sin empujar al resto. Tocarla
+          la abre grande. Sin foto, un recuadro punteado del mismo tamaño
+          para que las filas no se desalineen.
+        */}
+        {producto.foto_url ? (
+          <button
+            type="button"
+            className="prod-foto"
+            onClick={() => setVerFoto(true)}
+            aria-label={`Ver la foto de ${producto.nombre}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- enlace firmado de Storage, cambia cada hora */}
+            <img src={producto.foto_url} alt="" loading="lazy" />
+          </button>
+        ) : (
+          <span className="prod-foto is-vacia" title="Sin foto" aria-hidden="true">
+            <ImageIcon size={15} />
+          </span>
+        )}
+        <span className="prod-texto">
         {producto.nombre}
         <small>
+          {producto.categoria ? <span className="prod-categoria">{producto.categoria}</span> : null}
           {producto.codigo ? `${producto.codigo} · ` : ""}
           {producto.iva === 0 ? "Exenta" : `IVA ${producto.iva}%`}
           {producto.costo != null && producto.costo > 0
@@ -99,7 +128,37 @@ export default function FilaProducto({ producto, diasRestantes, onCambio }: Prop
             : ""}
         </small>
         {aviso && <span className="neg-inline-success" role="status"><Check size={12} /> {aviso}</span>}
+        </span>
       </span>
+
+      {/*
+        La foto grande va por un portal al contenedor de la app: la página
+        entra con una animación que deja un `transform`, y eso encierra a
+        cualquier `position: fixed` dentro de la tabla. Va a `.eos-app` y
+        no a `body` para conservar los colores del tema (día o noche).
+      */}
+      {verFoto &&
+        producto.foto_url &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="prod-foto-capa" role="dialog" aria-label={`Foto de ${producto.nombre}`} onClick={() => setVerFoto(false)}>
+          <div className="prod-foto-grande" onClick={(e) => e.stopPropagation()}>
+            <div className="prod-foto-grande-cab">
+              <b>{producto.nombre}</b>
+              <button type="button" className="mas-btn" onClick={() => setVerFoto(false)} aria-label="Cerrar">
+                <X size={16} />
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- enlace firmado de Storage */}
+            <img src={producto.foto_url} alt={producto.nombre} />
+            <small>
+              {producto.categoria ? `${producto.categoria} · ` : ""}
+              {formatearMonto(producto.precio_venta, producto.moneda)}
+            </small>
+          </div>
+        </div>,
+          document.querySelector(".eos-app") ?? document.body,
+        )}
 
       <span className="n neg-tabla-monto">{formatearMonto(producto.precio_venta, producto.moneda)}</span>
 
@@ -189,7 +248,11 @@ export default function FilaProducto({ producto, diasRestantes, onCambio }: Prop
         <div className="neg-tabla-extra">
           <Editar
             producto={producto}
-            onCerrar={() => setModo("ver")}
+            onCerrar={() => {
+              setModo("ver");
+              // La foto se guarda sola al elegirla: al cerrar sin guardar, igual hay que verla en la lista.
+              onCambio();
+            }}
             onListo={() => {
               listo("Cambios guardados");
             }}
@@ -244,6 +307,53 @@ function Editar({
   const [codigo, setCodigo] = useState(producto.codigo ?? "");
   const [unidad, setUnidad] = useState(producto.unidad ?? "unidad");
   const [descripcion, setDescripcion] = useState(producto.descripcion ?? "");
+  const [categoria, setCategoria] = useState(producto.categoria ?? "");
+  /*
+   * La foto se sube apenas se elige, aparte del resto del formulario: es un
+   * archivo, no un campo, y esperar a "Guardar" haría que un error del
+   * formulario se llevara puesta la foto. Cambia en el acto y se ve al cerrar.
+   */
+  const [fotoUrl, setFotoUrl] = useState<string | null>(producto.foto_url ?? null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [errorFoto, setErrorFoto] = useState("");
+  const inputFotoRef = useRef<HTMLInputElement | null>(null);
+
+  async function elegirFoto(archivo: File | undefined) {
+    if (!archivo) return;
+    setSubiendoFoto(true);
+    setErrorFoto("");
+    try {
+      const { tipo, base64 } = await achicarFoto(archivo);
+      const r = await fetch(`/api/erp/productos/${producto.id}/foto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, base64 }),
+      });
+      const datos = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(datos?.error || "No pudimos guardar la foto.");
+      setFotoUrl(datos?.foto_url ?? null);
+    } catch (e) {
+      setErrorFoto(e instanceof Error ? e.message : "No pudimos guardar la foto.");
+    } finally {
+      setSubiendoFoto(false);
+      if (inputFotoRef.current) inputFotoRef.current.value = "";
+    }
+  }
+
+  async function sacarFoto() {
+    setSubiendoFoto(true);
+    setErrorFoto("");
+    try {
+      const r = await fetch(`/api/erp/productos/${producto.id}/foto`, { method: "DELETE" });
+      const datos = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(datos?.error || "No pudimos sacar la foto.");
+      setFotoUrl(null);
+    } catch (e) {
+      setErrorFoto(e instanceof Error ? e.message : "No pudimos sacar la foto.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
   const [controlaStock, setControlaStock] = useState(producto.controla_stock);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -284,6 +394,7 @@ function Editar({
           codigo: codigo.trim(),
           unidad: unidad.trim() || "unidad",
           descripcion: descripcion.trim(),
+          categoria: categoria.trim(),
           controla_stock: controlaStock,
           // El mínimo se manda también cuando el inventario se ACABA de
           // prender: si no, quedaría el valor viejo, que puede ser cualquiera.
@@ -304,6 +415,39 @@ function Editar({
 
   return (
     <div className="fila-editor">
+      <div className="prod-foto-editor">
+        {fotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- enlace firmado de Storage
+          <img className="prod-foto-muestra" src={fotoUrl} alt={`Foto de ${producto.nombre}`} />
+        ) : (
+          <span className="prod-foto-muestra is-vacia" aria-hidden="true">
+            <ImageIcon size={18} />
+          </span>
+        )}
+        <div className="prod-foto-acciones">
+          <span className="prod-foto-titulo">Foto del producto</span>
+          <span className="prod-foto-ayuda">Opcional. Se ve chica en la lista y grande al tocarla.</span>
+          <div className="chip-row" style={{ marginBottom: 0 }}>
+            <label className={`chip prod-foto-subir${subiendoFoto ? " is-ocupado" : ""}`}>
+              {subiendoFoto ? "Guardando…" : fotoUrl ? "Cambiar foto" : "Agregar foto"}
+              <input
+                ref={inputFotoRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                disabled={subiendoFoto}
+                onChange={(e) => void elegirFoto(e.target.files?.[0])}
+              />
+            </label>
+            {fotoUrl && (
+              <button type="button" className="chip" disabled={subiendoFoto} onClick={() => void sacarFoto()}>
+                Sacar foto
+              </button>
+            )}
+          </div>
+          {errorFoto && <span className="neg-error" role="alert">{errorFoto}</span>}
+        </div>
+      </div>
+
       <div className="fila-editor-campos">
         <input
           className="neg-input"
@@ -372,6 +516,17 @@ function Editar({
           placeholder="Unidad"
           title="Unidad, kilo, litro, hora, metro…"
           onChange={(e) => setUnidad(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          value={categoria}
+          maxLength={60}
+          placeholder="Categoría"
+          title="Ropa, Hogar, Bebidas… Sirve para filtrar el catálogo"
+          aria-label="Categoría"
+          list="categorias-catalogo"
+          onChange={(e) => setCategoria(e.target.value)}
         />
 
         <input

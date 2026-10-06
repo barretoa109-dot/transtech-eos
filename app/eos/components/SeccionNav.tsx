@@ -111,3 +111,50 @@ export default function SeccionNav<S extends string, K extends string>({
 export function seccionDe<S extends string, K extends string>(secciones: Seccion<S, K>[], sub: K): S {
   return (secciones.find((s) => s.subs.some((x) => x.clave === sub)) ?? secciones[0]).clave;
 }
+
+/**
+ * Las pestañas de UNA sección (05/10/2026).
+ *
+ * Desde que cada sección es una entrada del menú del espacio, la fila de
+ * secciones ya no hace falta adentro de la pantalla: la elige el lateral. Lo
+ * que queda son las partes de esa sección, con el mismo subrayado azul de
+ * siempre, y la línea que dice qué hay en la parte abierta.
+ */
+export function SubNav<K extends string>({
+  subs,
+  sub,
+  onSub,
+  ariaLabel,
+}: {
+  subs: SubSeccion<K>[];
+  sub: K;
+  onSub: (clave: K) => void;
+  ariaLabel: string;
+}) {
+  const actual = subs.find((s) => s.clave === sub) ?? subs[0];
+  if (!actual) return null;
+
+  return (
+    <>
+      {subs.length > 1 && (
+        <div className="sec-nav" role="tablist" aria-label={ariaLabel}>
+          <div className="sec-tabs">
+            {subs.map((s) => (
+              <button
+                key={s.clave}
+                type="button"
+                role="tab"
+                aria-selected={s.clave === actual.clave}
+                className={`sec-tab${s.clave === actual.clave ? " active" : ""}`}
+                onClick={() => onSub(s.clave)}
+              >
+                <span className="sec-tab-texto">{s.etiqueta}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="sec-sub-detalle sec-sub-linea">{actual.detalle}</p>
+    </>
+  );
+}

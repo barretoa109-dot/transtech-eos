@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Menu } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import "./eosApp.css";
 
@@ -11,13 +11,28 @@ import TopBar from "../components/TopBar";
 import ChatView from "../components/ChatView";
 import BriefingView from "../components/BriefingView";
 import DashboardView from "../components/DashboardView";
-import NegocioView from "../components/NegocioView";
+import NegocioView, { type Pestania, type SeccionNegocio } from "../components/NegocioView";
 import CRMView from "../components/CRMView";
 import CalendarioView from "../components/CalendarioView";
-import GastosView from "../components/GastosView";
+import GastosView, { type SeccionPersonal, type Subarea } from "../components/GastosView";
+import FijosView from "../components/FijosView";
+import MemoriaView from "../components/MemoriaView";
+import AjustesNegocio from "../components/AjustesNegocio";
+import { ProveedorEspacio } from "../components/EspacioContext";
+import type { OpcionEspacio } from "../components/Sidebar";
+import {
+  MENU_PERSONAL,
+  destinoDesdeUrl,
+  espacioDe,
+  inicioDe,
+  menuComun,
+  menuNegocio,
+  nombreDeDestino,
+  type Destino,
+  type Espacio,
+  type FuncionOcultable,
+} from "../components/espacios";
 import ProfileView from "../components/ProfileView";
-import DecisionsView from "../components/DecisionsView";
-import LearningsView from "../components/LearningsView";
 
 import { useTema } from "../components/useTema";
 import { useBriefing } from "../hooks/useBriefing";
@@ -31,7 +46,7 @@ import { appTechCanvas } from "@/components/effects/techCanvasPresets";
 import { revisarAdjuntos } from "@/lib/eos/adjuntos";
 import { convertirArchivoABase64 } from "../services/uploads";
 import { textoParaCompartir } from "../services/supabaseChat";
-import type { ArchivoAdjunto, VistaEOS } from "../types/chat";
+import type { ArchivoAdjunto } from "../types/chat";
 
 function formatearTamanio(bytes?: number): string {
   if (!bytes || bytes <= 0) return "";
@@ -59,32 +74,75 @@ function obtenerEtiquetaArchivo(archivo: ArchivoAdjunto): string {
   return extension ? extension.toUpperCase() : "ARCHIVO";
 }
 
-const VISTAS_VALIDAS: VistaEOS[] = [
-  "chat",
-  "briefing",
-  "decisions",
-  "learnings",
-  "dashboard",
-  "negocio",
-  "crm",
-  "gastos",
-  "calendario",
-  "perfil",
-];
-
 /**
- * Con qué pestaña abrir, si el link que trajo hasta acá lo pedía.
+ * Con qué pantalla abrir, si el link que trajo hasta acá lo pedía.
  *
  * El correo del briefing diario apunta a `/eos/chat?vista=briefing`: sin
  * esto, la persona caía siempre en el chat y tenía que ir a buscar la
- * pestaña ella misma, aunque el correo la haya traído justo para verla.
+ * pestaña ella misma, aunque el correo la haya traído justo para verla. Los
+ * nombres de antes de los espacios (gastos, negocio, crm…) siguen andando:
+ * ver `destinoDesdeUrl`.
  */
-function vistaInicialDesdeUrl(): VistaEOS {
+function destinoInicialDesdeUrl(): Destino {
   if (typeof window === "undefined") return "chat";
-
-  const pedida = new URLSearchParams(window.location.search).get("vista");
-  return VISTAS_VALIDAS.includes(pedida as VistaEOS) ? (pedida as VistaEOS) : "chat";
+  return destinoDesdeUrl(new URLSearchParams(window.location.search).get("vista")) ?? "chat";
 }
+
+/** El último espacio usado en este dispositivo, para volver a él. */
+const CLAVE_ESPACIO = "eos-espacio";
+
+function espacioInicial(destino: Destino): Espacio {
+  const delDestino = espacioDe(destino);
+  if (delDestino) return delDestino;
+  try {
+    const guardado = window.localStorage.getItem(CLAVE_ESPACIO);
+    if (guardado === "personal" || guardado === "negocio") return guardado;
+  } catch {
+    // Sin almacenamiento (modo privado): se arranca en el negocio.
+  }
+  return "negocio";
+}
+
+type Empresa = {
+  id: string;
+  nombre: string;
+  rol: string;
+  activa: boolean;
+  funciones_ocultas: FuncionOcultable[];
+};
+
+const SECCION_DE_DESTINO: Partial<Record<Destino, SeccionPersonal>> = {
+  "p-inicio": "hoy",
+  "p-mes": "mes",
+  "p-viene": "viene",
+  "p-tengo": "tengo",
+  "p-metas": "metas",
+  "p-informes": "informes",
+  "p-ajustes": "ajustes",
+};
+const DESTINO_DE_SECCION: Record<SeccionPersonal, Destino> = {
+  hoy: "p-inicio",
+  mes: "p-mes",
+  viene: "p-viene",
+  tengo: "p-tengo",
+  metas: "p-metas",
+  informes: "p-informes",
+  ajustes: "p-ajustes",
+};
+const VISTA_NEGOCIO: Partial<Record<Destino, "resumen" | SeccionNegocio>> = {
+  "n-resumen": "resumen",
+  "n-ventas": "vender",
+  "n-compras": "comprar",
+  "n-catalogo": "catalogo",
+  "n-numeros": "numeros",
+};
+const DESTINO_DE_NEGOCIO: Record<SeccionNegocio, Destino> = {
+  vender: "n-ventas",
+  comprar: "n-compras",
+  catalogo: "n-catalogo",
+  numeros: "n-numeros",
+  ajustes: "n-ajustes",
+};
 
 export default function EOSPage() {
   const [nombre, setNombre] = useState("Usuario");
@@ -94,7 +152,14 @@ export default function EOSPage() {
   const [email, setEmail] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
   const [usuarioCargado, setUsuarioCargado] = useState(false);
-  const [vista, setVista] = useState<VistaEOS>(vistaInicialDesdeUrl);
+  const [destino, setDestinoCrudo] = useState<Destino>(destinoInicialDesdeUrl);
+  const [espacio, setEspacio] = useState<Espacio>(() => espacioInicial(destinoInicialDesdeUrl()));
+  /** La parte que abrir primero al llegar a una sección desde otra (p. ej. "¿Cómo estoy?"). */
+  const [subInicial, setSubInicial] = useState<string | undefined>(undefined);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [puedoAdministrar, setPuedoAdministrar] = useState(false);
+  const [selectorAbierto, setSelectorAbierto] = useState(false);
+  const [fijosPendientes, setFijosPendientes] = useState(0);
   const [busqueda, setBusqueda] = useState("");
 
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
@@ -232,7 +297,7 @@ export default function EOSPage() {
     if (!usuarioId) return;
 
     await nuevaConversacion(usuarioId);
-    setVista("chat");
+    irA("chat");
     setMenuMovilAbierto(false);
   }
 
@@ -273,14 +338,145 @@ export default function EOSPage() {
 
   async function manejarAbrirConversacion(id: string) {
     await abrirConversacion(id);
-    setVista("chat");
+    irA("chat");
     setMenuMovilAbierto(false);
   }
 
-  function manejarCambioVista(nuevaVista: VistaEOS) {
-    setVista(nuevaVista);
+  /*
+   * Ir a un lugar del menú.
+   *
+   * El lugar queda en la dirección (`?vista=`) sin recargar: así, al
+   * refrescar o al volver a abrir la app instalada, la persona sigue donde
+   * estaba. Si el lugar es de un espacio, ese espacio pasa a ser el activo.
+   */
+  const irA = useCallback((nuevo: Destino, sub?: string) => {
+    setDestinoCrudo(nuevo);
+    setSubInicial(sub);
     setMenuMovilAbierto(false);
+    setSelectorAbierto(false);
+
+    const suyo = espacioDe(nuevo);
+    if (suyo) {
+      setEspacio(suyo);
+      try {
+        window.localStorage.setItem(CLAVE_ESPACIO, suyo);
+      } catch {
+        // Sin almacenamiento: no pasa nada, solo no se recuerda.
+      }
+    }
+
+    try {
+      const url = new URL(window.location.href);
+      if (nuevo === "chat") url.searchParams.delete("vista");
+      else url.searchParams.set("vista", nuevo);
+      window.history.replaceState(window.history.state, "", url);
+    } catch {
+      // Algunas vistas embebidas no dejan tocar la dirección.
+    }
+  }, []);
+
+  const cargarEmpresas = useCallback(async () => {
+    try {
+      const r = await fetch("/api/empresa", { cache: "no-store" });
+      if (!r.ok) return;
+      const datos = await r.json();
+      setEmpresas((datos?.empresas ?? []) as Empresa[]);
+      setPuedoAdministrar(datos?.puedo_administrar === true);
+    } catch {
+      // Sin la lista, el selector muestra "Mi negocio" y todo lo demás sigue andando.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!usuarioCargado) return;
+    const timeout = window.setTimeout(() => void cargarEmpresas(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [usuarioCargado, cargarEmpresas]);
+
+  const empresaActiva = empresas.find((e) => e.activa) ?? empresas[0] ?? null;
+  const funcionesOcultas = useMemo(() => empresaActiva?.funciones_ocultas ?? [], [empresaActiva]);
+
+  /*
+   * Si el negocio apagó el catálogo o los clientes y alguien llega por un
+   * enlace viejo a esa sección, va al resumen en vez de a una pantalla que el
+   * menú no muestra.
+   */
+  useEffect(() => {
+    if (
+      (destino === "n-catalogo" && funcionesOcultas.includes("catalogo")) ||
+      (destino === "n-clientes" && funcionesOcultas.includes("clientes"))
+    ) {
+      irA("n-resumen");
+    }
+  }, [destino, funcionesOcultas, irA]);
+
+  /** Cuántos fijos del espacio activo vencieron o están por vencer sin registrar. Va en rojo en el menú. */
+  useEffect(() => {
+    if (!usuarioCargado) return;
+    let vigente = true;
+    fetch(`/api/finanzas/fijos?ambito=${espacio}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((datos) => {
+        if (!vigente || !datos) return;
+        const lista = (datos.fijos ?? []) as { estado?: { estado?: string } }[];
+        setFijosPendientes(lista.filter((f) => f.estado?.estado === "vencido").length);
+      })
+      .catch(() => undefined);
+    return () => {
+      vigente = false;
+    };
+  }, [usuarioCargado, espacio, destino]);
+
+  const primerNombre = nombre.trim().split(/\s+/)[0] || "Personal";
+
+  const opcionesEspacio: OpcionEspacio[] = useMemo(
+    () => [
+      { clave: "personal", espacio: "personal", nombre: primerNombre, detalle: "Tus finanzas personales" },
+      ...(empresas.length > 0
+        ? empresas.map((e) => ({
+            clave: e.id,
+            espacio: "negocio" as const,
+            nombre: e.nombre,
+            detalle: e.rol === "propietario" ? "Tu negocio" : `Te invitaron · ${e.rol.replace("_", " ")}`,
+          }))
+        : [{ clave: "negocio", espacio: "negocio" as const, nombre: "Mi negocio", detalle: "Tu negocio" }]),
+    ],
+    [primerNombre, empresas],
+  );
+
+  const claveEspacioActivo = espacio === "personal" ? "personal" : (empresaActiva?.id ?? "negocio");
+  const nombreEspacio = espacio === "personal" ? primerNombre : (empresaActiva?.nombre ?? "Mi negocio");
+
+  async function elegirEspacio(opcion: OpcionEspacio) {
+    if (opcion.espacio === "negocio" && empresaActiva && opcion.clave !== empresaActiva.id) {
+      /*
+       * Otro negocio: se cambia la empresa activa en el servidor (v114), que
+       * es la que filtran ventas, compras, catálogo y clientes. Si falla, no
+       * se cambia de espacio: mostrar el menú de un negocio con los datos de
+       * otro sería peor que quedarse donde estaba.
+       */
+      try {
+        const r = await fetch("/api/empresa", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ empresa_id: opcion.clave }),
+        });
+        if (!r.ok) throw new Error();
+        await cargarEmpresas();
+      } catch {
+        window.alert("No pudimos cambiar de negocio. Probá de nuevo.");
+        return;
+      }
+    }
+    irA(inicioDe(opcion.espacio));
   }
+
+  const itemsMenu = [
+    ...(espacio === "personal" ? MENU_PERSONAL : menuNegocio(funcionesOcultas)),
+    ...menuComun(espacio),
+  ];
+  const avisosMenu: Partial<Record<Destino, number>> =
+    fijosPendientes > 0 ? { [espacio === "personal" ? "p-fijos" : "n-fijos"]: fijosPendientes } : {};
 
   function quitarArchivoAdjunto(indice: number) {
     setArchivosAdjuntos(archivosAdjuntos.filter((_, i) => i !== indice));
@@ -291,7 +487,15 @@ export default function EOSPage() {
   const sidebarProps = {
     nombre,
     plan,
-    vista,
+    destino,
+    espacio,
+    itemsMenu,
+    avisos: avisosMenu,
+    opcionesEspacio,
+    claveEspacioActivo,
+    onElegirEspacio: (o: OpcionEspacio) => void elegirEspacio(o),
+    selectorAbierto,
+    onSelectorAbierto: setSelectorAbierto,
     busqueda,
     coincidencias,
     buscando,
@@ -299,7 +503,7 @@ export default function EOSPage() {
     conversaciones,
     colapsado: sidebarColapsado,
     onToggleColapsado: () => setSidebarColapsado((v) => !v),
-    onVistaChange: manejarCambioVista,
+    onDestino: (d: Destino) => irA(d),
     onBusquedaChange: setBusqueda,
     onNuevoChat: manejarNuevoChat,
     onAbrirConversacion: manejarAbrirConversacion,
@@ -310,6 +514,7 @@ export default function EOSPage() {
   };
 
   return (
+    <ProveedorEspacio value={{ espacio, nombre: nombreEspacio }}>
     <div className="eos-app" data-eos-theme={tema.aplicado === "oscuro" ? "dark" : "light"}>
       <AmbientBackground techConfig={appTechCanvas} spanCount={3} />
 
@@ -337,9 +542,17 @@ export default function EOSPage() {
       </button>
 
       <div className="main">
-        <TopBar tema={tema} pantalla={vista} />
+        <TopBar
+          tema={tema}
+          pantalla={nombreDeDestino(destino, espacio)}
+          espacio={{ nombre: nombreEspacio, tipo: espacio }}
+          onAbrirEspacios={() => {
+            setMenuMovilAbierto(true);
+            setSelectorAbierto(true);
+          }}
+        />
 
-        {vista === "chat" && (
+        {destino === "chat" && (
           <ChatView
             historial={historial}
             nombre={nombre}
@@ -362,7 +575,7 @@ export default function EOSPage() {
           />
         )}
 
-        {vista === "briefing" && (
+        {destino === "briefing" && (
           <BriefingView
             briefing={briefingVisible}
             loading={briefingLoading}
@@ -371,55 +584,89 @@ export default function EOSPage() {
             isStale={briefingIsStale}
             historyCount={briefingHistory.length}
             onRefresh={refreshBriefing}
-            onGoToDecisions={() => setVista("decisions")}
+            onGoToDecisions={() => irA("memoria")}
           />
         )}
 
-        {["dashboard", "negocio", "crm", "gastos", "calendario", "decisions", "learnings"].includes(vista) &&
-          !usuarioCargado && (
-            <div className="neg-loading" role="status">
-              <span /> Cargando…
-            </div>
-          )}
+        {destino !== "chat" && destino !== "briefing" && destino !== "perfil" && !usuarioCargado && (
+          <div className="neg-loading" role="status">
+            <span /> Cargando…
+          </div>
+        )}
 
-        {vista === "dashboard" && usuarioCargado && (
-          <DashboardView
-            key={`${usuarioId}-${nombre}`}
-            briefing={briefingVisible}
-            briefingHistory={briefingHistory}
-            scoreHistory={scoreHistory}
-            scoreSeries={scoreSeries}
-            scoreDiagnostico={scoreDiagnostico}
-            plan={plan}
-            totalConversations={conversaciones.length}
-            totalMessages={historial.length}
-            onOpenChat={() => setVista("chat")}
+        {usuarioCargado && SECCION_DE_DESTINO[destino] && (
+          <GastosView
+            key={destino}
+            seccion={SECCION_DE_DESTINO[destino]}
+            subInicial={subInicial as Subarea | undefined}
+            onNavegar={(seccion, sub) => irA(DESTINO_DE_SECCION[seccion], sub)}
+            onOpenChat={() => irA("chat")}
           />
         )}
 
-        {vista === "negocio" && usuarioCargado && (
+        {usuarioCargado && destino === "p-fijos" && <FijosView key="fijos-personal" ambito="personal" />}
+        {usuarioCargado && destino === "n-fijos" && <FijosView key="fijos-negocio" ambito="negocio" />}
+
+        {usuarioCargado && VISTA_NEGOCIO[destino] && (
           <NegocioView
-            onOpenChat={() => setVista("chat")}
-            onOpenCRM={() => setVista("crm")}
+            key={`${destino}-${empresaActiva?.id ?? ""}`}
+            vista={VISTA_NEGOCIO[destino]}
+            subInicial={subInicial as Pestania | undefined}
+            onNavegar={(seccion, sub) => irA(DESTINO_DE_NEGOCIO[seccion], sub)}
+            sinCatalogo={funcionesOcultas.includes("catalogo")}
+            onOpenChat={() => irA("chat")}
+            onOpenCRM={funcionesOcultas.includes("clientes") ? undefined : () => irA("n-clientes")}
             onDecirleAEOS={(texto) => {
-              // Lo registra el chat, que es quien entiende ventas y compras
-              // hablando. Si todavía está contestando otra cosa, la frase queda
-              // escrita en la caja en vez de perderse.
-              setVista("chat");
+              irA("chat");
               if (cargando) setMensaje(texto);
               else void enviarMensaje(texto);
             }}
+            indicadores={
+              /*
+               * Lo que era Dashboard: hallazgos, indicadores y el puntaje.
+               * Vive en Números (y en el Resumen de quien no tiene el
+               * módulo de gestión), mostrado tal cual.
+               */
+              <div className="incrustado">
+                <DashboardView
+                  key={`${usuarioId}-${nombre}`}
+                  briefing={briefingVisible}
+                  briefingHistory={briefingHistory}
+                  scoreHistory={scoreHistory}
+                  scoreSeries={scoreSeries}
+                  scoreDiagnostico={scoreDiagnostico}
+                  plan={plan}
+                  totalConversations={conversaciones.length}
+                  totalMessages={historial.length}
+                  onOpenChat={() => irA("chat")}
+                />
+              </div>
+            }
           />
         )}
-        {vista === "crm" && usuarioCargado && <CRMView onOpenChat={() => setVista("chat")} />}
-        {vista === "gastos" && usuarioCargado && <GastosView onOpenChat={() => setVista("chat")} />}
-        {vista === "calendario" && usuarioCargado && <CalendarioView onOpenChat={() => setVista("chat")} />}
 
-        {vista === "decisions" && usuarioCargado && <DecisionsView />}
+        {usuarioCargado && destino === "n-clientes" && (
+          <CRMView key={empresaActiva?.id ?? "crm"} onOpenChat={() => irA("chat")} />
+        )}
 
-        {vista === "learnings" && usuarioCargado && <LearningsView />}
+        {usuarioCargado && destino === "n-ajustes" && (
+          <AjustesNegocio
+            empresaId={empresaActiva?.id ?? null}
+            funcionesOcultas={funcionesOcultas}
+            puedoAdministrar={puedoAdministrar}
+            onFuncionesCambiadas={(ocultas) =>
+              setEmpresas((lista) =>
+                lista.map((e) => (e.id === empresaActiva?.id ? { ...e, funciones_ocultas: ocultas } : e)),
+              )
+            }
+          />
+        )}
 
-        {vista === "perfil" && (
+        {usuarioCargado && destino === "memoria" && <MemoriaView />}
+
+        {usuarioCargado && destino === "calendario" && <CalendarioView onOpenChat={() => irA("chat")} />}
+
+        {destino === "perfil" && (
           <ProfileView
             nombre={nombre}
             plan={plan}
@@ -431,5 +678,6 @@ export default function EOSPage() {
         )}
       </div>
     </div>
+    </ProveedorEspacio>
   );
 }

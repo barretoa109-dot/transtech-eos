@@ -5,6 +5,7 @@ import { RefreshCw, Target } from "lucide-react";
 import type { Briefing } from "../types/briefing";
 import BriefingCorreoToggle from "./BriefingCorreoToggle";
 import AvisosRiesgoCorreoToggle from "./AvisosRiesgoCorreoToggle";
+import { useEtiquetaEspacio } from "./EspacioContext";
 
 type DecisionSummary = {
   id: string;
@@ -34,6 +35,7 @@ export default function BriefingView({
   onRefresh,
   onGoToDecisions,
 }: BriefingViewProps) {
+  const etiquetaEspacio = useEtiquetaEspacio();
   const briefingDate = formatBriefingDate(briefing.briefing_date);
 
   const [decisiones, setDecisiones] = useState<DecisionSummary[] | null>(null);
@@ -63,7 +65,7 @@ export default function BriefingView({
     <div className="view" id="view-briefing">
       <div className="page page-in">
         <div className="page-header">
-          <div className="page-eyebrow">Briefing</div>
+          <div className="page-eyebrow">{etiquetaEspacio} · Briefing</div>
           <div className="page-title">{briefing.saludo || "Resumen ejecutivo"}</div>
           <div className="page-sub">
             {briefingDate || (loading ? "Preparando tu briefing..." : "Sin briefing de hoy")}

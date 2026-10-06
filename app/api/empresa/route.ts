@@ -34,7 +34,7 @@ export async function GET() {
 
   const { data: membresias, error } = await admin
     .from("eos_empresa_miembros")
-    .select("empresa_id,rol,activa,creado_en,empresa:eos_empresas(id,nombre)")
+    .select("empresa_id,rol,activa,creado_en,empresa:eos_empresas(id,nombre,funciones_ocultas)")
     .eq("usuario_id", user.id);
 
   if (error) {
@@ -88,6 +88,8 @@ export async function GET() {
       empresas: (membresias ?? []).map((m: Record<string, unknown>) => ({
         id: m.empresa_id,
         nombre: (m.empresa as { nombre?: string } | null)?.nombre ?? "Mi negocio",
+        // Lo que este negocio sacó de su menú (v232). Vacío = todo a la vista.
+        funciones_ocultas: (m.empresa as { funciones_ocultas?: string[] } | null)?.funciones_ocultas ?? [],
         rol: m.rol,
         activa: m.activa === true,
       })),
