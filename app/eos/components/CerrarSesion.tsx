@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { desactivarPushNativo } from "@/lib/push/cliente";
 
 /**
  * Salir de la cuenta.
@@ -46,6 +47,8 @@ export default function CerrarSesion() {
     setSaliendo(true);
 
     try {
+      // Primero el teléfono: después de cerrar sesión ya no hay quien lo borre.
+      await desactivarPushNativo();
       await createClient().auth.signOut();
     } catch (error) {
       /*
