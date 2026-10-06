@@ -3820,7 +3820,7 @@
   margin-top: 14px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--surface-2, #f1f5f9);
+  background: var(--panel-suave);
   font-size: 13px;
   color: var(--ink);
 }
