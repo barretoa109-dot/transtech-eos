@@ -73,6 +73,35 @@ export function eventosDeLaApp(): EventosDeApp {
   return plugin;
 }
 
+type BarraDeEstadoNativa = {
+  setStyle(opciones: { style: "DARK" | "LIGHT" }): Promise<void>;
+  setBackgroundColor(opciones: { color: string }): Promise<void>;
+};
+
+type CompartirRecibido = {
+  addListener(
+    evento: "compartido",
+    manejador: (datos: { texto: string | null }) => void,
+  ): Promise<Escucha>;
+};
+
+let compartir: CompartirRecibido | null = null;
+
+/** El texto que otra app le compartió a EOS (solo Android por ahora). */
+export function compartirRecibidoNativo(): CompartirRecibido {
+  const plugin = compartir ?? registerPlugin<CompartirRecibido>("CompartirRecibido");
+  compartir = plugin;
+  return plugin;
+}
+
+let barra: BarraDeEstadoNativa | null = null;
+
+export function barraDeEstadoNativa(): BarraDeEstadoNativa {
+  const plugin = barra ?? registerPlugin<BarraDeEstadoNativa>("StatusBar");
+  barra = plugin;
+  return plugin;
+}
+
 /** ¿Se puede abrir el inicio de sesión en el navegador del sistema y volver a la app? */
 export function puedeAbrirNavegadorDelSistema(): boolean {
   if (!estaEnAppNativa()) return false;

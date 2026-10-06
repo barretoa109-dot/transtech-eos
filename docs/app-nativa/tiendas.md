@@ -93,10 +93,16 @@ Hecho desde el repo:
 
 ## Qué falta, en orden
 
-1. Notificaciones push nativas (APNs y FCM), pedidas después del primer momento de valor.
-2. “Compartir con EOS” desde otras apps (un comprobante o una foto).
-3. Enlaces universales y de app para los correos (verificación, resumen del lunes).
-4. Barra de estado en los dos temas (el ícono y la pantalla de inicio ya están).
+Hecho en esta vuelta (rama `feat/app-tiendas-cierre`):
+
+- **Barra de estado en los dos temas**: `lib/app-nativa/barra-de-estado.ts` decide el estilo (texto claro sobre fondo oscuro, y al revés) y `BarraDeEstadoNativa` lo aplica y lo sigue si cambia el tema del teléfono. Plugin `@capacitor/status-bar`.
+- **“Compartir con EOS” en Android, solo texto**: el intent filter `SEND` con `text/plain` (en `AndroidManifest.xml`) entrega el texto a `CompartirRecibidoPlugin.java`. Si el chat todavía no está listo (por ejemplo, hay que iniciar sesión), el texto queda retenido hasta que el chat lo toma. `ChatView` lo agrega a la caja del chat **sin enviarlo**.
+
+Pendiente:
+
+1. Notificaciones push nativas (APNs y FCM), pedidas después del primer momento de valor. Falta el cliente (registro del token, pantalla de permiso) y la tabla de dispositivos. El envío necesita las claves APNs y FCM del dueño.
+2. “Compartir con EOS” con **imágenes y comprobantes** (Android) y **en iOS**: iOS necesita una extensión de Share en el proyecto de Xcode, y hay que probarla en un Mac o con CI.
+3. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
 
 ## Regla para lo que se despliega sin pasar por la tienda
 
