@@ -36,6 +36,7 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/status-bar": "^8.0.4",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.107.0",
     "@swc/helpers": "^0.5.23",

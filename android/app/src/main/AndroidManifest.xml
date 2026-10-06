@@ -32,6 +32,14 @@
                 <data android:scheme="com.transtech.eos" android:host="auth" />
             </intent-filter>
 
+            <!-- "Compartir con EOS": texto que otra app envía con el menú Compartir.
+                 Ver CompartirRecibidoPlugin.java. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -10,6 +10,7 @@ import { debeEnviarConEnter } from "@/lib/eos/composer";
 import { fusionarDictado } from "@/lib/eos/dictado";
 import type { Cita } from "@/lib/eos/cita";
 import { useDictado, type Dictado } from "./useDictado";
+import { compartirRecibidoNativo, estaEnAppNativa } from "@/lib/app-nativa/cliente";
 import { comienzo, rubroDe } from "@/lib/eos/rubros";
 
 type PromptCard = {
@@ -198,6 +199,33 @@ export default function ChatView({
   const dictado = useDictado((texto) => {
     onMensajeChange(fusionarDictado(mensajeRef.current, texto));
   });
+
+  /*
+   * Texto compartido desde otra app (Android, "Compartir con EOS"). Entra en la
+   * caja del chat sin enviarse: la persona lo revisa y lo manda ella.
+   */
+  useEffect(() => {
+    if (!estaEnAppNativa()) return;
+
+    let vigente = true;
+    let escucha: { remove(): Promise<void> } | null = null;
+
+    compartirRecibidoNativo()
+      .addListener("compartido", ({ texto }) => {
+        if (!texto) return;
+        onMensajeChange(fusionarDictado(mensajeRef.current, texto));
+      })
+      .then((e) => {
+        if (vigente) escucha = e;
+        else void e.remove();
+      })
+      .catch(() => {});
+
+    return () => {
+      vigente = false;
+      void escucha?.remove();
+    };
+  }, [onMensajeChange]);
 
   useEffect(() => {
     const media = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 700px)");
