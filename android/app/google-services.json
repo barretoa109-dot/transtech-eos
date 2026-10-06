@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "123390443074",
+    "project_id": "transtech-eos-73c00",
+    "storage_bucket": "transtech-eos-73c00.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123390443074:android:08d9e8c0ef479b6a5877db",
+        "android_client_info": {
+          "package_name": "com.transtech.eos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7Wrhz-EUMrhPcLKwXTeiKV8XUkyV3du4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
