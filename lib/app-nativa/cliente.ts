@@ -94,6 +94,24 @@ export function compartirRecibidoNativo(): CompartirRecibido {
   return plugin;
 }
 
+type PushNativo = {
+  requestPermissions(): Promise<{ receive: string }>;
+  register(): Promise<void>;
+  addListener(
+    evento: "registration",
+    manejador: (datos: { value: string }) => void,
+  ): Promise<Escucha>;
+};
+
+let push: PushNativo | null = null;
+
+/** Las notificaciones push de la app (iOS y Android). Ver `lib/push/cliente.ts`. */
+export function pushNativo(): PushNativo {
+  const plugin = push ?? registerPlugin<PushNativo>("PushNotifications");
+  push = plugin;
+  return plugin;
+}
+
 let barra: BarraDeEstadoNativa | null = null;
 
 export function barraDeEstadoNativa(): BarraDeEstadoNativa {
