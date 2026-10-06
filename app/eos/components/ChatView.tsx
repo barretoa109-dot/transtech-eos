@@ -11,6 +11,7 @@ import { fusionarDictado } from "@/lib/eos/dictado";
 import type { Cita } from "@/lib/eos/cita";
 import { useDictado, type Dictado } from "./useDictado";
 import { compartirRecibidoNativo, estaEnAppNativa } from "@/lib/app-nativa/cliente";
+import { archivoDesdeCompartido } from "@/lib/app-nativa/compartido";
 import { activarPushNativo } from "@/lib/push/cliente";
 import { comienzo, rubroDe } from "@/lib/eos/rubros";
 
@@ -212,7 +213,12 @@ export default function ChatView({
     let escucha: { remove(): Promise<void> } | null = null;
 
     compartirRecibidoNativo()
-      .addListener("compartido", ({ texto }) => {
+      .addListener("compartido", ({ texto, archivo }) => {
+        // Una imagen (foto, comprobante) entra como adjunto, igual que con el clip.
+        if (archivo) {
+          onArchivosSeleccionados([archivoDesdeCompartido(archivo)]);
+          return;
+        }
         if (!texto) return;
         onMensajeChange(fusionarDictado(mensajeRef.current, texto));
       })
@@ -226,7 +232,7 @@ export default function ChatView({
       vigente = false;
       void escucha?.remove();
     };
-  }, [onMensajeChange]);
+  }, [onMensajeChange, onArchivosSeleccionados]);
 
   /*
    * El permiso de notificaciones se pide después del primer momento de valor:
