@@ -3762,6 +3762,8 @@
   height: 9px;
   flex-shrink: 0;
   border-radius: 3px;
+  /* Color neutro para las categorías propias; los rubros del sistema lo pisan abajo. */
+  background: var(--muted);
 }
 .eos-app .dest-vivienda {
   background: #1656bd;
@@ -3795,6 +3797,35 @@
 }
 .eos-app .dest-otros {
   background: #cbd5e1;
+}
+/* El nombre de un destino se puede tocar para ver sus movimientos. */
+.eos-app .dest-enlace {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+/* Aviso de lo que EOS no supo clasificar: una tarea, no un rubro. */
+.eos-app .dest-pendiente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-suave);
+  font-size: 13px;
+  color: var(--ink);
+}
+.eos-app .por-clasificar .neg-ventanas {
+  margin-top: 6px;
 }
 
 .eos-app .dest-lista {

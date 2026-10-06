@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { clasificar, etiquetaDe } from "@/lib/finanzas/destinos";
+import { destinoDe } from "@/lib/finanzas/destinos";
+import { cargarReglas } from "@/lib/finanzas/reglasCategoria";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 
 export const dynamic = "force-dynamic";
@@ -89,6 +90,9 @@ export async function GET(request: Request) {
     );
   }
 
+  // Las correcciones que la persona ya hizo mandan sobre la regla del texto.
+  const { reglas } = await cargarReglas(supabase, user.id);
+
   const movimientos = (data ?? []).map((m) => {
     /*
      * Lo que ya viene con destino conocido no pasa por el clasificador.
@@ -115,10 +119,11 @@ export async function GET(request: Request) {
         categoria: propia,
         etiqueta: conocida,
         editable: A_MANO.has(String(m.origen ?? "")),
+        categoriaEditable: String(m.origen ?? "") !== "erp",
       };
     }
 
-    const clave = clasificar(m.descripcion, m.categoria);
+    const { clave, etiqueta } = destinoDe(m, reglas);
 
     return {
       id: m.id,
@@ -129,9 +134,14 @@ export async function GET(request: Request) {
       fecha: String(m.fecha),
       origen: String(m.origen ?? ""),
       categoria: clave,
-      etiqueta: etiquetaDe(clave),
+      etiqueta,
       /** Los que nacieron de una venta o una compra no se tocan desde acá. */
       editable: A_MANO.has(String(m.origen ?? "")),
+      /*
+       * La categoría sí se puede decir para los del correo o de un documento:
+       * no cambia el monto ni el saldo, sólo a qué rubro va.
+       */
+      categoriaEditable: String(m.origen ?? "") !== "erp",
     };
   });
 

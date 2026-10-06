@@ -50,9 +50,10 @@ test("la categoría cargada le gana a adivinar del texto", () => {
   assert.equal(clasificar("COMPRA 8891", "mercado"), "mercado");
 });
 
-test("una categoría desconocida no se inventa un destino", () => {
-  assert.equal(clasificar("TIGO HOGAR", "rubro_raro_del_banco"), "servicios");
-  assert.equal(clasificar("COMPRA 8891", "rubro_raro_del_banco"), "otros");
+test("una categoría que no está en la lista se toma como propia, no se descarta", () => {
+  // Antes se ignoraba y se volvía a adivinar del texto. Ahora es el destino.
+  assert.equal(clasificar("TIGO HOGAR", "rubro_raro_del_banco"), "rubro_raro_del_banco");
+  assert.equal(clasificar("COMPRA 8891", "rubro_raro_del_banco"), "rubro_raro_del_banco");
 });
 
 test("suma por destino y calcula el peso de cada uno", () => {
@@ -206,4 +207,102 @@ test("una devolución RESTA del gasto de su categoría, no suma como ingreso", (
     conMonto.every((d) => d.total !== 200_000),
     "la categoría de la camisa sigue mostrando el gasto entero: la devolución no restó",
   );
+});
+
+test("una categoría propia no se descarta: gana sobre la inferencia", () => {
+  // Antes una categoría que no estaba en la lista fija se ignoraba y el
+  // movimiento volvía a "otros" aunque la persona ya hubiera dicho dónde iba.
+  assert.equal(clasificar("Pienso 50000", "Granja"), "granja");
+  assert.equal(clasificar("Uber 35000", "Mascotas"), "mascotas");
+});
+
+test("la categoría declarada gana sobre la regla del texto", () => {
+  // "Uber" es transporte, pero si la persona lo puso en Mascotas, eso manda.
+  assert.equal(clasificar("Uber 35000", "Mascotas"), "mascotas");
+});
+
+test("sin categoría declarada, la regla sigue decidiendo", () => {
+  assert.equal(clasificar("Uber 35000", null), "transporte");
+  assert.equal(clasificar("Uber 35000", "   "), "transporte");
+});
+
+test("'Sin reconocer' o 'otros' escritos a mano no cuentan como categoría", () => {
+  assert.equal(clasificar("Uber 35000", "Sin reconocer"), "transporte");
+  assert.equal(clasificar("Uber 35000", "otros"), "transporte");
+});
+
+test("la etiqueta de una categoría propia conserva sus tildes", () => {
+  const desglose = desglosarGastos([gasto("Veterinaria 350000", 350000, { categoria: "Veterinaria" })]);
+  assert.equal(desglose.destinos[0].clave, "veterinaria");
+  assert.equal(desglose.destinos[0].etiqueta, "Veterinaria");
+
+  const electronica = desglosarGastos([gasto("Compra 100000", 100000, { categoria: "Electrónica" })]);
+  assert.equal(electronica.destinos[0].etiqueta, "Electrónica");
+  assert.equal(electronica.destinos[0].clave, "electronica");
+});
+
+test("las categorías propias no cuentan como sin reconocer", () => {
+  const desglose = desglosarGastos([
+    gasto("Compra 90000", 90000, { categoria: "Granja" }),
+    gasto("Compra 10000", 10000),
+  ]);
+  assert.equal(desglose.sin_reconocer, 10000);
+  assert.equal(desglose.destinos.find((d) => d.clave === "granja")?.total, 90000);
+});
+
+test("el 'general' que pone el chat por defecto no es una categoría propia", () => {
+  // El ejecutor guarda "general" cuando la persona no dijo el rubro. Eso no
+  // debe ganar sobre la regla del texto: "Uber" sigue siendo transporte.
+  assert.equal(clasificar("Uber 35000", "general"), "transporte");
+  assert.equal(clasificar("Uber 35000", "General"), "transporte");
+  assert.equal(clasificar("compra 4521", "general"), "otros");
+});
+
+test("una corrección guardada como regla se aplica a los movimientos parecidos", () => {
+  // "Compra Comercial San Miguel" no matchea ninguna regla del sistema. Cuando
+  // la persona lo corrige a Mercado, la regla lo resuelve la próxima vez.
+  const reglas = [{ patron: "compra comercial san miguel", categoria: "Mercado" }];
+  assert.equal(clasificar("Compra Comercial San Miguel 120000", null, reglas), "mercado");
+  assert.equal(clasificar("COMPRA COMERCIAL SAN MIGUEL 88000", null, reglas), "mercado");
+  assert.equal(clasificar("Compra Comercial San Miguel 120000", null), "otros");
+});
+
+test("una regla aprendida gana sobre la regla del texto", () => {
+  const reglas = [{ patron: "uber", categoria: "Mascotas" }];
+  assert.equal(clasificar("Uber 35000", null, reglas), "mascotas");
+});
+
+test("una regla no se aplica a un concepto distinto", () => {
+  const reglas = [{ patron: "uber", categoria: "Mascotas" }];
+  assert.notEqual(clasificar("Uber Eats 45000", null, reglas), "mascotas");
+});
+
+test("la categoría declarada en el movimiento gana sobre la regla", () => {
+  const reglas = [{ patron: "uber", categoria: "Mascotas" }];
+  assert.equal(clasificar("Uber 35000", "Transporte", reglas), "transporte");
+});
+
+test("el desglose usa las reglas y no muestra 'Por clasificar' si hay regla", () => {
+  const reglas = [{ patron: "compra comercial san miguel", categoria: "Mercado" }];
+  const desglose = desglosarGastos(
+    [gasto("Compra Comercial San Miguel 120000", 120000), gasto("compra 4521", 30000)],
+    [],
+    reglas,
+  );
+  assert.equal(desglose.destinos.find((d) => d.clave === "mercado")?.total, 120000);
+  assert.equal(desglose.sin_reconocer, 30000);
+  assert.equal(desglose.destinos.find((d) => d.clave === "otros")?.etiqueta, "Por clasificar");
+});
+
+test("una categoría escrita como rubro se reconoce con las reglas del texto", () => {
+  // El chat y la pantalla pueden guardar "almuerzo" o "Uber" como categoría. Eso
+  // es comida y transporte, no una categoría propia que parece distinta.
+  assert.equal(clasificar("Almuerzo con el equipo 40000", "almuerzo"), "comida");
+  assert.equal(clasificar("Viaje 30000", "Uber"), "transporte");
+  assert.equal(clasificar("Pienso 50000", "Granja"), "granja");
+});
+
+test("una regla aprendida con una palabra de rubro también se reconoce", () => {
+  const reglas = [{ patron: "veterinaria centro", categoria: "veterinaria" }];
+  assert.equal(clasificar("Veterinaria Centro 350000", null, reglas), "veterinaria");
 });

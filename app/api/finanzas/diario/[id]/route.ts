@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { registrarAuditoria } from "@/lib/auditoria/registrar";
 import { monedaConocida } from "@/lib/finanzas/monedas";
+import { limpiarCategoria } from "@/lib/finanzas/destinos";
+import { aprenderRegla } from "@/lib/finanzas/reglasCategoria";
 
 export const dynamic = "force-dynamic";
 
@@ -56,17 +58,8 @@ async function propio(id: string) {
 
   if (!data) return { error: respuesta("Movimiento no encontrado.", 404) };
 
-  const origen = String(data.origen ?? "");
-  if (!A_MANO.has(origen)) {
-    return {
-      error: respuesta(
-        RECHAZO[origen] ?? "Este movimiento no se puede editar desde acá.",
-        409,
-      ),
-    };
-  }
-
-  return { user, supabase, movimiento: data };
+  // El origen decide qué se puede tocar (ver PATCH y DELETE), no si se llega acá.
+  return { user, supabase, movimiento: data, origen: String(data.origen ?? "") };
 }
 
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
@@ -152,8 +145,17 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
    * corrección manda sobre la inferencia.
    */
   if (cuerpo?.categoria !== undefined) {
-    const clave = String(cuerpo.categoria ?? "").trim().slice(0, 40);
-    cambios.categoria = clave || null;
+    // Acepta una categoría del sistema o una propia; "" o "Sin reconocer" la borran.
+    cambios.categoria = limpiarCategoria(String(cuerpo.categoria ?? "")) || null;
+  }
+
+  /*
+   * Un movimiento que llegó del correo, de un documento o de una venta sigue
+   * teniendo su propia fuente: se puede decir a qué categoría va, pero no se
+   * cambian su monto, su fecha ni su tipo desde acá.
+   */
+  if (!A_MANO.has(puerta.origen) && Object.keys(cambios).some((k) => k !== "categoria")) {
+    return respuesta(RECHAZO[puerta.origen] ?? "Este movimiento no se puede editar desde acá.", 409);
   }
 
   if (Object.keys(cambios).length === 0) {
@@ -174,6 +176,16 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   if (error) {
     console.error("Finanzas: no se pudo corregir el movimiento:", error);
     return respuesta("No pudimos guardar el cambio.", 503);
+  }
+
+  /*
+   * Una corrección se recuerda: la próxima vez que aparezca este mismo concepto,
+   * EOS lo pone en esta categoría sin volver a preguntar. Si no se pudo guardar
+   * la regla, la corrección de esta fila igual vale; sólo se pierde el aprendizaje.
+   */
+  const nueva = cambios.categoria;
+  if (typeof nueva === "string") {
+    await aprenderRegla(puerta.supabase, puerta.user.id, data.descripcion, nueva);
   }
 
   await registrarAuditoria(createAdminClient() as never, {
@@ -199,6 +211,10 @@ export async function DELETE(_request: Request, contexto: { params: Promise<{ id
   const { id } = await contexto.params;
   const puerta = await propio(id);
   if (puerta.error) return puerta.error;
+
+  if (!A_MANO.has(puerta.origen)) {
+    return respuesta(RECHAZO[puerta.origen] ?? "Este movimiento no se puede borrar desde acá.", 409);
+  }
 
   const { error } = await puerta.supabase
     .from("eos_movimientos_financieros")

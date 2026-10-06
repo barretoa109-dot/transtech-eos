@@ -6,6 +6,7 @@ import { hoyEnParaguay } from "@/lib/fecha";
 import { conciliar } from "@/lib/finanzas/conciliacion";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { armarInforme, type DeudaInforme, type MovimientoInforme } from "@/lib/informes/armar";
+import { cargarReglas } from "@/lib/finanzas/reglasCategoria";
 import { crearExcelInforme } from "@/lib/informes/excel";
 import { crearPdfInforme } from "@/lib/informes/pdf";
 import { crearWordInforme } from "@/lib/informes/word";
@@ -198,11 +199,15 @@ export async function GET(request: Request) {
       ? Math.max(0, estado.ritmo_diario * dias)
       : 0;
 
+  // El informe reparte los gastos con las mismas reglas que la pantalla.
+  const { reglas } = await cargarReglas(supabase, user.id);
+
   const informe = armarInforme({
     periodo,
     moneda: monedaInforme,
     hoy,
     movimientos,
+    reglas,
     deudas: ((deudasRes.data ?? []) as unknown as DeudaInforme[]).map((d) => ({
       ...d,
       saldo_declarado: num(d.saldo_declarado),

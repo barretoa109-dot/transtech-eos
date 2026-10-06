@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { desglosarGastos, desglosarIngresos, type MovimientoGasto } from "@/lib/finanzas/destinos";
+import { cargarReglas } from "@/lib/finanzas/reglasCategoria";
 import { agruparPorMoneda, codigoMoneda, ordenarMonedas, volumenPorMoneda } from "@/lib/finanzas/monedas";
 import { NextResponse } from "next/server";
 import { exigirModulo } from "@/lib/modulos/acceso";
@@ -63,7 +64,7 @@ export async function GET() {
   const meses = ultimosMeses(mesActual, MESES_HISTORIA);
   const desde = `${meses[0]}-01`;
 
-  const [politicaRes, movimientosRes] = await Promise.all([
+  const [politicaRes, movimientosRes, reglasRes] = await Promise.all([
     supabase
       .from("eos_finanzas_politica")
       .select("moneda")
@@ -77,6 +78,7 @@ export async function GET() {
       .gte("fecha", desde)
       .lte("fecha", hoyISO)
       .order("fecha", { ascending: true }),
+    cargarReglas(supabase, user.id),
   ]);
 
   // Sin Constitución Financiera no hay nada que desglosar: el panel de estado
@@ -126,7 +128,11 @@ export async function GET() {
     return {
       moneda,
       principal: moneda === principal,
-      desglose: desglosarGastos(de(mesActual, "gasto"), mesPrevio ? de(mesPrevio, "gasto") : []),
+      desglose: desglosarGastos(
+        de(mesActual, "gasto"),
+        mesPrevio ? de(mesPrevio, "gasto") : [],
+        reglasRes.reglas,
+      ),
       ingresos: desglosarIngresos(
         de(mesActual, "ingreso"),
         mesPrevio ? de(mesPrevio, "ingreso") : [],

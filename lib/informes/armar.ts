@@ -1,4 +1,4 @@
-import { desglosarGastos, type LineaDestino } from "../finanzas/destinos.ts";
+import { desglosarGastos, type LineaDestino, type ReglaCategoria } from "../finanzas/destinos.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import type { Periodo } from "./periodo.ts";
 
@@ -85,6 +85,8 @@ export function armarInforme(datos: {
   moneda: string;
   hoy: string;
   movimientos: MovimientoInforme[];
+  /** Las correcciones de categoría de la persona: el informe las respeta. */
+  reglas?: ReglaCategoria[];
   deudas?: DeudaInforme[];
   /** Si EOS aprendió cuánto se gasta sin verlo, se dice en el informe. */
   gastoInvisible?: number;
@@ -122,7 +124,7 @@ export function armarInforme(datos: {
     );
   }
 
-  const desglose = desglosarGastos(gastos);
+  const desglose = desglosarGastos(gastos, [], datos.reglas ?? []);
 
   if (desglose.sin_reconocer > 0 && desglose.total > 0) {
     const parte = Math.round((desglose.sin_reconocer / desglose.total) * 100);
