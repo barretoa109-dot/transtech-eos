@@ -19,7 +19,7 @@ const config: CapacitorConfig = {
      * /eos/chat: una vuelta más en cada arranque. Sin sesión, el proxy
      * manda a /login como en la web.
      */
-    url: "https://transtech.com.py/eos/chat",
+    url: "https://www.transtech.com.py/eos/chat",
     cleartext: false,
     /*
      * Sin internet, el WebView mostraba el error del sistema o una pantalla
