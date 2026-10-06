@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import FallaDeCarga from "./FallaDeCarga";
-import { ArrowDown, ArrowUp, HelpCircle, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { formatearMonto, nombreDelMes } from "@/lib/finanzas/formato";
 import { nombreDeMoneda } from "@/lib/finanzas/monedas";
 
@@ -78,7 +78,14 @@ type Respuesta =
 /** El umbral bajo el cual un cambio no vale la pena mencionar. */
 const CAMBIO_RELEVANTE = 0.1;
 
-export default function FinanzasDestino() {
+export default function FinanzasDestino({
+  onRevisarPorClasificar,
+  onVerDestino,
+}: {
+  onRevisarPorClasificar?: () => void;
+  /** Al tocar un destino, la pantalla de movimientos se filtra por él. */
+  onVerDestino?: (clave: string, etiqueta: string) => void;
+} = {}) {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
   const [monedaVista, setMonedaVista] = useState<string | null>(null);
@@ -105,6 +112,10 @@ export default function FinanzasDestino() {
 
   const bloque = bloques.find((b) => b.moneda === monedaVista) ?? bloques[0];
   const { desglose, ingresos, historia } = bloque;
+
+  // "Por clasificar" no es un rubro: se separa de la lista y se muestra como aviso.
+  const rubros = desglose.destinos.filter((d) => d.clave !== "otros");
+  const porClasificar = desglose.destinos.find((d) => d.clave === "otros");
   const mes = data.mes;
   const mesPrevio = data.mes_previo;
   const fmt = (valor: number) => formatearMonto(valor, bloque.moneda);
@@ -160,7 +171,7 @@ export default function FinanzasDestino() {
             role="img"
             aria-label="Reparto de los gastos del mes por destino"
           >
-            {desglose.destinos.map((d) => (
+            {rubros.map((d) => (
               <span
                 key={d.clave}
                 className={`dest-tramo dest-${d.clave}`}
@@ -171,18 +182,21 @@ export default function FinanzasDestino() {
           </div>
 
           <div className="dest-lista">
-            {desglose.destinos.map((d) => (
+            {rubros.map((d) => (
               <div className="dest-fila" key={d.clave}>
                 <span className={`dest-punto dest-${d.clave}`} />
                 <span className="dest-nombre">
-                  {d.etiqueta}
-                  {d.clave === "otros" && (
-                    <span
-                      className="dest-ayuda"
-                      title="EOS todavía no supo a qué rubro pertenecen estos gastos. Se muestran aparte en vez de repartirlos a ojo."
+                  {onVerDestino ? (
+                    <button
+                      type="button"
+                      className="dest-enlace"
+                      onClick={() => onVerDestino(d.clave, d.etiqueta)}
+                      aria-label={`Ver los movimientos de ${d.etiqueta}`}
                     >
-                      <HelpCircle size={12} />
-                    </span>
+                      {d.etiqueta}
+                    </button>
+                  ) : (
+                    d.etiqueta
                   )}
                 </span>
                 <span className="dest-monto">{fmt(d.total)}</span>
@@ -191,6 +205,26 @@ export default function FinanzasDestino() {
               </div>
             ))}
           </div>
+
+          {/*
+            Lo que EOS no supo clasificar no es un rubro: es una tarea. Por eso
+            no lleva porcentaje ni va en la lista; sólo dice cuántos son y
+            cuánto suman, y lleva a revisarlos.
+          */}
+          {porClasificar && porClasificar.cantidad > 0 && (
+            <div className="dest-pendiente" role="status">
+              <span>
+                Hay {porClasificar.cantidad}{" "}
+                {porClasificar.cantidad === 1 ? "movimiento que necesito clasificar" : "movimientos que necesito clasificar"}
+                {" "}· {fmt(porClasificar.total)}
+              </span>
+              {onRevisarPorClasificar && (
+                <button type="button" className="chip" onClick={onRevisarPorClasificar}>
+                  Revisar movimientos
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
 

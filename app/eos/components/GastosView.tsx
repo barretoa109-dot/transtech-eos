@@ -98,6 +98,8 @@ type Movimiento = {
   categoria: string;
   etiqueta: string;
   editable: boolean;
+  /** La categoría se puede decir aunque el monto no: también para los del correo. */
+  categoriaEditable: boolean;
 };
 
 type Total = { moneda: string; entro: number; salio: number; balance: number };
@@ -261,6 +263,9 @@ const VACIO: Partial<Record<Subarea, string>> = {
   objetivos: "Acá vas a ver lo que querés lograr, dicho en plata por mes.",
 };
 
+// Valor del desplegable de categoría que abre el cuadro para escribir una propia.
+const NUEVA_CATEGORIA = "__nueva__";
+
 function dia(iso: string): string {
   const [, mes, numero] = iso.split("-");
   return `${numero}/${mes}`;
@@ -304,6 +309,8 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [totales, setTotales] = useState<Total[]>([]);
   const [ventana, setVentana] = useState<"semana" | "mes" | "trimestre">("mes");
+  // Destino por el que se filtra la lista de movimientos, si se llegó desde "En qué se fue".
+  const [filtroDestino, setFiltroDestino] = useState<{ clave: string; etiqueta: string } | null>(null);
   const [subarea, setSubarea] = useState<Subarea>(
     subInicial && seccionDe(SECCIONES, subInicial) === seccion ? subInicial : confSeccion.subs[0].clave,
   );
@@ -396,7 +403,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
     return () => window.clearTimeout(timer);
   }, [cargar]);
 
-  async function anotar() {
+  async function anotar(tipo?: "ingreso" | "gasto") {
     const linea = texto.trim();
     if (!linea || guardando) return;
 
@@ -407,7 +414,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
       const respuesta = await fetch("/api/finanzas/rapido", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: linea }),
+        body: JSON.stringify({ texto: linea, tipo }),
       });
 
       const datos = await respuesta.json().catch(() => null);
@@ -604,13 +611,27 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
               if (e.key === "Enter") void anotar();
             }}
           />
-          <button type="button" className="btn-pri" disabled={guardando} onClick={() => void anotar()}>
-            {guardando ? "Anotando…" : "Anotar"}
+          <button
+            type="button"
+            className="btn-pri gasto-anotar"
+            disabled={guardando}
+            onClick={() => void anotar("gasto")}
+          >
+            {guardando ? "Anotando…" : "− Anotar gasto"}
+          </button>
+          <button
+            type="button"
+            className="btn-pri ingreso-anotar"
+            disabled={guardando}
+            onClick={() => void anotar("ingreso")}
+          >
+            + Anotar ingreso
           </button>
         </div>
         <p className="sec-decile-ayuda">
-          Escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo 3.500.000». EOS entiende el monto, la
-          fecha y en qué fue.
+          Elegí si es un gasto o un ingreso y escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo
+          3.500.000». EOS entiende el monto, la fecha y en qué fue. Las transferencias entre tus cuentas se dicen por
+          el chat.
         </p>
         </>
         )}
@@ -803,7 +824,18 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         "¿En qué se fue?" en tres partes de "Mi mes": el desglose por destino,
         el papel para el contador y la lista renglón por renglón.
       */}
-      {subarea === "fue" && <FinanzasDestino />}
+      {subarea === "fue" && (
+        <FinanzasDestino
+          onRevisarPorClasificar={() => {
+            setFiltroDestino(null);
+            irA("movimientos");
+          }}
+          onVerDestino={(clave, etiqueta) => {
+            setFiltroDestino({ clave, etiqueta });
+            irA("movimientos");
+          }}
+        />
+      )}
       {subarea === "balance" && <FinanzasInforme />}
 
       {subarea === "movimientos" && (
@@ -845,6 +877,24 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
               </p>
             )}
 
+            {filtroDestino && (
+              <div className="dest-pendiente" role="status">
+                <span>
+                  Mostrando solo <strong>{filtroDestino.etiqueta}</strong>
+                </span>
+                <button type="button" className="chip" onClick={() => setFiltroDestino(null)}>
+                  Ver todos
+                </button>
+              </div>
+            )}
+
+            <PorClasificar
+              movimientos={movimientos.filter((m) => m.categoria === "otros")}
+              opciones={DESTINOS.filter((d) => d.clave !== "otros")}
+              onElegir={(m, valor) => void recategorizar(m, valor)}
+            />
+            <ReglasAprendidas />
+
             {movimientos.length === 0 ? (
               <div className="neg-empty-state">
                 <Wallet size={28} />
@@ -852,7 +902,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                 <p>Los que anotes, los que lleguen del correo de tu banco y los de tus ventas aparecen todos acá.</p>
               </div>
             ) : (
-              movimientos.map((m) => (
+              (filtroDestino ? movimientos.filter((m) => m.categoria === filtroDestino.clave) : movimientos).map((m) => (
                 <div className="neg-fila" key={m.id}>
                   <span className={`gastos-signo ${m.tipo}`} aria-hidden="true">
                     {m.tipo === "ingreso" ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}
@@ -865,18 +915,31 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                       {!m.editable && ` · ${m.etiqueta} · lo generó otra parte de EOS`}
                     </small>
 
-                    {m.editable && (
+                    {m.categoriaEditable && (
                       <select
                         className="neg-input gastos-categoria"
                         value={m.categoria}
                         aria-label={`Categoría de ${m.descripcion}`}
-                        onChange={(e) => void recategorizar(m, e.target.value)}
+                        onChange={(e) => {
+                          if (e.target.value !== NUEVA_CATEGORIA) {
+                            void recategorizar(m, e.target.value);
+                            return;
+                          }
+                          // Una categoría propia viaja con el texto que escribió la
+                          // persona, con sus tildes. La clave normalizada sólo agrupa.
+                          const texto = window.prompt("¿Cómo se llama la categoría? Por ejemplo: Granja, Mascotas.");
+                          if (texto?.trim()) void recategorizar(m, texto.trim());
+                        }}
                       >
                         {DESTINOS.map((d) => (
                           <option key={d.clave} value={d.clave}>
                             {d.etiqueta}
                           </option>
                         ))}
+                        {!DESTINOS.some((d) => d.clave === m.categoria) && (
+                          <option value={m.categoria}>{m.etiqueta}</option>
+                        )}
+                        <option value={NUEVA_CATEGORIA}>+ Nueva categoría…</option>
                       </select>
                     )}
                   </div>
@@ -996,6 +1059,130 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
  * Cambiar de gasto a ingreso es otra cosa —y para eso está el desplegable de
  * tipo, que sí es explícito—.
  */
+/**
+ * Lo que EOS todavía no sabe clasificar, con la respuesta a mano.
+ *
+ * Una elección por movimiento. Se guarda como regla: los parecidos dejan de
+ * caer acá solos. Si no hay nada, no se muestra nada.
+ */
+function PorClasificar({
+  movimientos,
+  opciones,
+  onElegir,
+}: {
+  movimientos: Movimiento[];
+  opciones: { clave: string; etiqueta: string }[];
+  onElegir: (m: Movimiento, valor: string) => void;
+}) {
+  if (movimientos.length === 0) return null;
+
+  const rapidas = opciones.slice(0, 6);
+
+  return (
+    <div className="card por-clasificar" role="region" aria-label="Movimientos por clasificar">
+      <div className="card-title">
+        Hay {movimientos.length}{" "}
+        {movimientos.length === 1 ? "movimiento que necesito clasificar" : "movimientos que necesito clasificar"}
+      </div>
+      <div className="card-sub">Elegí una vez. EOS recuerda la categoría para los parecidos.</div>
+
+      {movimientos.map((m) => (
+        <div className="neg-fila" key={m.id}>
+          <div className="neg-fila-texto">
+            <strong>{m.descripcion || "Sin detalle"}</strong>
+            <small>
+              {dia(m.fecha)} · {formatearMonto(Math.abs(m.monto), m.moneda)}
+            </small>
+          </div>
+
+          <div className="neg-ventanas" role="group" aria-label={`Categoría de ${m.descripcion || "este movimiento"}`}>
+            {rapidas.map((o) => (
+              <button key={o.clave} type="button" className="chip" onClick={() => onElegir(m, o.clave)}>
+                {o.etiqueta}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="chip"
+              onClick={() => {
+                const texto = window.prompt("¿Cómo se llama la categoría? Por ejemplo: Granja, Mascotas.");
+                if (texto?.trim()) onElegir(m, texto.trim());
+              }}
+            >
+              Otra…
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type ReglaAprendida = { id: string; patron: string; categoria: string };
+
+/**
+ * Las correcciones que EOS recuerda. Están para poder olvidar una que salió
+ * mal: una regla equivocada se ve en cada movimiento parecido, así que tiene
+ * que poder deshacerse desde acá.
+ */
+function ReglasAprendidas() {
+  const [reglas, setReglas] = useState<ReglaAprendida[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let vigente = true;
+    fetch("/api/finanzas/reglas-categoria", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ reglas: ReglaAprendida[] }>) : Promise.reject(new Error())))
+      .then((datos) => {
+        if (vigente) setReglas(datos.reglas);
+      })
+      .catch(() => {
+        if (vigente) setError("No pudimos cargar lo que EOS aprendió.");
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  async function olvidar(id: string) {
+    const respuesta = await fetch(`/api/finanzas/reglas-categoria?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (!respuesta.ok) {
+      setError("No pudimos olvidar esa regla.");
+      return;
+    }
+    setReglas((previas) => previas.filter((r) => r.id !== id));
+  }
+
+  if (reglas.length === 0 && !error) return null;
+
+  return (
+    <div className="card">
+      <div className="card-title">Lo que EOS aprendió de tus correcciones</div>
+      <div className="card-sub">Cuando aparece el mismo concepto, va en esa categoría. Si salió mal, olvidala.</div>
+
+      {error && (
+        <p className="neg-error" role="alert">
+          <AlertCircle size={14} /> {error}
+        </p>
+      )}
+
+      {reglas.map((r) => (
+        <div className="neg-fila" key={r.id}>
+          <div className="neg-fila-texto">
+            <strong>{r.patron}</strong>
+            <small>→ {r.categoria}</small>
+          </div>
+          <button type="button" className="chip" onClick={() => void olvidar(r.id)}>
+            Olvidar
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EditarMovimiento({
   movimiento,
   onCancelar,

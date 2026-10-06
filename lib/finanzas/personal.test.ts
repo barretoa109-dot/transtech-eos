@@ -134,5 +134,5 @@ test("un gasto que el clasificador no reconoce se dice, no se reparte a ojo", ()
   // como respuesta, uno sin clasificar se lee como pendiente.
   const g = anotar("gasté 90 mil en eso que compré");
   assert.equal(g.destino, "otros");
-  assert.equal(etiquetaDe("otros"), "Sin reconocer");
+  assert.equal(etiquetaDe("otros"), "Por clasificar");
 });

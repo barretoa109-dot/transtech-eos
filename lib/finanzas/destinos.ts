@@ -224,7 +224,15 @@ const REGLAS: { clave: string; etiqueta: string; patrones: RegExp[] }[] = [
   },
 ];
 
-const OTROS = { clave: "otros", etiqueta: "Sin reconocer" };
+/**
+ * Lo que EOS todavía no pudo clasificar. Es una excepción que hay que revisar,
+ * no un rubro de gasto: se muestra como "Por clasificar" con un aviso de cuántos
+ * son, nunca como un porcentaje grande del mes.
+ */
+const OTROS = { clave: "otros", etiqueta: "Por clasificar" };
+
+/** Una corrección que la persona hizo antes: "este concepto es de esta categoría". */
+export type ReglaCategoria = { patron: string; categoria: string };
 
 /**
  * Minúsculas y sin tildes.
@@ -244,17 +252,70 @@ function normalizar(texto: string): string {
 const POR_CLAVE = new Map(REGLAS.map((r) => [r.clave, r.etiqueta]));
 
 /**
+ * Valores que llegan a la columna `categoria` sin que nadie haya elegido nada:
+ * el default que pone el ejecutor del chat ("general") y los rótulos de "no
+ * sé". Ninguno es una categoría de la persona, así que no pueden ganar sobre
+ * la inferencia del texto.
+ */
+const SIN_ELECCION = new Set(["general", "otros", "sin reconocer", "sin categoria"]);
+
+/**
+ * Lo que la persona escribió como categoría, limpio y acotado.
+ *
+ * "" si no hay nada usable o si es uno de los valores de `SIN_ELECCION`.
+ */
+export function limpiarCategoria(texto: string | null | undefined): string {
+  const limpio = (texto ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+  if (!limpio || SIN_ELECCION.has(normalizar(limpio))) return "";
+  return limpio;
+}
+
+/**
  * A qué destino pertenece un gasto.
  *
- * `categoria` gana si viene cargada y es una clave conocida: si algún día una
- * integración bancaria trae la categoría del rubro, esa es mejor información
- * que adivinar de un texto.
+ * `categoria` gana si la persona la puso, sea una de las del sistema o una
+ * propia ("Granja", "Mascotas"). Antes una propia se descartaba en silencio y
+ * el movimiento volvía a "Sin reconocer" aunque el usuario ya hubiera dicho
+ * dónde iba. Si algún día una integración bancaria trae la categoría del
+ * rubro, esa también gana: es mejor información que adivinar de un texto.
  */
-export function clasificar(descripcion: string | null, categoria?: string | null): string {
-  const declarada = categoria ? normalizar(categoria).trim() : "";
-  if (declarada && POR_CLAVE.has(declarada)) return declarada;
+/**
+ * Una categoría escrita a mano o por el chat, reducida a su destino.
+ *
+ * Si la palabra es una clave del sistema ("comida"), es esa. Si no, se busca
+ * con las mismas reglas que el texto: "almuerzo" o "uber" caen en su rubro, y
+ * sólo lo que no encaja en ninguno queda como categoría propia ("Granja").
+ */
+function resolverCategoria(texto: string): string {
+  const normal = normalizar(limpiarCategoria(texto)).trim();
+  if (!normal) return "";
+  if (POR_CLAVE.has(normal)) return normal;
+
+  const porTexto = REGLAS.find((r) => r.patrones.some((p) => p.test(normal)));
+  return porTexto ? porTexto.clave : normal;
+}
+
+export function clasificar(
+  descripcion: string | null,
+  categoria?: string | null,
+  reglas: ReglaCategoria[] = [],
+): string {
+  const declarada = resolverCategoria(categoria ?? "");
+  if (declarada) return declarada;
 
   if (!descripcion) return OTROS.clave;
+
+  /*
+   * Lo que la persona corrigió antes manda sobre la regla del texto: si alguna
+   * vez dijo que "Uber" era de Mascotas, eso se respeta. El patrón es el núcleo
+   * de la descripción, así que "Uber 35000" y "UBER 42000" caen igual, pero
+   * "Uber Eats" es otro concepto.
+   */
+  const nucleo = normalizarDescripcion(descripcion);
+  const regla = nucleo ? reglas.find((r) => r.patron === nucleo) : undefined;
+  const aprendida = regla ? resolverCategoria(regla.categoria) : "";
+  if (aprendida) return aprendida;
+
   const texto = normalizar(descripcion);
 
   for (const regla of REGLAS) {
@@ -276,12 +337,45 @@ export const DESTINOS: { clave: string; etiqueta: string }[] = [
   OTROS,
 ];
 
-export function etiquetaDe(clave: string): string {
-  return POR_CLAVE.get(clave) ?? OTROS.etiqueta;
+function capitalizar(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-function acumular(movimientos: MovimientoGasto[]): Map<string, { total: number; cantidad: number }> {
-  const mapa = new Map<string, { total: number; cantidad: number }>();
+/**
+ * Etiqueta de una clave cuando no hay un movimiento a mano. Para una propia,
+ * sólo la clave: las tildes se pierden acá, por eso `destinoDe` prefiere el
+ * texto que escribió la persona.
+ */
+export function etiquetaDe(clave: string): string {
+  if (clave === OTROS.clave) return OTROS.etiqueta;
+  return POR_CLAVE.get(clave) ?? capitalizar(clave);
+}
+
+/**
+ * Destino y etiqueta de un movimiento.
+ *
+ * Para una categoría propia la etiqueta es lo que escribió la persona, con sus
+ * tildes; la clave normalizada sólo sirve para agrupar. Si la clave no viene
+ * de la persona, sale capitalizada.
+ */
+export function destinoDe(
+  m: MovimientoGasto,
+  reglas: ReglaCategoria[] = [],
+): { clave: string; etiqueta: string } {
+  const clave = clasificar(m.descripcion, m.categoria, reglas);
+
+  const delSistema = POR_CLAVE.get(clave);
+  if (delSistema) return { clave, etiqueta: delSistema };
+  if (clave === OTROS.clave) return { clave, etiqueta: OTROS.etiqueta };
+
+  return { clave, etiqueta: limpiarCategoria(m.categoria) || capitalizar(clave) };
+}
+
+function acumular(
+  movimientos: MovimientoGasto[],
+  reglas: ReglaCategoria[],
+): Map<string, { etiqueta: string; total: number; cantidad: number }> {
+  const mapa = new Map<string, { etiqueta: string; total: number; cantidad: number }>();
 
   for (const m of movimientos) {
     const monto = Number(m.monto);
@@ -297,8 +391,8 @@ function acumular(movimientos: MovimientoGasto[]): Map<string, { total: number; 
      */
     if (!Number.isFinite(monto) || monto === 0) continue;
 
-    const clave = clasificar(m.descripcion, m.categoria);
-    const actual = mapa.get(clave) ?? { total: 0, cantidad: 0 };
+    const { clave, etiqueta } = destinoDe(m, reglas);
+    const actual = mapa.get(clave) ?? { etiqueta, total: 0, cantidad: 0 };
     actual.total += monto;
 
     // Una devolución no es un gasto más: resta del total pero no cuenta como
@@ -325,9 +419,10 @@ function redondear(valor: number): number {
 export function desglosarGastos(
   actuales: MovimientoGasto[],
   previos: MovimientoGasto[] = [],
+  reglas: ReglaCategoria[] = [],
 ): Desglose {
-  const ahora = acumular(actuales);
-  const antes = acumular(previos);
+  const ahora = acumular(actuales, reglas);
+  const antes = acumular(previos, reglas);
   const hayComparacion = previos.length > 0;
 
   const total = [...ahora.values()].reduce((t, v) => t + v.total, 0);
@@ -336,7 +431,7 @@ export function desglosarGastos(
   const destinos = [...ahora.entries()]
     .map(([clave, v]) => ({
       clave,
-      etiqueta: clave === OTROS.clave ? OTROS.etiqueta : etiquetaDe(clave),
+      etiqueta: v.etiqueta,
       total: redondear(v.total),
       cantidad: v.cantidad,
       porcentaje: total > 0 ? Math.round((v.total / total) * 1000) / 10 : 0,
@@ -398,10 +493,6 @@ function claveDeOrigen(m: MovimientoGasto): { clave: string; etiqueta: string } 
   if (!nucleo) return { clave: "sin-detalle", etiqueta: "Sin detalle" };
 
   return { clave: nucleo, etiqueta: capitalizar(nucleo) };
-}
-
-function capitalizar(texto: string): string {
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function acumularOrigenes(movimientos: MovimientoGasto[]) {

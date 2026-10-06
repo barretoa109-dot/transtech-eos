@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { armarFondo, DESTINOS_ESENCIALES, type Fondo } from "@/lib/finanzas/fondoEmergencia";
-import { clasificar } from "@/lib/finanzas/destinos";
+import { clasificar, type ReglaCategoria } from "@/lib/finanzas/destinos";
+import { cargarReglas } from "@/lib/finanzas/reglasCategoria";
 import { codigoMoneda } from "@/lib/finanzas/monedas";
 import { detectarSeries } from "@/lib/finanzas/recurrencia";
 import { exigirModulo } from "@/lib/modulos/acceso";
@@ -81,7 +82,7 @@ export async function GET() {
   const inicioDelMes = `${hoy.slice(0, 7)}-01`;
   const desdeHistoria = `${new Date(Date.UTC(anio, mes - 1 - MESES_DE_HISTORIA, 1)).toISOString().slice(0, 7)}-01`;
 
-  const [politicaRes, objetivosRes, cuentasRes, movimientosRes, fijosRes, deudasRes] =
+  const [politicaRes, objetivosRes, cuentasRes, movimientosRes, fijosRes, deudasRes, reglasRes] =
     await Promise.all([
       supabase
         .from("eos_finanzas_politica")
@@ -121,6 +122,7 @@ export async function GET() {
         .eq("ambito", "personal")
         .eq("usuario_id", usuarioId)
         .neq("estado", "saldada"),
+      cargarReglas(supabase, usuarioId),
     ]);
 
   /*
@@ -206,6 +208,7 @@ export async function GET() {
 
   const fondo = armarElFondo({
     movimientos,
+    reglas: reglasRes.reglas,
     inicioDelMes,
     fijos: ((fijosRes.data ?? []) as Record<string, unknown>[])
       .filter((f) => f.tipo !== "ingreso")
@@ -254,6 +257,7 @@ export async function GET() {
  */
 function armarElFondo(datos: {
   movimientos: { tipo: string; monto: number; fecha: string; descripcion: string | null; categoria: string | null }[];
+  reglas: ReglaCategoria[];
   inicioDelMes: string;
   fijos: { descripcion: string; monto: number }[];
   cuotas: { descripcion: string; monto: number }[];
@@ -271,7 +275,7 @@ function armarElFondo(datos: {
 
     const clave = m.fecha.slice(0, 7);
     const fila = porMes.get(clave) ?? { esencial: 0, sinReconocer: 0 };
-    const destino = clasificar(m.descripcion, m.categoria);
+    const destino = clasificar(m.descripcion, m.categoria, datos.reglas);
 
     if (esenciales.has(destino)) fila.esencial += m.monto;
     else if (destino === "otros") fila.sinReconocer += m.monto;

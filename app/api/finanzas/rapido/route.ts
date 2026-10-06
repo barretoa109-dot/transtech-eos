@@ -35,9 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { texto?: unknown };
+  let body: { texto?: unknown; tipo?: unknown };
   try {
-    body = (await request.json()) as { texto?: unknown };
+    body = (await request.json()) as { texto?: unknown; tipo?: unknown };
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
@@ -50,7 +50,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: alChat, entendido: null }, { status: 400, headers: noStore() });
   }
 
-  const gasto = interpretar(texto, hoyEnParaguay());
+  /*
+   * Una transferencia entre cuentas propias no es ingreso ni gasto: el saldo
+   * total no cambia. Esa va por el chat, que sabe registrar los dos lados.
+   * Anotarla acá como gasto o ingreso inflaría uno de los dos totales.
+   */
+  if (/\btransfe/i.test(texto)) {
+    return NextResponse.json(
+      {
+        error:
+          "Una transferencia entre tus cuentas no es ingreso ni gasto. Decímela por el chat y la registro en las dos cuentas.",
+        entendido: null,
+      },
+      { status: 400, headers: noStore() },
+    );
+  }
+
+  /*
+   * El botón "Anotar gasto" o "Anotar ingreso" decide el signo. La persona lo
+   * eligió antes de escribir, así que no se lo discute el parser.
+   */
+  const tipoElegido: "gasto" | "ingreso" | null =
+    body.tipo === "gasto" ? "gasto" : body.tipo === "ingreso" ? "ingreso" : null;
+  const leido = interpretar(texto, hoyEnParaguay());
+  const gasto = leido && tipoElegido ? { ...leido, tipo: tipoElegido } : leido;
 
   // Sin importe no se guarda nada. Mejor pedir de nuevo que inventar un
   // movimiento que después contamina el disponible real.
