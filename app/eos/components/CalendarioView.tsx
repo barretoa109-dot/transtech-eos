@@ -341,7 +341,7 @@ export default function CalendarioView({ onOpenChat }: { onOpenChat?: () => void
       <div className="page page-in">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="page-header">
-            <div className="page-eyebrow">Calendario</div>
+            <div className="page-eyebrow">Todos tus espacios</div>
             <div className="page-title">Tu agenda</div>
             <div className="page-sub">
               Citas, recordatorios, seguimientos, cobros, pagos y trabajos realizados, todo en un solo lugar.

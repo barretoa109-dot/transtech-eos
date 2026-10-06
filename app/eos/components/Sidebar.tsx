@@ -6,22 +6,20 @@ import { filtrarConversaciones } from "@/lib/eos/buscar-chats";
 import {
   Archive,
   ArchiveRestore,
-  BarChart3,
-  CalendarDays,
+  Check,
   ChevronRight,
+  ChevronsUpDown,
   Ellipsis,
-  FileText,
-  Handshake,
-  Lightbulb,
+  Lock,
   Pencil,
   Plus,
-  ScrollText,
   Share2,
   Store,
   Trash2,
-  Wallet,
+  User,
   PanelLeftClose,
 } from "lucide-react";
+import type { Destino, Espacio, ItemMenu } from "./espacios";
 
 type Conversacion = {
   id: string;
@@ -38,12 +36,30 @@ const ALTO_MENU = 190;
 type MenuAbierto = { id: string; top: number; left: number; haciaArriba: boolean };
 type TextoCompartir = { id: string; texto: Promise<string | null>; listo?: string | null };
 
-type Vista = "chat" | "briefing" | "decisions" | "learnings" | "dashboard" | "negocio" | "crm" | "gastos" | "calendario" | "perfil";
+/** Una opción del selector de espacios: Personal o uno de los negocios de la persona. */
+export type OpcionEspacio = {
+  /** "personal" o el id de la empresa. */
+  clave: string;
+  espacio: Espacio;
+  nombre: string;
+  detalle: string;
+};
 
 type SidebarProps = {
   nombre: string;
   plan: string;
-  vista: Vista;
+  /** Dónde está la persona: el ítem del menú marcado, o "chat"/"perfil". */
+  destino: Destino;
+  espacio: Espacio;
+  /** El menú del espacio activo, ya armado (sin lo que el negocio apagó). */
+  itemsMenu: ItemMenu[];
+  /** Números rojos al lado de un ítem (p. ej. fijos vencidos sin registrar). */
+  avisos?: Partial<Record<Destino, number>>;
+  opcionesEspacio: OpcionEspacio[];
+  claveEspacioActivo: string;
+  onElegirEspacio: (opcion: OpcionEspacio) => void;
+  selectorAbierto: boolean;
+  onSelectorAbierto: (abierto: boolean) => void;
   busqueda: string;
   /** Chats con un mensaje que coincide con la búsqueda, y el pedazo que coincide. */
   coincidencias?: Record<string, string>;
@@ -53,7 +69,7 @@ type SidebarProps = {
   conversaciones: Conversacion[];
   colapsado: boolean;
   onToggleColapsado: () => void;
-  onVistaChange: (vista: Vista) => void;
+  onDestino: (destino: Destino) => void;
   onBusquedaChange: (value: string) => void;
   onNuevoChat: () => void;
   onAbrirConversacion: (id: string) => void;
@@ -65,60 +81,25 @@ type SidebarProps = {
   onTextoParaCompartir: (id: string, titulo: string) => Promise<string | null>;
 };
 
-const NAV_ITEMS: { vista: Vista; label: string; icon: React.ReactNode }[] = [
-  { vista: "briefing", label: "Briefing", icon: <FileText size={16} /> },
-  { vista: "dashboard", label: "Dashboard", icon: <BarChart3 size={16} /> },
-  { vista: "negocio", label: "Negocio", icon: <Store size={16} /> },
-  /*
-   * CRM va justo después de Negocio, no adentro: hasta esta reorganización
-   * Contactos y el embudo de oportunidades eran dos pestañas más de
-   * "Negocio" (título literal "Tu ERP y tu CRM"). Se separó la pantalla
-   * porque a nivel de base y de facturación (es un anexo propio, "crm",
-   * desde el 25 de agosto) ya eran dos cosas distintas — la UI era lo único
-   * que las mezclaba. Ver el comentario de cabecera de `CRMView.tsx`.
-   */
-  { vista: "crm", label: "CRM", icon: <Handshake size={16} /> },
-  /*
-   * Personal va después de Negocio y no adentro a propósito.
-   *
-   * EOS no es sólo para quien tiene un comercio. Alguien en relación de
-   * dependencia no tiene ventas ni stock, y meterle su combustible y su
-   * almuerzo dentro de una sección llamada "Negocio" le dice que el
-   * producto no es para él.
-   *
-   * Se llamaba "Gastos" y desde la v136 se llama "Personal", por dos motivos.
-   * El primero es que acá también entra lo que la persona COBRA, y una
-   * sección llamada Gastos donde aparece un sueldo se lee como un error.
-   * El segundo importa más: desde que la plata está separada por ámbito, esta
-   * sección es la contraparte de Negocio y tiene que leerse como tal. "Gastos"
-   * sonaba a una pestaña de Negocio; "Personal" dice de quién es la plata que
-   * hay adentro, que es exactamente la distinción que el sistema ahora
-   * sostiene en la base.
-   */
-  { vista: "gastos", label: "Personal", icon: <Wallet size={16} /> },
-  /*
-   * Calendario va después de Personal y antes de Decisiones: es la vista que
-   * cruza a todas las demás (cobros del negocio, tareas del CRM, metas,
-   * cuotas personales), y las otras cinco secciones son las que lo alimentan.
-   * No depende de ningún módulo contratado: una cita o un recordatorio los
-   * tiene cualquiera.
-   */
-  { vista: "calendario", label: "Calendario", icon: <CalendarDays size={16} /> },
-  { vista: "decisions", label: "Decisiones", icon: <ScrollText size={16} /> },
-  { vista: "learnings", label: "Aprendizajes", icon: <Lightbulb size={16} /> },
-];
-
 export default function Sidebar({
   nombre,
   plan,
-  vista,
+  destino,
+  espacio,
+  itemsMenu,
+  avisos = {},
+  opcionesEspacio,
+  claveEspacioActivo,
+  onElegirEspacio,
+  selectorAbierto,
+  onSelectorAbierto,
   busqueda,
   coincidencias = {},
   buscando = false,
   conversacionId,
   conversaciones,
   onToggleColapsado,
-  onVistaChange,
+  onDestino,
   onBusquedaChange,
   onNuevoChat,
   onAbrirConversacion,
@@ -277,7 +258,7 @@ export default function Sidebar({
   }
 
   function filaDeChat(c: Conversacion) {
-    const activo = vista === "chat" && c.id === conversacionId;
+    const activo = destino === "chat" && c.id === conversacionId;
     const titulo = c.titulo || "Nuevo chat";
 
     if (editandoId === c.id) {
@@ -363,6 +344,14 @@ export default function Sidebar({
         </button>
       </div>
 
+      <SelectorEspacio
+        opciones={opcionesEspacio}
+        claveActiva={claveEspacioActivo}
+        abierto={selectorAbierto}
+        onAbierto={onSelectorAbierto}
+        onElegir={onElegirEspacio}
+      />
+
       <button type="button" className="row-item new" onClick={onNuevoChat}>
         <div className="ic">
           <Plus size={16} />
@@ -380,19 +369,31 @@ export default function Sidebar({
         />
       </div>
 
-      {NAV_ITEMS.map((item) => (
-        <button
-          key={item.vista}
-          type="button"
-          className={`row-item nav-item ${vista === item.vista ? "active-view" : ""}`}
-          onClick={() => onVistaChange(item.vista)}
-        >
-          <div className="ic">{item.icon}</div>
-          <span className="label">{item.label}</span>
-        </button>
-      ))}
-
       <div className="conv-scroll" onScroll={() => menu && setMenu(null)}>
+        <nav className="side-nav" aria-label={espacio === "personal" ? "Secciones de Personal" : "Secciones del negocio"}>
+          {itemsMenu.map((item) => (
+            <button
+              key={item.destino}
+              type="button"
+              className={`row-item nav-item ${destino === item.destino ? "active-view" : ""}`}
+              aria-current={destino === item.destino ? "page" : undefined}
+              onClick={() => onDestino(item.destino)}
+            >
+              <div className="ic">
+                <item.Icono size={16} />
+              </div>
+              <span className="label">{item.etiqueta}</span>
+              {avisos[item.destino] ? (
+                <span className="side-aviso" aria-label={`${avisos[item.destino]} para atender`}>
+                  {avisos[item.destino]}
+                </span>
+              ) : item.nota ? (
+                <span className="side-nota">{item.nota}</span>
+              ) : null}
+            </button>
+          ))}
+        </nav>
+
         <div className="section-label">Conversaciones</div>
 
         {conversacionesFiltradas.length === 0 ? (
@@ -456,7 +457,7 @@ export default function Sidebar({
       ) : null}
 
       <div className="side-bottom">
-        <button type="button" className="profile-row" onClick={() => onVistaChange("perfil")}>
+        <button type="button" className="profile-row" onClick={() => onDestino("perfil")}>
           <div className="avatar">{iniciales}</div>
           <div>
             <div className="pname">{nombre || "Usuario"}</div>
@@ -481,4 +482,113 @@ function formatearFecha(fecha?: string) {
   if (Number.isNaN(valor.getTime())) return "";
 
   return valor.toLocaleDateString("es-PY", { day: "2-digit", month: "short" });
+}
+
+/**
+ * El selector de espacio, debajo de la marca (05/10/2026).
+ *
+ * Está arriba a la izquierda porque es la primera pregunta: ¿esto es mío o del
+ * negocio? Al elegir otro espacio cambian el menú, los números y lo que EOS
+ * ve. Los negocios son los de `eos_empresa_miembros`: el propio y aquellos a
+ * los que la persona fue invitada.
+ */
+function SelectorEspacio({
+  opciones,
+  claveActiva,
+  abierto,
+  onAbierto,
+  onElegir,
+}: {
+  opciones: OpcionEspacio[];
+  claveActiva: string;
+  abierto: boolean;
+  onAbierto: (abierto: boolean) => void;
+  onElegir: (opcion: OpcionEspacio) => void;
+}) {
+  const cajaRef = useRef<HTMLDivElement | null>(null);
+  const activa = opciones.find((o) => o.clave === claveActiva) ?? opciones[0];
+
+  useEffect(() => {
+    if (!abierto) return;
+
+    function alTocarAfuera(evento: PointerEvent) {
+      if (cajaRef.current && !cajaRef.current.contains(evento.target as Node)) onAbierto(false);
+    }
+    function alPresionarTecla(evento: KeyboardEvent) {
+      if (evento.key === "Escape") onAbierto(false);
+    }
+
+    document.addEventListener("pointerdown", alTocarAfuera);
+    document.addEventListener("keydown", alPresionarTecla);
+    return () => {
+      document.removeEventListener("pointerdown", alTocarAfuera);
+      document.removeEventListener("keydown", alPresionarTecla);
+    };
+  }, [abierto, onAbierto]);
+
+  if (!activa) return null;
+
+  const fila = (o: OpcionEspacio) => {
+    const es = o.clave === activa.clave;
+    return (
+      <button
+        key={o.clave}
+        type="button"
+        role="menuitemradio"
+        aria-checked={es}
+        className={`espacio-opcion ${es ? "is-activa" : ""}`}
+        onClick={() => {
+          onAbierto(false);
+          if (!es) onElegir(o);
+        }}
+      >
+        <span className="espacio-ic is-chico">{o.espacio === "personal" ? <User size={15} /> : <Store size={15} />}</span>
+        <span className="espacio-txt">
+          <b>{o.nombre}</b>
+          <span>{o.detalle}</span>
+        </span>
+        {es ? <Check size={16} className="espacio-check" /> : null}
+      </button>
+    );
+  };
+
+  const personales = opciones.filter((o) => o.espacio === "personal");
+  const negocios = opciones.filter((o) => o.espacio === "negocio");
+
+  return (
+    <div className="espacio-selector" ref={cajaRef}>
+      <button
+        type="button"
+        className="espacio-boton"
+        aria-haspopup="menu"
+        aria-expanded={abierto}
+        aria-label={`Cambiar de espacio. Estás en ${activa.nombre}`}
+        onClick={() => onAbierto(!abierto)}
+      >
+        <span className="espacio-ic">{activa.espacio === "personal" ? <User size={17} /> : <Store size={17} />}</span>
+        <span className="espacio-txt">
+          <b>{activa.nombre}</b>
+          <span>{activa.espacio === "personal" ? "Personal" : "Negocio"}</span>
+        </span>
+        <ChevronsUpDown size={16} className="espacio-chev" />
+      </button>
+
+      {abierto ? (
+        <div className="espacio-menu" role="menu" aria-label="Tus espacios">
+          <div className="espacio-grupo">Personal</div>
+          {personales.map(fila)}
+          <div className="espacio-grupo">{negocios.length === 1 ? "Negocio" : "Negocios"}</div>
+          {negocios.length > 0 ? (
+            negocios.map(fila)
+          ) : (
+            <div className="espacio-pie">Todavía no hay un negocio a tu nombre.</div>
+          )}
+          <div className="espacio-pie">
+            <Lock size={13} />
+            <span>Cada espacio guarda sus propios registros. Nada se suma entre espacios.</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }

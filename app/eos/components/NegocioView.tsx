@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, BadgeDollarSign, Handshake, MoreHorizontal, Package, Pencil, Plus, ShoppingCart } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeDollarSign,
+  Handshake,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Plus,
+  Search,
+  ShoppingCart,
+} from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { useEscape } from "./useEscape";
 import { calcularVenta, tasaValida, type LineaVenta, type TasaIva } from "@/lib/erp/impuestos";
@@ -11,7 +21,8 @@ import { calcularMargen, textoMargen } from "@/lib/erp/margen";
 import { proyectarAgotamiento } from "@/lib/erp/agotamiento";
 import Compras from "./negocio/Compras";
 import Cartera from "./negocio/Cartera";
-import SeccionNav, { seccionDe, type Seccion } from "./SeccionNav";
+import { SubNav, seccionDe, type Seccion } from "./SeccionNav";
+import { useEtiquetaEspacio } from "./EspacioContext";
 import { diaMes, hoyIso } from "./negocio/fecha";
 import Pronostico from "./negocio/Pronostico";
 import Inventario from "./negocio/Inventario";
@@ -113,7 +124,8 @@ function loVendido(items: VentaItem[] | undefined): string {
   return resto.length === 0 ? cabeza : `${cabeza} y ${resto.length} más`;
 }
 
-type Pestania =
+export type Pestania =
+  | "indicadores"
   | "ventas"
   | "cobrar"
   | "compras"
@@ -125,7 +137,25 @@ type Pestania =
   | "inventario"
   | "emisor";
 
-type SeccionNegocio = "vender" | "comprar" | "catalogo" | "numeros" | "ajustes";
+export type SeccionNegocio = "vender" | "comprar" | "catalogo" | "numeros" | "ajustes";
+
+/** "resumen" no es una sección con pestañas: es la portada del negocio. */
+export type VistaNegocio = "resumen" | SeccionNegocio;
+
+const ENCABEZADOS: Record<VistaNegocio, { titulo: string; sub: string }> = {
+  resumen: {
+    titulo: "Resumen",
+    sub: "Cómo viene el negocio. Acá cuentan solo sus números: tu plata personal está en su propio espacio.",
+  },
+  vender: { titulo: "Ventas y cobros", sub: "Lo que vendiste y lo que te falta cobrar." },
+  comprar: {
+    titulo: "Compras y gastos",
+    sub: "Facturas de proveedores y gastos sueltos. Lo que se repite cada mes está en Fijos y recurrentes.",
+  },
+  catalogo: { titulo: "Catálogo", sub: "Lo que vende el negocio: precios, costos, margen y stock." },
+  numeros: { titulo: "Números y reportes", sub: "Qué quedó, qué viene y cuánto deja cada cosa." },
+  ajustes: { titulo: "Facturación", sub: "Los datos que van impresos en cada comprobante." },
+};
 
 /*
  * Cuatro pestañas con verbos y la facturación aparte, en el engranaje.
@@ -178,6 +208,7 @@ const SECCIONES: Seccion<SeccionNegocio, Pestania>[] = [
       { clave: "resultado", etiqueta: "Resultado", detalle: "Qué quedó y con qué contás" },
       { clave: "pronostico", etiqueta: "Pronóstico", detalle: "La caja de los próximos 90 días" },
       { clave: "rentabilidad", etiqueta: "Rentabilidad", detalle: "Márgenes y crecimiento" },
+      { clave: "indicadores", etiqueta: "Indicadores", detalle: "Hallazgos, indicadores y el puntaje del negocio" },
     ],
   },
   {
@@ -207,12 +238,38 @@ type NegocioViewProps = {
    * formas de entender "vendí 3 cajas a Juan" que tarde o temprano difieren.
    */
   onDecirleAEOS?: (texto: string) => void;
+  /** Qué abrió el menú del espacio (05/10/2026). */
+  vista?: VistaNegocio;
+  /** La pestaña que abrir primero, cuando se llega desde otra sección. */
+  subInicial?: Pestania;
+  /** Ir a una pestaña de OTRA sección: lo resuelve el menú. */
+  onNavegar?: (seccion: SeccionNegocio, sub: Pestania) => void;
+  /** Lo que antes era Dashboard, ahora una pestaña de Números. Lo arma la página. */
+  indicadores?: ReactNode;
+  /** Si el negocio apagó el catálogo, la tarjeta de productos del resumen no se muestra. */
+  sinCatalogo?: boolean;
 };
 
-export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: NegocioViewProps) {
-  const [pestania, setPestania] = useState<Pestania>("ventas");
+export default function NegocioView({
+  onOpenChat,
+  onOpenCRM,
+  onDecirleAEOS,
+  vista = "resumen",
+  subInicial,
+  onNavegar,
+  indicadores,
+  sinCatalogo = false,
+}: NegocioViewProps) {
+  const etiquetaEspacio = useEtiquetaEspacio();
+  const confSeccion = vista === "resumen" ? null : SECCIONES.find((x) => x.clave === vista) ?? null;
+  const [pestania, setPestania] = useState<Pestania>(
+    confSeccion
+      ? subInicial && seccionDe(SECCIONES, subInicial) === vista
+        ? subInicial
+        : confSeccion.subs[0].clave
+      : "ventas",
+  );
   /** La última subpestaña abierta de cada sección, para volver a donde estaba. */
-  const [ultima, setUltima] = useState<Partial<Record<SeccionNegocio, Pestania>>>({});
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -223,13 +280,12 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
   const [frase, setFrase] = useState("");
 
   function irA(destino: Pestania) {
+    const suya = seccionDe(SECCIONES, destino);
+    if (suya !== vista && onNavegar) {
+      onNavegar(suya, destino);
+      return;
+    }
     setPestania(destino);
-    setUltima((u) => ({ ...u, [seccionDe(SECCIONES, destino)]: destino }));
-  }
-
-  function abrirSeccion(seccion: SeccionNegocio) {
-    const conf = SECCIONES.find((s) => s.clave === seccion)!;
-    irA(ultima[seccion] ?? conf.subs[0].clave);
   }
 
   function decirle() {
@@ -410,21 +466,6 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
     return lista.slice(0, 3);
   }, [resumen, pagosVencidos, productos, diasRestantes]);
 
-  const secciones = useMemo(
-    () =>
-      SECCIONES.map((s) => ({
-        ...s,
-        aviso:
-          s.clave === "vender"
-            ? resumen.vencidas.length
-            : s.clave === "comprar"
-              ? pagosVencidos.length
-              : s.clave === "catalogo"
-                ? resumen.catalogoAtencion
-                : 0,
-      })),
-    [resumen, pagosVencidos],
-  );
 
   /*
    * No prende el cartel de "cargando" al empezar.
@@ -508,8 +549,8 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
       <div className="view" id="view-negocio">
         <div className="page page-in">
           <div className="page-header">
-            <div className="page-eyebrow">Negocio</div>
-            <div className="page-title">Tu ERP, adentro de EOS</div>
+            <div className="page-eyebrow">{etiquetaEspacio}</div>
+            <div className="page-title">{ENCABEZADOS[vista].titulo}</div>
             <div className="page-sub">
               Ventas, compras, inventario y facturación conectados a tu panel financiero.
             </div>
@@ -527,6 +568,13 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
               </a>
             </SoloEnWeb>
           </div>
+
+          {/*
+            Los indicadores y el puntaje (lo que era Dashboard) no dependen del
+            módulo de gestión: los tenía cualquiera y los sigue teniendo, en el
+            Resumen y en Números.
+          */}
+          {(vista === "resumen" || vista === "numeros") && indicadores}
         </div>
       </div>
     );
@@ -537,11 +585,9 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
       <div className="page page-in">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="page-header">
-            <div className="page-eyebrow">Negocio</div>
-            <div className="page-title">Tu ERP</div>
-            <div className="page-sub">
-              Ventas, compras, inventario y facturación en un solo lugar.
-            </div>
+            <div className="page-eyebrow">{etiquetaEspacio}</div>
+            <div className="page-title">{ENCABEZADOS[vista].titulo}</div>
+            <div className="page-sub">{ENCABEZADOS[vista].sub}</div>
           </div>
           {onOpenChat && (
             <button type="button" className="ghost-btn" onClick={onOpenChat} style={{ flexShrink: 0 }}>
@@ -550,7 +596,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
           )}
         </div>
 
-        {!cargando && !error && (
+        {vista === "resumen" && !cargando && !error && (
           <div className="neg-resumen is-negocio" aria-label="Resumen operativo del negocio">
             <button type="button" className="neg-resumen-card" onClick={() => irA("ventas")}>
               <ShoppingCart size={17} />
@@ -558,6 +604,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
               <strong>{resumen.ventas}</strong>
               <small>{resumen.porCobrar ? `${resumen.porCobrar} por cobrar` : "Cobros al día"}</small>
             </button>
+            {!sinCatalogo && (
             <button type="button" className="neg-resumen-card" onClick={() => irA("productos")}>
               <Package size={17} />
               <span>Productos</span>
@@ -566,6 +613,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
                 {resumen.bajoMinimo.length ? `${resumen.bajoMinimo.length} con stock bajo` : "Stock controlado"}
               </small>
             </button>
+            )}
             {onOpenCRM && (
               <button type="button" className="neg-resumen-card is-primary" onClick={onOpenCRM}>
                 <Handshake size={17} />
@@ -583,7 +631,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
           </div>
         )}
 
-        {!cargando && !error && avisos.length > 0 && (
+        {vista === "resumen" && !cargando && !error && avisos.length > 0 && (
           <div className="sec-avisos" role="region" aria-label="EOS te avisa">
             <div className="sec-avisos-titulo">EOS te avisa</div>
             {avisos.map((a) => (
@@ -598,7 +646,7 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
           </div>
         )}
 
-        {onDecirleAEOS && !error && (
+        {(vista === "resumen" || vista === "vender" || vista === "comprar") && onDecirleAEOS && !error && (
           <div className="sec-decile">
             <span className="sec-decile-ico" aria-hidden="true">EOS</span>
             <input
@@ -618,14 +666,9 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
           </div>
         )}
 
-        <SeccionNav
-          secciones={secciones}
-          seccion={seccionDe(SECCIONES, pestania)}
-          sub={pestania}
-          onSeccion={abrirSeccion}
-          onSub={irA}
-          ariaLabel="Áreas del negocio"
-        />
+        {confSeccion && (
+          <SubNav subs={confSeccion.subs} sub={pestania} onSub={irA} ariaLabel={`Partes de ${ENCABEZADOS[vista].titulo}`} />
+        )}
 
         {error && (
           <div className="neg-load-error" role="alert">
@@ -642,7 +685,11 @@ export default function NegocioView({ onOpenChat, onOpenCRM, onDecirleAEOS }: Ne
 
         {cargando ? (
           <p className="empty-note">Cargando tu negocio…</p>
-        ) : error ? null : pestania === "ventas" ? (
+        ) : error ? null : vista === "resumen" ? (
+          <ResultadoView />
+        ) : pestania === "indicadores" ? (
+          indicadores ?? <p className="empty-note">No hay indicadores para mostrar.</p>
+        ) : pestania === "ventas" ? (
           <Ventas
             ventas={ventas}
             contactos={contactos}
@@ -1381,8 +1428,52 @@ function Productos({
   const [iva, setIva] = useState<TasaIva>(10);
   const [controlaStock, setControlaStock] = useState(false);
   const [stock, setStock] = useState("");
+  const [categoriaNueva, setCategoriaNueva] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  /*
+   * Buscar, filtrar y ordenar (05/10/2026). Una tienda con cien productos no
+   * se recorre de arriba abajo: se busca. El orden por defecto es de la A a la
+   * Z, que es como la persona espera encontrar un nombre en una lista.
+   */
+  const [busqueda, setBusqueda] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [orden, setOrden] = useState<"az" | "za" | "precio" | "stock">("az");
+
+  const categorias = useMemo(
+    () =>
+      [...new Set(productos.map((p) => p.categoria?.trim()).filter((c): c is string => !!c))].sort((a, b) =>
+        a.localeCompare(b, "es"),
+      ),
+    [productos],
+  );
+
+  const visibles = useMemo(() => {
+    const q = busqueda
+      .trim()
+      .toLocaleLowerCase("es")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const plano = (t: string | null | undefined) =>
+      (t ?? "").toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const lista = productos.filter(
+      (p) =>
+        (!categoria || (p.categoria ?? "") === categoria) &&
+        (!q || plano(p.nombre).includes(q) || plano(p.categoria).includes(q) || plano(p.codigo).includes(q)),
+    );
+    const porNombre = (a: Producto, b: Producto) => a.nombre.localeCompare(b.nombre, "es");
+    return lista.sort((a, b) => {
+      if (orden === "za") return -porNombre(a, b);
+      if (orden === "precio") return a.precio_venta - b.precio_venta || porNombre(a, b);
+      if (orden === "stock") {
+        const sa = a.controla_stock ? a.stock_actual : Number.POSITIVE_INFINITY;
+        const sb = b.controla_stock ? b.stock_actual : Number.POSITIVE_INFINITY;
+        return sa - sb || porNombre(a, b);
+      }
+      return porNombre(a, b);
+    });
+  }, [productos, busqueda, categoria, orden]);
 
   /*
    * El margen se calcula mientras escribe, no después.
@@ -1414,6 +1505,7 @@ function Productos({
           // margen en todo producto nuevo, que es un número precioso y falso.
           costo: costo.trim() === "" ? null : Number(costo),
           iva,
+          categoria: categoriaNueva.trim(),
           controla_stock: controlaStock,
           stock_actual: Number(stock) || 0,
         }),
@@ -1426,6 +1518,7 @@ function Productos({
       setPrecio("");
       setCosto("");
       setStock("");
+      setCategoriaNueva("");
       setFormularioAbierto(null);
       onCambio();
     } catch (err) {
@@ -1487,6 +1580,15 @@ function Productos({
             value={costo}
             onChange={(e) => setCosto(e.target.value.replace(/[^\d]/g, ""))}
           />
+          <input
+            className="neg-input"
+            placeholder="Categoría (opcional)"
+            aria-label="Categoría"
+            list="categorias-catalogo"
+            value={categoriaNueva}
+            maxLength={60}
+            onChange={(e) => setCategoriaNueva(e.target.value)}
+          />
           <select
             className="neg-input"
             value={iva}
@@ -1543,9 +1645,72 @@ function Productos({
       </div>
       )}
 
+      <datalist id="categorias-catalogo">
+        {categorias.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
+      {!vacio && (
+        <div className="cat-herramientas">
+          <label className="cat-buscar">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Buscar por nombre, categoría o código"
+              aria-label="Buscar productos"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </label>
+          {categorias.length > 0 && (
+            <select
+              className="neg-input cat-select"
+              aria-label="Filtrar por categoría"
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            className="neg-input cat-select"
+            aria-label="Ordenar"
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as typeof orden)}
+          >
+            <option value="az">Nombre, A → Z</option>
+            <option value="za">Nombre, Z → A</option>
+            <option value="precio">Precio, menor primero</option>
+            <option value="stock">Menos stock primero</option>
+          </select>
+        </div>
+      )}
+
       {vacio ? (
         <div className="card">
           <p className="empty-note">Todavía no cargaste productos.</p>
+        </div>
+      ) : visibles.length === 0 ? (
+        <div className="card">
+          <p className="empty-note">
+            Ningún producto coincide con {busqueda.trim() ? `«${busqueda.trim()}»` : "ese filtro"}.
+          </p>
+          <button
+            type="button"
+            className="chip"
+            onClick={() => {
+              setBusqueda("");
+              setCategoria("");
+            }}
+          >
+            Ver todos
+          </button>
         </div>
       ) : (
         <div className="neg-tabla" role="table" aria-label="Tu catálogo">
@@ -1558,7 +1723,7 @@ function Productos({
               <span>Te alcanza</span>
               <span className="n">Acciones</span>
             </div>
-            {productos.map((p) => (
+            {visibles.map((p) => (
               <FilaProducto key={p.id} producto={p} diasRestantes={diasRestantes.get(p.id)} onCambio={onCambio} />
             ))}
           </div>

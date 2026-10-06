@@ -132,6 +132,7 @@ export async function POST(request: Request) {
       codigo: String(cuerpo.codigo ?? "").trim().slice(0, 60) || null,
       nombre,
       descripcion: String(cuerpo.descripcion ?? "").trim().slice(0, 2000) || null,
+      categoria: categoriaLimpia(cuerpo.categoria),
       unidad: String(cuerpo.unidad ?? "unidad").trim().slice(0, 20) || "unidad",
       precio_venta: precioResultado.valor,
       costo: costoResultado.valor,

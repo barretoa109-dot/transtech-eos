@@ -9,6 +9,7 @@ import Embudo from "./negocio/Embudo";
 import FilaContacto from "./negocio/FilaContacto";
 import type { Contacto } from "./negocio/tipos";
 import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
+import { useEtiquetaEspacio } from "./EspacioContext";
 
 /**
  * El CRM, separado del ERP.
@@ -60,6 +61,7 @@ type CRMViewProps = {
 };
 
 export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
+  const etiquetaEspacio = useEtiquetaEspacio();
   const [pestania, setPestania] = useState<Pestania>(pestaniaInicial ?? "seguimientos");
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [sinModulo, setSinModulo] = useState(false);
@@ -114,8 +116,8 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
       <div className="view" id="view-crm">
         <div className="page page-in">
           <div className="page-header">
-            <div className="page-eyebrow">CRM</div>
-            <div className="page-title">Tu gestión comercial</div>
+            <div className="page-eyebrow">{etiquetaEspacio}</div>
+            <div className="page-title">Clientes</div>
             <div className="page-sub">Clientes, oportunidades y seguimiento, conectados con EOS.</div>
           </div>
 
@@ -141,8 +143,8 @@ export default function CRMView({ onOpenChat, pestaniaInicial }: CRMViewProps) {
       <div className="page page-in">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="page-header">
-            <div className="page-eyebrow">CRM</div>
-            <div className="page-title">Tu gestión comercial</div>
+            <div className="page-eyebrow">{etiquetaEspacio}</div>
+            <div className="page-title">Clientes</div>
             <div className="page-sub">Clientes, oportunidades y seguimiento, conectados con EOS.</div>
           </div>
           {onOpenChat && (

@@ -39,7 +39,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   if (!user) return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
 
   const { id } = await contexto.params;
-  const fijo = await leerFijo(supabase, user.id, id);
+  const fijo = await leerFijo(supabase, user.id, id, ambitoDe(request));
   if (!fijo) return NextResponse.json({ error: "No encontramos ese fijo." }, { status: 404, headers: noStore() });
 
   let cuerpo: { monto?: unknown; fecha?: unknown; periodo?: unknown } = {};
@@ -92,7 +92,8 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
       .from("eos_finanzas_fijos")
       .update({ pagado_hasta: periodo, updated_at: new Date().toISOString() })
       .eq("id", fijo.id)
-      .eq("usuario_id", user.id);
+      .eq("usuario_id", user.id)
+      .eq("ambito", fijo.ambito);
     if (marcaError) console.error("Fijos: no se pudo marcar el mes pagado:", marcaError);
   }
 
@@ -125,7 +126,7 @@ export async function DELETE(request: Request, contexto: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
 
   const { id } = await contexto.params;
-  const fijo = await leerFijo(supabase, user.id, id);
+  const fijo = await leerFijo(supabase, user.id, id, ambitoDe(request));
   if (!fijo) return NextResponse.json({ error: "No encontramos ese fijo." }, { status: 404, headers: noStore() });
 
   const pedido = new URL(request.url).searchParams.get("periodo");
@@ -164,15 +165,22 @@ export async function DELETE(request: Request, contexto: { params: Promise<{ id:
     .from("eos_finanzas_fijos")
     .update({ pagado_hasta: (ultimo?.fijo_periodo as string | undefined) ?? null, updated_at: new Date().toISOString() })
     .eq("id", fijo.id)
-    .eq("usuario_id", user.id);
+    .eq("usuario_id", user.id)
+    .eq("ambito", fijo.ambito);
 
   return NextResponse.json({ ok: true, periodo }, { headers: noStore() });
+}
+
+/** De quién es el fijo: lo dice la pantalla que lo muestra (`?ambito=negocio`). Sin decirlo, personal. */
+function ambitoDe(request: Request): "personal" | "negocio" {
+  return new URL(request.url).searchParams.get("ambito") === "negocio" ? "negocio" : "personal";
 }
 
 async function leerFijo(
   supabase: Awaited<ReturnType<typeof createClient>>,
   usuarioId: string,
   id: string,
+  ambito: "personal" | "negocio",
 ): Promise<Fijo | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
 
@@ -181,7 +189,7 @@ async function leerFijo(
     .select("id,tipo,descripcion,monto,moneda,ambito,pagado_hasta")
     .eq("id", id)
     .eq("usuario_id", usuarioId)
-    .in("ambito", ["personal", "negocio"])
+    .eq("ambito", ambito)
     .eq("activo", true)
     .maybeSingle();
 

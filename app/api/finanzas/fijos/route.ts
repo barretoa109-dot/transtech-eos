@@ -36,6 +36,7 @@ function ambitoDe(valor: unknown): "negocio" | "personal" {
 const MAXIMO_RAZONABLE = 999_999_999_999;
 
 type FijoEntrada = {
+  id?: unknown;
   tipo?: unknown;
   descripcion?: unknown;
   monto?: unknown;

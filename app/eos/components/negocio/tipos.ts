@@ -55,6 +55,11 @@ export type Producto = {
   stock_actual: number;
   stock_minimo: number;
   bajo_minimo: boolean;
+  /* Foto y categoría del catálogo (v232). Opcionales: un producto sin foto se ve igual que antes. */
+  categoria?: string | null;
+  foto_ruta?: string | null;
+  /** Enlace firmado que vence en una hora; lo arma GET /api/erp/productos. */
+  foto_url?: string | null;
 };
 
 export type Oportunidad = {
