@@ -78,10 +78,16 @@ type BarraDeEstadoNativa = {
   setBackgroundColor(opciones: { color: string }): Promise<void>;
 };
 
+/** Lo que otra app compartió con EOS: texto, o una imagen en base64 (ver CompartirRecibidoPlugin.java). */
+export type ContenidoCompartido = {
+  texto?: string | null;
+  archivo?: { nombre: string; mime: string; base64: string } | null;
+};
+
 type CompartirRecibido = {
   addListener(
     evento: "compartido",
-    manejador: (datos: { texto: string | null }) => void,
+    manejador: (datos: ContenidoCompartido) => void,
   ): Promise<Escucha>;
 };
 

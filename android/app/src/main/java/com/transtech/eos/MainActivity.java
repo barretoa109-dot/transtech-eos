@@ -12,12 +12,12 @@ public class MainActivity extends BridgeActivity {
         // Antes de super: Capacitor arma el puente dentro de super.onCreate.
         registerPlugin(CompartirRecibidoPlugin.class);
         super.onCreate(savedInstanceState);
-        CompartirRecibidoPlugin.recibir(getIntent());
+        CompartirRecibidoPlugin.recibir(getIntent(), getContentResolver());
     }
 
     @Override
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        CompartirRecibidoPlugin.recibir(intent);
+        CompartirRecibidoPlugin.recibir(intent, getContentResolver());
     }
 }
