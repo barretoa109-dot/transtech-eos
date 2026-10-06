@@ -1,0 +1,787 @@
+{
+  "id": "fUrFN1LTuqiUlKgq",
+  "name": "EOS - Correo ESTABLE - Prueba controlada",
+  "description": null,
+  "active": true,
+  "activeVersionId": "260020dc-a041-4558-9189-0fa1ee19793a",
+  "createdAt": "2026-07-31T02:22:19.616Z",
+  "updatedAt": "2026-09-29T17:25:46.163Z",
+  "isArchived": false,
+  "versionId": "260020dc-a041-4558-9189-0fa1ee19793a",
+  "versionCounter": 45,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "id": "7b28a698-9999-421f-bbc9-c74b4789635b",
+      "name": "Gmail Trigger EOS1",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        1392,
+        672
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "PRdN88LMCtBdCXMR",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "96313a32-b4a4-49d0-b778-24e7fee932c0",
+      "name": "Preparar correo EOS1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        672
+      ],
+      "parameters": {
+        "jsCode": "const j = $json;\n\nconst text = (v) => String(v ?? '').trim();\n\nconst extractEmail = (value) => {\n  const raw = text(value);\n  const match =\n    raw.match(/<\\s*([^<>\\s]+@[^<>\\s]+)\\s*>/) ||\n    raw.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})/i);\n  return String(match?.[1] || '').trim().toLowerCase();\n};\n\nconst fromRaw = text(j.From || j.from || j.sender);\nconst emailCliente = extractEmail(fromRaw);\n\nif (!emailCliente) {\n  throw new Error(`No se pudo extraer el remitente desde From=\"${fromRaw}\"`);\n}\n\nconst asuntoOriginal = text(j.Subject || j.subject || 'Sin asunto');\nconst mensaje = text(j.textPlain || j.text || j.body || j.snippet || 'El correo no contiene texto visible.')\n  .replace(/\\u0000/g, '')\n  .slice(0, 12000);\n\n// En esta versión estable respondemos desde ventas.\n// Luego podremos separar soporte/contacto con etiquetas de Gmail.\nconst replyFrom = 'ventas@transtech.com.py';\n\nconst propio =\n  emailCliente === 'transtecheos@gmail.com' ||\n  emailCliente.endsWith('@transtech.com.py');\n\nconst automatico =\n  /(mailer-daemon|postmaster|no-?reply|do-?not-?reply)/i.test(fromRaw);\n\nif (propio || automatico) {\n  return [];\n}\n\n// Respuestas automáticas, correos masivos y hilos largos: contestarles arma un\n// ida y vuelta sin fin desde ventas@ (ver n8n/parches/2026-09-29-correo-sin-ida-y-vuelta.mjs).\nconst etiquetas = Array.isArray(j.labelIds) ? j.labelIds : [];\nconst masivo = etiquetas.some((l) =>\n  ['SPAM', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS'].includes(l),\n);\nconst respuestaAutomatica =\n  /(respuesta autom|automatic reply|auto.?reply|autoreply|out of office|fuera de (la )?oficina|de vacaciones|undeliverable|no se pudo entregar|delivery status|mail delivery)/i.test(asuntoOriginal);\nconst hiloLargo = (asuntoOriginal.match(/\\b(re|rv|fw|fwd)\\s*:/gi) || []).length >= 3;\n\nif (masivo || respuestaAutomatica || hiloLargo) {\n  return [];\n}\n\n// Tope: tres respuestas por remitente y por día.\nconst memoria = $getWorkflowStaticData('global');\nconst hoy = new Date().toISOString().slice(0, 10);\nif (!memoria.respuestas || memoria.respuestas.dia !== hoy) {\n  memoria.respuestas = { dia: hoy, por: {} };\n}\nconst yaRespondidas = memoria.respuestas.por[emailCliente] || 0;\nif (yaRespondidas >= 3) {\n  return [];\n}\nmemoria.respuestas.por[emailCliente] = yaRespondidas + 1;\n\nreturn [{\n  json: {\n    gmail_message_id: j.id || '',\n    gmail_thread_id: j.threadId || '',\n    remitente_original: fromRaw,\n    email_cliente: emailCliente,\n    canal: 'ventas',\n    reply_from: replyFrom,\n    asunto_original: asuntoOriginal,\n    asunto_respuesta: /^re:/i.test(asuntoOriginal) ? asuntoOriginal : `Re: ${asuntoOriginal}`,\n    mensaje\n  }\n}];"
+      }
+    },
+    {
+      "id": "674a072f-8ed4-4bcb-9c4c-08258b784235",
+      "name": "Generar respuesta EOS1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1888,
+        560
+      ],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5.4-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5.4-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Eres el asistente de atención por correo de TransTech E.A.S. y del producto TransTech EOS.\n\nDebes redactar una respuesta útil, profesional, cordial y natural al correo recibido.\n\nREGLAS OBLIGATORIAS:\n- Nunca digas que eres una inteligencia artificial, bot o modelo.\n- Responde únicamente con el cuerpo del correo en HTML válido y sencillo.\n- No uses Markdown, bloques de código ni encabezados técnicos.\n- No inventes precios, promociones, fechas, pagos aprobados, funciones, garantías ni compromisos.\n- Si falta información, pide los datos mínimos necesarios.\n- Si el mensaje trata sobre reclamos graves, reembolsos, asuntos legales, seguridad, acceso comprometido, datos sensibles o decisiones que requieren aprobación humana, confirma la recepción y explica que el equipo revisará el caso; no prometas una resolución.\n- No solicites contraseñas, códigos de verificación, claves privadas, datos completos de tarjetas ni credenciales.\n- Mantén la respuesta concreta y orientada al siguiente paso.\n- No repitas innecesariamente todo lo que escribió el cliente.\n- Firma siempre exactamente así:\n\n<p>Saludos cordiales,</p>\n<p><strong>Equipo TransTech</strong><br>\n<a href=\"https://transtech.com.py\">transtech.com.py</a></p>\n\nCONTEXTO DE CANALES:\n- ventas: consultas comerciales, planes, contratación y demostraciones.\n- soporte: problemas técnicos, acceso, funcionamiento y ayuda.\n- contacto: consultas generales.\n\nDevuelve solamente el HTML del correo, sin explicación adicional."
+            },
+            {
+              "content": "=CANAL: {{ $json.canal }}\n\nREMITENTE:\n{{ $json.remitente_original }}\n\nASUNTO:\n{{ $json.asunto_original }}\n\nMENSAJE:\n{{ $json.mensaje }}\n\nRedacta la respuesta adecuada respetando todas las reglas del sistema."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "rrbWSomfLM5Z0X0j",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "id": "4c428eff-8d98-40da-b959-460f2f697039",
+      "name": "Unir correo y respuesta1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2160,
+        672
+      ],
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      }
+    },
+    {
+      "id": "76ec56ed-d548-4184-8b8c-2cce94f1a0e7",
+      "name": "Preparar envío EOS1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        672
+      ],
+      "parameters": {
+        "jsCode": "const j = $json;\n\nlet html =\n  j.output?.[0]?.content?.[0]?.text ??\n  j.output_text ??\n  j.text ??\n  j.response ??\n  '';\n\nhtml = String(html || '')\n  .replace(/^```(?:html)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nif (!html) {\n  html = '<p>Gracias por comunicarte con TransTech.</p><p>Recibimos tu mensaje y nuestro equipo lo revisará a la brevedad.</p><p>Saludos cordiales,</p><p><strong>Equipo TransTech</strong><br><a href=\"https://transtech.com.py\">transtech.com.py</a></p>';\n}\n\nconst to = String(j.email_cliente || '').trim().toLowerCase();\n\nif (!to || !to.includes('@')) {\n  throw new Error(`El Merge no entregó email_cliente. Campos recibidos: ${Object.keys(j).join(', ')}`);\n}\n\nreturn [{\n  json: {\n    to,\n    from: j.reply_from || 'ventas@transtech.com.py',\n    subject: j.asunto_respuesta || `Re: ${j.asunto_original || 'Consulta'}`,\n    html,\n    canal: j.canal || 'ventas',\n    gmail_message_id: j.gmail_message_id || '',\n    gmail_thread_id: j.gmail_thread_id || ''\n  }\n}];"
+      }
+    },
+    {
+      "id": "aa83a1df-d643-4240-a32c-8d8ec42a6d1f",
+      "name": "Enviar respuesta por Resend1",
+      "webhookId": "6ef84429-efc3-42a0-82ba-9a2891fe4f31",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        672
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.RESEND_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ from: $json.from, to: [$json.to], subject: $json.subject, html: $json.html }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger EOS1": {
+      "main": [
+        [
+          {
+            "node": "Preparar correo EOS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar correo EOS1": {
+      "main": [
+        [
+          {
+            "node": "Generar respuesta EOS1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Unir correo y respuesta1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar respuesta EOS1": {
+      "main": [
+        [
+          {
+            "node": "Unir correo y respuesta1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Unir correo y respuesta1": {
+      "main": [
+        [
+          {
+            "node": "Preparar envío EOS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envío EOS1": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta por Resend1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": {
+    "node:Gmail Trigger": {
+      "Gmail Trigger": {
+        "lastTimeChecked": 1785468275
+      }
+    },
+    "node:Gmail Trigger EOS": {
+      "Gmail Trigger EOS": {
+        "lastTimeChecked": 1785468743
+      }
+    },
+    "node:Gmail Trigger EOS1": {
+      "Gmail Trigger EOS1": {
+        "lastTimeChecked": 1790701843,
+        "pendingMessageIds": [
+          "1a05eb2bd6180e5e",
+          "1a04a94ae74f9cff",
+          "1a0403628190c755",
+          "1a04035b9aecf146",
+          "1a03e3d9206b83e0",
+          "1a027303a400fdb1",
+          "1a0269c4270d78d8",
+          "1a02519224d6db58",
+          "1a021fe83c1eb672",
+          "1a00fcf92ae88972",
+          "19ff3cf9dd991c74",
+          "19fee7cc5bb95598",
+          "19fee47138fac325",
+          "19fee13b4eaa7e91",
+          "19fe70d635cb2329",
+          "19fddd21dd8f2489",
+          "19fd6bedec610fee",
+          "19fcf2e69bae6b4c",
+          "19fcf14c53aefeed",
+          "19fce3c86347c5c0",
+          "19fce2010961c0fd",
+          "19fc9db5c28de9c9",
+          "19fbf169803f3551",
+          "19fbf1323761fd41",
+          "19fb64fc6247a128",
+          "19fb6400190accdb"
+        ],
+        "noProgressTicks": 0,
+        "possibleDuplicates": [
+          "1a0ee25b8b3bd8b9",
+          "1a0ee0cb9f824741",
+          "1a0ee0c8322fb88c",
+          "1a0eab6fd91123b0",
+          "1a0ea4f97f17d6bb",
+          "1a0ea475d44beeff",
+          "1a0e7dabc1e92948",
+          "1a0e521dadb876fc",
+          "1a0e2fba9735b565",
+          "1a0dffaa7d0680f8",
+          "1a0db96e84749a07",
+          "1a0db4223b1f9b42",
+          "1a0dadc80cde6182",
+          "1a0dad4492dc4678",
+          "1a0d936a388490ca",
+          "1a0d867a97da9e3f",
+          "1a0d61bc33c9d2ee",
+          "1a0d609fde767dd0",
+          "1a0d388978f84f2c",
+          "1a0d0f56e3e91fbb",
+          "1a0d08fcbbd561aa",
+          "1a0ce22cb5a45e92",
+          "1a0cbcf1774637ec",
+          "1a0cb6135bdeb314",
+          "1a0c8f4906fe1548",
+          "1a0c6a8c03c97740",
+          "1a0c6431e5fb73d8",
+          "1a0bc19e62849574",
+          "1a0bbf663480efe4",
+          "1a0bb8040375710c",
+          "1a0b9c8db5f87043",
+          "1a0b735a5a8a9cb2",
+          "1a0b6c7c2b72f8e8",
+          "1a0b1f844ddbfc30",
+          "1a0b1a9a7b34a4ce",
+          "1a0b1a1609205f59",
+          "1a0b133892d7813f",
+          "1a0af0e384ecde84",
+          "1a0aceb89931ede2",
+          "1a0aa8b4ebb169b2",
+          "1a0a83072e13433a",
+          "1a0a78c00aff0da0",
+          "1a0a75cf024ae74e",
+          "1a0a7551e5f7ae8d",
+          "1a0a6e6db3dbca6c",
+          "1a0a29ee03b7d546",
+          "1a0a236b99bb07c6",
+          "1a0a01c6af144f00",
+          "1a0a013494cf428c",
+          "1a0a00ecfee91a4e",
+          "1a0a00a2efb44135",
+          "1a0a00111057bd29",
+          "1a09fe59046d5bdf",
+          "1a09fd339f2ebf10",
+          "1a09fce0dd625411",
+          "1a09fc0f4339be5b",
+          "1a09fa9fc859ad24",
+          "1a09f89f51faef90",
+          "1a09f7c53fbe6fb1",
+          "1a09f77d2d62a53a",
+          "1a09f6ef6f029659",
+          "1a09f60cf1776d00",
+          "1a09f4552391916c",
+          "1a09f0e584228a2d",
+          "1a09efc12b177e0c",
+          "1a09eee8b07132cf",
+          "1a09ee9beaed2f6a",
+          "1a09ed2e71728d66",
+          "1a09eb7918da47e9",
+          "1a09eb2ca3987215",
+          "1a09ea9aff129f5b",
+          "1a09e9bfdb37a7a3",
+          "1a09e8e2f11a04c3",
+          "1a09e89a2641e88e",
+          "1a09e80a3e80bb57",
+          "1a09e49a9147c6b9",
+          "1a09e1bbb4e439fc",
+          "1a09e0970c4e2ab2",
+          "1a09e04f4d74e205",
+          "1a09dcdeae26eed4",
+          "1a09dc4ccfc93215",
+          "1a09db70b944b291",
+          "1a09db2737feaa50",
+          "1a09da4d47f4efc4",
+          "1a09d7b87d2194bc",
+          "1a09d44a749d6387",
+          "1a09d370b7fc1a3a",
+          "1a09d29214663a4c",
+          "1a09d1ff99a42687",
+          "1a09d16ceeb62fe0",
+          "1a09d06e06b06fcb",
+          "1a09cfff059fa12b",
+          "1a09cf231e7daa33",
+          "1a09ce9097c98f08",
+          "1a09cc9101e739ca",
+          "1a09cc469d8c5b3f",
+          "1a09cad97ef84508",
+          "1a09c9fcfbfccc02",
+          "1a09c9a240bde410",
+          "1a09c9226a928b3d",
+          "1a09c7696c58ee64",
+          "1a09c68ec85d5e7f",
+          "1a09c5203e394a65",
+          "1a09c3b17577af45",
+          "1a09c2d654c73656",
+          "1a09c28c821fff12",
+          "1a09bed599e3361b",
+          "1a09bd1db8d4dbe7",
+          "1a09bc8a21a6a46f",
+          "1a09ba408a4f947d",
+          "1a09b9adf0eedbb3",
+          "1a09b8d3fd0c31a0",
+          "1a09b7f9887e06e0",
+          "1a09b7ad2b564981",
+          "1a09b6d32ac09ca1",
+          "1a09b488c3d2a9da",
+          "1a09b36441b2cd61",
+          "1a09b2d09d2a5b6e",
+          "1a09b1f4fd06b9ec",
+          "1a09b11b21766628",
+          "1a09b03e8d405902",
+          "1a09aff4456314e8",
+          "1a09adab9688435f",
+          "1a09ad18f079b459",
+          "1a09ab5fabe1bef3",
+          "1a09aacf05feca4f",
+          "1a09a95f2d0a3bc3",
+          "1a09a9167f6df4b1",
+          "1a09a883e5d6b10e",
+          "1a09a7a971eb3570",
+          "1a09a5150b214ad8",
+          "1a09a438b391b3ee",
+          "1a09a35ef82c6b74",
+          "1a09a1133bd2f354",
+          "1a099ff0bbd4435e",
+          "1a099da46201bbe9",
+          "1a099c363fe3fc3e",
+          "1a099ac9aa16fd2d",
+          "1a0999129fcd8fa5",
+          "1a09987e4350b8c8",
+          "1a0995a2fcdbacf6",
+          "1a09951002c64bdf",
+          "1a09947cafef64c1",
+          "1a0993eb833b4391",
+          "1a0992c60f1e5f15",
+          "1a099233be4348b0",
+          "1a0991e9572fae68",
+          "1a09915866857ad8",
+          "1a09910e6dc2a1ed",
+          "1a09907c0bdd31b0",
+          "1a098f9f6ac4a46b",
+          "1a098f55fc78a1ad",
+          "1a098ec56e19bd51",
+          "1a098d55e54c6249",
+          "1a098d0dc700f584",
+          "1a098c3073548957",
+          "1a098be79cb9fc6b",
+          "1a098b54828e4cde",
+          "1a098953d4a8a761",
+          "1a0988c1b49b7c15",
+          "1a098476d8e795db",
+          "1a0983e512db9fac",
+          "1a09810d0cc1d46f",
+          "1a09802cedf08f15",
+          "1a097ec13fe28f5e",
+          "1a097e19fe1c88b3",
+          "1a097d9b8fcd6e88",
+          "1a097d9ade37a563",
+          "1a0979e0cb8dd2a0",
+          "1a0976bd2bbbb6c2",
+          "1a0973df115ba009",
+          "1a09734d600025cb",
+          "1a09719510ba6f66",
+          "1a096fdeedf2adaa",
+          "1a096f025459fc4f",
+          "1a096c7054324677",
+          "1a096b93139ea23b",
+          "1a096ab8937d8f7a",
+          "1a0969dcf8b85c77",
+          "1a0969491d1c093b",
+          "1a0968b654ca188d",
+          "1a096824982012ee",
+          "1a0966b63c1216da",
+          "1a096623acb1a958",
+          "1a09659294c1e23d",
+          "1a096223d52a9a2f",
+          "1a09606a44bf9f08",
+          "1a0960212fe76a28",
+          "1a095f8ebf5cff24",
+          "1a095d449db55368",
+          "1a095cfc93fa352a",
+          "1a095bd68e670a7f",
+          "1a095bc4d9778974",
+          "1a095b8def7f7511",
+          "1a095b458c9e3ab5",
+          "1a09598d90001eb6",
+          "1a0958fa2e768c75",
+          "1a095867ad6fa13c",
+          "1a0957d91b10f733",
+          "1a0956f958d355f0",
+          "1a09561ecfdbe746",
+          "1a09521c0c244fdf",
+          "1a0950f93e290452",
+          "1a094fd3f72f6328",
+          "1a094e6415addc26",
+          "1a094e1aae25c54f",
+          "1a094b87bbada7a0",
+          "1a094987f4842937",
+          "1a0948f50bcd7506",
+          "1a0945858a4d8647",
+          "1a09453c5b85e27b",
+          "1a094385e7c8fc50",
+          "1a0942a90f7dda6b",
+          "1a093fce31c604f2",
+          "1a093e5e72880310",
+          "1a093e162037e3a4",
+          "1a093d847dfd85ac",
+          "1a093c5fbfa4e510",
+          "1a093b39636e9a6b",
+          "1a093aa69d66e9c5",
+          "1a0939812a3d3b04",
+          "1a0938a59c940760",
+          "1a09385cd66de13b",
+          "1a093813ce088ced",
+          "1a09378084108afb",
+          "1a093613b039fe06",
+          "1a0933c9067445cc",
+          "1a093336117cfd7d",
+          "1a0932eca1d8aa62",
+          "1a09313690bb442b",
+          "1a0930ebe34cd758",
+          "1a092eeb74a49fa0",
+          "1a092dc751468dba",
+          "1a092c38667f17f8",
+          "1a092bb3df8048dd",
+          "1a09297bea520881",
+          "1a0924d6f4545369",
+          "1a091f2fe57c31be",
+          "1a0911d9e423f86e",
+          "1a08e02c59506abc",
+          "1a08d55f176e74e3",
+          "1a08b82fdd0f66c5",
+          "1a08b7942cfd9826",
+          "1a08b01b53d9bea2",
+          "1a08910f16fbe9cb",
+          "1a088dc6755e1d66",
+          "1a08876c5c2982ff",
+          "1a08800ae16c30e0",
+          "1a083482d5f7dc07",
+          "1a08324a89d5cec8",
+          "1a08218627ed4012",
+          "1a081b93457185e6",
+          "1a07e2a13228d17d",
+          "1a07e21ce4df5491",
+          "1a07db3f55a5cea6",
+          "1a078fb73d7a0efe",
+          "1a073f03397984bf",
+          "1a073dd52fde5e6e",
+          "1a0737d0dfbed725",
+          "1a0737d08f91872c",
+          "1a0737cf9eb89c82",
+          "1a0737cf9250bfc8",
+          "1a0737cf4c9dd73d",
+          "1a06f1c947cf59b8",
+          "1a06ed46b0a263be",
+          "1a06eaebe2145d89",
+          "1a06ca2729864dfe",
+          "1a0697bee49e0414",
+          "1a0697a578be6651",
+          "1a05fea73fe7ff7c"
+        ]
+      }
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "fUrFN1LTuqiUlKgq",
+      "projectId": "tG9GhlytYuG18VzU",
+      "project": {
+        "id": "tG9GhlytYuG18VzU",
+        "name": "Augusto Barreto <barretoa109@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3",
+        "createdAt": "2026-06-05T21:00:41.892Z",
+        "updatedAt": "2026-06-05T21:16:13.176Z"
+      },
+      "createdAt": "2026-07-31T02:22:19.616Z",
+      "updatedAt": "2026-07-31T02:22:19.616Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "260020dc-a041-4558-9189-0fa1ee19793a",
+    "workflowId": "fUrFN1LTuqiUlKgq",
+    "nodes": [
+      {
+        "id": "7b28a698-9999-421f-bbc9-c74b4789635b",
+        "name": "Gmail Trigger EOS1",
+        "type": "n8n-nodes-base.gmailTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          1392,
+          672
+        ],
+        "parameters": {
+          "pollTimes": {
+            "item": [
+              {
+                "mode": "everyMinute"
+              }
+            ]
+          },
+          "filters": {}
+        },
+        "credentials": {
+          "gmailOAuth2": {
+            "id": "PRdN88LMCtBdCXMR",
+            "name": "Gmail account"
+          }
+        }
+      },
+      {
+        "id": "96313a32-b4a4-49d0-b778-24e7fee932c0",
+        "name": "Preparar correo EOS1",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1632,
+          672
+        ],
+        "parameters": {
+          "jsCode": "const j = $json;\n\nconst text = (v) => String(v ?? '').trim();\n\nconst extractEmail = (value) => {\n  const raw = text(value);\n  const match =\n    raw.match(/<\\s*([^<>\\s]+@[^<>\\s]+)\\s*>/) ||\n    raw.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,})/i);\n  return String(match?.[1] || '').trim().toLowerCase();\n};\n\nconst fromRaw = text(j.From || j.from || j.sender);\nconst emailCliente = extractEmail(fromRaw);\n\nif (!emailCliente) {\n  throw new Error(`No se pudo extraer el remitente desde From=\"${fromRaw}\"`);\n}\n\nconst asuntoOriginal = text(j.Subject || j.subject || 'Sin asunto');\nconst mensaje = text(j.textPlain || j.text || j.body || j.snippet || 'El correo no contiene texto visible.')\n  .replace(/\\u0000/g, '')\n  .slice(0, 12000);\n\n// En esta versión estable respondemos desde ventas.\n// Luego podremos separar soporte/contacto con etiquetas de Gmail.\nconst replyFrom = 'ventas@transtech.com.py';\n\nconst propio =\n  emailCliente === 'transtecheos@gmail.com' ||\n  emailCliente.endsWith('@transtech.com.py');\n\nconst automatico =\n  /(mailer-daemon|postmaster|no-?reply|do-?not-?reply)/i.test(fromRaw);\n\nif (propio || automatico) {\n  return [];\n}\n\n// Respuestas automáticas, correos masivos y hilos largos: contestarles arma un\n// ida y vuelta sin fin desde ventas@ (ver n8n/parches/2026-09-29-correo-sin-ida-y-vuelta.mjs).\nconst etiquetas = Array.isArray(j.labelIds) ? j.labelIds : [];\nconst masivo = etiquetas.some((l) =>\n  ['SPAM', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS'].includes(l),\n);\nconst respuestaAutomatica =\n  /(respuesta autom|automatic reply|auto.?reply|autoreply|out of office|fuera de (la )?oficina|de vacaciones|undeliverable|no se pudo entregar|delivery status|mail delivery)/i.test(asuntoOriginal);\nconst hiloLargo = (asuntoOriginal.match(/\\b(re|rv|fw|fwd)\\s*:/gi) || []).length >= 3;\n\nif (masivo || respuestaAutomatica || hiloLargo) {\n  return [];\n}\n\n// Tope: tres respuestas por remitente y por día.\nconst memoria = $getWorkflowStaticData('global');\nconst hoy = new Date().toISOString().slice(0, 10);\nif (!memoria.respuestas || memoria.respuestas.dia !== hoy) {\n  memoria.respuestas = { dia: hoy, por: {} };\n}\nconst yaRespondidas = memoria.respuestas.por[emailCliente] || 0;\nif (yaRespondidas >= 3) {\n  return [];\n}\nmemoria.respuestas.por[emailCliente] = yaRespondidas + 1;\n\nreturn [{\n  json: {\n    gmail_message_id: j.id || '',\n    gmail_thread_id: j.threadId || '',\n    remitente_original: fromRaw,\n    email_cliente: emailCliente,\n    canal: 'ventas',\n    reply_from: replyFrom,\n    asunto_original: asuntoOriginal,\n    asunto_respuesta: /^re:/i.test(asuntoOriginal) ? asuntoOriginal : `Re: ${asuntoOriginal}`,\n    mensaje\n  }\n}];"
+        }
+      },
+      {
+        "id": "674a072f-8ed4-4bcb-9c4c-08258b784235",
+        "name": "Generar respuesta EOS1",
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 2.3,
+        "position": [
+          1888,
+          560
+        ],
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "value": "gpt-5.4-mini",
+            "mode": "list",
+            "cachedResultName": "GPT-5.4-MINI"
+          },
+          "responses": {
+            "values": [
+              {
+                "role": "system",
+                "content": "Eres el asistente de atención por correo de TransTech E.A.S. y del producto TransTech EOS.\n\nDebes redactar una respuesta útil, profesional, cordial y natural al correo recibido.\n\nREGLAS OBLIGATORIAS:\n- Nunca digas que eres una inteligencia artificial, bot o modelo.\n- Responde únicamente con el cuerpo del correo en HTML válido y sencillo.\n- No uses Markdown, bloques de código ni encabezados técnicos.\n- No inventes precios, promociones, fechas, pagos aprobados, funciones, garantías ni compromisos.\n- Si falta información, pide los datos mínimos necesarios.\n- Si el mensaje trata sobre reclamos graves, reembolsos, asuntos legales, seguridad, acceso comprometido, datos sensibles o decisiones que requieren aprobación humana, confirma la recepción y explica que el equipo revisará el caso; no prometas una resolución.\n- No solicites contraseñas, códigos de verificación, claves privadas, datos completos de tarjetas ni credenciales.\n- Mantén la respuesta concreta y orientada al siguiente paso.\n- No repitas innecesariamente todo lo que escribió el cliente.\n- Firma siempre exactamente así:\n\n<p>Saludos cordiales,</p>\n<p><strong>Equipo TransTech</strong><br>\n<a href=\"https://transtech.com.py\">transtech.com.py</a></p>\n\nCONTEXTO DE CANALES:\n- ventas: consultas comerciales, planes, contratación y demostraciones.\n- soporte: problemas técnicos, acceso, funcionamiento y ayuda.\n- contacto: consultas generales.\n\nDevuelve solamente el HTML del correo, sin explicación adicional."
+              },
+              {
+                "content": "=CANAL: {{ $json.canal }}\n\nREMITENTE:\n{{ $json.remitente_original }}\n\nASUNTO:\n{{ $json.asunto_original }}\n\nMENSAJE:\n{{ $json.mensaje }}\n\nRedacta la respuesta adecuada respetando todas las reglas del sistema."
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "credentials": {
+          "openAiApi": {
+            "id": "rrbWSomfLM5Z0X0j",
+            "name": "OpenAI account"
+          }
+        }
+      },
+      {
+        "id": "4c428eff-8d98-40da-b959-460f2f697039",
+        "name": "Unir correo y respuesta1",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          2160,
+          672
+        ],
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {}
+        }
+      },
+      {
+        "id": "76ec56ed-d548-4184-8b8c-2cce94f1a0e7",
+        "name": "Preparar envío EOS1",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2400,
+          672
+        ],
+        "parameters": {
+          "jsCode": "const j = $json;\n\nlet html =\n  j.output?.[0]?.content?.[0]?.text ??\n  j.output_text ??\n  j.text ??\n  j.response ??\n  '';\n\nhtml = String(html || '')\n  .replace(/^```(?:html)?\\s*/i, '')\n  .replace(/\\s*```$/i, '')\n  .trim();\n\nif (!html) {\n  html = '<p>Gracias por comunicarte con TransTech.</p><p>Recibimos tu mensaje y nuestro equipo lo revisará a la brevedad.</p><p>Saludos cordiales,</p><p><strong>Equipo TransTech</strong><br><a href=\"https://transtech.com.py\">transtech.com.py</a></p>';\n}\n\nconst to = String(j.email_cliente || '').trim().toLowerCase();\n\nif (!to || !to.includes('@')) {\n  throw new Error(`El Merge no entregó email_cliente. Campos recibidos: ${Object.keys(j).join(', ')}`);\n}\n\nreturn [{\n  json: {\n    to,\n    from: j.reply_from || 'ventas@transtech.com.py',\n    subject: j.asunto_respuesta || `Re: ${j.asunto_original || 'Consulta'}`,\n    html,\n    canal: j.canal || 'ventas',\n    gmail_message_id: j.gmail_message_id || '',\n    gmail_thread_id: j.gmail_thread_id || ''\n  }\n}];"
+        }
+      },
+      {
+        "id": "aa83a1df-d643-4240-a32c-8d8ec42a6d1f",
+        "name": "Enviar respuesta por Resend1",
+        "webhookId": "6ef84429-efc3-42a0-82ba-9a2891fe4f31",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2640,
+          672
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.resend.com/emails",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $env.RESEND_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ from: $json.from, to: [$json.to], subject: $json.subject, html: $json.html }) }}",
+          "options": {
+            "timeout": 30000
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Gmail Trigger EOS1": {
+        "main": [
+          [
+            {
+              "node": "Preparar correo EOS1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar correo EOS1": {
+        "main": [
+          [
+            {
+              "node": "Generar respuesta EOS1",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Unir correo y respuesta1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Generar respuesta EOS1": {
+        "main": [
+          [
+            {
+              "node": "Unir correo y respuesta1",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Unir correo y respuesta1": {
+        "main": [
+          [
+            {
+              "node": "Preparar envío EOS1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar envío EOS1": {
+        "main": [
+          [
+            {
+              "node": "Enviar respuesta por Resend1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Augusto Barreto",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "createdAt": "2026-09-29T17:25:46.505Z",
+    "updatedAt": "2026-09-29T17:25:46.505Z",
+    "workflowPublishHistory": [
+      {
+        "id": 757,
+        "workflowId": "fUrFN1LTuqiUlKgq",
+        "versionId": "260020dc-a041-4558-9189-0fa1ee19793a",
+        "event": "activated",
+        "userId": "e4678cc4-dd0f-4b75-8590-a6333aa46ce3",
+        "createdAt": "2026-09-29T17:25:47.995Z"
+      }
+    ]
+  }
+}
