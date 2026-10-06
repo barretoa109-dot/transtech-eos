@@ -35,53 +35,28 @@ async function enviarToken(metodo: "POST" | "DELETE", token: string, plataforma:
  * sistema operativo recuerda la decisión.
  */
 export function activarPushNativo(): Promise<void> {
-  // TEMPORAL (diagnóstico de push sin USB): quitar cuando se resuelva.
-  diagnosticoPush("activarPushNativo llamado");
-  if (!estaEnAppNativa()) {
-    diagnosticoPush("no es app nativa, no hace nada");
-    return Promise.resolve();
-  }
-  activacion ??= registrar().catch((error) => {
-    diagnosticoPush(`error: ${String(error)}`);
-  });
+  if (!estaEnAppNativa()) return Promise.resolve();
+  activacion ??= registrar().catch(() => {});
   return activacion;
-}
-
-/** TEMPORAL: muestra cada paso en un aviso del teléfono. Quitar al terminar el diagnóstico. */
-function diagnosticoPush(mensaje: string) {
-  try {
-    window.alert(`[diag push] ${mensaje}`);
-  } catch {
-    // Sin ventanas emergentes no hay diagnóstico que mostrar.
-  }
 }
 
 async function registrar(): Promise<void> {
   const plataforma = plataformaActual();
-  diagnosticoPush(`plataforma: ${String(plataforma)}`);
   if (!plataforma) return;
 
   const plugin = pushNativo();
   const escucha = await plugin.addListener("registration", ({ value }) => {
-    diagnosticoPush(`token recibido, largo ${value.length}`);
     tokenActual = value;
-    void enviarToken("POST", value, plataforma)
-      .then(() => diagnosticoPush("token enviado al servidor"))
-      .catch((error) => diagnosticoPush(`fallo al enviar token: ${String(error)}`));
-  });
-  await plugin.addListener("registrationError", (error) => {
-    diagnosticoPush(`registrationError: ${JSON.stringify(error)}`);
+    void enviarToken("POST", value, plataforma).catch(() => {});
   });
 
   const permiso = await plugin.requestPermissions();
-  diagnosticoPush(`permiso: ${permiso.receive}`);
   if (permiso.receive !== "granted") {
     await escucha.remove();
     return;
   }
 
   await plugin.register();
-  diagnosticoPush("register() terminó");
 }
 
 /**
