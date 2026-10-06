@@ -101,6 +101,7 @@ type PushNativo = {
     evento: "registration",
     manejador: (datos: { value: string }) => void,
   ): Promise<Escucha>;
+  addListener(evento: "registrationError", manejador: (datos: unknown) => void): Promise<Escucha>;
 };
 
 let push: PushNativo | null = null;
