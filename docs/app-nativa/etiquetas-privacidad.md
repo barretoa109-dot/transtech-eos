@@ -96,3 +96,20 @@ web, búsquedas, apps instaladas, registros de fallas del dispositivo.
    pide revisar "Payment Info" y Google "Información de pago".
 3. Si se agrega un SDK a la app nativa (errores, analítica), sumar lo que
    recoge: Crash Data / Registros de fallas.
+
+### Revisión del 07/10/2026
+
+Se comparó esta ficha contra lo que se sumó desde el 30/09 (Calendario v187,
+push de Android v233-v240, reglas de categoría de Finanzas v234). Ninguno
+agrega un tipo de dato nuevo:
+
+- Los eventos del Calendario (título, detalle, con quién es) entran en "Tu
+  información de trabajo" / *User Content → Other User Content*, ya
+  declarado. La app no lee el calendario del teléfono.
+- El token de push de Android (`dispositivos_push`, v233) es exactamente el
+  "identificador de notificaciones push" que ya figuraba como *Device ID
+  (conservador)* / "ID del dispositivo u otros (opcional)".
+- Las reglas de categoría de Finanzas (v234) entran en "Tu información
+  financiera", ya declarado.
+
+No hace falta tocar `/privacidad` ni esta ficha por estos tres cambios.
