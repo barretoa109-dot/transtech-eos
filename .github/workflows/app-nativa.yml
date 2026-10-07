@@ -27,6 +27,10 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # El contexto `secrets` no se puede usar en un `if:` (lo bloquea GitHub
+    # Actions). Por eso se vuelca a una variable de entorno acá, una sola vez.
+    env:
+      TIENE_CLAVE_DE_SUBIDA: ${{ secrets.EOS_UPLOAD_KEYSTORE_B64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,12 +54,12 @@ jobs:
       # AAB de release para Google Play. Si el secreto EOS_UPLOAD_KEYSTORE_B64
       # no está cargado, sale sin firmar (compila, pero no se puede subir).
       - name: Decodificar la clave de subida
-        if: ${{ secrets.EOS_UPLOAD_KEYSTORE_B64 != '' }}
+        if: ${{ env.TIENE_CLAVE_DE_SUBIDA == 'true' }}
         run: echo "${{ secrets.EOS_UPLOAD_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
       - name: Compilar el AAB de release
         working-directory: android
         env:
-          EOS_UPLOAD_KEYSTORE: ${{ secrets.EOS_UPLOAD_KEYSTORE_B64 != '' && format('{0}/upload.jks', runner.temp) || '' }}
+          EOS_UPLOAD_KEYSTORE: ${{ env.TIENE_CLAVE_DE_SUBIDA == 'true' && format('{0}/upload.jks', runner.temp) || '' }}
           EOS_UPLOAD_STORE_PASSWORD: ${{ secrets.EOS_UPLOAD_STORE_PASSWORD }}
           EOS_UPLOAD_KEY_ALIAS: ${{ secrets.EOS_UPLOAD_KEY_ALIAS }}
           EOS_UPLOAD_KEY_PASSWORD: ${{ secrets.EOS_UPLOAD_KEY_PASSWORD }}
