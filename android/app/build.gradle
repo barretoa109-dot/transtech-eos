@@ -16,8 +16,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // La firma de subida se toma de variables de entorno (ver .github/workflows/app-nativa.yml).
+    // Sin ellas, el release sale sin firmar: sirve para comprobar que compila, no para subir a Play.
+    signingConfigs {
+        release {
+            if (System.getenv("EOS_UPLOAD_KEYSTORE")) {
+                storeFile file(System.getenv("EOS_UPLOAD_KEYSTORE"))
+                storePassword System.getenv("EOS_UPLOAD_STORE_PASSWORD")
+                keyAlias System.getenv("EOS_UPLOAD_KEY_ALIAS")
+                keyPassword System.getenv("EOS_UPLOAD_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
