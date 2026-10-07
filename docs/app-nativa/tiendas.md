@@ -138,8 +138,53 @@ Pendiente, y esto sí necesita al dueño o un iPhone:
    permiso, registrar el token, y que un aviso de agenda llegue de verdad.
    Nunca se probó, ni con el simulador (`CODE_SIGNING_ALLOWED=NO` del CI no
    alcanza para push: necesita firma real).
-3. “Compartir con EOS” con **imágenes y comprobantes** (Android) y **en iOS**: iOS necesita una extensión de Share en el proyecto de Xcode, y hay que probarla en un Mac o con CI.
-4. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
+3. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
+
+**“Compartir con EOS” en iOS (07/10, rama `docs/ficha-app-store`):** en Android
+ya mandaba texto **e imágenes** (PR `8a56c076`, "también imágenes y
+comprobantes"); en iOS no había nada. Una Share Extension corre en un proceso
+separado del de la app — Apple no deja que abra ni avise directamente a la
+app contenedora (confirmado por un ingeniero de Apple en el foro de
+desarrolladores: <https://developer.apple.com/forums/thread/824630>) —, así
+que el camino no es igual al de Android:
+
+- **Target nuevo `ShareExtension`** (`ios/App/ShareExtension/`), agregado a
+  `project.pbxproj` a mano con la librería `xcode` (la misma que usa
+  Capacitor/Cordova para esto), porque esta sesión no tiene Xcode para
+  hacerlo con la interfaz. `ShareViewController.swift` acepta texto o una
+  imagen (mismo límite de 8 MB que `CompartirRecibidoPlugin.java`), lo
+  guarda como JSON en el contenedor de un App Group
+  (`group.com.transtech.eos`) y termina. No hay UI más allá de "Enviando a
+  EOS…": no hace falta que la persona confirme nada.
+- **`ios/App/App/CompartirRecibidoPlugin.swift`**: un plugin de Capacitor
+  nuevo (no viene de npm) con el mismo nombre y el mismo evento que el de
+  Android (`CompartirRecibido` → `compartido`, con `{ texto }` o
+  `{ archivo: { nombre, mime, base64 } }`), así que `ChatView.tsx` no
+  necesitó ningún cambio. Como la extensión no puede avisarle a la app
+  directamente, el plugin revisa el contenedor del App Group cada vez que
+  la app vuelve a primer plano, no solo al arrancar.
+- Los plugins que viven en el proyecto (no en un paquete npm) hay que
+  registrarlos a mano: `ios/App/App/BridgeViewController.swift` es un
+  `CAPBridgeViewController` que lo hace en `capacitorDidLoad()`, y
+  `SceneDelegate.swift` ahora lo usa en vez del `CAPBridgeViewController`
+  de siempre.
+- `App.entitlements` y el nuevo `ShareExtension.entitlements` declaran el
+  mismo App Group, para que los dos procesos vean el mismo contenedor.
+
+Pendiente, y depende del dueño o de un Mac:
+
+1. Crear el App Group `group.com.transtech.eos` en Apple Developer y
+   asignarlo a los dos identificadores de la app (`com.transtech.eos` y
+   `com.transtech.eos.compartir`) — sin esto, los entitlements no significan
+   nada.
+2. Abrir el proyecto en Xcode al menos una vez: todo lo de arriba se armó
+   editando `project.pbxproj` con una librería, nunca se abrió en la
+   interfaz. Si algo quedó mal armado (un ajuste que Xcode normalmente pone
+   solo al agregar un target desde la interfaz), ahí se nota enseguida.
+3. Probarlo de punta a punta en un iPhone o el simulador: compartir texto y
+   una foto desde Fotos o Safari, y confirmar que entra al cuadro del chat
+   (o como adjunto, si es una imagen) la próxima vez que se abre EOS. Nunca
+   se probó.
 
 ## Regla para lo que se despliega sin pasar por la tienda
 
