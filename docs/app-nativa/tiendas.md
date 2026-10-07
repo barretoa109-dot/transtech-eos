@@ -106,13 +106,40 @@ anterior de este documento; ya no lo está. Falta probarlo en un teléfono real
 (ver "Cómo probar") y confirmar que la clave de servicio de Firebase esté
 cargada en el entorno de producción, algo que no se ve desde una sesión de Code.
 
-Pendiente:
+**Notificaciones push en iOS (07/10, rama `docs/ficha-app-store`):** el
+cliente (`lib/push/cliente.ts`) ya era genérico para las dos plataformas; lo
+que faltaba era el lado nativo y el envío. Ahora:
 
-1. **Notificaciones push en iOS (APNs).** No hay código para iOS todavía
-   (`lib/push/nativo.ts` solo registra Android). Necesita el cliente en el
-   proyecto de Xcode y las claves APNs del dueño.
-2. “Compartir con EOS” con **imágenes y comprobantes** (Android) y **en iOS**: iOS necesita una extensión de Share en el proyecto de Xcode, y hay que probarla en un Mac o con CI.
-3. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
+- `ios/App/App/AppDelegate.swift` reenvía el token (o el error) de
+  `didRegisterForRemoteNotificationsWithDeviceToken` a Capacitor, como pide
+  el plugin `@capacitor/push-notifications` (ya estaba en `package.json` y
+  sincronizado en `ios/App/CapApp-SPM/Package.swift`, pero sin esto el
+  `register()` de la app nunca recibía el token).
+- `ios/App/App/App.entitlements` declara `aps-environment` y está conectado
+  en `project.pbxproj` (`CODE_SIGN_ENTITLEMENTS`) para Debug y Release. Sin
+  esto, Xcode no deja activar push aunque el código esté todo.
+- `capacitor.config.ts` suma `presentationOptions` para que un aviso se vea
+  también si la persona está con la app abierta (sin esto, iOS no muestra
+  nada en primer plano; Android sí, por su cuenta).
+- El envío: `lib/push/apns.ts` (token de proveedor ES256, HTTP/2 directo con
+  `node:http2` porque el API de APNs no acepta HTTP/1.1) y `lib/push/nativo.ts`
+  ahora reparte cada aviso entre FCM (Android) y APNs (iOS) según la
+  plataforma guardada en `dispositivos_push`, en vez de filtrar solo Android.
+
+Apagado sin configuración, igual que FCM: sin `APNS_TEAM_ID`, `APNS_KEY_ID` y
+`APNS_CLAVE_PRIVADA` no se consulta ni se envía nada por este lado.
+
+Pendiente, y esto sí necesita al dueño o un iPhone:
+
+1. La clave APNs (`.p8`, Team ID, Key ID) de Apple Developer — depende de que
+   la cuenta de la organización termine de verificarse. Sin ella, `lib/push/apns.ts`
+   queda apagado solo, como pasaba con FCM antes del 06/10.
+2. Probarlo de punta a punta en un iPhone o el simulador de Xcode: pedir el
+   permiso, registrar el token, y que un aviso de agenda llegue de verdad.
+   Nunca se probó, ni con el simulador (`CODE_SIGNING_ALLOWED=NO` del CI no
+   alcanza para push: necesita firma real).
+3. “Compartir con EOS” con **imágenes y comprobantes** (Android) y **en iOS**: iOS necesita una extensión de Share en el proyecto de Xcode, y hay que probarla en un Mac o con CI.
+4. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
 
 ## Regla para lo que se despliega sin pasar por la tienda
 
