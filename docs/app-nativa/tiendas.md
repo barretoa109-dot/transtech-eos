@@ -98,9 +98,19 @@ Hecho en esta vuelta (rama `feat/app-tiendas-cierre`):
 - **Barra de estado en los dos temas**: `lib/app-nativa/barra-de-estado.ts` decide el estilo (texto claro sobre fondo oscuro, y al revés) y `BarraDeEstadoNativa` lo aplica y lo sigue si cambia el tema del teléfono. Plugin `@capacitor/status-bar`.
 - **“Compartir con EOS” en Android, solo texto**: el intent filter `SEND` con `text/plain` (en `AndroidManifest.xml`) entrega el texto a `CompartirRecibidoPlugin.java`. Si el chat todavía no está listo (por ejemplo, hay que iniciar sesión), el texto queda retenido hasta que el chat lo toma. `ChatView` lo agrega a la caja del chat **sin enviarlo**.
 
+**Notificaciones push en Android (06/10, PRs #233-#240):** el cliente registra el
+token (`lib/push/nativo.ts`), la tabla `dispositivos_push` lo guarda por persona
+(v233) y el envío usa FCM HTTP v1 (`lib/push/fcm.ts`). Los avisos de agenda ya
+llegan a la app Android. Esto estaba listado como pendiente en una versión
+anterior de este documento; ya no lo está. Falta probarlo en un teléfono real
+(ver "Cómo probar") y confirmar que la clave de servicio de Firebase esté
+cargada en el entorno de producción, algo que no se ve desde una sesión de Code.
+
 Pendiente:
 
-1. Notificaciones push nativas (APNs y FCM), pedidas después del primer momento de valor. Falta el cliente (registro del token, pantalla de permiso) y la tabla de dispositivos. El envío necesita las claves APNs y FCM del dueño.
+1. **Notificaciones push en iOS (APNs).** No hay código para iOS todavía
+   (`lib/push/nativo.ts` solo registra Android). Necesita el cliente en el
+   proyecto de Xcode y las claves APNs del dueño.
 2. “Compartir con EOS” con **imágenes y comprobantes** (Android) y **en iOS**: iOS necesita una extensión de Share en el proyecto de Xcode, y hay que probarla en un Mac o con CI.
 3. Enlaces universales para los correos (verificación, resumen del lunes). Plantilla en `docs/app-nativa/enlaces-universales.md`: no se publica hasta tener el Team ID de Apple y la huella del certificado de firma de Android.
 
