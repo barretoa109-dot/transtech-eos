@@ -52,10 +52,10 @@ captures/
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
 
-# Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+# Keystore files: nunca se suben. La clave de subida vive solo en el secreto
+# EOS_UPLOAD_KEYSTORE_B64 de GitHub Actions (ver docs/app-nativa/tiendas.md).
+*.jks
+*.keystore
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
