@@ -227,6 +227,10 @@ export type FilaEmbudo = {
   activado_v1: boolean;
   primer_pago: string | null;
   ultimo_mensaje: string | null;
+  primera_cuenta_personal: string | null;
+  primera_tarjeta_personal: string | null;
+  primer_fijo_personal: string | null;
+  primera_deuda_personal: string | null;
 };
 
 /**
@@ -244,10 +248,18 @@ export function resumirEmbudo(filas: FilaEmbudo[], ahora: number = Date.now()): 
   const conAccion = filas.filter((f) => f.acciones_ok > 0).length;
   const activadas = filas.filter((f) => f.activado_v1).length;
   const pagaron = filas.filter((f) => f.primer_pago !== null).length;
+  const conPersonal = filas.filter(
+    (f) =>
+      f.primera_cuenta_personal !== null ||
+      f.primera_tarjeta_personal !== null ||
+      f.primer_fijo_personal !== null ||
+      f.primera_deuda_personal !== null,
+  ).length;
 
   return (
     `${filas.length} cuentas reales · ${activas7d} activas en 7 días · ` +
-    `${conAccion} con una acción exitosa · ${activadas} activadas · ${pagaron} con un pago`
+    `${conAccion} con una acción exitosa · ${activadas} activadas · ${pagaron} con un pago · ` +
+    `${conPersonal} con algo en Personal`
   );
 }
 
@@ -257,7 +269,10 @@ async function chequeoEmbudo(): Promise<Chequeo> {
   try {
     const { data, error } = await adminSinTipos()
       .from("eos_analitica_usuario_v172")
-      .select("acciones_ok,activado_v1,primer_pago,ultimo_mensaje")
+      .select(
+        "acciones_ok,activado_v1,primer_pago,ultimo_mensaje,primera_cuenta_personal," +
+          "primera_tarjeta_personal,primer_fijo_personal,primera_deuda_personal",
+      )
       .eq("tipo", "real")
       .limit(5000);
 

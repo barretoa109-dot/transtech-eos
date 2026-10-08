@@ -11,6 +11,10 @@ const fila = (extra: Partial<FilaEmbudo> = {}): FilaEmbudo => ({
   activado_v1: false,
   primer_pago: null,
   ultimo_mensaje: null,
+  primera_cuenta_personal: null,
+  primera_tarjeta_personal: null,
+  primer_fijo_personal: null,
+  primera_deuda_personal: null,
   ...extra,
 });
 
@@ -26,7 +30,8 @@ test("cuenta cada hito por separado, sin mezclarlos", () => {
 
   assert.equal(
     texto,
-    "3 cuentas reales · 1 activas en 7 días · 2 con una acción exitosa · 1 activadas · 1 con un pago",
+    "3 cuentas reales · 1 activas en 7 días · 2 con una acción exitosa · 1 activadas · " +
+      "1 con un pago · 0 con algo en Personal",
   );
 });
 
@@ -42,8 +47,26 @@ test("el límite de 7 días es inclusivo, y 8 días ya no cuenta", () => {
 test("sin cuentas dice cero, no revienta", () => {
   assert.equal(
     resumirEmbudo([], AHORA),
-    "0 cuentas reales · 0 activas en 7 días · 0 con una acción exitosa · 0 activadas · 0 con un pago",
+    "0 cuentas reales · 0 activas en 7 días · 0 con una acción exitosa · 0 activadas · " +
+      "0 con un pago · 0 con algo en Personal",
   );
+});
+
+test("cualquiera de las cuatro cuentas como 'algo en Personal', sin repetir a quien tiene dos", () => {
+  const texto = resumirEmbudo(
+    [
+      fila({ primera_cuenta_personal: hace(5) }),
+      fila({ primera_tarjeta_personal: hace(4) }),
+      fila({ primer_fijo_personal: hace(3) }),
+      fila({ primera_deuda_personal: hace(2) }),
+      fila({ primera_cuenta_personal: hace(5), primera_tarjeta_personal: hace(4) }),
+      fila(),
+    ],
+    AHORA,
+  );
+
+  assert.match(texto, /6 cuentas reales/);
+  assert.match(texto, /5 con algo en Personal/);
 });
 
 // ---------------------------------------------------------------------------
