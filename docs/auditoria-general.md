@@ -215,3 +215,107 @@ se vio funcionar con datos de alguien.
 **Para el conjunto: NO-GO hasta P9.** No por lo que falta construir, sino por
 lo que falta probar — y ahora se suman la puerta de autonomía y la auditoría,
 que no tienen red.
+
+---
+
+## Actualización del 8 de octubre de 2026
+
+Encargo recibido: "Prompt maestro para Claude durante la aprobación de las
+tiendas" (30 días, P0→P2, diagnóstico primero). Antes de escribir nada nuevo,
+se volvió a correr `npx tsx scripts/auditar-areas.mts` contra producción — no
+se confió en este documento, que ya tenía casi un mes.
+
+```
+Usuarios reales (10+ mensajes): 5 de 8 que hablaron alguna vez
+
+ÁREA                        FILAS  DE REALES  VERBO                         PRUEBAS
+Chat                          694        684  —                             29 lib
+Personal · movimientos        148         88  REGISTRAR_MOVIMIENTO_PERSONAL 1 lib
+Personal · cuentas              6          4  DECLARAR_SALDO                2 lib
+Personal · tarjetas             5          4  REGISTRAR_TARJETA             1 lib
+Personal · fijos               13         11  REGISTRAR_GASTO_FIJO          1 lib
+Personal · deudas               7          1  REGISTRAR_DEUDA               1 lib
+ERP · ventas                   78         51  REGISTRAR_VENTA               23 lib + 2 cert
+ERP · compras                  30         19  REGISTRAR_COMPRA              2 lib + 1 cert
+Objetivos                       0          0  CREAR_OBJETIVO                1 lib
+Personal · transferencias       1          0  REGISTRAR_TRANSFERENCIA       —
+Personal · bienes               0          0  —                             1 lib
+Documentos                      0          0  —                             5 lib
+Pagos                           0          0  —                             3 lib + 3 cert
+```
+
+(Tabla completa en la salida del script; acá solo lo que cambió o importa.)
+
+**Lo que mejoró desde el 10/09, con datos reales detrás:** Personal dejó de
+estar vacío. 4 de 5 usuarios reales ya declararon una cuenta, una tarjeta o un
+gasto fijo — el hallazgo de aquel día ("todo funciona y nadie lo usa") ya no
+es cierto tal cual. `business_twin` también pasó de 0 a 2 referencias en
+`app`/`lib`: alguien empezó a leerlo.
+
+**Lo que parece una regresión y no lo es:** `eos_goals` pasó de 54 filas (todas
+"reales" por el criterio de 10+ mensajes) a 0. Verificado contra el esquema:
+`eos_goals.usuario_id` tiene `on delete cascade` hacia `usuarios(id)`
+(migración `20260811002731`). La purga del 19/09 de cuentas huérfanas y de
+prueba (ver `lista-maestra.md`, punto de esa fecha) se llevó esas filas con
+ella — eran de cuentas de certificación que el criterio de "10+ mensajes" no
+distinguía de cuentas reales, exactamente el riesgo que esa misma auditoría ya
+advertía en su sección "Quién es un usuario real". No es pérdida de datos de
+un usuario real; es que el dato nunca fue de un usuario real.
+
+**Housekeeping de git, no de producto:** la rama de trabajo
+`fix/guarda-parche-finanzas` estaba 19 commits detrás de `main` (el único
+commit propio ya había entrado por el PR #242, mergeado el 06/10). Se
+actualizó `main` local a `origin/main` (`5cc39cb6`) y se cambió a esa rama.
+Nada que mergear, nada perdido.
+
+**`npm run go`: 9/9 automático.** Producción corre `5cc39cb6` = `main`.
+Aislamiento 24/24. `npm test`: **2738/2738 en verde** (antes de este encargo
+corría con `node --test`, no con `vitest`; invocar `vitest` directo cuenta
+también los archivos de un worktree viejo en `.claude/worktrees/` y da un
+falso 347 en rojo — hay que usar el script del `package.json`).
+
+### Los cinco P0 del encargo, verificados hoy (no contra este documento)
+
+| P0 del encargo | Estado hoy | Evidencia |
+|---|---|---|
+| 01 Aislamiento y permisos | **cerrado** | `npm run go`: RLS en toda tabla de `public`, 24/24 cruces sin fuga |
+| 02 Finanzas e idempotencia | **cerrado** | Huella del Worker Gate con prueba propia; invariantes de `DECLARAR_SALDO`, cobros parciales, tarjetas con pruebas de base dedicadas |
+| 03 Estados de ejecución | **cerrado** | `lib/eos/errores-accion.ts` traduce todo `EOS_ACCION_*`; frases del worker con 17+ casos |
+| 04 Personal y negocio | **cerrado** | `ambito` separa las dos plata desde v136, con trigger; verificado en el panel y en el contexto del chat |
+| 05 Privacidad y revisión | **parcial** | `/terminos`, `/privacidad`, borrado de cuenta y de archivos existen y tienen prueba; revisión legal de un profesional sigue sin hacerse (externo, punto 9 de `lista-maestra.md`) |
+
+**Conclusión: no hay un P0 nuevo que corregir en código.** Los cinco ya están
+cerrados con evidencia de hoy, no de hace un mes. Se continúa con activación,
+que es donde el encargo pide seguir cuando no hay P0.
+
+### Lo que de verdad falta, y a quién le toca
+
+- **Tiendas: todavía no sometidas**, al contrario de lo que asume el encargo
+  ("mientras esperamos la aprobación"). `docs/app-nativa/tiendas.md` (editado
+  por última vez ayer, 07/10) lista lo pendiente: App Group en Apple
+  Developer, abrir el proyecto en Xcode una vez, clave APNs, probar en un
+  iPhone real, cuentas de Play Console y Apple Developer, firma. Ninguno se
+  puede hacer desde esta sesión.
+- **Piloto formal: no existe todavía.** El encargo pide reclutar 10-15
+  negocios y seguirlos con un protocolo (día 0, 3, 7, 14). Hoy hay 5 cuentas
+  reales sin ese proceso.
+- **Costo por cuenta: sigue siendo estimado**, no contra facturas reales del
+  mes.
+- **Documentos y Pagos siguen en cero** de uso real; Pagos es esperable
+  (Bancard productivo no está habilitado, punto 6 de `lista-maestra.md`).
+
+### Primer cambio propuesto (no es P0; es el primer P1 con mínimo completo)
+
+No hay bug P0 que arreglar hoy. El cambio propuesto es instrumentar la
+activación que ya mejoró, para no volver a medirla "a ojo": un evento mínimo
+por área de Personal (cuenta, tarjeta, fijo, deuda) cuando la llena un usuario
+real, reusando `eos_eventos` si ya existe o la tabla que ya registra
+`activado_v1` (v173). **Prueba de aceptación:** correr
+`auditar-areas.mts` antes y después de que una cuenta de prueba declare una
+cuenta y una tarjeta, y ver el evento aparecer con el `usuario_id` y el tipo
+correctos, sin tocar ninguna tabla financiera.
+
+Decisiones que le tocan al dueño, no a esta sesión (el propio encargo las
+separa de lo técnico): segmento final del piloto, precio, y cuándo autorizar
+exposición de usuarios reales nuevos. Se sigue sin pedir eso para avanzar con
+lo demás.
