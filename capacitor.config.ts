@@ -37,6 +37,17 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+
+  plugins: {
+    /*
+     * Sin esto, @capacitor/push-notifications no muestra nada en iOS cuando
+     * la app está en primer plano (Android sí avisa igual, por su cuenta).
+     * Ver lib/push/cliente.ts.
+     */
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "banner", "list"],
+    },
+  },
 };
 
 export default config;
