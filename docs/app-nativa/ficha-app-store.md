@@ -36,10 +36,8 @@ fecha, no para pegarlo hoy.
 
 - **Precio:** Gratis (igual que Play: se descarga gratis, el servicio se
   contrata en la web).
-- **Países/regiones:** sin decidir todavía. Faltan por confirmar con el
-  dueño: ¿solo Paraguay, o toda Latinoamérica? Play tampoco lo tiene resuelto
-  en su ficha — conviene decidirlo una vez para las dos tiendas, no por
-  separado.
+- **Países/regiones:** solo Paraguay (decisión del dueño, 08/10/2026), igual
+  que en `ficha-play-store.md`. Se amplía después, no al revés.
 
 ## Texto promocional (máximo 170 caracteres, se puede cambiar sin reenviar la app)
 
@@ -81,8 +79,7 @@ desperdicia los 100 caracteres.
 - **Soporte:** `https://www.transtech.com.py` o, si Apple pide un correo
   además de una URL, `soporte@transtech.com.py` (la dirección que de verdad
   lee el buzón — ver `lib/email/primeros-dias.ts` y `app/api/soporte/route.ts`
-  — no `augusto@transtech.com.py`, que es la que quedó anotada en la ficha de
-  Play; conviene alinear las dos).
+  — ya alineada con `ficha-play-store.md`).
 - **Marketing (opcional):** `https://www.transtech.com.py`.
 - **Política de privacidad (obligatoria):** `https://www.transtech.com.py/privacidad`.
 - **Copyright:** `© 2026 TransTech`.
@@ -105,15 +102,10 @@ Igual que Play (decisión del dueño, no se negocia):
 - **Capturas de iPhone** (al menos un tamaño, recomendado 6,9" — iPhone
   16 Pro Max): del chat, Negocio, Finanzas y Calendario. Requiere un
   teléfono o el simulador de Xcode con la app corriendo.
-- **Capturas de iPad — posible punto pendiente:** el proyecto de Xcode tiene
-  `TARGETED_DEVICE_FAMILY = "1,2"` (iPhone **y** iPad), heredado de la
-  plantilla de Capacitor. Si eso no cambia, Apple va a pedir también capturas
-  de iPad de 13" al enviar la app. Dos salidas, a decidir con el dueño:
-  1. Restringir el proyecto a iPhone solamente (`TARGETED_DEVICE_FAMILY = "1"`
-     en `ios/App/App.xcodeproj/project.pbxproj`) si nadie probó la app en
-     iPad y no es un objetivo del lanzamiento — la opción más simple.
-  2. Dejarlo como está y sumar capturas de iPad antes de enviar.
-  No tocar esto en este archivo: es un cambio de código, no de la ficha.
+- **Solo iPhone:** el proyecto quedó restringido a iPhone (`TARGETED_DEVICE_FAMILY
+  = 1` en `ios/App/App.xcodeproj/project.pbxproj`, decisión del dueño,
+  08/10/2026 — nadie había probado la app en iPad). No hacen falta capturas
+  de iPad.
 
 ## Clasificación por edad
 
@@ -177,8 +169,5 @@ misma: no usa cifrado no exento.
 2. Que el texto de descripción y las reglas de "Qué NO decir" sigan
    coincidiendo con la ficha de Play (se escribieron para ser el mismo texto
    en las dos tiendas).
-3. La decisión de `TARGETED_DEVICE_FAMILY` (iPhone solo vs. iPhone + iPad) y,
-   si queda en los dos, las capturas de iPad.
-4. Los países/regiones de disponibilidad, una sola vez para las dos tiendas.
-5. Si se agrega cobro dentro de la app, revisar "Qué NO decir", el supuesto
+3. Si se agrega cobro dentro de la app, revisar "Qué NO decir", el supuesto
    de `etiquetas-privacidad.md` y esta ficha por "Información de pago".

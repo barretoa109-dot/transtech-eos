@@ -13,10 +13,11 @@ nada dentro de la app y el servicio se contrata en la web (ver `tiendas.md`).
 - **Categoría:** Productividad
 - **Gratis o de pago:** Gratis (la app se descarga gratis; el servicio se contrata en la web)
 - **Contiene anuncios:** No
-- **Correo de asistencia:** el de la organización (`augusto@transtech.com.py`)
+- **Correo de asistencia:** `soporte@transtech.com.py` (el buzón que de verdad lee el código — ver `lib/email/primeros-dias.ts` y `app/api/soporte/route.ts`)
 - **Sitio web:** https://www.transtech.com.py
 - **Política de privacidad:** https://www.transtech.com.py/privacidad
 - **Eliminar cuenta (URL pública):** https://www.transtech.com.py/eliminar-cuenta
+- **Países de disponibilidad:** solo Paraguay (decisión del dueño, 08/10/2026). Se amplía después, no al revés.
 
 ## Descripción corta (máximo 80 caracteres)
 
