@@ -201,18 +201,38 @@ Todos los datos de prueba se borraron.
 
 ## 4. Lo que sigue incompleto
 
-**Cuatro verbos.** En `docs/autonomia/verbos.md`, con el orden y el motivo:
+**Actualización del 08/10/2026**, verificado contra el código de hoy (no
+contra lo que decía esta sección): dos de los cuatro puntos originales ya
+están cerrados, y el tercero resultó ser más preciso de lo que parecía.
 
-1. **Anular y corregir una venta del negocio.** `eos_erp_anular_venta` y
-   `eos_erp_editar_venta` existen y son transaccionales. Es el grupo más
-   delicado que queda: un `anular` por chat sobre la venta equivocada revierte
-   stock y plata.
-2. **Registrar una decisión.** `eos_decisions` y su verificación de resultados
-   están cableadas y se llenan solo desde n8n.
-3. **El movimiento de dos lados** — "saqué 2 millones del negocio para mí".
-   Hoy se anotaría como ingreso personal y el negocio no se enteraría. Es el
-   único de los cuatro que no tiene motor: el concepto de "retiro del dueño" no
-   existe en el libro del negocio.
+1. ~~**Anular y corregir una venta del negocio.**~~ **Cerrado desde la v186
+   (19/09).** `ANULAR_VENTA`, `CORREGIR_VENTA`, `ANULAR_COMPRA` y
+   `CORREGIR_COMPRA` están en la lista de acciones del prompt y en los tres
+   `check` de la base.
+2. **Registrar una decisión — sigue abierto.** `eos_decisions` se sigue
+   llenando solo desde el workflow de n8n `EOS 3.0 - Registro de Decisiones y
+   Resultados v6` (extracción pasiva de la conversación, endurecida el
+   21/09 — ver `lista-maestra.md` punto 18). No existe una acción
+   `CREAR_DECISION` explícita en el chat. Es el único de los cuatro que sigue
+   sin ningún trabajo.
+3. ~~**El movimiento de dos lados**~~ **No es que falte el motor: el motor
+   no sabe que es para esto.** `eos_finanzas_registrar_transferencia_v138`
+   (REGISTRAR_TRANSFERENCIA) resuelve las dos cuentas solo por `usuario_id` y
+   `activa` — **sin filtrar por `ambito`** — así que mover plata de una cuenta
+   de NEGOCIO a una de PERSONAL del mismo dueño ya funciona en la base
+   exactamente igual que entre dos cuentas personales, y queda en
+   `eos_finanzas_transferencias`, aparte de los movimientos: no se duplica
+   como ingreso en ningún lado. Lo que falta es el prompt: la documentación de
+   `REGISTRAR_TRANSFERENCIA` en `lib/gateway/sistema.ts` describe la acción
+   solo con ejemplos "ENTRE SUS PROPIAS CUENTAS" personales (banco→billetera,
+   cajero→efectivo) y nunca menciona el negocio, así que el modelo no tiene
+   por qué ofrecerla cuando alguien dice "saqué 2 millones del negocio para
+   mí". **Arreglar esto es editar el prompt de producción** (`sistema.ts` +
+   el nodo HTTP del workflow de n8n, que una prueba exige que sean el mismo
+   texto byte a byte) y correr el patch de n8n desde `main` después de
+   mergear — no una migración nueva. No se tocó hoy: es un cambio de
+   comportamiento del modelo para TODOS los usuarios, y se lo señala acá en
+   vez de apurarlo al final de una sesión larga.
 4. **Borrar un movimiento**, que a propósito no se va a hacer: borrar por chat
    es la única operación donde una coincidencia equivocada destruye un dato sin
    dejar rastro.

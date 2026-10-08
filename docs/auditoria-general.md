@@ -319,3 +319,35 @@ Decisiones que le tocan al dueño, no a esta sesión (el propio encargo las
 separa de lo técnico): segmento final del piloto, precio, y cuándo autorizar
 exposición de usuarios reales nuevos. Se sigue sin pedir eso para avanzar con
 lo demás.
+
+### Lo que se hizo con la activación (PR #250 y #251), y el siguiente punto, verificado y no construido
+
+Las dos columnas de activación de Personal y el resumen del embudo salieron
+hoy mismo (ver `lib/sql/activado-personal.test.ts` y
+`lib/monitoreo/salud.ts`). Antes de elegir el siguiente punto del backlog se
+revisaron cuatro pendientes de auditorías anteriores **contra el código de
+hoy, no contra lo que decían los documentos**:
+
+| Pendiente citado antes | Veredicto de hoy |
+|---|---|
+| "Leer el Business Twin: está lleno y nadie lo abre" (sección 4, 10/09) | **Ya no es cierto, y no hace falta construirlo.** `eos_business_twins_v14` se llena desde `lib/kpi/capturar.ts`. Sus `risks` salen del mismo `detectarAnomalias` (`lib/kpi/anomalias.ts`) que ya consumen `app/api/finanzas/pulso` y `app/api/kpi/hallazgos`, mostrados en `FinanzasPulso.tsx` y `Hallazgos.tsx`. Construir un lector del Twin sería un segundo camino para el mismo dato que el usuario ya ve. |
+| "Oportunidad con próxima acción" (encargo, sección 9) | **Ya está.** `lib/crm/seguimientos.ts`, `Embudo.tsx`, `TarjetaOportunidad.tsx` y `FichaCliente.tsx` lo leen y lo escriben desde la v185 (19/09). |
+| Alertas de riesgo sin canal por defecto (`lista-maestra.md`, punto 20, medido 20/09) | **Ya está, desde el 21/09 (v190), un día después de esa medición.** `eos_followup_preferences.avisos_riesgo_correo` nace en `true`; la fila de la lista maestra quedó un día atrás de su propio arreglo. |
+| "El movimiento de dos lados no tiene motor" (`docs/informe-autonomia.md`, sección 4) | **Parcialmente falso: el motor SÍ existe.** Ver la corrección en ese mismo documento (actualización del 08/10): `REGISTRAR_TRANSFERENCIA` no filtra por `ambito`, así que ya puede mover plata de una cuenta de negocio a una personal sin duplicar ingresos. Lo que falta es que el PROMPT lo diga — es un cambio al texto que gobierna el modelo en producción, no una migración. |
+
+**Por qué se registra esto en vez de solo corregir los documentos:** cuatro
+pendientes de cuatro resultaron total o parcialmente cerrados sin que nadie
+lo hubiera verificado desde que se escribieron. Es el mismo patrón que el
+encargo pide vigilar — "una lista que dice abierto para algo terminado
+retiene trabajo por algo que ya está hecho" — y hoy pasó con una cuarta parte
+de una lista corta.
+
+**El único pendiente real que queda de esas cuatro listas es `CREAR_DECISION`**
+(`docs/informe-autonomia.md`, punto 2): ninguna acción del chat registra una
+decisión explícita hoy; `eos_decisions` se llena solo por extracción pasiva
+de n8n. No se construyó en esta sesión porque agregar un verbo nuevo toca el
+prompt de producción en nueve lugares (`sistema.test.ts` los enumera) y, a
+diferencia de los cambios de hoy, no se puede probar con SQL y TypeScript
+solos: pide corpus de evals contra el modelo real y, para producción, un
+patch de n8n corrido desde `main` después de mergear. Es el candidato más
+claro para la siguiente sesión dedicada, no para el cierre de esta.
