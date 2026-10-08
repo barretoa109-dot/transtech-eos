@@ -576,6 +576,10 @@ const REGLAS: Regla[] = [
       );
     },
   },
+  {
+    codigo: "EOS_ACCION_DECISION_SIN_TEXTO",
+    mensaje: () => "¿Qué decidiste? Contámelo con tus palabras y lo anoto.",
+  },
 ];
 
 /**

@@ -97,6 +97,10 @@ test("toda acción interna decide si tiene frase propia o usa la genérica", () 
     "GUARDAR_MEMORIA",
     "CREAR_CONTACTO",
     "AJUSTAR_STOCK",
+    // Misma razón que CREAR_TAREA y CREAR_OBJETIVO: una decisión guardada no
+    // tiene un número que la persona pueda desmentir. "La decisión quedó
+    // registrada." alcanza (08/10/2026).
+    "CREAR_DECISION",
   ]);
 
   const sinDecidir: string[] = [];

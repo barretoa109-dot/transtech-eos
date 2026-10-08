@@ -94,6 +94,9 @@ export const RUTAS: Record<string, string> = {
   // Escribirle a un cliente por el WhatsApp de la empresa (v186): el ejecutor valida y el
   // servidor envía con la misma política que la pantalla.
   ENVIAR_WHATSAPP_CLIENTE: "eos-worker-rc1-internal",
+  // Registrar una decisión explícita (v236): mismo camino interno que las demás,
+  // no financiero, no mueve stock.
+  CREAR_DECISION: "eos-worker-rc1-internal",
 };
 
 export type Job = {

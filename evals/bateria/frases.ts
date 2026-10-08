@@ -68,7 +68,7 @@ const NADA = [[]];
 
 const FRASES_BASE: Frase[] = [
   // Ventas
-  { id: "venta-simple", grupo: "venta", mensaje: "vendí 3 bolsas de balanceado a 180 mil", esperado: V, porque: "La frase más común del ICP." },
+  { id: "venta-simple", grupo: "venta", mensaje: "vendí 3 bolsas de balanceado a 180 mil", esperado: V, prohibido: ["CREAR_DECISION"], porque: "La frase más común del ICP. Una venta no es una decisión (08/10/2026)." },
   { id: "venta-cliente", grupo: "venta", mensaje: "vendí 2 remeras a 85 mil cada una a Rossana", esperado: V, porque: "Venta con cliente." },
   { id: "venta-credito", grupo: "venta", mensaje: "le vendí a crédito a Juan 5 harinas a 60 mil, me paga el 30", esperado: V, porque: "Fiado con vencimiento." },
   { id: "venta-corta", grupo: "venta", mensaje: "salió 1 balanceado a 180", esperado: V, porque: "Como se dicta entre cliente y cliente." },
@@ -102,6 +102,7 @@ const FRASES_BASE: Frase[] = [
   { id: "oportunidad", grupo: "contacto", mensaje: "la ferretería San José me pidió presupuesto por 50 bolsas", esperado: [["REGISTRAR_OPORTUNIDAD"], ["CREAR_CONTACTO", "REGISTRAR_OPORTUNIDAD"]], porque: "Venta posible, no hecha." },
   { id: "tarea", grupo: "otro", mensaje: "recordame mañana llamar al proveedor", esperado: [["CREAR_TAREA"]], porque: "Recordatorio." },
   { id: "whatsapp-cliente", grupo: "otro", mensaje: "mandale a Juan un mensaje que ya llegó su pedido", esperado: [["ENVIAR_WHATSAPP_CLIENTE"]], porque: "Escribirle a un cliente (v186)." },
+  { id: "decision-precio", grupo: "otro", mensaje: "decidí subir el precio del combo familiar a 175 mil desde el lunes que viene", esperado: [["CREAR_DECISION"], ["CREAR_DECISION", "CREAR_TAREA"]], prohibido: ["ACTUALIZAR_PRODUCTO", "REGISTRAR_VENTA"], porque: "Decisión explícita (08/10/2026): no es vender ni tocar el catálogo; CREAR_TAREA es válido si programa el cambio para el lunes." },
 
   // Correcciones (R4: "si me equivoco, lo arreglás con una palabra")
   { id: "anular-ultima", grupo: "correccion", mensaje: "anulá la última", historial: TRAS_VENTA, esperado: [["ANULAR_VENTA"]], porque: "Promesa P2." },

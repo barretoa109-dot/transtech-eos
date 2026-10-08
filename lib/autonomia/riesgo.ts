@@ -467,6 +467,22 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
     forceApproval: false,
     defaultLevelOverride: 3,
   },
+  /*
+   * Registrar una decisión explícita (08/10/2026).
+   *
+   * No mueve plata ni stock: es una fila que el usuario puede borrar, igual
+   * que CREAR_TAREA y CREAR_OBJETIVO. Se alinea con esas dos en tier y
+   * puntos, y con REGISTRAR_OPORTUNIDAD en que se ejecuta sola —no hay
+   * ninguna razón para frenar en otra pantalla algo que el usuario pidió
+   * explícitamente guardar.
+   */
+  CREAR_DECISION: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
 };
 
 /**

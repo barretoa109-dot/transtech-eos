@@ -129,6 +129,7 @@ export const ACCIONES_INTERNAS = new Set([
   "ANULAR_COMPRA",
   "CORREGIR_COMPRA",
   "ENVIAR_WHATSAPP_CLIENTE",
+  "CREAR_DECISION",
 ]);
 
 /** Qué se le dice a la persona cuando la acción salió bien. */
@@ -150,6 +151,7 @@ const HECHO: Record<string, string> = {
   REGISTRAR_OPORTUNIDAD: "Anoté la oportunidad.",
   // Se reemplaza por lo que Meta contestó de verdad: ver `frasesDelEnvio`.
   ENVIAR_WHATSAPP_CLIENTE: "Le escribí por WhatsApp.",
+  CREAR_DECISION: "La decisión quedó registrada.",
 };
 
 /**
