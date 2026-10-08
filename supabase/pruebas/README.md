@@ -18,6 +18,7 @@ una fila por comprobación (`ok = true` en todas).
 | `aprobacion_whatsapp_e2e.sql` | Aprobación por WhatsApp (INC-25): otra cuenta no aprueba ni consume; el segundo SÍ no vuelve a aprobar; un payload distinto del aprobado no se ejecuta; no se consume dos veces; vencida no se ejecuta | `plan_efectivo_e2e_inicio.sql` (solo `begin;`) + la prueba |
 | `venta_citada_e2e.sql` | Casos de WhatsApp del 01/10/2026 (v231): el mensaje citado se encuentra por su id de WhatsApp y solo en su cuenta; la venta guarda producto, clienta, precio, costo y la nota ("sobrepedido"); un reintento no duplica; vender no cambia costos del catálogo; un pedido que falla no deja nada; otra cuenta no ve mensajes, ventas ni productos | `plan_efectivo_e2e_inicio.sql` + v231 + la prueba |
 | `memoria_e2e.sql` | Memoria entre turnos: se escribe con el ejecutor del chat, el turno siguiente la lee, un reintento no duplica, una corrección reemplaza y guarda el dato anterior, otra persona no la ve, sin autorización no se escribe, lo archivado no se revive | `plan_efectivo_e2e_inicio.sql` + la prueba |
+| `crear_decision_e2e.sql` | CREAR_DECISION (v236): se guarda con la métrica declarada, `fecha_revision` cae a +14 días (trigger v179), un reintento no duplica, sin `decision` falla sin escribir, sin autorización no se escribe, otra cuenta no la ve | Ver la cabecera: va **después** de aplicar la v236 |
 
 Los indicadores del Dashboard y la salud financiera se calculan en TypeScript
 (`lib/kpi`) y tienen sus tests con `npm test`; estas pruebas comprueban los
