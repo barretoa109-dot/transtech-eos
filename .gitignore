@@ -57,3 +57,11 @@ docs/backups/
 *.pptx
 *.mp4
 *.inspect.ndjson
+
+# Llaves de firma: NUNCA subir a un repo publico (Android upload keystore,
+# certificados de iOS/Apple). Ver docs/app-nativa/tiendas.md.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
