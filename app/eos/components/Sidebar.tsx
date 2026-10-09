@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { filtrarConversaciones } from "@/lib/eos/buscar-chats";
 import {
   Archive,
@@ -371,27 +371,34 @@ export default function Sidebar({
 
       <div className="conv-scroll" onScroll={() => menu && setMenu(null)}>
         <nav className="side-nav" aria-label={espacio === "personal" ? "Secciones de Personal" : "Secciones del negocio"}>
-          {itemsMenu.map((item) => (
-            <button
-              key={item.destino}
-              type="button"
-              className={`row-item nav-item ${destino === item.destino ? "active-view" : ""}`}
-              aria-current={destino === item.destino ? "page" : undefined}
-              onClick={() => onDestino(item.destino)}
-            >
-              <div className="ic">
-                <item.Icono size={16} />
-              </div>
-              <span className="label">{item.etiqueta}</span>
-              {avisos[item.destino] ? (
-                <span className="side-aviso" aria-label={`${avisos[item.destino]} para atender`}>
-                  {avisos[item.destino]}
-                </span>
-              ) : item.nota ? (
-                <span className="side-nota">{item.nota}</span>
-              ) : null}
-            </button>
-          ))}
+          {itemsMenu.map((item, indice) => {
+            const grupoAnterior = indice > 0 ? itemsMenu[indice - 1].grupo : undefined;
+            const mostrarEtiquetaGrupo = Boolean(item.grupo) && item.grupo !== grupoAnterior;
+
+            return (
+              <Fragment key={item.destino}>
+                {mostrarEtiquetaGrupo ? <div className="section-label nav-group-label">{item.grupo}</div> : null}
+                <button
+                  type="button"
+                  className={`row-item nav-item ${item.chico ? "nav-item-chico" : ""} ${destino === item.destino ? "active-view" : ""}`}
+                  aria-current={destino === item.destino ? "page" : undefined}
+                  onClick={() => onDestino(item.destino)}
+                >
+                  <div className="ic">
+                    <item.Icono size={item.chico ? 14 : 16} />
+                  </div>
+                  <span className="label">{item.etiqueta}</span>
+                  {avisos[item.destino] ? (
+                    <span className="side-aviso" aria-label={`${avisos[item.destino]} para atender`}>
+                      {avisos[item.destino]}
+                    </span>
+                  ) : item.nota ? (
+                    <span className="side-nota">{item.nota}</span>
+                  ) : null}
+                </button>
+              </Fragment>
+            );
+          })}
         </nav>
 
         <div className="section-label">Conversaciones</div>
