@@ -77,7 +77,8 @@ type FilaDecision = {
 async function decision(db: Awaited<ReturnType<typeof base>>, id: string): Promise<FilaDecision> {
   const { rows } = await db.query<FilaDecision>(
     `select titulo, decision, razon, metrica, valor_base, valor_objetivo,
-            fecha_decision::date as fecha_decision, fecha_revision, fuente, action_command_id
+            (fecha_decision at time zone 'America/Asuncion')::date as fecha_decision,
+            fecha_revision, fuente, action_command_id
      from public.eos_decisions where id = $1`,
     [id],
   );

@@ -116,10 +116,6 @@ select
   bri.primer_briefing,
   coalesce(wa.primer_whatsapp_vinculado, msg.primer_whatsapp_mensaje) as primer_whatsapp,
   pag.primer_pago,
-  cue_p.primera_cuenta_personal,
-  tar_p.primera_tarjeta_personal,
-  fij_p.primer_fijo_personal,
-  deu_p.primera_deuda_personal,
   (
     o.completado_en is not null
     and coalesce(acc.acciones_ok, 0) >= 1
@@ -130,7 +126,16 @@ select
     coalesce(acc.acciones_ok, 0) >= 1
     and coalesce(mem.memorias, 0) >= 1
     and coalesce(msg.dias_activos, 0) >= 2
-  ) as activado_v1
+  ) as activado_v1,
+  -- Las cuatro columnas nuevas van AL FINAL, después de activado_v0 y
+  -- activado_v1: `create or replace view` no permite cambiar la posición de
+  -- una columna existente, solo agregar al final (probado contra producción
+  -- el 09/10/2026 -- la primera versión las puso antes de activado_v0 y
+  -- Postgres lo rechazó con "cannot change name of view column").
+  cue_p.primera_cuenta_personal,
+  tar_p.primera_tarjeta_personal,
+  fij_p.primer_fijo_personal,
+  deu_p.primera_deuda_personal
 from public.eos_cuentas_v172 c
 left join auth.users a on a.id = c.usuario_id
 left join public.usuarios u on u.id = c.usuario_id
