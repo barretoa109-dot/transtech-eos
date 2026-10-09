@@ -26,6 +26,7 @@ import { numeroEscrito } from "@/lib/finanzas/gastoRapido";
 import ComoVenis from "./ComoVenis";
 import FinanzasPanel from "./FinanzasPanel";
 import FinanzasPulso, { FinanzasPuedoComprar } from "./FinanzasPulso";
+import TuImpacto from "./TuImpacto";
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasBuzon from "./FinanzasBuzon";
 import { SubNav, seccionDe, type Seccion } from "./SeccionNav";
@@ -688,6 +689,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
           {detalleInicioAbierto && <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />}
           <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />
           <ComoVenis />
+          <TuImpacto />
         </>
       )}
 

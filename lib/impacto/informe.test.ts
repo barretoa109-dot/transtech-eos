@@ -12,6 +12,7 @@ import {
 import {
   calcularImpacto,
   lineasDelInforme,
+  mesActual,
   mesAnterior,
   MINIMO_DE_COSAS,
   MINUTOS_POR_REGISTRO,
@@ -33,6 +34,24 @@ test("el mes anterior se calcula bien, también en enero y en febrero", () => {
   assert.equal(mesAnterior("2027-01-03").clave, "2026-12");
   assert.equal(mesAnterior("2027-01-03").hasta, "2026-12-31");
   assert.equal(mesAnterior("2028-03-01").hasta, "2028-02-29");
+});
+
+test("el mes en curso llega solo hasta hoy, no hasta fin de mes", () => {
+  assert.deepEqual(mesActual("2026-10-09"), {
+    clave: "2026-10",
+    desde: "2026-10-01",
+    hasta: "2026-10-09",
+    nombreMes: "octubre",
+  });
+});
+
+test("el mes en curso el día 1 es un solo día", () => {
+  assert.deepEqual(mesActual("2026-01-01"), {
+    clave: "2026-01",
+    desde: "2026-01-01",
+    hasta: "2026-01-01",
+    nombreMes: "enero",
+  });
 });
 
 test("responder, guardar memoria y generar documentos no cuentan como cosas anotadas", () => {
