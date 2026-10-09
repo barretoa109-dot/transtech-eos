@@ -351,3 +351,36 @@ diferencia de los cambios de hoy, no se puede probar con SQL y TypeScript
 solos: pide corpus de evals contra el modelo real y, para producción, un
 patch de n8n corrido desde `main` después de mergear. Es el candidato más
 claro para la siguiente sesión dedicada, no para el cierre de esta.
+
+### Actualización del 09/10/2026 — `CREAR_DECISION` construido, y la prueba de confianza financiera
+
+`CREAR_DECISION` ya no es un pendiente: PR #253 (verbo completo, nueve
+lugares), #254 (la v235 chocaba con Postgres por el orden de columnas de la
+vista — corregido antes de que llegara a aplicarse en ningún entorno real) y
+#255 (el E2E chocaba con `handle_new_user()`). Las dos migraciones (v235 y
+v236) están aplicadas en producción y el patch de n8n (gateway y worker) está
+corrido y verificado byte a byte contra lo que dice `main`.
+
+A pedido explícito ("el producto debe tener un 100% de confianza
+financiera"), se agregó `supabase/pruebas/invariantes_financieras_e2e.sql`:
+el conjunto de prueba de resultado conocido de la sección 7 del encargo,
+adaptado a cómo este producto realmente guarda la plata (saldo declarado, no
+calculado) en vez del escenario genérico que describe el encargo. **25
+comprobaciones, 25 en verde, corridas contra producción real** en una
+transacción revertida — no contra una base de prueba. Cubre: saldo inicial,
+ingreso y egreso con su neto, reintento técnico sin duplicar, reenvío
+accidental detectado por contenido sin inflar el neto (la protección de la
+v226, el caso Green), repetición intencional (`"repetir": true`) sí se
+cuenta, transferencia entre cuentas propias sin tocar ingresos ni gastos,
+una cuenta USD que nunca se mezcla con la PYG, anular restaura el neto
+exacto, montos inválidos rechazados sin escribir nada, sin autorización no
+se escribe, y aislamiento total entre dos cuentas (ni con sesión propia).
+
+Al escribirla se encontró, de paso, que el escenario del encargo ("repetir
+lo mismo intencionalmente crea una segunda fila") no es cómo funciona este
+producto: un movimiento personal con el mismo tipo, monto y fecha que uno ya
+anotado se detecta como probable duplicado y NO se inserta —es más
+protector que el escenario genérico, no menos—, y hay que decir
+explícitamente `"repetir": true` para que cuente como una segunda vez de
+verdad. Es una protección ya construida (v226, 30/09), no algo que esta
+sesión tuvo que agregar.
