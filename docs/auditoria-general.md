@@ -384,3 +384,24 @@ protector que el escenario genérico, no menos—, y hay que decir
 explícitamente `"repetir": true` para que cuente como una segunda vez de
 verdad. Es una protección ya construida (v226, 30/09), no algo que esta
 sesión tuvo que agregar.
+
+### Actualización del 09/10/2026 (tarde) — sección 9 (Operaciones y CRM), verificada
+
+Reorganización de Personal construida (4 PRs: sidebar #256, detalle
+colapsable #258, progreso de 14 días #261, impacto del mes #263 — las dos
+últimas verificadas contra la captura real de la maqueta, extraída de
+`Main.pdf`). Después de eso, se revisó qué quedaba del backlog y se encontró
+un hueco concreto: ningún archivo de `supabase/pruebas/` ejercitaba
+`REGISTRAR_COBRO` a través del ejecutor real — exactamente "vincular cobro y
+consultar pendientes" de la sección 9 del encargo.
+
+`supabase/pruebas/cliente_venta_cobro_e2e.sql`, corrida contra producción en
+una transacción revertida: **15/15**. Cliente agendado, venta a crédito,
+cobro parcial que no cierra la venta y ya aparece como ingreso del negocio,
+segundo cobro que cierra exacto, sin pendientes un tercer cobro falla,
+cobrar de más falla, aislamiento total entre dos cuentas. De paso apareció
+una protección que no estaba documentada: `EOS_ACCION_COBRO_EXCEDE` — nunca
+se cobra más de lo que el cliente debe.
+
+Con esto, la sección 9 del encargo (cliente → venta → cobro → pendientes)
+queda verificada contra producción, no solo contra código leído.
