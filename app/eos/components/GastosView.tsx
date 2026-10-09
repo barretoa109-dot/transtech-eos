@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
+  ChevronDown,
   Lock,
   MessageCircle,
   Pencil,
@@ -319,6 +320,14 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
    * (los datos base, los fijos). La `key` del panel lo vuelve a leer.
    */
   const [versionPanel, setVersionPanel] = useState(0);
+  /**
+   * Si el detalle completo de "¿Cómo estoy?" está abierto. El resumen de
+   * arriba (las 4 tarjetas) ya responde "¿estoy bien?" con el mismo
+   * disponible real; repetirlo entero debajo, siempre abierto, era la
+   * duplicación más visible de la pantalla (maqueta de reorganización de
+   * Personal, 2026-10).
+   */
+  const [detalleInicioAbierto, setDetalleInicioAbierto] = useState(false);
   const [editandoBase, setEditandoBase] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [nuncaCargo, setNuncaCargo] = useState(true);
@@ -644,12 +653,30 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         {entendido && <p className="gastos-entendido">{entendido}</p>}
         {errorAlta && <p className="neg-error" role="alert">{errorAlta}</p>}
 
-      <SubNav subs={confSeccion.subs} sub={subarea} onSub={irA} ariaLabel={`Partes de ${ENCABEZADOS[seccion].titulo}`} />
+      {/*
+        "Hoy" tiene una sola subpestaña ("estoy"): SubNav ya oculta la fila de
+        chips cuando hay una sola, pero seguía dejando su línea de
+        descripción flotando sin nada que describir. Acá directamente no se
+        monta — las demás secciones, con más de una subpestaña, siguen
+        viéndolo igual que siempre.
+      */}
+      {confSeccion.subs.length > 1 && (
+        <SubNav subs={confSeccion.subs} sub={subarea} onSub={irA} ariaLabel={`Partes de ${ENCABEZADOS[seccion].titulo}`} />
+      )}
 
       <div className="sec-contenido" key={versionPanel}>
       {subarea === "estoy" && (
         <>
-          <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />
+          <button
+            type="button"
+            className="fin-toggle"
+            onClick={() => setDetalleInicioAbierto((v) => !v)}
+            aria-expanded={detalleInicioAbierto}
+          >
+            <ChevronDown size={13} className={detalleInicioAbierto ? "fin-chevron-open" : ""} />
+            {detalleInicioAbierto ? "Ocultar el detalle completo" : "Ver el detalle completo"}
+          </button>
+          {detalleInicioAbierto && <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />}
           <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />
         </>
       )}
