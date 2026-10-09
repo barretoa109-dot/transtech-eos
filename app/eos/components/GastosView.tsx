@@ -276,16 +276,24 @@ function dia(iso: string): string {
  * Lo que "Lo que viene", "Lo que debo" y "Lo que quiero" muestran mientras
  * no haya Constitución Financiera — en vez de la pestaña completamente en
  * blanco que dejaban sus tarjetas, todas calladas a la vez.
+ *
+ * Antes era una tarjeta chica con el texto "tocá Configurar mis finanzas en
+ * Ajustes de Personal" sin ningún botón de verdad — se leía como roto, no
+ * como una pestaña que todavía no tiene con qué trabajar. Ahora reusa el
+ * mismo `.neg-empty-state` de "Todavía no anotaste nada" (abajo, en
+ * "Cuánto me queda") y suma un botón real que lleva directo a Ajustes.
  */
-function AvisoSinConfigurar({ texto }: { texto: string }) {
+function AvisoSinConfigurar({ texto, onConfigurar }: { texto: string; onConfigurar?: () => void }) {
   return (
-    <div className="card">
-      <div className="card-title">Todavía no hay nada que mostrar acá</div>
-      <p className="prose">{texto}</p>
-      <p className="prose" style={{ marginTop: 8 }}>
-        Contale a EOS tu situación con una frase, o tocá <strong>Configurar mis finanzas</strong> en
-        Ajustes de Personal.
-      </p>
+    <div className="neg-empty-state">
+      <Wallet size={28} />
+      <strong>Para ver esto, EOS necesita un punto de partida</strong>
+      <p>{texto}</p>
+      {onConfigurar && (
+        <button type="button" className="reco-btn" onClick={onConfigurar}>
+          Configurar mis finanzas
+        </button>
+      )}
     </div>
   );
 }
@@ -683,7 +691,10 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
 
       {subarea === "comprar" &&
         (finanzasConfigurada === false ? (
-          <AvisoSinConfigurar texto="Para decirte si una compra te deja bien parado, EOS necesita saber cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
+          <AvisoSinConfigurar
+            texto="Para decirte si una compra te deja bien parado, EOS necesita saber cuánto tenés hoy y qué gastos fijos ya sabés que llegan."
+            onConfigurar={onNavegar ? () => onNavegar("ajustes", "base") : undefined}
+          />
         ) : (
           <FinanzasPuedoComprar moneda={monedaPrincipal} />
         ))}
@@ -776,7 +787,10 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         línea bajar el 25 tiene el porqué a un toque.
       */}
       {(subarea === "curva" || subarea === "calendario") && finanzasConfigurada === false && (
-        <AvisoSinConfigurar texto="Para proyectar lo que se viene, EOS necesita un punto de partida: cuánto tenés hoy y qué gastos fijos ya sabés que llegan." />
+        <AvisoSinConfigurar
+          texto="Para proyectar lo que se viene, EOS necesita un punto de partida: cuánto tenés hoy y qué gastos fijos ya sabés que llegan."
+          onConfigurar={onNavegar ? () => onNavegar("ajustes", "base") : undefined}
+        />
       )}
       {subarea === "curva" && <FinanzasTrayectoria />}
       {subarea === "calendario" && <FinanzasCalendario moneda={monedaPrincipal} />}
@@ -785,8 +799,19 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         "¿Cuánto tengo?" son las cuentas y el patrimonio: la primera es la
         plata que puede tocar hoy, el segundo es todo lo que tiene menos lo
         que debe.
+
+        Cuentas no se gatea: FinanzasCuentas ya trae su propio pedido inicial
+        ("decile a EOS dónde tenés plata") sin depender de la Constitución.
+        Patrimonio, en cambio, quedaba en blanco del todo sin configurar —el
+        componente se calla con `null` y nadie decía por qué.
       */}
       {subarea === "cuentas" && <FinanzasCuentas moneda={monedaPrincipal} />}
+      {subarea === "patrimonio" && finanzasConfigurada === false && (
+        <AvisoSinConfigurar
+          texto="Para ver tu patrimonio, EOS necesita cuánto tenés hoy; sumale lo que quieras declarar —casa, auto, inversiones— y vas a ver lo que tenés menos lo que debés."
+          onConfigurar={onNavegar ? () => onNavegar("ajustes", "base") : undefined}
+        />
+      )}
       {subarea === "patrimonio" && <FinanzasPatrimonio moneda={monedaPrincipal} />}
 
       {/*
@@ -796,7 +821,10 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
       */}
       {((subarea === "deudas" && !hayDeudas) || (subarea === "tarjetas" && !hayTarjetas)) &&
         finanzasConfigurada === false && (
-        <AvisoSinConfigurar texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago." />
+        <AvisoSinConfigurar
+          texto="Contale a EOS tus deudas y tarjetas —a quién le debés, cuánto y desde cuándo— y las vas a ver acá ordenadas, con un plan de pago."
+          onConfigurar={onNavegar ? () => onNavegar("ajustes", "base") : undefined}
+        />
       )}
       {subarea === "deudas" && (
         <>
@@ -812,7 +840,10 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         algo sale mal.
       */}
       {(subarea === "fondo" || subarea === "objetivos") && finanzasConfigurada === false && (
-        <AvisoSinConfigurar texto="Decile a EOS para qué estás juntando —un fondo, un viaje, lo que sea— y con cuánto contás, y te dice el aporte por mes y si vas al ritmo." />
+        <AvisoSinConfigurar
+          texto="Decile a EOS para qué estás juntando —un fondo, un viaje, lo que sea— y con cuánto contás, y te dice el aporte por mes y si vas al ritmo."
+          onConfigurar={onNavegar ? () => onNavegar("ajustes", "base") : undefined}
+        />
       )}
       {subarea === "fondo" && <FinanzasFondo moneda={monedaPrincipal} />}
       {subarea === "objetivos" && <FinanzasObjetivos moneda={monedaPrincipal} />}
