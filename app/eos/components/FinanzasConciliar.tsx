@@ -8,6 +8,13 @@ type Props = {
   saldoCalculado: number;
   vecesConciliado: number;
   onListo: () => void;
+  /**
+   * Versión angosta, para vivir adentro de `.fin-aviso-compacto` en Inicio,
+   * al lado del aviso de "calculado desde tus cuentas" — las dos cosas le
+   * piden algo parecido a la persona (un dato o una decisión) y antes eran
+   * dos tarjetas grandes separadas que decían casi lo mismo.
+   */
+  compacto?: boolean;
 };
 
 /**
@@ -30,6 +37,7 @@ export default function FinanzasConciliar({
   saldoCalculado,
   vecesConciliado,
   onListo,
+  compacto = false,
 }: Props) {
   const [valor, setValor] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -37,13 +45,25 @@ export default function FinanzasConciliar({
   const [listo, setListo] = useState(false);
 
   if (listo) {
+    const texto =
+      vecesConciliado === 0
+        ? "Listo, ajusté el cálculo. Una vez más en unos días y ya no necesito preguntarte."
+        : "Listo. Ya aprendí tu ritmo: de acá en más lo descuento solo.";
+
+    if (compacto) {
+      return (
+        <p className="fin-aviso-compacto-linea">
+          <Check size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
+          {texto}
+        </p>
+      );
+    }
+
     return (
       <div className="card fin-card">
         <p className="prose">
           <Check size={14} style={{ display: "inline", marginRight: 6, verticalAlign: -2 }} />
-          {vecesConciliado === 0
-            ? "Listo, ajusté el cálculo. Una vez más en unos días y ya no necesito preguntarte."
-            : "Listo. Ya aprendí tu ritmo: de acá en más lo descuento solo."}
+          {texto}
         </p>
       </div>
     );
@@ -79,6 +99,55 @@ export default function FinanzasConciliar({
     }
   }
 
+  const textoPrincipal =
+    vecesConciliado === 0 ? (
+      <>EOS no ve los pagos con billetera ni efectivo. Decí cuánto tenés hoy y ajusto todo el cálculo.</>
+    ) : (
+      <>Una vez más y listo: con este segundo dato aprendo cuánto se te va en pagos que no veo.</>
+    );
+
+  const campo = (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <span style={{ fontSize: compacto ? 13 : 15, opacity: 0.7 }}>{moneda === "PYG" ? "₲" : "US$"}</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        placeholder="Lo que tenés hoy"
+        style={{
+          flex: compacto ? "0 1 140px" : 1,
+          padding: compacto ? "7px 10px" : "10px 12px",
+          borderRadius: 9,
+          border: "1px solid var(--border, #e2e8f0)",
+          fontSize: compacto ? 13 : 15,
+        }}
+      />
+      <button
+        type="button"
+        className="chip"
+        onClick={() => void guardar()}
+        disabled={guardando || valor.trim() === ""}
+        style={{ cursor: guardando ? "wait" : "pointer" }}
+      >
+        {guardando ? "Guardando…" : "Listo"}
+      </button>
+    </div>
+  );
+
+  if (compacto) {
+    return (
+      <div className="fin-aviso-compacto-linea">
+        <Wallet size={14} style={{ flexShrink: 0, opacity: 0.7 }} />
+        <span style={{ flex: "1 1 220px" }}>
+          <b>Ajustá con la realidad.</b> {textoPrincipal}
+        </span>
+        {campo}
+        {error && <span style={{ color: "var(--amber)", fontSize: 12 }}>{error}</span>}
+      </div>
+    );
+  }
+
   return (
     <div className="card fin-card">
       <div className="fin-head">
@@ -89,45 +158,10 @@ export default function FinanzasConciliar({
       </div>
 
       <p className="prose" style={{ marginTop: 10 }}>
-        {vecesConciliado === 0 ? (
-          <>
-            EOS no ve los pagos con billetera ni el efectivo. Decime una sola vez cuánto tenés de
-            verdad y ajusto todo el cálculo.
-          </>
-        ) : (
-          <>
-            Una vez más y listo: con este segundo dato aprendo cuánto se te va en pagos que no veo, y
-            de ahí en adelante lo descuento solo.
-          </>
-        )}
+        {textoPrincipal}
       </p>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 15, opacity: 0.7 }}>{moneda === "PYG" ? "₲" : "US$"}</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="Lo que tenés hoy"
-          style={{
-            flex: 1,
-            padding: "10px 12px",
-            borderRadius: 9,
-            border: "1px solid var(--border, #e2e8f0)",
-            fontSize: 15,
-          }}
-        />
-        <button
-          type="button"
-          className="chip"
-          onClick={() => void guardar()}
-          disabled={guardando || valor.trim() === ""}
-          style={{ cursor: guardando ? "wait" : "pointer" }}
-        >
-          {guardando ? "Guardando…" : "Listo"}
-        </button>
-      </div>
+      <div style={{ marginTop: 12 }}>{campo}</div>
 
       <p className="prose" style={{ marginTop: 10, fontSize: 13, opacity: 0.7 }}>
         No hace falta que sea exacto al guaraní. Con el saldo de tu cuenta principal alcanza.
