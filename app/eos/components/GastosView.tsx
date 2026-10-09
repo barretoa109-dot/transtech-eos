@@ -29,6 +29,7 @@ import FinanzasSetup from "./FinanzasSetup";
 import FinanzasBuzon from "./FinanzasBuzon";
 import { SubNav, seccionDe, type Seccion } from "./SeccionNav";
 import { useEtiquetaEspacio } from "./EspacioContext";
+import { useAnotarRapido } from "../hooks/useAnotarRapido";
 import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasPresupuesto from "./FinanzasPresupuesto";
@@ -383,11 +384,6 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
     };
   }, [seccion, versionPanel]);
 
-  const [texto, setTexto] = useState("");
-  const [guardando, setGuardando] = useState(false);
-  const [entendido, setEntendido] = useState("");
-  const [errorAlta, setErrorAlta] = useState("");
-
   const cargar = useCallback(() => {
     setCargando(true);
     setError("");
@@ -412,41 +408,12 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
     return () => window.clearTimeout(timer);
   }, [cargar]);
 
-  async function anotar(tipo?: "ingreso" | "gasto") {
-    const linea = texto.trim();
-    if (!linea || guardando) return;
-
-    setGuardando(true);
-    setErrorAlta("");
-
-    try {
-      const respuesta = await fetch("/api/finanzas/rapido", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: linea, tipo }),
-      });
-
-      const datos = await respuesta.json().catch(() => null);
-
-      if (!respuesta.ok) {
-        throw new Error(
-          datos?.error ||
-            "No entendí cuánto fue. Probá con algo como «gasté 50 mil en nafta».",
-        );
-      }
-
-      setEntendido(String(datos?.entendido ?? "Anotado."));
-      setTexto("");
-      await cargar();
-      // El panel de arriba y las tarjetas de la pestaña también cambian con este
-      // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
-      setVersionPanel((v) => v + 1);
-    } catch (err) {
-      setErrorAlta(err instanceof Error ? err.message : "No pudimos anotarlo.");
-    } finally {
-      setGuardando(false);
-    }
-  }
+  const { texto, setTexto, guardando, entendido, errorAlta, anotar } = useAnotarRapido(async () => {
+    await cargar();
+    // El panel de arriba y las tarjetas de la pestaña también cambian con este
+    // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
+    setVersionPanel((v) => v + 1);
+  });
 
   /*
    * Corregir la categoría a mano.
