@@ -6789,6 +6789,35 @@
 .eos-app .fin-estimado-hoy { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: var(--blue-light); color: var(--ink); font-size: 13px; }
 .eos-app .fin-estimado-hoy strong { color: var(--blue); white-space: nowrap; }
 
+/* Lo que EOS necesita de vos en Inicio, en un solo aviso angosto en vez de
+   dos tarjetas grandes ("Ajustar con la realidad" + "calculado desde tus
+   cuentas") que antes decían casi lo mismo por separado. */
+.eos-app .fin-aviso-compacto {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--linea-azul);
+  border-radius: 12px;
+  background: var(--panel-suave);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.eos-app .fin-aviso-compacto-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0;
+}
+.eos-app .fin-aviso-compacto-linea + .fin-aviso-compacto-linea {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--linea-azul);
+}
+.eos-app .fin-aviso-compacto-linea .reco-btn {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
 /* Los rubros del primer paso (D3): se tocan, así que se ven tocables. */
 .eos-app .onb-rubros .chip {
   cursor: pointer;

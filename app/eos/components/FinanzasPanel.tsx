@@ -346,27 +346,34 @@ export default function FinanzasPanel({
     </div>
   ) : null;
 
-  /** Lo que EOS necesita que la persona confirme. Aparece solo cuando hay algo. */
-  const necesitaDeVos = (
-    <>
-      {data.conciliacion?.conviene_preguntar && (
-        <FinanzasConciliar
-          moneda={data.moneda}
-          saldoCalculado={data.saldo_estimado}
-          vecesConciliado={data.conciliacion.veces}
-          onListo={() => void cargar()}
-        />
-      )}
-      <FinanzasCandidatos onImportado={() => void cargar()} />
-    </>
-  );
-
   if (modo === "resumen" && !data.sin_datos) {
+    const hayAvisoCompacto = Boolean(data.conciliacion?.conviene_preguntar) || data.desde_cuentas;
+
     return (
       <>
-        {necesitaDeVos}
+        <FinanzasCandidatos onImportado={() => void cargar()} />
         <ResumenPersonal data={data} fmt={fmt} onVerDetalle={onVerDetalle} />
-        {avisoDesdeCuentas}
+        {hayAvisoCompacto && (
+          <div className="fin-aviso-compacto">
+            {data.conciliacion?.conviene_preguntar && (
+              <FinanzasConciliar
+                compacto
+                moneda={data.moneda}
+                saldoCalculado={data.saldo_estimado}
+                vecesConciliado={data.conciliacion.veces}
+                onListo={() => void cargar()}
+              />
+            )}
+            {data.desde_cuentas && (
+              <p className="fin-aviso-compacto-linea">
+                <span>Calculado con el saldo de tus cuentas: todavía sin reserva ni ahorro definidos.</span>
+                <button type="button" className="reco-btn" onClick={() => setConfigurando(true)}>
+                  Configurar mis finanzas
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </>
     );
   }
