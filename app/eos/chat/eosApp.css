@@ -3346,6 +3346,22 @@
   color: var(--muted);
 }
 
+/* Tu impacto (FinanzasImpacto.tsx): las líneas del mismo informe que ya
+   manda el correo mensual, listadas acá dentro de la app. */
+.eos-app .impacto-lista {
+  margin: 16px 0 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.eos-app .impacto-lista li {
+  padding-left: 2px;
+}
+
 /* Las otras monedas del usuario.
 
    Cada una es su propio mundo: su saldo, sus compromisos, su disponible real.
