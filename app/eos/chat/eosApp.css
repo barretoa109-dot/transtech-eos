@@ -3177,6 +3177,26 @@
   justify-content: space-between;
   gap: 12px;
 }
+.eos-app .como-venis-rango {
+  font-size: 12px;
+  color: var(--muted);
+}
+.eos-app .como-venis-barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 14px;
+  height: 64px;
+}
+.eos-app .como-venis-barra {
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--blue-light);
+}
+.eos-app .como-venis-barra-hoy {
+  background: var(--blue-solido);
+}
 .eos-app .fin-badge {
   display: inline-flex;
   align-items: center;
