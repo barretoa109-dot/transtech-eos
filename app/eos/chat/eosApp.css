@@ -3197,6 +3197,54 @@
 .eos-app .como-venis-barra-hoy {
   background: var(--blue-solido);
 }
+.eos-app .tu-impacto-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.eos-app .tu-impacto-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+}
+.eos-app .tu-impacto-dato {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eos-app .tu-impacto-numero {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.eos-app .tu-impacto-etiqueta {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.eos-app .tu-impacto-lineas {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+@media (max-width: 480px) {
+  .eos-app .tu-impacto-grid {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 14px;
+  }
+}
 .eos-app .fin-badge {
   display: inline-flex;
   align-items: center;

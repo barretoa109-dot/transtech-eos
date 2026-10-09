@@ -98,6 +98,27 @@ export type Periodo = {
   nombreMes: string;
 };
 
+/**
+ * El mes en curso, de punta a punta de `hoy` (YYYY-MM-DD).
+ *
+ * Para "Tu mes con EOS" en la pantalla (no el correo, que mira el mes YA
+ * cerrado): `hasta` es `hoy`, no el último día del mes. Un informe de
+ * octubre que se abre el 9 no puede llevar fechas futuras, aunque
+ * `rangoInstantes` las recortaría igual: `hasta` tiene que decir la verdad
+ * de hasta dónde se contó, no un 31 que todavía no pasó.
+ */
+export function mesActual(hoy: string): Periodo {
+  const [anio, mes] = hoy.split("-").map(Number);
+  const mm = String(mes).padStart(2, "0");
+
+  return {
+    clave: `${anio}-${mm}`,
+    desde: `${anio}-${mm}-01`,
+    hasta: hoy,
+    nombreMes: MESES[mes - 1],
+  };
+}
+
 /** El mes calendario anterior al de `hoy` (YYYY-MM-DD). */
 export function mesAnterior(hoy: string): Periodo {
   const [anio, mes] = hoy.split("-").map(Number);
