@@ -53,12 +53,11 @@ declare
   fila record;
 begin
   perform set_config('request.jwt.claim.role', 'service_role', true);
+  -- handle_new_user() crea la fila de public.usuarios sola: insertar las dos
+  -- (como memoria_e2e.sql) chocaría con ella.
   insert into auth.users (id, aud, role, email, raw_user_meta_data) values
     (a, 'authenticated', 'authenticated', 'e2e-decision-a-' || a || '@test.invalid', '{}'),
     (b, 'authenticated', 'authenticated', 'e2e-decision-b-' || b || '@test.invalid', '{}');
-  insert into public.usuarios (id, email, plan) values
-    (a, 'e2e-decision-a-' || a || '@test.invalid', 'free'),
-    (b, 'e2e-decision-b-' || b || '@test.invalid', 'free');
 
   -- 1. "Decidí subir el precio del combo a 175.000" → se guarda, con las dos
   -- métricas que dijo.
