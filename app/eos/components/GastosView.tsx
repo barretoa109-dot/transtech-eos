@@ -23,6 +23,7 @@ import { numeroEscrito } from "@/lib/finanzas/gastoRapido";
   entrada y una lista. El material estaba al lado, en otra sección: por eso
   Personal se sentía pobre. Acá se reúne todo lo que es de la persona.
 */
+import ComoVenis from "./ComoVenis";
 import FinanzasPanel from "./FinanzasPanel";
 import FinanzasPulso, { FinanzasPuedoComprar } from "./FinanzasPulso";
 import FinanzasSetup from "./FinanzasSetup";
@@ -686,6 +687,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
           </button>
           {detalleInicioAbierto && <FinanzasPanel key={versionPanel} modo="detalle" sinAjustes />}
           <FinanzasPulso moneda={monedaPrincipal} conEscenario={false} />
+          <ComoVenis />
         </>
       )}
 
