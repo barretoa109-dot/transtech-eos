@@ -3926,6 +3926,71 @@
 .eos-app .dest-otros {
   background: #cbd5e1;
 }
+
+/* ---- Tus categorías (FinanzasCategoriasResumen.tsx) ----
+   El mapa completo del mes, en grilla. Reusa los mismos colores de arriba
+   (`.dest-punto.dest-*`): un rubro es el mismo color se mire desde donde se
+   mire. */
+.eos-app .cat-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.eos-app .cat-resumen-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.eos-app .cat-resumen-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.eos-app .cat-resumen-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1;
+}
+.eos-app .cat-resumen-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.eos-app .cat-resumen-monto-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.eos-app .cat-resumen-monto-fila strong {
+  font-size: 16px;
+  color: var(--ink);
+}
+.eos-app .cat-resumen-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.eos-app .cat-resumen-trend.is-up {
+  color: var(--red-texto, #b3423f);
+}
+.eos-app .cat-resumen-trend.is-down {
+  color: var(--green, #0c7d62);
+}
+.eos-app .cat-resumen-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
 /* El nombre de un destino se puede tocar para ver sus movimientos. */
 .eos-app .dest-enlace {
   background: none;

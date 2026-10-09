@@ -34,6 +34,7 @@ import FinanzasTrayectoria from "./FinanzasTrayectoria";
 import FinanzasCalendario from "./FinanzasCalendario";
 import FinanzasPresupuesto from "./FinanzasPresupuesto";
 import FinanzasDestino from "./FinanzasDestino";
+import FinanzasCategoriasResumen from "./FinanzasCategoriasResumen";
 import FinanzasCuentas from "./FinanzasCuentas";
 import FinanzasDeudas from "./FinanzasDeudas";
 import FinanzasPlanDeudas from "./FinanzasPlanDeudas";
@@ -154,6 +155,7 @@ export type Subarea =
   | "presupuesto"
   | "fue"
   | "movimientos"
+  | "categorias"
   | "balance"
   | "curva"
   | "calendario"
@@ -181,6 +183,7 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
       { clave: "presupuesto", etiqueta: "Cuánto me queda", detalle: "Lo que tenés para el día a día y cómo venís" },
       { clave: "fue", etiqueta: "En qué se fue", detalle: "A dónde va tu plata" },
       { clave: "movimientos", etiqueta: "Movimientos", detalle: "Todo lo anotado, para revisar o corregir" },
+      { clave: "categorias", etiqueta: "Categorías", detalle: "Tus rubros, lo por clasificar y lo que EOS aprendió" },
     ],
   },
   {
@@ -263,6 +266,7 @@ const VACIO: Partial<Record<Subarea, string>> = {
   tarjetas: "Acá vas a ver tus tarjetas: cuánto usaste, cuándo cierran y cuándo vencen.",
   fondo: "Acá vas a ver tu fondo de emergencia: cuánto tenés, cuánto te falta y a qué ritmo llegás.",
   objetivos: "Acá vas a ver lo que querés lograr, dicho en plata por mes.",
+  categorias: "Acá vas a ver tus rubros del mes, lo que falta clasificar y lo que EOS aprendió de tus correcciones.",
 };
 
 // Valor del desplegable de categoría que abre el cuadro para escribir una propia.
@@ -831,6 +835,25 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         />
       )}
       {subarea === "balance" && <FinanzasInforme />}
+
+      {/*
+        Categorías: el mapa completo, no solo el top del mes que ya se ve en
+        "En qué se fue". Por clasificar y Lo que EOS aprendió se reusan tal
+        cual de "Movimientos" — mismos componentes, mismo estado
+        (`movimientos`, ya cargado para esa pestaña), para no duplicar la
+        lógica de corregir una categoría.
+      */}
+      {subarea === "categorias" && (
+        <>
+          <PorClasificar
+            movimientos={movimientos.filter((m) => m.categoria === "otros")}
+            opciones={DESTINOS.filter((d) => d.clave !== "otros")}
+            onElegir={(m, valor) => void recategorizar(m, valor)}
+          />
+          <FinanzasCategoriasResumen />
+          <ReglasAprendidas />
+        </>
+      )}
 
       {subarea === "movimientos" && (
         <>
