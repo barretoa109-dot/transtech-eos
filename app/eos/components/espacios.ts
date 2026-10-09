@@ -63,19 +63,35 @@ export type ItemMenu = {
   Icono: LucideIcon;
   /** Una nota corta a la derecha, en gris (p. ej. "todos" en Calendario). */
   nota?: string;
+  /**
+   * Agrupa este ítem bajo una etiqueta de sección (p. ej. "Tu plata"). Solo
+   * Personal la usa por ahora: Negocio queda como estaba, sin agrupar.
+   */
+  grupo?: string;
+  /**
+   * Ítem de menor peso visual, al pie del menú en vez de entre las preguntas
+   * del día a día. Es el caso de Ajustes en Personal: configuración de una
+   * sola vez, no algo que se mira seguido.
+   */
+  chico?: boolean;
 };
 
 /** Lo que un negocio puede sacar de su menú (v232). */
 export type FuncionOcultable = "catalogo" | "clientes";
 
+/**
+ * Agrupado bajo "Tu plata" desde la reorganización del 2026-10 (maqueta
+ * aprobada): Inicio es el pulso del día y queda solo, afuera del grupo; las
+ * seis preguntas sobre el dinero van juntas, con una etiqueta que lo dice.
+ */
 export const MENU_PERSONAL: ItemMenu[] = [
   { destino: "p-inicio", etiqueta: "Inicio", Icono: House },
-  { destino: "p-mes", etiqueta: "Ingresos y gastos", Icono: ArrowLeftRight },
-  { destino: "p-fijos", etiqueta: "Fijos y recurrentes", Icono: Repeat },
-  { destino: "p-viene", etiqueta: "Lo que viene", Icono: CalendarClock },
-  { destino: "p-tengo", etiqueta: "Tengo y debo", Icono: Wallet },
-  { destino: "p-metas", etiqueta: "Mis metas", Icono: Target },
-  { destino: "p-informes", etiqueta: "Informes", Icono: FileText },
+  { destino: "p-mes", etiqueta: "Ingresos y gastos", Icono: ArrowLeftRight, grupo: "Tu plata" },
+  { destino: "p-fijos", etiqueta: "Fijos y recurrentes", Icono: Repeat, grupo: "Tu plata" },
+  { destino: "p-viene", etiqueta: "Lo que viene", Icono: CalendarClock, grupo: "Tu plata" },
+  { destino: "p-tengo", etiqueta: "Tengo y debo", Icono: Wallet, grupo: "Tu plata" },
+  { destino: "p-metas", etiqueta: "Mis metas", Icono: Target, grupo: "Tu plata" },
+  { destino: "p-informes", etiqueta: "Informes", Icono: FileText, grupo: "Tu plata" },
 ];
 
 export function menuNegocio(ocultas: FuncionOcultable[]): ItemMenu[] {
@@ -92,18 +108,33 @@ export function menuNegocio(ocultas: FuncionOcultable[]): ItemMenu[] {
   return items;
 }
 
-/** Lo que va al final del menú en los dos espacios. */
+/**
+ * Lo que va al final del menú en los dos espacios.
+ *
+ * En Personal, Ajustes pasa al pie, chico: es configuración de una sola vez,
+ * no una pregunta del día a día, y competía con el resto por el mismo peso
+ * visual. En Negocio queda exactamente como estaba (mismo orden, sin agrupar)
+ * — esa reorganización fue solo para Personal.
+ */
 export function menuComun(espacio: Espacio): ItemMenu[] {
-  return [
-    { destino: "memoria", etiqueta: "Decisiones y aprendizajes", Icono: ScrollText },
-    {
-      destino: espacio === "personal" ? "p-ajustes" : "n-ajustes",
-      etiqueta: espacio === "personal" ? "Ajustes de Personal" : "Ajustes del negocio",
-      Icono: Settings,
-    },
-    // El calendario cruza los dos espacios: cobros del negocio y cuotas de la persona.
-    { destino: "calendario", etiqueta: "Calendario", Icono: CalendarDays, nota: "todos" },
-  ];
+  const decisiones: ItemMenu = { destino: "memoria", etiqueta: "Decisiones y aprendizajes", Icono: ScrollText };
+  const ajustes: ItemMenu = {
+    destino: espacio === "personal" ? "p-ajustes" : "n-ajustes",
+    etiqueta: espacio === "personal" ? "Ajustes de Personal" : "Ajustes del negocio",
+    Icono: Settings,
+  };
+  // El calendario cruza los dos espacios: cobros del negocio y cuotas de la persona.
+  const calendario: ItemMenu = { destino: "calendario", etiqueta: "Calendario", Icono: CalendarDays, nota: "todos" };
+
+  if (espacio === "personal") {
+    return [
+      { ...decisiones, grupo: "General" },
+      { ...calendario, grupo: "General" },
+      { ...ajustes, chico: true },
+    ];
+  }
+
+  return [decisiones, ajustes, calendario];
 }
 
 /** A qué espacio pertenece un destino. `null` = sirve en los dos (chat, perfil, calendario, memoria). */
