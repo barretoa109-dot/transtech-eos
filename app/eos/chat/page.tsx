@@ -15,6 +15,7 @@ import NegocioView, { type Pestania, type SeccionNegocio } from "../components/N
 import CRMView from "../components/CRMView";
 import CalendarioView from "../components/CalendarioView";
 import GastosView, { type SeccionPersonal, type Subarea } from "../components/GastosView";
+import CapturaRapidaMovil from "../components/CapturaRapidaMovil";
 import FijosView from "../components/FijosView";
 import MemoriaView from "../components/MemoriaView";
 import AjustesNegocio from "../components/AjustesNegocio";
@@ -165,6 +166,14 @@ export default function EOSPage() {
   const [sidebarColapsado, setSidebarColapsado] = useState(false);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const botonMenuMovilRef = useRef<HTMLButtonElement | null>(null);
+  /**
+   * Sube cuando el "+" del celular (CapturaRapidaMovil) guarda algo desde
+   * una pantalla que no es la que tiene la barra de siempre. GastosView
+   * vive más abajo con `key={`${destino}-${capturaVersion}`}`: remontarlo
+   * es la forma más simple de que la pantalla que se esté mirando refleje
+   * lo recién anotado sin tener que levantar su `cargar()` hasta acá.
+   */
+  const [capturaVersion, setCapturaVersion] = useState(0);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
 
@@ -541,6 +550,10 @@ export default function EOSPage() {
         <Menu size={20} />
       </button>
 
+      {espacio === "personal" && (
+        <CapturaRapidaMovil onGuardado={() => setCapturaVersion((v) => v + 1)} />
+      )}
+
       <div className="main">
         <TopBar
           tema={tema}
@@ -596,7 +609,7 @@ export default function EOSPage() {
 
         {usuarioCargado && SECCION_DE_DESTINO[destino] && (
           <GastosView
-            key={destino}
+            key={`${destino}-${capturaVersion}`}
             seccion={SECCION_DE_DESTINO[destino]}
             subInicial={subInicial as Subarea | undefined}
             onNavegar={(seccion, sub) => irA(DESTINO_DE_SECCION[seccion], sub)}

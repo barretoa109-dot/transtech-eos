@@ -812,6 +812,118 @@
   }
 }
 
+/*
+  El "+" de Personal en el celular (CapturaRapidaMovil.tsx): un toque desde
+  cualquier pantalla abre la misma frase de siempre, sin tener que volver a
+  Inicio primero. Solo existe por debajo de 860px, el mismo corte que ya usa
+  el menú lateral — en escritorio la barra de "Anotá un gasto…" ya está
+  siempre a la vista.
+*/
+.eos-app .captura-rapida-fab {
+  display: none;
+}
+@media (max-width: 860px) {
+  .eos-app .captura-rapida-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 70;
+    width: 56px;
+    height: 56px;
+    border: none;
+    border-radius: 50%;
+    background: var(--blue-solido);
+    color: var(--on-blue, #fff);
+    box-shadow: 0 10px 28px rgba(22, 86, 189, 0.35);
+    cursor: pointer;
+  }
+  .eos-app .captura-rapida-fab:active {
+    transform: scale(0.94);
+  }
+}
+.eos-app .captura-rapida-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(7, 18, 38, 0.48);
+  backdrop-filter: blur(4px);
+}
+.eos-app .captura-rapida-hoja {
+  width: 100%;
+  max-width: 520px;
+  background: var(--panel);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  box-shadow: 0 -20px 50px rgba(7, 18, 38, 0.25);
+}
+.eos-app .captura-rapida-handle {
+  width: 38px;
+  height: 4px;
+  margin: 0 auto 14px;
+  border-radius: 999px;
+  background: var(--line);
+}
+.eos-app .captura-rapida-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.eos-app .captura-rapida-head strong {
+  font-size: 16px;
+}
+.eos-app .captura-rapida-cerrar {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--line-soft);
+  color: var(--muted);
+  cursor: pointer;
+}
+.eos-app .captura-rapida-input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg, var(--panel));
+  color: var(--ink);
+  font-size: 15px;
+  font-family: inherit;
+}
+.eos-app .captura-rapida-input::placeholder {
+  color: var(--muted);
+}
+.eos-app .captura-rapida-ayuda {
+  margin: 8px 2px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.eos-app .captura-rapida-botones {
+  display: flex;
+  gap: 10px;
+}
+.eos-app .captura-rapida-botones .btn-pri {
+  flex: 1;
+  justify-content: center;
+  padding: 12px 14px;
+  font-size: 13.5px;
+}
+.eos-app .captura-rapida-botones .btn-pri:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* ============ Main ============ */
 .eos-app .main {
   flex: 1;
@@ -3302,6 +3414,22 @@
   color: var(--muted);
 }
 
+/* Tu impacto (FinanzasImpacto.tsx): las líneas del mismo informe que ya
+   manda el correo mensual, listadas acá dentro de la app. */
+.eos-app .impacto-lista {
+  margin: 16px 0 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.eos-app .impacto-lista li {
+  padding-left: 2px;
+}
+
 /* Las otras monedas del usuario.
 
    Cada una es su propio mundo: su saldo, sus compromisos, su disponible real.
@@ -3881,6 +4009,71 @@
 }
 .eos-app .dest-otros {
   background: #cbd5e1;
+}
+
+/* ---- Tus categorías (FinanzasCategoriasResumen.tsx) ----
+   El mapa completo del mes, en grilla. Reusa los mismos colores de arriba
+   (`.dest-punto.dest-*`): un rubro es el mismo color se mire desde donde se
+   mire. */
+.eos-app .cat-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.eos-app .cat-resumen-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.eos-app .cat-resumen-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.eos-app .cat-resumen-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1;
+}
+.eos-app .cat-resumen-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.eos-app .cat-resumen-monto-fila {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.eos-app .cat-resumen-monto-fila strong {
+  font-size: 16px;
+  color: var(--ink);
+}
+.eos-app .cat-resumen-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.eos-app .cat-resumen-trend.is-up {
+  color: var(--red-texto);
+}
+.eos-app .cat-resumen-trend.is-down {
+  color: var(--green);
+}
+.eos-app .cat-resumen-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
 }
 /* El nombre de un destino se puede tocar para ver sus movimientos. */
 .eos-app .dest-enlace {
