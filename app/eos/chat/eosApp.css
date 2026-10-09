@@ -3981,10 +3981,10 @@
   color: var(--muted);
 }
 .eos-app .cat-resumen-trend.is-up {
-  color: var(--red-texto, #b3423f);
+  color: var(--red-texto);
 }
 .eos-app .cat-resumen-trend.is-down {
-  color: var(--green, #0c7d62);
+  color: var(--green);
 }
 .eos-app .cat-resumen-meta {
   margin-top: 4px;
