@@ -405,3 +405,17 @@ se cobra más de lo que el cliente debe.
 
 Con esto, la sección 9 del encargo (cliente → venta → cobro → pendientes)
 queda verificada contra producción, no solo contra código leído.
+
+Un caso más del mismo barrido: T02 de la matriz de la sección 20 ("Miembro
+consulta finanzas personales del dueño") y el punto 8 del encargo ("Un
+miembro de la empresa no obtiene acceso a finanzas personales del dueño por
+compartir organización") son distintos de todo lo probado hoy hasta acá —
+`invariantes_financieras_e2e.sql` y `cliente_venta_cobro_e2e.sql` aíslan dos
+cuentas SIN relación. `supabase/pruebas/miembro_empresa_sin_plata_personal_e2e.sql`
+invita de verdad a un empleado a la empresa del dueño (RLS en vivo, no
+service_role): **9/9**. El empleado ve la venta y el cliente que comparten,
+y no ve ni una fila de la plata personal del dueño, ni una suma que la
+disfrace de 0. La decisión de diseño que lo sostiene ya estaba escrita en la
+v119 (04/09): las tablas de plata personal se quedan a propósito fuera de la
+frontera por empresa. Esta prueba la verifica contra la base real en vez de
+contra el comentario que la explica.
