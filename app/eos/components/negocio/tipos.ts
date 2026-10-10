@@ -48,6 +48,8 @@ export type Producto = {
   descripcion?: string | null;
   unidad?: string | null;
   precio_venta: number;
+  /** Segundo precio opcional, con IVA incluido igual que precio_venta (v238). Informativo: una venta sigue mandando el monto que corresponda. */
+  precio_mayorista?: number | null;
   costo?: number | null;
   moneda: string;
   iva: 0 | 5 | 10;
@@ -57,6 +59,8 @@ export type Producto = {
   bajo_minimo: boolean;
   /* Foto y categoría del catálogo (v232). Opcionales: un producto sin foto se ve igual que antes. */
   categoria?: string | null;
+  /** Opcional, como categoria (v238). Para filtrar y mostrar; no la usa ningún cálculo. */
+  marca?: string | null;
   foto_ruta?: string | null;
   /** Enlace firmado que vence en una hora; lo arma GET /api/erp/productos. */
   foto_url?: string | null;

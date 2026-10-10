@@ -7,6 +7,7 @@ import { ivaIncluido, tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { numeroProducto, numeroProductoOpcional } from "@/lib/erp/entrada-producto";
 import { BUCKET_FOTOS_PRODUCTO, SEGUNDOS_ENLACE_FOTO_PRODUCTO, categoriaLimpia } from "@/lib/erp/fotos-producto";
+import { limpiarVariantes, nombresDeVariantes } from "@/lib/erp/variantes";
 import { createAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,8 @@ export const dynamic = "force-dynamic";
  */
 
 const COLUMNAS =
-  "id,codigo,nombre,descripcion,unidad,precio_venta,costo,moneda,iva," +
-  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,foto_ruta";
+  "id,codigo,nombre,descripcion,unidad,precio_venta,precio_mayorista,costo,moneda,iva," +
+  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,marca,foto_ruta";
 
 const MAX_FILAS = 500;
 
@@ -110,6 +111,14 @@ export async function POST(request: Request) {
     );
   }
 
+  const mayoristaResultado = numeroProductoOpcional(cuerpo.precio_mayorista);
+  if (!mayoristaResultado.ok) {
+    return NextResponse.json(
+      { error: "El precio mayorista tiene que ser un número mayor o igual a cero.", campo: "precio_mayorista" },
+      { status: 400, headers: noStore() },
+    );
+  }
+
   const controlaStock = cuerpo.controla_stock === true;
   const stockResultado = controlaStock ? numeroProducto(cuerpo.stock_actual ?? 0) : { ok: true as const, valor: 0 };
   const minimoResultado = controlaStock ? numeroProducto(cuerpo.stock_minimo ?? 0) : { ok: true as const, valor: 0 };
@@ -123,29 +132,39 @@ export async function POST(request: Request) {
     );
   }
 
+  // Una fila por variante, ya nombrada como el resolver del chat las espera.
+  // Ver lib/erp/variantes.ts.
+  const variantes = limpiarVariantes(cuerpo.variantes);
+
+  const filaBase = {
+    usuario_id: puerta.usuarioId,
+    descripcion: String(cuerpo.descripcion ?? "").trim().slice(0, 2000) || null,
+    categoria: categoriaLimpia(cuerpo.categoria),
+    marca: categoriaLimpia(cuerpo.marca),
+    unidad: String(cuerpo.unidad ?? "unidad").trim().slice(0, 20) || "unidad",
+    precio_venta: precioResultado.valor,
+    precio_mayorista: mayoristaResultado.valor,
+    costo: costoResultado.valor,
+    moneda: monedaConocida(cuerpo.moneda),
+    iva: tasaValida(cuerpo.iva),
+    controla_stock: controlaStock,
+    // Sin control de stock, el saldo no significa nada: se guarda en cero para
+    // que no quede un número viejo confundiendo si algún día se activa.
+    stock_actual: stockResultado.valor,
+    stock_minimo: minimoResultado.valor,
+  };
+
+  // El código es único por usuario: con más de una fila no se puede repetir
+  // en todas, así que con variantes no se manda -- cada una se codifica
+  // aparte, editándola, si hace falta.
+  const filas =
+    variantes.length > 0
+      ? nombresDeVariantes(nombre, cuerpo.variantes).map((n) => ({ ...filaBase, codigo: null, nombre: n }))
+      : [{ ...filaBase, codigo: String(cuerpo.codigo ?? "").trim().slice(0, 60) || null, nombre }];
+
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("eos_erp_productos")
-    .insert({
-      usuario_id: puerta.usuarioId,
-      codigo: String(cuerpo.codigo ?? "").trim().slice(0, 60) || null,
-      nombre,
-      descripcion: String(cuerpo.descripcion ?? "").trim().slice(0, 2000) || null,
-      categoria: categoriaLimpia(cuerpo.categoria),
-      unidad: String(cuerpo.unidad ?? "unidad").trim().slice(0, 20) || "unidad",
-      precio_venta: precioResultado.valor,
-      costo: costoResultado.valor,
-      moneda: monedaConocida(cuerpo.moneda),
-      iva: tasaValida(cuerpo.iva),
-      controla_stock: controlaStock,
-      // Sin control de stock, el saldo no significa nada: se guarda en cero para
-      // que no quede un número viejo confundiendo si algún día se activa.
-      stock_actual: stockResultado.valor,
-      stock_minimo: minimoResultado.valor,
-    })
-    .select(COLUMNAS)
-    .single();
+  const { data, error } = await supabase.from("eos_erp_productos").insert(filas).select(COLUMNAS);
 
   if (error) {
     // El código de producto es único por usuario: repetirlo es un error del
@@ -164,7 +183,10 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ producto: data }, { status: 201, headers: noStore() });
+  return NextResponse.json(
+    variantes.length > 0 ? { productos: data } : { producto: data?.[0] ?? null },
+    { status: 201, headers: noStore() },
+  );
 }
 
 /**

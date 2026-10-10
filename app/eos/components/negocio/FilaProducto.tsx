@@ -121,10 +121,14 @@ export default function FilaProducto({ producto, diasRestantes, onCambio }: Prop
         {producto.nombre}
         <small>
           {producto.categoria ? <span className="prod-categoria">{producto.categoria}</span> : null}
+          {producto.marca ? <span className="prod-categoria">{producto.marca}</span> : null}
           {producto.codigo ? `${producto.codigo} · ` : ""}
           {producto.iva === 0 ? "Exenta" : `IVA ${producto.iva}%`}
           {producto.costo != null && producto.costo > 0
             ? ` · costo ${formatearMonto(producto.costo, producto.moneda)}`
+            : ""}
+          {producto.precio_mayorista != null
+            ? ` · mayorista ${formatearMonto(producto.precio_mayorista, producto.moneda)}`
             : ""}
         </small>
         {aviso && <span className="neg-inline-success" role="status"><Check size={12} /> {aviso}</span>}
@@ -153,7 +157,11 @@ export default function FilaProducto({ producto, diasRestantes, onCambio }: Prop
             <img src={producto.foto_url} alt={producto.nombre} />
             <small>
               {producto.categoria ? `${producto.categoria} · ` : ""}
+              {producto.marca ? `${producto.marca} · ` : ""}
               {formatearMonto(producto.precio_venta, producto.moneda)}
+              {producto.precio_mayorista != null
+                ? ` · mayorista ${formatearMonto(producto.precio_mayorista, producto.moneda)}`
+                : ""}
             </small>
           </div>
         </div>,
@@ -288,6 +296,9 @@ function Editar({
 }) {
   const [nombre, setNombre] = useState(producto.nombre);
   const [precio, setPrecio] = useState(String(producto.precio_venta));
+  const [mayorista, setMayorista] = useState(
+    producto.precio_mayorista == null ? "" : String(producto.precio_mayorista),
+  );
   const [costo, setCosto] = useState(
     producto.costo == null ? "" : String(producto.costo),
   );
@@ -308,6 +319,7 @@ function Editar({
   const [unidad, setUnidad] = useState(producto.unidad ?? "unidad");
   const [descripcion, setDescripcion] = useState(producto.descripcion ?? "");
   const [categoria, setCategoria] = useState(producto.categoria ?? "");
+  const [marca, setMarca] = useState(producto.marca ?? "");
   /*
    * La foto se sube apenas se elige, aparte del resto del formulario: es un
    * archivo, no un campo, y esperar a "Guardar" haría que un error del
@@ -387,6 +399,9 @@ function Editar({
         body: JSON.stringify({
           nombre: nombre.trim(),
           precio_venta: Number(precio) || 0,
+          // Vacío significa "sin precio mayorista", no cero: un mayorista en
+          // cero se mostraría como "gratis al por mayor", que es falso.
+          precio_mayorista: mayorista.trim() === "" ? null : Number(mayorista),
           // Vacío significa "no sé cuánto me cuesta", que es distinto de cero:
           // un costo en cero mostraría 100% de margen, que es falso.
           costo: costo.trim() === "" ? null : Number(costo),
@@ -395,6 +410,7 @@ function Editar({
           unidad: unidad.trim() || "unidad",
           descripcion: descripcion.trim(),
           categoria: categoria.trim(),
+          marca: marca.trim(),
           controla_stock: controlaStock,
           // El mínimo se manda también cuando el inventario se ACABA de
           // prender: si no, quedaría el valor viejo, que puede ser cualquiera.
@@ -478,6 +494,16 @@ function Editar({
           onChange={(e) => setPrecio(e.target.value)}
         />
 
+        <input
+          className="neg-input neg-cantidad"
+          type="number"
+          min={0}
+          value={mayorista}
+          placeholder="Mayorista (opcional)"
+          title="Precio al por mayor, con IVA incluido. Solo para mostrarlo en el catálogo"
+          onChange={(e) => setMayorista(e.target.value)}
+        />
+
         <select
           className="neg-input neg-cantidad"
           value={iva}
@@ -527,6 +553,17 @@ function Editar({
           aria-label="Categoría"
           list="categorias-catalogo"
           onChange={(e) => setCategoria(e.target.value)}
+        />
+
+        <input
+          className="neg-input neg-cantidad"
+          value={marca}
+          maxLength={60}
+          placeholder="Marca (opcional)"
+          title="De qué marca es"
+          aria-label="Marca"
+          list="marcas-catalogo"
+          onChange={(e) => setMarca(e.target.value)}
         />
 
         <input
