@@ -467,7 +467,7 @@ export default function FinanzasPanel({
 
           <ComposicionSaldo data={data} fmt={fmt} />
 
-          <OtrasMonedas monedas={data.monedas ?? []} />
+          <OtrasMonedas monedas={data.monedas ?? []} principal={data.moneda} />
 
           <div className="fin-rows">
             <FinRow
@@ -633,8 +633,49 @@ export default function FinanzasPanel({
  * certeza muy distintos, y mostrarlos como el mismo número pelado es lo que
  * hace que alguien confíe de más en el segundo.
  */
-function OtrasMonedas({ monedas }: { monedas: BloqueMoneda[] }) {
+type CotizacionLeida = { valor: number; obtenida_en: string } | null;
+
+/**
+ * La cotización de cada "otra" moneda contra la principal, si existe.
+ *
+ * Una por moneda, no una lista: con dos o tres monedas distintas da lo mismo
+ * dos o tres llamadas chicas que una ruta que agrupe pares -- y así la ruta
+ * de lectura (`GET /api/finanzas/cotizacion`) no necesita saber de esta
+ * pantalla en particular.
+ */
+function useCotizaciones(monedas: string[], hasta: string): Map<string, CotizacionLeida> {
+  const [cotizaciones, setCotizaciones] = useState<Map<string, CotizacionLeida>>(new Map());
+  const clave = monedas.join(",");
+
+  useEffect(() => {
+    let vigente = true;
+    const lista = clave ? clave.split(",") : [];
+
+    Promise.all(
+      lista.map((desde) =>
+        fetch(`/api/finanzas/cotizacion?desde=${desde}&hasta=${hasta}`, { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : { disponible: false }))
+          .then((d) => [desde, d?.disponible ? { valor: Number(d.valor), obtenida_en: d.obtenida_en } : null] as const)
+          .catch(() => [desde, null] as const),
+      ),
+    ).then((pares) => {
+      if (vigente) setCotizaciones(new Map(pares));
+    });
+
+    return () => {
+      vigente = false;
+    };
+  }, [clave, hasta]);
+
+  return cotizaciones;
+}
+
+function OtrasMonedas({ monedas, principal }: { monedas: BloqueMoneda[]; principal: string }) {
   const otras = monedas.filter((m) => !m.principal);
+  const cotizaciones = useCotizaciones(
+    otras.map((m) => m.moneda),
+    principal,
+  );
   if (otras.length === 0) return null;
 
   return (
@@ -645,6 +686,7 @@ function OtrasMonedas({ monedas }: { monedas: BloqueMoneda[] }) {
         const fmt = (valor: number) => formatearMonto(valor, m.moneda);
         const comprometido =
           m.compromisos.total + m.prevision.cuotas.total + m.prevision.gastos_previsibles.total;
+        const cot = cotizaciones.get(m.moneda);
 
         return (
           <div className={`fin-moneda fin-moneda-${m.estado}`} key={m.moneda}>
@@ -660,6 +702,19 @@ function OtrasMonedas({ monedas }: { monedas: BloqueMoneda[] }) {
             </div>
 
             <div className="fin-moneda-hint">{origenDelSaldo(m, fmt)}</div>
+
+            {/*
+              Una vista más, nunca un reemplazo -- ver el comentario de
+              cabecera de este componente y lib/finanzas/monedas.ts. No
+              reemplaza ningún número de arriba: es informativo, y dice de
+              dónde sale y de cuándo es, igual que el resto de esta tarjeta.
+            */}
+            {cot && (
+              <div className="fin-moneda-hint fin-moneda-cotizacion">
+                ≈ {formatearMonto(m.disponible_real * cot.valor, principal)} · según Google el{" "}
+                {formatearFecha(cot.obtenida_en)}
+              </div>
+            )}
           </div>
         );
       })}

@@ -3486,6 +3486,9 @@
   color: var(--muted);
   line-height: 1.45;
 }
+.eos-app .fin-moneda-cotizacion {
+  font-style: italic;
+}
 .eos-app .fin-rows {
   margin-top: 6px;
 }

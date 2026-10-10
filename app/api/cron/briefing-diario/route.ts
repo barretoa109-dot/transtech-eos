@@ -17,6 +17,7 @@ import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
 import { enviarInformesDeImpacto, fuenteSupabase } from "@/lib/impacto/enviar";
 import { mesAnterior } from "@/lib/impacto/informe";
 import { tomarSnapshotsMensuales } from "@/lib/progreso/snapshot";
+import { actualizarCotizacion } from "@/lib/finanzas/cotizacion";
 import { enviarResumenesSemanales, fuenteResumenSupabase } from "@/lib/resumen/enviar";
 import { enviarTableroDeLosViernes } from "@/lib/metricas/tablero-semanal";
 import { enviarPrimerosDias } from "@/lib/email/primeros-dias";
@@ -442,6 +443,20 @@ export async function GET(request: Request) {
       console.log("Progreso: fotos del mes", resumen);
     } catch (error) {
       console.error("Progreso: falló la foto mensual de patrimonio:", error);
+    }
+  });
+
+  /*
+   * La cotización del día (v239), en su PROPIO `after`. Una vista más sobre
+   * lo que ya existe, nunca un reemplazo -- ver lib/finanzas/monedas.ts y
+   * lib/finanzas/cotizacion.ts. Apagada sin `GOOGLE_SHEET_COTIZACION_URL`.
+   */
+  after(async () => {
+    try {
+      const resultado = await actualizarCotizacion(adminSinTipos(), { desde: "USD", hasta: "PYG" });
+      if (resultado.actualizado) console.log("Cotización: USD/PYG actualizada a", resultado.valor);
+    } catch (error) {
+      console.error("Cotización: falló la actualización del día:", error);
     }
   });
 
