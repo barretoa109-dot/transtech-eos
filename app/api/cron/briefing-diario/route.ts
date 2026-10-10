@@ -15,6 +15,8 @@ import { capturarIndicadores } from "@/lib/kpi/capturar";
 import { capturarPulsoPersonal } from "@/lib/finanzas/capturarPulso";
 import { puntuarBriefingsDeHoy } from "@/lib/kpi/scoreBriefing";
 import { enviarInformesDeImpacto, fuenteSupabase } from "@/lib/impacto/enviar";
+import { mesAnterior } from "@/lib/impacto/informe";
+import { tomarSnapshotsMensuales } from "@/lib/progreso/snapshot";
 import { enviarResumenesSemanales, fuenteResumenSupabase } from "@/lib/resumen/enviar";
 import { enviarTableroDeLosViernes } from "@/lib/metricas/tablero-semanal";
 import { enviarPrimerosDias } from "@/lib/email/primeros-dias";
@@ -422,6 +424,24 @@ export async function GET(request: Request) {
       console.log("Impacto: informes del mes", resumen);
     } catch (error) {
       console.error("Impacto: falló el envío de informes:", error);
+    }
+  });
+
+  /*
+   * La foto mensual de patrimonio para "Tu progreso" (v237), en su PROPIO
+   * `after`. Corre todos los días y solo hace algo el día 1 — a diferencia
+   * del Informe de impacto, no manda nada a nadie, así que no necesita
+   * ventana de reintento: si el día 1 falla, un día de atraso en que
+   * quede la foto de un mes no es nada comparado con un correo tardío.
+   */
+  after(async () => {
+    try {
+      if (Number(hoyEnParaguay().slice(8, 10)) !== 1) return;
+
+      const resumen = await tomarSnapshotsMensuales(adminSinTipos(), mesAnterior(hoyEnParaguay()));
+      console.log("Progreso: fotos del mes", resumen);
+    } catch (error) {
+      console.error("Progreso: falló la foto mensual de patrimonio:", error);
     }
   });
 

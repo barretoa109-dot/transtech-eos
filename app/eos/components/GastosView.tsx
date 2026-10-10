@@ -46,6 +46,7 @@ import FinanzasObjetivos from "./FinanzasObjetivos";
 import FinanzasPatrimonio from "./FinanzasPatrimonio";
 import FinanzasInforme from "./FinanzasInforme";
 import FinanzasImpacto from "./FinanzasImpacto";
+import FinanzasProgreso from "./FinanzasProgreso";
 
 /**
  * Personal: las finanzas de la persona, completas y en un solo lugar.
@@ -160,6 +161,7 @@ export type Subarea =
   | "movimientos"
   | "categorias"
   | "impacto"
+  | "progreso"
   | "balance"
   | "curva"
   | "calendario"
@@ -221,6 +223,7 @@ const SECCIONES: Seccion<SeccionPersonal, Subarea>[] = [
     etiqueta: "Informes",
     subs: [
       { clave: "impacto", etiqueta: "Tu impacto", detalle: "Lo que EOS hizo por vos este mes" },
+      { clave: "progreso", etiqueta: "Tu progreso", detalle: "Cómo viene tu plata, no solo cuánto trabajo te ahorró" },
       { clave: "balance", etiqueta: "Llevate tu balance", detalle: "Tus movimientos en PDF, Excel o Word" },
       { clave: "comprar", etiqueta: "¿Puedo comprarlo?", detalle: "Probá una compra antes de hacerla" },
     ],
@@ -873,6 +876,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         />
       )}
       {subarea === "impacto" && <FinanzasImpacto />}
+      {subarea === "progreso" && <FinanzasProgreso />}
       {subarea === "balance" && <FinanzasInforme />}
 
       {/*
