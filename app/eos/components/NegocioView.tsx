@@ -1424,11 +1424,21 @@ function Productos({
   const [importarAbierto, setImportarAbierto] = useState<boolean | null>(null);
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
+  const [mayorista, setMayorista] = useState("");
   const [costo, setCosto] = useState("");
   const [iva, setIva] = useState<TasaIva>(10);
   const [controlaStock, setControlaStock] = useState(false);
   const [stock, setStock] = useState("");
   const [categoriaNueva, setCategoriaNueva] = useState("");
+  const [marcaNueva, setMarcaNueva] = useState("");
+  /*
+   * Talles o variantes, separados por coma ("S, M, L"). Con esto lleno, el
+   * "Nombre" es la base ("Conjunto verde oliva") y se crea una fila por
+   * variante, cada una nombrada "base + variante" -- la misma forma que el
+   * resolver del chat ya sabe leer desde la v156/v157 (busca sin el talle,
+   * lo usa para descartar). No hace falta ninguna columna nueva para esto.
+   */
+  const [variantes, setVariantes] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
@@ -1444,6 +1454,14 @@ function Productos({
   const categorias = useMemo(
     () =>
       [...new Set(productos.map((p) => p.categoria?.trim()).filter((c): c is string => !!c))].sort((a, b) =>
+        a.localeCompare(b, "es"),
+      ),
+    [productos],
+  );
+
+  const marcas = useMemo(
+    () =>
+      [...new Set(productos.map((p) => p.marca?.trim()).filter((m): m is string => !!m))].sort((a, b) =>
         a.localeCompare(b, "es"),
       ),
     [productos],
@@ -1488,6 +1506,16 @@ function Productos({
     iva,
   });
 
+  /** Qué nombres van a salir, para que se vea antes de guardar y no después. */
+  const variantesLista = useMemo(
+    () =>
+      variantes
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0),
+    [variantes],
+  );
+
   async function guardar() {
     if (!nombre.trim() || guardando) return;
 
@@ -1495,19 +1523,29 @@ function Productos({
     setError("");
 
     try {
+      const listaVariantes = variantes
+        .split(",")
+        .map((v) => v.trim())
+        .filter((v) => v.length > 0);
+
       const respuesta = await fetch("/api/erp/productos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre,
           precio_venta: Number(precio) || 0,
+          // Vacío es null, no cero: un mayorista en cero se mostraría como
+          // "gratis al por mayor" en el catálogo, que es falso.
+          precio_mayorista: mayorista.trim() === "" ? null : Number(mayorista),
           // Vacío es null, no cero: un costo en cero mostraría 100% de
           // margen en todo producto nuevo, que es un número precioso y falso.
           costo: costo.trim() === "" ? null : Number(costo),
           iva,
           categoria: categoriaNueva.trim(),
+          marca: marcaNueva.trim(),
           controla_stock: controlaStock,
           stock_actual: Number(stock) || 0,
+          ...(listaVariantes.length > 0 ? { variantes: listaVariantes } : {}),
         }),
       });
 
@@ -1516,9 +1554,12 @@ function Productos({
 
       setNombre("");
       setPrecio("");
+      setMayorista("");
       setCosto("");
       setStock("");
       setCategoriaNueva("");
+      setMarcaNueva("");
+      setVariantes("");
       setFormularioAbierto(null);
       onCambio();
     } catch (err) {
@@ -1568,10 +1609,27 @@ function Productos({
           />
           <input
             className="neg-input"
+            placeholder="Talles o variantes (opcional)"
+            title='Separados por coma: "S, M, L". Crea un producto por cada uno, con este nombre más la variante'
+            aria-label="Talles o variantes"
+            value={variantes}
+            maxLength={200}
+            onChange={(e) => setVariantes(e.target.value)}
+          />
+          <input
+            className="neg-input"
             placeholder="Precio final"
             inputMode="numeric"
             value={precio}
             onChange={(e) => setPrecio(e.target.value.replace(/[^\d]/g, ""))}
+          />
+          <input
+            className="neg-input"
+            placeholder="Mayorista (opcional)"
+            title="Precio al por mayor, con IVA incluido. Solo para mostrarlo en el catálogo"
+            inputMode="numeric"
+            value={mayorista}
+            onChange={(e) => setMayorista(e.target.value.replace(/[^\d]/g, ""))}
           />
           <input
             className="neg-input"
@@ -1588,6 +1646,15 @@ function Productos({
             value={categoriaNueva}
             maxLength={60}
             onChange={(e) => setCategoriaNueva(e.target.value)}
+          />
+          <input
+            className="neg-input"
+            placeholder="Marca (opcional)"
+            aria-label="Marca"
+            list="marcas-catalogo"
+            value={marcaNueva}
+            maxLength={60}
+            onChange={(e) => setMarcaNueva(e.target.value)}
           />
           <select
             className="neg-input"
@@ -1616,6 +1683,13 @@ function Productos({
             />
           )}
         </div>
+
+        {variantesLista.length > 0 && nombre.trim() && (
+          <p className="card-sub" style={{ marginTop: 6 }}>
+            Se van a crear {variantesLista.length} productos:{" "}
+            {variantesLista.map((v) => `${nombre.trim()} ${v}`).join(", ")}
+          </p>
+        )}
 
         {Number(precio) > 0 && (
           <p className={`fila-margen${margen.conocido && margen.pierde ? " is-perdida" : ""}`}>
@@ -1648,6 +1722,12 @@ function Productos({
       <datalist id="categorias-catalogo">
         {categorias.map((c) => (
           <option key={c} value={c} />
+        ))}
+      </datalist>
+
+      <datalist id="marcas-catalogo">
+        {marcas.map((m) => (
+          <option key={m} value={m} />
         ))}
       </datalist>
 

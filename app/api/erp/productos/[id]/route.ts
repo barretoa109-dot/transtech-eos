@@ -36,8 +36,8 @@ export const dynamic = "force-dynamic";
  */
 
 const COLUMNAS =
-  "id,codigo,nombre,descripcion,unidad,precio_venta,costo,moneda,iva," +
-  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,foto_ruta";
+  "id,codigo,nombre,descripcion,unidad,precio_venta,precio_mayorista,costo,moneda,iva," +
+  "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,marca,foto_ruta";
 
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
   const puerta = await exigirModulo("erp");
@@ -106,6 +106,18 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
   }
 
   if (cuerpo.categoria !== undefined) cambios.categoria = categoriaLimpia(cuerpo.categoria);
+  if (cuerpo.marca !== undefined) cambios.marca = categoriaLimpia(cuerpo.marca);
+
+  if (cuerpo.precio_mayorista !== undefined) {
+    const mayorista = numeroProductoOpcional(cuerpo.precio_mayorista);
+    if (!mayorista.ok) {
+      return NextResponse.json(
+        { error: "El precio mayorista tiene que ser un número mayor o igual a cero.", campo: "precio_mayorista" },
+        { status: 400, headers: noStore() },
+      );
+    }
+    cambios.precio_mayorista = mayorista.valor;
+  }
 
   if (cuerpo.unidad !== undefined) {
     cambios.unidad = String(cuerpo.unidad ?? "").trim().slice(0, 20) || "unidad";
