@@ -706,7 +706,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         })()}
         {(seccion === "hoy" || seccion === "mes") && tipoAlta !== "transferencia" && (
           <p className="sec-decile-ayuda">
-            Escribilo como lo contás: EOS entiende el monto, la fecha (si decís "ayer" o "anteayer") y en qué fue, y
+            Escribilo como lo contás: EOS entiende el monto, la fecha (si decís &ldquo;ayer&rdquo; o &ldquo;anteayer&rdquo;) y en qué fue, y
             arma la categoría sola.
           </p>
         )}
