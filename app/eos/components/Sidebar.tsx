@@ -375,27 +375,54 @@ export default function Sidebar({
             const grupoAnterior = indice > 0 ? itemsMenu[indice - 1].grupo : undefined;
             const mostrarEtiquetaGrupo = Boolean(item.grupo) && item.grupo !== grupoAnterior;
 
+            /*
+             * El "+" de alta rápida vivía flotando en el celular
+             * (CapturaRapidaMovil); se sacó de ahí y quedó acá, al lado de
+             * "Ingresos y gastos" (05/10/2026): un toque lleva directo a la
+             * ficha de alta, que ahora siempre está arriba de esa pantalla.
+             */
+            const esIngresosYGastos = item.destino === "p-mes";
+
+            const boton = (
+              <button
+                type="button"
+                className={`row-item nav-item ${item.chico ? "nav-item-chico" : ""} ${esIngresosYGastos ? "nav-item-con-mas" : ""} ${destino === item.destino ? "active-view" : ""}`}
+                aria-current={destino === item.destino ? "page" : undefined}
+                onClick={() => onDestino(item.destino)}
+              >
+                <div className="ic">
+                  <item.Icono size={item.chico ? 14 : 16} />
+                </div>
+                <span className="label">{item.etiqueta}</span>
+                {avisos[item.destino] ? (
+                  <span className="side-aviso" aria-label={`${avisos[item.destino]} para atender`}>
+                    {avisos[item.destino]}
+                  </span>
+                ) : item.nota ? (
+                  <span className="side-nota">{item.nota}</span>
+                ) : null}
+              </button>
+            );
+
             return (
               <Fragment key={item.destino}>
                 {mostrarEtiquetaGrupo ? <div className="section-label nav-group-label">{item.grupo}</div> : null}
-                <button
-                  type="button"
-                  className={`row-item nav-item ${item.chico ? "nav-item-chico" : ""} ${destino === item.destino ? "active-view" : ""}`}
-                  aria-current={destino === item.destino ? "page" : undefined}
-                  onClick={() => onDestino(item.destino)}
-                >
-                  <div className="ic">
-                    <item.Icono size={item.chico ? 14 : 16} />
+                {esIngresosYGastos ? (
+                  <div className="nav-row-con-mas">
+                    {boton}
+                    <button
+                      type="button"
+                      className="nav-mas-btn"
+                      aria-label="Anotar un gasto o un ingreso"
+                      title="Anotar un gasto o un ingreso"
+                      onClick={() => onDestino(item.destino)}
+                    >
+                      <Plus size={14} />
+                    </button>
                   </div>
-                  <span className="label">{item.etiqueta}</span>
-                  {avisos[item.destino] ? (
-                    <span className="side-aviso" aria-label={`${avisos[item.destino]} para atender`}>
-                      {avisos[item.destino]}
-                    </span>
-                  ) : item.nota ? (
-                    <span className="side-nota">{item.nota}</span>
-                  ) : null}
-                </button>
+                ) : (
+                  boton
+                )}
               </Fragment>
             );
           })}
