@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowDownLeft,
+  ArrowLeftRight,
   ArrowUpRight,
   ChevronDown,
   Lock,
@@ -16,7 +17,7 @@ import {
 
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { DESTINOS } from "@/lib/finanzas/destinos";
-import { numeroEscrito } from "@/lib/finanzas/gastoRapido";
+import { leerMonto, numeroEscrito } from "@/lib/finanzas/gastoRapido";
 
 /*
   El bloque financiero personal vivía en Dashboard y esta pantalla era una
@@ -428,6 +429,9 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
     return () => window.clearTimeout(timer);
   }, [cargar]);
 
+  /** Qué pestaña de la ficha de alta está elegida. "transferencia" no manda nada: solo señala el camino al chat. */
+  const [tipoAlta, setTipoAlta] = useState<"gasto" | "ingreso" | "transferencia">("gasto");
+
   const { texto, setTexto, guardando, entendido, errorAlta, anotar } = useAnotarRapido(async () => {
     await cargar();
     // El panel de arriba y las tarjetas de la pestaña también cambian con este
@@ -589,47 +593,122 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         )}
 
         {/*
-          La línea para anotar, en una sola fila como en Negocio: el ícono de
-          EOS, la frase y el botón. Lo que EOS entendió aparece abajo.
+          La ficha de alta: antes era una línea sola; ahora es una ficha con
+          pestañas, como se ve en el resto del menú (05/10/2026). Sigue siendo
+          UNA frase la que arma el movimiento — nada de esto agrega campos que
+          el backend no guarda todavía (categoría, cuenta y repetición las
+          sigue resolviendo EOS sola; ver `gastoRapido.ts`). Lo nuevo es sólo
+          cómo se ve y se elige el tipo antes de escribir.
         */}
-        {(seccion === "hoy" || seccion === "mes") && (
-        <>
-        <div className="sec-decile">
-          <span className="sec-decile-ico" aria-hidden="true">EOS</span>
-          <input
-            className="sec-decile-input"
-            aria-label="Anotar un gasto o un ingreso"
-            placeholder="Anotá un gasto: «gasté 35 mil en el almuerzo»"
-            value={texto}
-            maxLength={200}
-            onChange={(e) => setTexto(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void anotar();
-            }}
-          />
-          <button
-            type="button"
-            className="btn-pri gasto-anotar"
-            disabled={guardando}
-            onClick={() => void anotar("gasto")}
-          >
-            {guardando ? "Anotando…" : "− Anotar gasto"}
-          </button>
-          <button
-            type="button"
-            className="btn-pri ingreso-anotar"
-            disabled={guardando}
-            onClick={() => void anotar("ingreso")}
-          >
-            + Anotar ingreso
-          </button>
-        </div>
-        <p className="sec-decile-ayuda">
-          Elegí si es un gasto o un ingreso y escribilo como lo contás: «gasté 50 mil en nafta», «cobré el sueldo
-          3.500.000». EOS entiende el monto, la fecha y en qué fue. Las transferencias entre tus cuentas se dicen por
-          el chat.
-        </p>
-        </>
+        {(seccion === "hoy" || seccion === "mes") && (() => {
+          const previa = texto.trim() ? leerMonto(texto) : null;
+          const simbolo = (previa?.moneda ?? "PYG") === "USD" ? "US$" : "₲";
+          const montoPreview = previa ? new Intl.NumberFormat("es-PY").format(previa.monto) : "0";
+          const detectaFecha = /\banteayer\b/i.test(texto)
+            ? "Anteayer"
+            : /\bayer\b/i.test(texto)
+              ? "Ayer"
+              : "Hoy";
+
+          return (
+            <div className="alta-ficha">
+              <div className="alta-ficha-head">
+                <span className="alta-ficha-ico" aria-hidden="true">EOS</span>
+                <strong>Nueva transacción</strong>
+              </div>
+
+              <div className="alta-ficha-tabs" role="tablist" aria-label="Qué tipo de movimiento es">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tipoAlta === "gasto"}
+                  className={`alta-ficha-tab tab-gasto ${tipoAlta === "gasto" ? "activa" : ""}`}
+                  onClick={() => setTipoAlta("gasto")}
+                >
+                  <ArrowDownLeft size={14} /> Gasto
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tipoAlta === "ingreso"}
+                  className={`alta-ficha-tab tab-ingreso ${tipoAlta === "ingreso" ? "activa" : ""}`}
+                  onClick={() => setTipoAlta("ingreso")}
+                >
+                  <ArrowUpRight size={14} /> Ingreso
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tipoAlta === "transferencia"}
+                  className={`alta-ficha-tab tab-transferencia ${tipoAlta === "transferencia" ? "activa" : ""}`}
+                  onClick={() => setTipoAlta("transferencia")}
+                >
+                  <ArrowLeftRight size={14} /> Transferencia
+                </button>
+              </div>
+
+              {tipoAlta === "transferencia" ? (
+                <div className="alta-ficha-transferencia">
+                  <p>Una transferencia entre tus cuentas no es ni ingreso ni gasto: decíselo a EOS en el chat y la anota en las dos cuentas a la vez.</p>
+                  {onOpenChat && (
+                    <button type="button" className="ghost-btn" onClick={onOpenChat}>
+                      <MessageCircle size={14} /> Ir al chat
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="alta-ficha-monto">
+                    {simbolo} {montoPreview}
+                  </div>
+
+                  <input
+                    className="alta-ficha-input"
+                    aria-label={tipoAlta === "ingreso" ? "Anotar un ingreso" : "Anotar un gasto"}
+                    placeholder={
+                      tipoAlta === "ingreso" ? "«cobré el sueldo 3.500.000»" : "«gasté 35 mil en el almuerzo»"
+                    }
+                    value={texto}
+                    maxLength={200}
+                    onChange={(e) => setTexto(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void anotar(tipoAlta);
+                    }}
+                  />
+
+                  <div className="alta-ficha-meta">
+                    <div className="alta-ficha-meta-fila">
+                      <span>Categoría</span>
+                      <span className="valor">La elige EOS sola</span>
+                    </div>
+                    <div className="alta-ficha-meta-fila">
+                      <span>Fecha</span>
+                      <span className="valor">{detectaFecha}</span>
+                    </div>
+                    <div className="alta-ficha-meta-fila">
+                      <span>Cuenta</span>
+                      <span className="valor">Efectivo</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`btn-pri alta-ficha-guardar ${tipoAlta === "ingreso" ? "ingreso-anotar" : "gasto-anotar"}`}
+                    disabled={guardando}
+                    onClick={() => void anotar(tipoAlta)}
+                  >
+                    {guardando ? "Anotando…" : tipoAlta === "ingreso" ? "Guardar ingreso" : "Guardar gasto"}
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })()}
+        {(seccion === "hoy" || seccion === "mes") && tipoAlta !== "transferencia" && (
+          <p className="sec-decile-ayuda">
+            Escribilo como lo contás: EOS entiende el monto, la fecha (si decís "ayer" o "anteayer") y en qué fue, y
+            arma la categoría sola.
+          </p>
         )}
 
         {/*

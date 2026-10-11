@@ -8,13 +8,11 @@ type Tipo = "ingreso" | "gasto";
  * Anotar un gasto o un ingreso con una frase, en un solo POST a
  * `/api/finanzas/rapido`.
  *
- * Compartido entre la barra de Inicio/Ingresos y gastos (`GastosView`) y la
- * captura rápida del celular (`CapturaRapidaMovil`, el botón "+" que queda a
- * mano desde cualquier pantalla de Personal): las dos le hablan al mismo
- * endpoint, de la misma manera. Quien usa el hook decide qué hacer después
- * de guardar — `GastosView` recarga su lista y su panel; la captura del
- * celular, al vivir fuera de esa pantalla, solo necesita pedirle a quien la
- * esté mirando que se vuelva a montar.
+ * Usado por la ficha de Inicio/Ingresos y gastos (`GastosView`). El "+" del
+ * celular vivía aparte (`CapturaRapidaMovil`) y hablaba con este mismo hook;
+ * se sacó (05/10/2026 → reorganización del menú) porque el alta pasó a vivir
+ * siempre arriba de "Ingresos y gastos", a un toque desde el menú — ya no
+ * hacía falta un atajo flotante aparte.
  */
 export function useAnotarRapido(onGuardado?: () => void) {
   const [texto, setTexto] = useState("");
