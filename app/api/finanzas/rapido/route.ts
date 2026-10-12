@@ -36,13 +36,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { texto?: unknown; tipo?: unknown; categoria?: unknown; fecha?: unknown };
+  let body: { texto?: unknown; tipo?: unknown; categoria?: unknown; fecha?: unknown; cuenta_id?: unknown };
   try {
     body = (await request.json()) as {
       texto?: unknown;
       tipo?: unknown;
       categoria?: unknown;
       fecha?: unknown;
+      cuenta_id?: unknown;
     };
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
@@ -113,6 +114,31 @@ export async function POST(request: Request) {
 
   const categoriaElegida = typeof body.categoria === "string" ? limpiarCategoria(body.categoria) : "";
 
+  /*
+   * Cuenta: igual de opcional, igual criterio que categoría y fecha. La
+   * ficha ya ofrece un `<select>` con las cuentas reales de la persona, así
+   * que acá llega un id exacto, no un nombre a adivinar (eso es lo que hace
+   * el resolver del lado del chat, donde sí hay que interpretar lo que
+   * alguien dijo). Se valida que exista, sea personal y suya — RLS ya lo
+   * garantiza porque esta consulta usa el cliente de la sesión, no el admin.
+   * Un id viejo o ajeno simplemente no resuelve nada: el movimiento se
+   * guarda igual, sin cuenta asignada, en vez de fallar por un dato que no
+   * es indispensable.
+   */
+  const cuentaIdPedida =
+    typeof body.cuenta_id === "string" && /^[0-9a-f-]{36}$/i.test(body.cuenta_id) ? body.cuenta_id : null;
+  let cuentaId: string | null = null;
+  if (cuentaIdPedida) {
+    const { data: cuenta } = await supabase
+      .from("eos_finanzas_cuentas")
+      .select("id")
+      .eq("id", cuentaIdPedida)
+      .eq("ambito", "personal")
+      .eq("activa", true)
+      .maybeSingle();
+    cuentaId = cuenta?.id ?? null;
+  }
+
   const { data, error } = await supabase
     .from("eos_movimientos_financieros")
     .insert({
@@ -123,6 +149,7 @@ export async function POST(request: Request) {
       descripcion: gasto.descripcion,
       fecha: gasto.fecha,
       categoria: categoriaElegida || null,
+      cuenta_id: cuentaId,
       origen: "chat",
       metadata: { texto_original: texto.slice(0, 200), confianza: gasto.confianza },
     })

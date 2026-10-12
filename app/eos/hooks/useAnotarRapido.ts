@@ -10,7 +10,7 @@ type Tipo = "ingreso" | "gasto";
  * fecha de palabras como "ayer" ("EL USUARIO NO CATEGORIZA", `destinos.ts`).
  * Pero si la persona sí dice cuál es, esa elección manda sobre la inferencia.
  */
-type Elegido = { categoria?: string; fecha?: string };
+type Elegido = { categoria?: string; fecha?: string; cuentaId?: string };
 
 /**
  * Anotar un gasto o un ingreso con una frase, en un solo POST a
@@ -44,6 +44,7 @@ export function useAnotarRapido(onGuardado?: () => void) {
           tipo,
           categoria: elegido?.categoria || undefined,
           fecha: elegido?.fecha || undefined,
+          cuenta_id: elegido?.cuentaId || undefined,
         }),
       });
 

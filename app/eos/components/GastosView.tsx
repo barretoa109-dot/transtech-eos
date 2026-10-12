@@ -443,6 +443,28 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
   const [categoriaAlta, setCategoriaAlta] = useState("");
   const [fechaAlta, setFechaAlta] = useState("");
 
+  /*
+   * Cuenta de la ficha de alta: igual de opcional que categoría y fecha.
+   * Se trae la lista real de `GET /api/finanzas/cuentas` (la misma que usa
+   * "Tus cuentas") una sola vez; si la persona tiene exactamente una cuenta
+   * de tipo "efectivo" —el caso típico de esta ficha, que es la del
+   * efectivo— se preselecciona, sin forzar a elegir en los demás casos.
+   */
+  const [cuentas, setCuentas] = useState<{ id: string; nombre: string; tipo: string }[]>([]);
+  const [cuentaAlta, setCuentaAlta] = useState("");
+
+  useEffect(() => {
+    fetch("/api/finanzas/cuentas", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((datos) => {
+        const lista = Array.isArray(datos?.cuentas) ? datos.cuentas : [];
+        setCuentas(lista);
+        const efectivo = lista.filter((c: { tipo: string }) => c.tipo === "efectivo");
+        if (efectivo.length === 1) setCuentaAlta(efectivo[0].id);
+      })
+      .catch(() => {});
+  }, []);
+
   const { texto, setTexto, guardando, entendido, errorAlta, anotar } = useAnotarRapido(async () => {
     await cargar();
     // El panel de arriba y las tarjetas de la pestaña también cambian con este
@@ -608,14 +630,13 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         {/*
           La ficha de alta: antes era una línea sola; ahora es una ficha con
           pestañas, como se ve en el resto del menú (05/10/2026). Sigue siendo
-          UNA frase la que arma el movimiento — categoría y fecha se siguen
-          infiriendo del texto por defecto — pero ahora las dos se pueden
-          tocar a mano (pedido real de uso, 12/10/2026): "la elige EOS sola"
-          sin forma de cambiarlo no era un valor por defecto, era un campo
-          roto. La cuenta sigue fija en "Efectivo" a propósito: esta ficha es
-          la única entrada manual que la doctrina permite, y es la del
-          efectivo — otras cuentas no tienen de dónde salir acá (ver el
-          encabezado de `gastoRapido.ts`).
+          UNA frase la que arma el movimiento — categoría, fecha y cuenta se
+          infieren o quedan sin asignar por defecto — pero las tres se pueden
+          tocar a mano (pedido real de uso, 12/10 y 12/10/2026 otra vez: "la
+          elige EOS sola" sin forma de cambiarlo no era un valor por defecto,
+          era un campo roto, y lo mismo pasaba con "Cuenta" fija en
+          "Efectivo"). `cuenta_id` recién existe desde la v240: un movimiento
+          sin cuenta elegida queda sin asignar, no se le inventa una.
         */}
         {(seccion === "hoy" || seccion === "mes") && (() => {
           const previa = texto.trim() ? leerMonto(texto) : null;
@@ -692,7 +713,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                     onChange={(e) => setTexto(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta });
+                        void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta, cuentaId: cuentaAlta });
                     }}
                   />
 
@@ -726,7 +747,23 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                     </div>
                     <div className="alta-ficha-meta-fila">
                       <span>Cuenta</span>
-                      <span className="valor">Efectivo</span>
+                      {cuentas.length > 0 ? (
+                        <select
+                          className="alta-ficha-meta-select"
+                          aria-label="Cuenta — opcional"
+                          value={cuentaAlta}
+                          onChange={(e) => setCuentaAlta(e.target.value)}
+                        >
+                          <option value="">Sin elegir</option>
+                          {cuentas.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="valor">Sin cuentas creadas</span>
+                      )}
                     </div>
                   </div>
 
@@ -734,7 +771,9 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                     type="button"
                     className={`btn-pri alta-ficha-guardar ${tipoAlta === "ingreso" ? "ingreso-anotar" : "gasto-anotar"}`}
                     disabled={guardando}
-                    onClick={() => void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta })}
+                    onClick={() =>
+                      void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta, cuentaId: cuentaAlta })
+                    }
                   >
                     {guardando ? "Anotando…" : tipoAlta === "ingreso" ? "Guardar ingreso" : "Guardar gasto"}
                   </button>
