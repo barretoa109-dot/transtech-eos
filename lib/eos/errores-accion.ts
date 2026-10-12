@@ -277,6 +277,10 @@ const REGLAS: Regla[] = [
     codigo: "EOS_ACCION_CUENTA_AMBIGUA",
     mensaje: (d) => `Tenés más de una cuenta que se parece: ${d}. ¿En cuál lo anoto?`,
   },
+  {
+    codigo: "EOS_ACCION_CAJA_AMBIGUA",
+    mensaje: (d) => `Tenés más de una caja del negocio que se parece: ${d}. ¿En cuál lo anoto?`,
+  },
   /*
    * Los de cobrar una venta y pagar una compra.
    *
