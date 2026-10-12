@@ -4924,6 +4924,32 @@
 }
 .eos-app .alta-ficha-meta-fila .valor { color: var(--muted); }
 
+/*
+  Categoría y fecha de la ficha de alta: se ven como el "valor" gris de al
+  lado (Cuenta, que sigue fija), pero son de verdad tocables — sin esto se
+  repetía el mismo problema que vinieron a resolver: un control que no se
+  distingue de un texto plano no se nota que se puede tocar.
+*/
+.eos-app .alta-ficha-meta-select,
+.eos-app .alta-ficha-meta-fecha {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: right;
+  padding: 2px 0;
+  max-width: 60%;
+  cursor: pointer;
+}
+.eos-app .alta-ficha-meta-select:hover,
+.eos-app .alta-ficha-meta-fecha:hover,
+.eos-app .alta-ficha-meta-select:focus,
+.eos-app .alta-ficha-meta-fecha:focus {
+  color: var(--ink);
+  outline: none;
+}
+
 .eos-app .alta-ficha-guardar { width: 100%; justify-content: center; padding: 11px; font-size: 13px; }
 
 .eos-app .alta-ficha-transferencia {

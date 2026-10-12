@@ -18,6 +18,7 @@ import {
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { DESTINOS } from "@/lib/finanzas/destinos";
 import { leerMonto, numeroEscrito } from "@/lib/finanzas/gastoRapido";
+import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 
 /*
   El bloque financiero personal vivía en Dashboard y esta pantalla era una
@@ -432,11 +433,23 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
   /** Qué pestaña de la ficha de alta está elegida. "transferencia" no manda nada: solo señala el camino al chat. */
   const [tipoAlta, setTipoAlta] = useState<"gasto" | "ingreso" | "transferencia">("gasto");
 
+  /*
+   * Categoría y fecha de la ficha de alta: por defecto, nada tocado — EOS
+   * sigue infiriendo las dos del texto, como siempre. Pero quedan ahí por si
+   * la persona quiere decidirlas ella (pedido real de uso, 12/10/2026): "la
+   * elige EOS sola" sin forma de cambiarlo se leía como un campo roto, no
+   * como una elección. Se resetean después de guardar.
+   */
+  const [categoriaAlta, setCategoriaAlta] = useState("");
+  const [fechaAlta, setFechaAlta] = useState("");
+
   const { texto, setTexto, guardando, entendido, errorAlta, anotar } = useAnotarRapido(async () => {
     await cargar();
     // El panel de arriba y las tarjetas de la pestaña también cambian con este
     // movimiento: sin esto, el saldo seguía igual hasta recargar la página.
     setVersionPanel((v) => v + 1);
+    setCategoriaAlta("");
+    setFechaAlta("");
   });
 
   /*
@@ -595,20 +608,26 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
         {/*
           La ficha de alta: antes era una línea sola; ahora es una ficha con
           pestañas, como se ve en el resto del menú (05/10/2026). Sigue siendo
-          UNA frase la que arma el movimiento — nada de esto agrega campos que
-          el backend no guarda todavía (categoría, cuenta y repetición las
-          sigue resolviendo EOS sola; ver `gastoRapido.ts`). Lo nuevo es sólo
-          cómo se ve y se elige el tipo antes de escribir.
+          UNA frase la que arma el movimiento — categoría y fecha se siguen
+          infiriendo del texto por defecto — pero ahora las dos se pueden
+          tocar a mano (pedido real de uso, 12/10/2026): "la elige EOS sola"
+          sin forma de cambiarlo no era un valor por defecto, era un campo
+          roto. La cuenta sigue fija en "Efectivo" a propósito: esta ficha es
+          la única entrada manual que la doctrina permite, y es la del
+          efectivo — otras cuentas no tienen de dónde salir acá (ver el
+          encabezado de `gastoRapido.ts`).
         */}
         {(seccion === "hoy" || seccion === "mes") && (() => {
           const previa = texto.trim() ? leerMonto(texto) : null;
           const simbolo = (previa?.moneda ?? "PYG") === "USD" ? "US$" : "₲";
           const montoPreview = previa ? new Intl.NumberFormat("es-PY").format(previa.monto) : "0";
-          const detectaFecha = /\banteayer\b/i.test(texto)
-            ? "Anteayer"
+          const hoy = hoyEnParaguay();
+          const fechaInferida = /\banteayer\b/i.test(texto)
+            ? sumarDias(hoy, -2)
             : /\bayer\b/i.test(texto)
-              ? "Ayer"
-              : "Hoy";
+              ? sumarDias(hoy, -1)
+              : hoy;
+          const fechaFicha = fechaAlta || fechaInferida;
 
           return (
             <div className="alta-ficha">
@@ -672,18 +691,38 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                     maxLength={200}
                     onChange={(e) => setTexto(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") void anotar(tipoAlta);
+                      if (e.key === "Enter")
+                        void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta });
                     }}
                   />
 
                   <div className="alta-ficha-meta">
                     <div className="alta-ficha-meta-fila">
                       <span>Categoría</span>
-                      <span className="valor">La elige EOS sola</span>
+                      <select
+                        className="alta-ficha-meta-select"
+                        aria-label="Categoría — si no elegís, la infiere EOS del texto"
+                        value={categoriaAlta}
+                        onChange={(e) => setCategoriaAlta(e.target.value)}
+                      >
+                        <option value="">La elige EOS sola</option>
+                        {DESTINOS.filter((d) => d.clave !== "otros").map((d) => (
+                          <option key={d.clave} value={d.clave}>
+                            {d.etiqueta}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="alta-ficha-meta-fila">
                       <span>Fecha</span>
-                      <span className="valor">{detectaFecha}</span>
+                      <input
+                        type="date"
+                        className="alta-ficha-meta-fecha"
+                        aria-label="Fecha — si no la cambiás, EOS la infiere del texto (hoy, ayer, anteayer)"
+                        value={fechaFicha}
+                        max={hoy}
+                        onChange={(e) => setFechaAlta(e.target.value)}
+                      />
                     </div>
                     <div className="alta-ficha-meta-fila">
                       <span>Cuenta</span>
@@ -695,7 +734,7 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
                     type="button"
                     className={`btn-pri alta-ficha-guardar ${tipoAlta === "ingreso" ? "ingreso-anotar" : "gasto-anotar"}`}
                     disabled={guardando}
-                    onClick={() => void anotar(tipoAlta)}
+                    onClick={() => void anotar(tipoAlta, { categoria: categoriaAlta, fecha: fechaAlta })}
                   >
                     {guardando ? "Anotando…" : tipoAlta === "ingreso" ? "Guardar ingreso" : "Guardar gasto"}
                   </button>
