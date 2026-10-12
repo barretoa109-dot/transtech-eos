@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import { registrarAuditoria, resumirMovimiento } from "@/lib/auditoria/registrar";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { confirmar, interpretar, noEsGastoSuelto } from "@/lib/finanzas/gastoRapido";
+import { limpiarCategoria } from "@/lib/finanzas/destinos";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let body: { texto?: unknown; tipo?: unknown };
+  let body: { texto?: unknown; tipo?: unknown; categoria?: unknown; fecha?: unknown };
   try {
-    body = (await request.json()) as { texto?: unknown; tipo?: unknown };
+    body = (await request.json()) as {
+      texto?: unknown;
+      tipo?: unknown;
+      categoria?: unknown;
+      fecha?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
@@ -87,6 +93,26 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+   * Categoría y fecha siguen siendo opcionales — "el usuario no categoriza"
+   * (`destinos.ts`) sigue valiendo por defecto. Pero si la persona sí las
+   * tocó en la ficha, esa elección manda sobre lo que EOS infirió del texto:
+   * mismo criterio que ya rige la corrección manual desde "Movimientos".
+   */
+  const hoy = hoyEnParaguay();
+  const fechaElegida = typeof body.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.fecha)
+    ? body.fecha
+    : null;
+  if (fechaElegida && fechaElegida > hoy) {
+    return NextResponse.json(
+      { error: "La fecha no puede ser futura.", entendido: null },
+      { status: 400, headers: noStore() },
+    );
+  }
+  if (fechaElegida) gasto.fecha = fechaElegida;
+
+  const categoriaElegida = typeof body.categoria === "string" ? limpiarCategoria(body.categoria) : "";
+
   const { data, error } = await supabase
     .from("eos_movimientos_financieros")
     .insert({
@@ -96,6 +122,7 @@ export async function POST(request: Request) {
       moneda: gasto.moneda,
       descripcion: gasto.descripcion,
       fecha: gasto.fecha,
+      categoria: categoriaElegida || null,
       origen: "chat",
       metadata: { texto_original: texto.slice(0, 200), confianza: gasto.confianza },
     })

@@ -5,6 +5,14 @@ import { useState } from "react";
 type Tipo = "ingreso" | "gasto";
 
 /**
+ * Lo que la persona eligió a mano, por excepción. Ninguno de los dos es
+ * obligatorio: sin tocarlos, EOS sigue infiriendo la categoría del texto y la
+ * fecha de palabras como "ayer" ("EL USUARIO NO CATEGORIZA", `destinos.ts`).
+ * Pero si la persona sí dice cuál es, esa elección manda sobre la inferencia.
+ */
+type Elegido = { categoria?: string; fecha?: string };
+
+/**
  * Anotar un gasto o un ingreso con una frase, en un solo POST a
  * `/api/finanzas/rapido`.
  *
@@ -20,7 +28,7 @@ export function useAnotarRapido(onGuardado?: () => void) {
   const [entendido, setEntendido] = useState("");
   const [errorAlta, setErrorAlta] = useState("");
 
-  async function anotar(tipo?: Tipo) {
+  async function anotar(tipo?: Tipo, elegido?: Elegido) {
     const linea = texto.trim();
     if (!linea || guardando) return;
 
@@ -31,7 +39,12 @@ export function useAnotarRapido(onGuardado?: () => void) {
       const respuesta = await fetch("/api/finanzas/rapido", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: linea, tipo }),
+        body: JSON.stringify({
+          texto: linea,
+          tipo,
+          categoria: elegido?.categoria || undefined,
+          fecha: elegido?.fecha || undefined,
+        }),
       });
 
       const datos = await respuesta.json().catch(() => null);
