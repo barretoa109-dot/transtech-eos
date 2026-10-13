@@ -190,6 +190,11 @@ end;
 $function$
 ;
 
+revoke all on function public.eos_erp_corregir_compra_por_chat_v170(uuid, uuid, text, text, numeric, numeric, text)
+  from public, anon, authenticated;
+grant execute on function public.eos_erp_corregir_compra_por_chat_v170(uuid, uuid, text, text, numeric, numeric, text)
+  to service_role;
+
 CREATE OR REPLACE FUNCTION public.eos_erp_anular_compra_por_chat_v170(p_usuario_id uuid, p_command_id uuid, p_referencia text DEFAULT NULL::text, p_motivo text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -271,6 +276,11 @@ begin
 end;
 $function$
 ;
+
+revoke all on function public.eos_erp_anular_compra_por_chat_v170(uuid, uuid, text, text)
+  from public, anon, authenticated;
+grant execute on function public.eos_erp_anular_compra_por_chat_v170(uuid, uuid, text, text)
+  to service_role;
 
 CREATE OR REPLACE FUNCTION public.eos_erp_corregir_venta_por_chat_v162(p_usuario_id uuid, p_command_id uuid, p_referencia text DEFAULT NULL::text, p_producto text DEFAULT NULL::text, p_cantidad numeric DEFAULT NULL::numeric, p_precio_unitario numeric DEFAULT NULL::numeric, p_motivo text DEFAULT NULL::text)
  RETURNS jsonb
