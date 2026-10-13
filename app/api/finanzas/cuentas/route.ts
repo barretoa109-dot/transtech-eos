@@ -127,6 +127,7 @@ async function calcularSegunMovimientos(
   const { data: movimientos, error } = await supabase
     .from("eos_movimientos_financieros")
     .select("cuenta_id, tipo, monto, fecha")
+    .eq("ambito", "personal")
     .in(
       "cuenta_id",
       conPunto.map((c) => c.id),
