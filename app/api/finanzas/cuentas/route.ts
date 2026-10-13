@@ -82,9 +82,17 @@ export async function GET() {
     (c) => (c as unknown as { recibe_avisos: boolean }).recibe_avisos,
   ).length;
 
+  const segunMovimientos = await calcularSegunMovimientos(
+    supabase,
+    cuentas as unknown as { id: string; saldo_declarado: number | null; saldo_declarado_el: string | null }[],
+  );
+
   return NextResponse.json(
     {
-      cuentas,
+      cuentas: cuentas.map((c) => ({
+        ...c,
+        segun_movimientos: segunMovimientos.get((c as unknown as { id: string }).id) ?? null,
+      })),
       // Lo que EOS puede afirmar sobre su propia cobertura, sin adornos.
       cobertura: {
         total: cuentas.length,
@@ -94,6 +102,56 @@ export async function GET() {
     },
     { headers: noStore() },
   );
+}
+
+/**
+ * "Según tus movimientos": el saldo declarado + lo que se anotó después,
+ * para cada cuenta que tiene `cuenta_id` en al menos un movimiento (v240).
+ *
+ * No reemplaza `saldo_declarado` — es un segundo número al lado, para que un
+ * desvío se note y se pueda corregir. Misma aritmética que ya usa
+ * `lib/finanzas/conciliacion.ts` a nivel global (ingreso suma, gasto resta,
+ * compromiso no cuenta), acá filtrada por cuenta en vez de colapsada.
+ *
+ * `null` cuando la cuenta no tiene saldo declarado con fecha: sin un punto de
+ * partida, no hay desde cuándo sumar.
+ */
+async function calcularSegunMovimientos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cuentas: { id: string; saldo_declarado: number | null; saldo_declarado_el: string | null }[],
+): Promise<Map<string, number>> {
+  const conPunto = cuentas.filter((c) => c.saldo_declarado !== null && c.saldo_declarado_el !== null);
+  const resultado = new Map<string, number>();
+  if (conPunto.length === 0) return resultado;
+
+  const { data: movimientos, error } = await supabase
+    .from("eos_movimientos_financieros")
+    .select("cuenta_id, tipo, monto, fecha")
+    .eq("ambito", "personal")
+    .in(
+      "cuenta_id",
+      conPunto.map((c) => c.id),
+    );
+
+  if (error) {
+    console.error("No se pudieron leer los movimientos para conciliar cuentas:", error);
+    return resultado;
+  }
+
+  for (const c of conPunto) {
+    const neto = (movimientos ?? [])
+      .filter(
+        (m) =>
+          m.cuenta_id === c.id &&
+          m.tipo !== "compromiso" &&
+          m.fecha > (c.saldo_declarado_el as string),
+      )
+      .reduce((total, m) => total + (m.tipo === "ingreso" ? m.monto : -m.monto), 0);
+
+    resultado.set(c.id, (c.saldo_declarado as number) + neto);
+  }
+
+  return resultado;
 }
 
 export async function PUT(request: Request) {
