@@ -90,6 +90,8 @@ export async function GET() {
       .limit(5000),
   ]);
 
+  const segunMovimientos = await calcularSegunMovimientos(supabase, cajasRes.data ?? []);
+
   if (cajasRes.error) {
     console.error("Cajas: no se pudieron leer:", cajasRes.error);
     return NextResponse.json(
@@ -125,9 +127,62 @@ export async function GET() {
   }));
 
   return NextResponse.json(
-    { hoy, cajas, saldos: saldoDeHoy(cajas, movimientos, hoy) },
+    {
+      hoy,
+      cajas: cajas.map((c) => ({ ...c, segun_movimientos: segunMovimientos.get(c.id) ?? null })),
+      saldos: saldoDeHoy(cajas, movimientos, hoy),
+    },
     { headers: noStore() },
   );
+}
+
+/**
+ * "Según tus movimientos", por CAJA (no por moneda como `saldoDeHoy`):
+ * declarado + lo anotado después con `caja_id` (v240/v242) en esa caja
+ * puntual. `saldoDeHoy` de arriba sigue siendo el número principal — éste es
+ * un segundo dato al lado, posible recién desde que los movimientos empezaron
+ * a guardar a qué caja pertenecen.
+ */
+async function calcularSegunMovimientos(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cajas: { id: unknown; saldo_declarado: unknown; saldo_declarado_el: unknown }[],
+): Promise<Map<string, number>> {
+  const conPunto = cajas
+    .map((c) => ({
+      id: String(c.id),
+      saldo_declarado: c.saldo_declarado === null ? null : Number(c.saldo_declarado),
+      saldo_declarado_el: c.saldo_declarado_el as string | null,
+    }))
+    .filter((c): c is { id: string; saldo_declarado: number; saldo_declarado_el: string } =>
+      c.saldo_declarado !== null && c.saldo_declarado_el !== null,
+    );
+
+  const resultado = new Map<string, number>();
+  if (conPunto.length === 0) return resultado;
+
+  const { data: movs, error } = await supabase
+    .from("eos_movimientos_financieros")
+    .select("caja_id, tipo, monto, fecha")
+    .eq("ambito", "negocio")
+    .in(
+      "caja_id",
+      conPunto.map((c) => c.id),
+    );
+
+  if (error) {
+    console.error("Cajas: no se pudo calcular según movimientos:", error);
+    return resultado;
+  }
+
+  for (const c of conPunto) {
+    const neto = (movs ?? [])
+      .filter((m) => m.caja_id === c.id && m.tipo !== "compromiso" && m.fecha > c.saldo_declarado_el)
+      .reduce((total, m) => total + (m.tipo === "ingreso" ? m.monto : -m.monto), 0);
+
+    resultado.set(c.id, c.saldo_declarado + neto);
+  }
+
+  return resultado;
 }
 
 export async function POST(request: Request) {

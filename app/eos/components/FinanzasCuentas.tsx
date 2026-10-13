@@ -6,11 +6,14 @@ import { Eye, EyeOff, Landmark, Plus, X } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 
 type Cuenta = {
+  id?: string;
   nombre: string;
   tipo: string;
   institucion: string;
   saldo_declarado: string;
   recibe_avisos: boolean;
+  /** Declarado + lo anotado después (v240/PR E). null = sin punto de partida para calcularlo. */
+  segunMovimientos?: number | null;
 };
 
 type Cobertura = { total: number; con_avisos: number; ciegas: number };
@@ -116,17 +119,21 @@ export default function FinanzasCuentas({ moneda }: { moneda: string }) {
       .then((payload) => {
         const lista: Cuenta[] = (payload.cuentas ?? []).map(
           (c: {
+            id?: string;
             nombre: string;
             tipo: string;
             institucion: string | null;
             saldo_declarado: number | null;
             recibe_avisos: boolean;
+            segun_movimientos?: number | null;
           }) => ({
+            id: c.id,
             nombre: c.nombre,
             tipo: c.tipo,
             institucion: c.institucion ?? "",
             saldo_declarado: c.saldo_declarado === null ? "" : String(c.saldo_declarado),
             recibe_avisos: Boolean(c.recibe_avisos),
+            segunMovimientos: c.segun_movimientos ?? null,
           }),
         );
 
@@ -232,27 +239,45 @@ export default function FinanzasCuentas({ moneda }: { moneda: string }) {
             )}
 
             <div className="fin-rows">
-              {cuentas.map((c, i) => (
-                <div className="fin-row" key={`${c.nombre}-${i}`}>
-                  <span className="fin-row-label">
-                    {c.recibe_avisos ? (
-                      <Eye size={12} style={{ display: "inline", marginRight: 5, verticalAlign: -1 }} />
-                    ) : (
-                      <EyeOff
-                        size={12}
-                        style={{ display: "inline", marginRight: 5, verticalAlign: -1, opacity: 0.45 }}
-                      />
-                    )}
-                    {c.nombre}
-                    {c.institucion ? ` · ${c.institucion}` : ""}
-                  </span>
-                  <span className="fin-row-value">
-                    {c.saldo_declarado.trim() === ""
-                      ? "—"
-                      : formatearMonto(Number(c.saldo_declarado) || 0, moneda)}
-                  </span>
-                </div>
-              ))}
+              {cuentas.map((c, i) => {
+                /*
+                 * "Según tus movimientos" sólo se muestra cuando hay algo que
+                 * decir: sin movimientos desde que se declaró el saldo, los
+                 * dos números coinciden y repetirlo es ruido, no información.
+                 */
+                const difiere =
+                  c.segunMovimientos != null &&
+                  Math.round(c.segunMovimientos) !== Math.round(Number(c.saldo_declarado) || 0);
+
+                return (
+                  <div className="fin-row" key={`${c.nombre}-${i}`}>
+                    <span className="fin-row-label">
+                      {c.recibe_avisos ? (
+                        <Eye size={12} style={{ display: "inline", marginRight: 5, verticalAlign: -1 }} />
+                      ) : (
+                        <EyeOff
+                          size={12}
+                          style={{ display: "inline", marginRight: 5, verticalAlign: -1, opacity: 0.45 }}
+                        />
+                      )}
+                      {c.nombre}
+                      {c.institucion ? ` · ${c.institucion}` : ""}
+                    </span>
+                    <span className="fin-row-value" style={{ textAlign: "right" }}>
+                      <div>
+                        {c.saldo_declarado.trim() === ""
+                          ? "—"
+                          : formatearMonto(Number(c.saldo_declarado) || 0, moneda)}
+                      </div>
+                      {difiere && (
+                        <div style={{ fontSize: 11, opacity: 0.65, fontWeight: 400 }}>
+                          según tus movimientos: {formatearMonto(c.segunMovimientos as number, moneda)}
+                        </div>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/*

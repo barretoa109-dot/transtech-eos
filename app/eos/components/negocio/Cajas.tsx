@@ -36,6 +36,8 @@ type Caja = {
   saldo_declarado: number | null;
   saldo_declarado_el: string | null;
   activa: boolean;
+  /** Declarado + lo anotado después CON ESTA CAJA puntual (v240/v242/PR E). */
+  segun_movimientos?: number | null;
 };
 
 type Saldo = {
@@ -245,8 +247,17 @@ export default function Cajas() {
               </div>
             ) : (
               <div className="emp-acciones">
-                <div className="neg-fila-monto">
-                  {c.saldo_declarado === null ? "—" : formatearMonto(c.saldo_declarado, c.moneda)}
+                <div style={{ textAlign: "right" }}>
+                  <div className="neg-fila-monto">
+                    {c.saldo_declarado === null ? "—" : formatearMonto(c.saldo_declarado, c.moneda)}
+                  </div>
+                  {c.segun_movimientos != null &&
+                    c.saldo_declarado != null &&
+                    Math.round(c.segun_movimientos) !== Math.round(c.saldo_declarado) && (
+                      <small className="neg-metrica-nota">
+                        según sus movimientos: {formatearMonto(c.segun_movimientos, c.moneda)}
+                      </small>
+                    )}
                 </div>
                 <button
                   type="button"
