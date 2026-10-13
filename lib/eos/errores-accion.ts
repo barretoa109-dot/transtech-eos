@@ -245,7 +245,7 @@ const REGLAS: Regla[] = [
   {
     codigo: "EOS_ACCION_MOVIMIENTO_NO_ENCONTRADO",
     mensaje: (d) =>
-      `No encontré ningún movimiento tuyo de los últimos siete días que diga "${d}". ` +
+      `No encontré ningún movimiento tuyo de los últimos 30 días que diga "${d}". ` +
       "Si es más viejo, corregilo desde Personal, en la lista de movimientos.",
   },
   /*
@@ -449,7 +449,7 @@ const REGLAS: Regla[] = [
   {
     codigo: "EOS_ACCION_VENTA_NO_ENCONTRADA",
     mensaje: (d) =>
-      `No encontré ninguna venta tuya de los últimos siete días que coincida con "${d}". ` +
+      `No encontré ninguna venta tuya de los últimos 30 días que coincida con "${d}". ` +
       "Si es más vieja, anulala desde Negocio > Ventas.",
   },
   // v225: cambiar cuándo vence una venta a crédito.
@@ -487,7 +487,7 @@ const REGLAS: Regla[] = [
   {
     codigo: "EOS_ACCION_COMPRA_NO_ENCONTRADA",
     mensaje: (d) =>
-      `No encontré ninguna compra tuya de los últimos siete días que coincida con "${d}". ` +
+      `No encontré ninguna compra tuya de los últimos 30 días que coincida con "${d}". ` +
       "Si es más vieja, anulala desde Negocio > Compras.",
   },
   {
