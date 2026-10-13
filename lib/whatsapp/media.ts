@@ -1,7 +1,8 @@
-import { normalizarArchivo, type ArchivoEOS } from "@/lib/eos/procesar-mensaje";
-import { achicarImagen } from "@/lib/whatsapp/achicar";
+import { normalizarArchivo, type ArchivoEOS } from "../eos/procesar-mensaje.ts";
+import { achicarImagen } from "./achicar.ts";
+import { descargarBytes } from "./descargar-bytes.ts";
 
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v21.0";
+export { descargarBytes };
 
 /**
  * Descarga un adjunto de WhatsApp y lo deja en la misma forma que ya usa el
@@ -36,53 +37,6 @@ export async function descargarMedia(
     });
   } catch (error) {
     console.error("WhatsApp: el adjunto no se pudo usar:", error);
-    return null;
-  }
-}
-
-/**
- * Los bytes de un adjunto, tal cual llegan. Lo usa `descargarMedia` y, para
- * los videos —que no viajan como archivo sino desarmados—,
- * `lib/whatsapp/video.ts`.
- */
-export async function descargarBytes(
-  mediaId: string,
-  mimeType: string,
-): Promise<{ bytes: Buffer; tipo: string } | null> {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  if (!token || !mediaId) {
-    console.error("WhatsApp: falta WHATSAPP_ACCESS_TOKEN o el id del adjunto.");
-    return null;
-  }
-
-  try {
-    const metaResp = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!metaResp.ok) {
-      console.error("WhatsApp: no se pudo resolver la URL del adjunto,", metaResp.status);
-      return null;
-    }
-
-    const meta = (await metaResp.json()) as { url?: string; mime_type?: string };
-    if (!meta.url) return null;
-
-    const archivoResp = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!archivoResp.ok) {
-      console.error("WhatsApp: no se pudo descargar el adjunto,", archivoResp.status);
-      return null;
-    }
-
-    return {
-      bytes: Buffer.from(await archivoResp.arrayBuffer()),
-      tipo: meta.mime_type || mimeType,
-    };
-  } catch (error) {
-    console.error("WhatsApp: error descargando un adjunto:", error);
     return null;
   }
 }

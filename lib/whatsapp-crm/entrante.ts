@@ -1,6 +1,7 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { clasificarIntencion, type Intencion } from "./intencion.ts";
 import { refinarIntencion } from "./intencion-ia.ts";
+import { procesarComprobante } from "./comprobante-cobro.ts";
 
 /**
  * Lo que Meta manda cuando le escribe un cliente al WhatsApp de una empresa.
@@ -33,7 +34,7 @@ export type MensajeCliente = {
   timestamp?: string;
   type?: string;
   text?: { body?: string };
-  image?: { caption?: string };
+  image?: { caption?: string; id?: string; mime_type?: string };
   document?: { caption?: string; filename?: string };
   audio?: Record<string, unknown>;
   button?: { text?: string };
@@ -59,6 +60,9 @@ export type EntranteListo =
       nombre_perfil: string;
       ocurrio_en: string;
       intencion: string;
+      /** Sólo para `tipo: "imagen"`: con qué bajar la foto y leerla (comprobante-cobro.ts). */
+      media_id: string;
+      mime_type: string;
     }
   | {
       clase: "estado";
@@ -133,6 +137,8 @@ export function prepararEntrantes(valor: ValorWebhook, ahora: string): EntranteL
       nombre_perfil: nombres.get(desde) ?? "",
       ocurrio_en: instanteDe(m, ahora),
       intencion: clasificarIntencion(texto),
+      media_id: m.type === "image" ? String(m.image?.id ?? "").trim() : "",
+      mime_type: m.type === "image" ? String(m.image?.mime_type ?? "").trim() : "",
     });
   }
 
@@ -253,11 +259,37 @@ export async function atenderCanalEmpresa(
 
         if (error) throw error;
 
-        const r = (data ?? {}) as { duplicado?: boolean; contacto_nuevo?: boolean; opt_out?: boolean };
+        const r = (data ?? {}) as {
+          duplicado?: boolean;
+          contacto_nuevo?: boolean;
+          opt_out?: boolean;
+          contacto_id?: string;
+        };
         if (r.duplicado) resumen.duplicados += 1;
         else resumen.mensajes += 1;
         if (r.contacto_nuevo) resumen.clientes_nuevos += 1;
         if (r.opt_out) resumen.bajas += 1;
+
+        /*
+         * Leer el comprobante es un paso aparte, a propósito: si falla, el
+         * mensaje YA quedó registrado arriba — no hay que deshacer eso, solo
+         * no se le avisa al dueño. Por eso va en su propio try/catch, fuera
+         * del que cuenta "errores" de registro.
+         */
+        if (item.tipo === "imagen" && item.media_id && r.contacto_id && !r.duplicado) {
+          try {
+            await procesarComprobante(admin, {
+              usuarioId: canal.usuario_id,
+              contactoId: r.contacto_id,
+              nombreContacto: item.nombre_perfil || "Tu cliente",
+              mediaId: item.media_id,
+              mimeType: item.mime_type || "image/jpeg",
+              alCosto: sumarCosto,
+            });
+          } catch (error) {
+            console.error("WhatsApp empresa: no se pudo leer un comprobante:", error);
+          }
+        }
       } else {
         const { error } = await admin.rpc("eos_wa_actualizar_estado_v177", {
           p_canal_id: canal.id,
