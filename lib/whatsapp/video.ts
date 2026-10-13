@@ -19,7 +19,7 @@ import {
   wavTieneSonido,
 } from "@/lib/eos/videos";
 
-import { descargarBytes } from "./media";
+import { descargarBytes } from "./descargar-bytes";
 
 const ejecutar = promisify(execFile);
 
