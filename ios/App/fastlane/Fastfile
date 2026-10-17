@@ -1,0 +1,136 @@
+# Archiva, firma y sube el build de iOS a TestFlight — desde el runner de
+# macOS de GitHub Actions, sin ninguna Mac física de por medio.
+#
+# ============================================================
+# POR QUÉ NO SE USA `match`
+# ============================================================
+#
+# `match` (la forma más común de manejar certificados con fastlane) guarda
+# los certificados cifrados en OTRO repo o en un bucket. Eso es un lugar más
+# para administrar y una contraseña más para no perder. Acá el certificado y
+# los perfiles ya existen como archivos (los exporta el portal de Apple
+# Developer) — alcanza con guardarlos como *secrets* de GitHub, en base64,
+# igual que ya se hace con la clave de subida de Android
+# (`EOS_UPLOAD_KEYSTORE_B64` en `.github/workflows/app-nativa.yml`).
+#
+# ============================================================
+# QUÉ HACE ESTE LANE, PASO A PASO
+# ============================================================
+#
+# 1. Crea un llavero (keychain) nuevo y descartable para esta corrida, e
+#    importa ahí el certificado de Distribución.
+# 2. Instala los dos perfiles de aprovisionamiento (la app y el Share
+#    Extension) y lee de cada uno su nombre real — nadie tiene que
+#    transcribirlo a mano ni mantenerlo al día con lo que diga el portal.
+# 3. `update_project_provisioning` pasa el proyecto a firma manual para
+#    cada target, apuntando al perfil que corresponde. Es un cambio que
+#    vive solo en esta copia del checkout de CI: nunca se commitea.
+# 4. Archiva y exporta el .ipa.
+# 5. Lo sube a TestFlight con una clave de API de App Store Connect (no con
+#    un usuario ni una contraseña).
+#
+# Esto SOLO sube el build a TestFlight. Completar la ficha de la tienda
+# (descripción, capturas, clasificación por edad) y apretar "Enviar a
+# revisión" sigue siendo manual, en App Store Connect — no hay forma de
+# saltearlo ni tiene sentido automatizarlo todavía.
+#
+# ============================================================
+# CUÁNDO CORRE
+# ============================================================
+#
+# `.github/workflows/app-nativa.yml` solo llama a este lane si TODOS los
+# secrets de abajo están cargados (`TIENE_FIRMA_IOS`). Hasta entonces, el
+# job sigue compilando igual que siempre para el simulador, sin firma.
+#
+# Secrets que hacen falta (los siete, en Settings → Secrets → Actions):
+#   IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64  — el certificado .p12, en base64
+#   IOS_DISTRIBUTION_CERTIFICATE_PASSWORD    — la contraseña de ese .p12
+#   IOS_PROVISIONING_PROFILE_APP_BASE64      — perfil de com.transtech.eos, en base64
+#   IOS_PROVISIONING_PROFILE_SHARE_BASE64    — perfil de com.transtech.eos.compartir, en base64
+#   APP_STORE_CONNECT_API_KEY_P8_BASE64      — la clave .p8, en base64
+#   APP_STORE_CONNECT_KEY_ID                 — el Key ID de esa clave
+#   APP_STORE_CONNECT_ISSUER_ID              — el Issuer ID de App Store Connect
+
+require "securerandom"
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Archiva, firma con un certificado importado y sube el build a TestFlight"
+  lane :release do
+    keychain_name = "eos-firma.keychain-db"
+    keychain_password = SecureRandom.base64(24)
+
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 21_600,
+      lock_when_sleeps: false
+    )
+
+    import_certificate(
+      certificate_path: ENV.fetch("EOS_IOS_CERT_PATH"),
+      certificate_password: ENV.fetch("EOS_IOS_CERT_PASSWORD"),
+      keychain_name: keychain_name,
+      keychain_password: keychain_password
+    )
+
+    perfil_app = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_APP_PATH"))
+    perfil_compartir = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_SHARE_PATH"))
+
+    update_project_provisioning(
+      xcodeproj: "App.xcodeproj",
+      target_filter: "App",
+      profile: perfil_app[:ruta],
+      build_configuration: "Release"
+    )
+    update_project_provisioning(
+      xcodeproj: "App.xcodeproj",
+      target_filter: "ShareExtension",
+      profile: perfil_compartir[:ruta],
+      build_configuration: "Release"
+    )
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_filepath: ENV.fetch("EOS_ASC_API_KEY_PATH"),
+      in_house: false
+    )
+
+    build_app(
+      project: "App.xcodeproj",
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build",
+      output_name: "EOS.ipa",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "com.transtech.eos" => perfil_app[:nombre],
+          "com.transtech.eos.compartir" => perfil_compartir[:nombre]
+        }
+      }
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end
+
+# Instala un perfil de aprovisionamiento y lee su nombre real (el que pide
+# `export_options`) directamente del perfil, para no tener que cargarlo
+# también como secret ni mantenerlo sincronizado a mano.
+def instalar_perfil(ruta)
+  install_provisioning_profile(path: ruta)
+  xml = sh("security", "cms", "-D", "-i", ruta, log: false)
+  nombre = xml[%r{<key>Name</key>\s*<string>(.*?)</string>}m, 1]
+  UI.user_error!("No se pudo leer el nombre del perfil #{ruta}") unless nombre
+  { nombre: nombre, ruta: ruta }
+end
