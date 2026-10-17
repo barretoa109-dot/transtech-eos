@@ -73,6 +73,10 @@ jobs:
   ios:
     runs-on: macos-15
     timeout-minutes: 40
+    # Mismo truco que en el job de Android: `secrets` no se puede leer en un
+    # `if:`, así que se vuelca a una variable una sola vez acá.
+    env:
+      TIENE_FIRMA_IOS: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 != '' && secrets.IOS_PROVISIONING_PROFILE_APP_BASE64 != '' && secrets.IOS_PROVISIONING_PROFILE_SHARE_BASE64 != '' && secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -89,3 +93,42 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build | tail -40
           test "${PIPESTATUS[0]}" -eq 0
+      # ------------------------------------------------------------------
+      # De acá para abajo, solo corre si están los siete secrets de firma
+      # (ver ios/App/fastlane/Fastfile). Sin ellos, el job termina arriba:
+      # compiló para el simulador, como siempre, y no intenta firmar nada.
+      # ------------------------------------------------------------------
+      - name: Decodificar el certificado, los perfiles y la clave de API
+        if: ${{ env.TIENE_FIRMA_IOS == 'true' }}
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+          IOS_PROVISIONING_PROFILE_APP_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_APP_BASE64 }}
+          IOS_PROVISIONING_PROFILE_SHARE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_SHARE_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          echo "$IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64" | base64 -d -o "$RUNNER_TEMP/distribucion.p12"
+          echo "$IOS_PROVISIONING_PROFILE_APP_BASE64" | base64 -d -o "$RUNNER_TEMP/app.mobileprovision"
+          echo "$IOS_PROVISIONING_PROFILE_SHARE_BASE64" | base64 -d -o "$RUNNER_TEMP/compartir.mobileprovision"
+          echo "$APP_STORE_CONNECT_API_KEY_P8_BASE64" | base64 -d -o "$RUNNER_TEMP/asc-api-key.p8"
+      - name: Instalar Fastlane
+        if: ${{ env.TIENE_FIRMA_IOS == 'true' }}
+        run: gem install fastlane --no-document
+      - name: Archivar, firmar y subir a TestFlight
+        if: ${{ env.TIENE_FIRMA_IOS == 'true' }}
+        working-directory: ios/App
+        env:
+          EOS_IOS_CERT_PATH: ${{ runner.temp }}/distribucion.p12
+          EOS_IOS_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          EOS_IOS_PROFILE_APP_PATH: ${{ runner.temp }}/app.mobileprovision
+          EOS_IOS_PROFILE_SHARE_PATH: ${{ runner.temp }}/compartir.mobileprovision
+          EOS_ASC_API_KEY_PATH: ${{ runner.temp }}/asc-api-key.p8
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: fastlane ios release
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.TIENE_FIRMA_IOS == 'true' }}
+        with:
+          name: eos-ios-ipa
+          path: ios/App/build/EOS.ipa
+          retention-days: 30

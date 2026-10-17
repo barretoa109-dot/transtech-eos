@@ -73,11 +73,14 @@ Hecho desde el repo:
 1. **Permitir la vuelta a la app en Supabase.** Authentication → URL
    Configuration → Redirect URLs: agregar `com.transtech.eos://auth/callback`.
    Sin esto, Supabase rechaza el `redirectTo` de la app (inicio con Google y Apple).
+   **Hecho (16/10).**
 2. **Cuentas de las tiendas**: Apple Developer (organización, con el D-U-N-S)
-   y Google Play Console (organización).
-3. **Firma**: en Apple, el equipo y el perfil de distribución en Xcode (o en un
-   servicio de compilación en la nube); en Google, la clave de subida
-   (`upload keystore`) y Play App Signing.
+   y Google Play Console (organización). **Apple aceptó la inscripción el
+   16/10**; falta pagar la membresía (U$S 99/año) para que quede activa.
+3. **Firma**: en Apple, el equipo y el perfil de distribución; en Google, la
+   clave de subida (`upload keystore`) y Play App Signing. Ninguna de las dos
+   necesita una Mac ni Android Studio propios — las dos se hacen desde el
+   workflow `app-nativa` (ver "Subir a las tiendas sin tener una Mac", abajo).
 4. **Probar en teléfonos reales** (ver “Cómo probar”). El APK de prueba de
    Android sale del workflow `app-nativa` (artefacto `eos-android-debug`).
 
@@ -185,6 +188,65 @@ Pendiente, y depende del dueño o de un Mac:
    una foto desde Fotos o Safari, y confirmar que entra al cuadro del chat
    (o como adjunto, si es una imagen) la próxima vez que se abre EOS. Nunca
    se probó.
+
+## Subir a las tiendas sin tener una Mac (16/10/2026)
+
+El `ios` del workflow `app-nativa` corre en `macos-15`: una Mac real, prestada
+por GitHub solo durante la corrida. No hace falta comprar ni alquilar una
+propia — Apple exige que el build se compile con Xcode, no que sea tu Mac.
+
+El lane de Fastlane (`ios/App/fastlane/Fastfile`, lane `release`) archiva,
+firma con un certificado importado (sin `match`, sin otro repo) y sube el
+build a TestFlight con una clave de API de App Store Connect. El job de
+Android ya hace lo mismo para el AAB firmado con la clave de subida
+(`EOS_UPLOAD_KEYSTORE_B64`): este es el mismo patrón, del lado de Apple.
+
+**Mientras no estén cargados los siete secrets de abajo, el job sigue
+compilando para el simulador sin firmar, como hoy.** No hay que tocar nada
+más del código para que arranque: en cuanto los secrets existan, la próxima
+corrida del workflow (`workflow_dispatch` o un cambio en `ios/`) ya firma y
+sube solo.
+
+### Lo que hay que generar en el portal de Apple Developer (con la membresía activa)
+
+Certificates, Identifiers & Profiles → …
+
+1. **Certificado de Distribución** (Certificates → el botón "+" → Apple
+   Distribution): descarga un `.cer`; hace falta convertirlo a `.p12` desde
+   Keychain Access (en cualquier Mac, o pidiéndoselo a quien tenga una un
+   rato) con una contraseña — ese `.p12` es lo que se sube como secret, no el
+   `.cer`.
+2. **Dos App IDs**: `com.transtech.eos` y `com.transtech.eos.compartir` (el
+   del Share Extension), con el App Group `group.com.transtech.eos` asignado
+   a los dos — este último también destraba "Compartir con EOS" en iPhone
+   (pendiente anotado más arriba).
+3. **Dos perfiles de aprovisionamiento de Distribución** (uno por App ID de
+   arriba), con el certificado del punto 1. Se descargan como `.mobileprovision`.
+4. **Una clave de API de App Store Connect** (Users and Access → Integrations
+   → App Store Connect API → el botón "+", acceso "App Manager" alcanza):
+   descarga un `.p8` (**una sola vez** — Apple no lo deja volver a descargar)
+   y anota el Key ID y el Issuer ID que muestra la misma pantalla.
+
+### Los siete secrets (Settings del repo → Secrets and variables → Actions)
+
+| Secret | Qué es |
+| --- | --- |
+| `IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64` | El `.p12` del punto 1, en base64 (`base64 -i certificado.p12 \| pbcopy` en Mac, o el equivalente en Windows) |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | La contraseña que se le puso a ese `.p12` al exportarlo |
+| `IOS_PROVISIONING_PROFILE_APP_BASE64` | El perfil de `com.transtech.eos` del punto 3, en base64 |
+| `IOS_PROVISIONING_PROFILE_SHARE_BASE64` | El perfil de `com.transtech.eos.compartir` del punto 3, en base64 |
+| `APP_STORE_CONNECT_API_KEY_P8_BASE64` | El `.p8` del punto 4, en base64 |
+| `APP_STORE_CONNECT_KEY_ID` | El Key ID que mostró esa misma pantalla |
+| `APP_STORE_CONNECT_ISSUER_ID` | El Issuer ID que mostró esa misma pantalla |
+
+Con los siete cargados, correr el workflow (`workflow_dispatch` desde la
+pestaña Actions, o cualquier cambio dentro de `ios/`) sube un build nuevo a
+TestFlight. **Eso no es lo mismo que publicarlo**: completar la ficha de la
+tienda (descripción, capturas, clasificación por edad) y apretar "Enviar a
+revisión" en App Store Connect sigue siendo un paso manual, aparte.
+
+Esto nunca corrió de punta a punta — ningún secret existe todavía. La
+primera corrida real, con los siete cargados, es la prueba de verdad.
 
 ## Regla para lo que se despliega sin pasar por la tienda
 

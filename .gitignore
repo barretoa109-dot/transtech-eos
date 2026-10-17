@@ -58,6 +58,13 @@ docs/backups/
 *.mp4
 *.inspect.ndjson
 
+# Fastlane (iOS): lo que genera cada corrida, nunca se versiona
+ios/App/fastlane/report.xml
+ios/App/build/
+*.ipa
+*.mobileprovision
+*.p12
+
 # Llaves de firma: NUNCA subir a un repo publico (Android upload keystore,
 # certificados de iOS/Apple). Ver docs/app-nativa/tiendas.md.
 *.jks

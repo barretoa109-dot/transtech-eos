@@ -1,0 +1,7 @@
+app_identifier("com.transtech.eos")
+
+# Sin `apple_id` ni `team_id`: la subida se autentica con una clave de API
+# de App Store Connect (ver Fastfile, `app_store_connect_api_key`), no con
+# un usuario. El team se saca solo del perfil de aprovisionamiento que se
+# instala en cada corrida (`update_project_provisioning`) — así no hay que
+# cargar el Team ID como un secret más.
