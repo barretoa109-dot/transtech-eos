@@ -80,12 +80,14 @@ platform :ios do
     perfil_app = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_APP_PATH"))
     perfil_compartir = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_SHARE_PATH"))
 
+    UI.user_error!(
+      "Los dos perfiles son de equipos distintos (#{perfil_app[:team_id]} vs #{perfil_compartir[:team_id]})"
+    ) unless perfil_app[:team_id] == perfil_compartir[:team_id]
+
     update_project_team(
       path: "App.xcodeproj",
-      teams: {
-        "App" => perfil_app[:team_id],
-        "ShareExtension" => perfil_compartir[:team_id]
-      }
+      targets: ["App", "ShareExtension"],
+      teamid: perfil_app[:team_id]
     )
 
     update_project_provisioning(
