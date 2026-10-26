@@ -111,6 +111,37 @@ test("un JSON sin respuesta usable cae al texto de reserva", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Respuesta cortada por OpenAI (status: "incomplete")
+// ---------------------------------------------------------------------------
+
+test("si se corta sin documento ni archivo, se avisa en vez de prometer algo que no llegó", () => {
+  const r = prepararRespuesta(
+    entrada({ mensaje: "haceme un excel con todo el detalle de mi negocio" }),
+    ai(JSON.stringify({ respuesta: "Estoy preparando el Excel con el detalle del negocio", acciones: [] }), {
+      status: "incomplete",
+    }),
+  );
+  assert.equal(r.documento, null);
+  assert.match(r.respuesta, /Estoy preparando el Excel/);
+  assert.match(r.respuesta, /se cortó antes de terminar/i);
+});
+
+test("si se corta pero el documento sí llegó completo, no hace falta avisar", () => {
+  const doc = { titulo: "Costos", bloques: [{ tipo: "parrafo", texto: "x" }] };
+  const r = prepararRespuesta(
+    entrada({ mensaje: "haceme un excel" }),
+    ai(JSON.stringify({ respuesta: "Acá está.", documento: doc, acciones: [] }), { status: "incomplete" }),
+  );
+  assert.deepEqual(r.documento, doc);
+  assert.equal(r.respuesta, "Acá está.");
+});
+
+test("una respuesta completa (status normal) nunca lleva el aviso de corte", () => {
+  const r = prepararRespuesta(entrada(), ai(JSON.stringify({ respuesta: "Todo bien.", acciones: [] })));
+  assert.equal(r.respuesta, "Todo bien.");
+});
+
+// ---------------------------------------------------------------------------
 // La lista blanca
 // ---------------------------------------------------------------------------
 
