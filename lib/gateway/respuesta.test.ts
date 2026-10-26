@@ -111,10 +111,10 @@ test("un JSON sin respuesta usable cae al texto de reserva", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Respuesta cortada por OpenAI (status: "incomplete")
+// El modelo promete el archivo y no lo entrega
 // ---------------------------------------------------------------------------
 
-test("si se corta sin documento ni archivo, se avisa en vez de prometer algo que no llegó", () => {
+test("si se corta (status incomplete) sin documento ni archivo, se avisa", () => {
   const r = prepararRespuesta(
     entrada({ mensaje: "haceme un excel con todo el detalle de mi negocio" }),
     ai(JSON.stringify({ respuesta: "Estoy preparando el Excel con el detalle del negocio", acciones: [] }), {
@@ -123,7 +123,29 @@ test("si se corta sin documento ni archivo, se avisa en vez de prometer algo que
   );
   assert.equal(r.documento, null);
   assert.match(r.respuesta, /Estoy preparando el Excel/);
-  assert.match(r.respuesta, /se cortó antes de terminar/i);
+  assert.match(r.respuesta, /el archivo no se generó esta vez/i);
+});
+
+/*
+ * Caso real reproducido dos veces el 25/10/2026: OpenAI contestó COMPLETO
+ * (status "completed"), pero el modelo incumplió "no expliques el campo ni
+ * lo menciones" del prompt y escribió la promesa en "respuesta" sin mandar
+ * "documento". Sin este chequeo, la persona recibía el texto tal cual.
+ */
+test("si contesta completo pero promete el archivo en prosa sin mandar documento, se avisa", () => {
+  const r = prepararRespuesta(
+    entrada({ mensaje: "haceme un excel detallando absolutamente cada detalle sobre mi negocio" }),
+    ai(
+      JSON.stringify({
+        respuesta:
+          "Estoy preparando el Excel detallado de tu negocio de porcicultura con costos, lechones, balanceado, escenarios de venta y datos faltantes para afinar la rentabilidad.",
+        acciones: [],
+      }),
+    ),
+  );
+  assert.equal(r.documento, null);
+  assert.match(r.respuesta, /Estoy preparando el Excel detallado/);
+  assert.match(r.respuesta, /el archivo no se generó esta vez/i);
 });
 
 test("si se corta pero el documento sí llegó completo, no hace falta avisar", () => {
@@ -136,9 +158,17 @@ test("si se corta pero el documento sí llegó completo, no hace falta avisar", 
   assert.equal(r.respuesta, "Acá está.");
 });
 
-test("una respuesta completa (status normal) nunca lleva el aviso de corte", () => {
+test("una respuesta completa y sin promesa nunca lleva el aviso", () => {
   const r = prepararRespuesta(entrada(), ai(JSON.stringify({ respuesta: "Todo bien.", acciones: [] })));
   assert.equal(r.respuesta, "Todo bien.");
+});
+
+test("'preparando' sin que el mensaje haya pedido un archivo no dispara el aviso", () => {
+  const r = prepararRespuesta(
+    entrada({ mensaje: "¿cómo venís con el pedido de Nati?" }),
+    ai(JSON.stringify({ respuesta: "Estoy preparando el seguimiento, te cuento en un rato.", acciones: [] })),
+  );
+  assert.equal(r.respuesta, "Estoy preparando el seguimiento, te cuento en un rato.");
 });
 
 // ---------------------------------------------------------------------------

@@ -323,18 +323,32 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
   const finales = documento ? acciones.filter((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo)) : acciones;
 
   /*
-   * OpenAI puede devolver `status: "incomplete"` cuando corta la respuesta a
-   * mitad de camino (un pedido grande que se queda sin tokens de salida). El
-   * JSON truncado no completa el campo `documento`, así que lo que quedó del
-   * texto —a veces apenas "Estoy preparando el Excel..."— pasaba como si
-   * fuera la respuesta entera: la persona pensaba que el archivo venía en
-   * camino y no era así (caso real, 25/10/2026). Si se cortó y no hay
-   * documento ni archivo, se avisa en vez de dejar pasar la promesa a medias.
+   * El modelo puede prometer el archivo y no entregarlo, por dos caminos
+   * distintos vistos en producción (caso real, 25/10/2026, tres veces
+   * seguidas con el mismo pedido grande):
+   *
+   * 1. OpenAI corta la respuesta a mitad de camino (`status: "incomplete"`):
+   *    el JSON truncado nunca llega a completar "documento".
+   * 2. OpenAI contesta COMPLETO (`status: "completed"`) pero el modelo
+   *    incumple la regla del prompt ("no expliques el campo ni lo
+   *    menciones") y en vez de mandar "documento" escribe en "respuesta"
+   *    algo como "Estoy preparando el Excel con el detalle...": promete en
+   *    prosa y no entrega.
+   *
+   * Las dos veces lo que queda pasaba como si fuera la respuesta entera, y
+   * la persona pensaba que el archivo venía en camino cuando no se generó
+   * nada (ninguna fila en eos_documentos_generados). Si el pedido original
+   * mencionaba un archivo y no llegó "documento" ni una acción de archivo,
+   * se avisa en vez de dejar pasar la promesa a medias.
    */
+  const pidioArchivo = /\b(excel|pdf|word|planilla)\b/i.test(entrada.mensaje);
+  const prometioSinEntregar = /\b(preparando|armando|generando|elaborando)\b/i.test(respuesta);
   const truncada = datosAi.status === "incomplete";
+  const sinArchivo = !documento && finales.every((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo));
+
   const respuestaFinal =
-    truncada && !documento && finales.every((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo))
-      ? `${respuesta}\n\n(Se cortó antes de terminar: era un pedido grande. Mandámelo de nuevo, si podés por partes.)`
+    sinArchivo && (truncada || (pidioArchivo && prometioSinEntregar))
+      ? `${respuesta}\n\n(El archivo no se generó esta vez. Mandámelo de nuevo, si es grande probá pedirlo por partes.)`
       : respuesta;
 
   return {
