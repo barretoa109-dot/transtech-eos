@@ -106,6 +106,14 @@ platform :ios do
       in_house: false
     )
 
+    # El número de build (CURRENT_PROJECT_VERSION) queda fijo en el repo, y
+    # App Store Connect rechaza un número repetido. Se pisa acá con la hora
+    # UTC (YYYYMMDDHHMM): siempre creciente, sin guardar estado en ningún lado.
+    increment_build_number(
+      xcodeproj: "App.xcodeproj",
+      build_number: Time.now.utc.strftime("%Y%m%d%H%M")
+    )
+
     build_app(
       project: "App.xcodeproj",
       scheme: "App",
