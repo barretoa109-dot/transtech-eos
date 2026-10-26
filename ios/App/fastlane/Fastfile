@@ -80,28 +80,24 @@ platform :ios do
     perfil_app = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_APP_PATH"))
     perfil_compartir = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_SHARE_PATH"))
 
-    UI.user_error!(
-      "Los dos perfiles son de equipos distintos (#{perfil_app[:team_id]} vs #{perfil_compartir[:team_id]})"
-    ) unless perfil_app[:team_id] == perfil_compartir[:team_id]
-
-    update_project_team(
-      path: "App.xcodeproj",
-      targets: ["App", "ShareExtension"],
-      teamid: perfil_app[:team_id]
-    )
-
-    update_project_provisioning(
-      xcodeproj: "App.xcodeproj",
-      target_filter: "App",
-      profile: perfil_app[:ruta],
-      build_configuration: "Release"
-    )
-    update_project_provisioning(
-      xcodeproj: "App.xcodeproj",
-      target_filter: "ShareExtension",
-      profile: perfil_compartir[:ruta],
-      build_configuration: "Release"
-    )
+    # `update_project_provisioning` solo toca los build settings (CODE_SIGN_STYLE,
+    # PROVISIONING_PROFILE_SPECIFIER), no el atributo `ProvisioningStyle` que vive
+    # en `TargetAttributes` — y el proyecto nunca tuvo esa entrada para
+    # `ShareExtension` (se agregó el target a mano, sin Xcode). El resultado era
+    # xcodebuild rechazando el archivo con "conflicting provisioning settings"
+    # aunque el perfil estuviera bien asignado. `update_code_signing_settings`
+    # actualiza las dos cosas a la vez.
+    [["App", perfil_app], ["ShareExtension", perfil_compartir]].each do |target, perfil|
+      update_code_signing_settings(
+        path: "App.xcodeproj",
+        use_automatic_signing: false,
+        targets: [target],
+        build_configurations: ["Release"],
+        team_id: perfil[:team_id],
+        code_sign_identity: "Apple Distribution",
+        profile_name: perfil[:nombre]
+      )
+    end
 
     api_key = app_store_connect_api_key(
       key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
