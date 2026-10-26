@@ -71,7 +71,9 @@ jobs:
           retention-days: 30
 
   ios:
-    runs-on: macos-15
+    # Apple exige el SDK de iOS 26 (Xcode 26) para subir builds desde el
+    # 26/10/2026; macos-15 solo trae hasta Xcode 16.4.
+    runs-on: macos-26
     timeout-minutes: 40
     # Mismo truco que en el job de Android: `secrets` no se puede leer en un
     # `if:`, así que se vuelca a una variable una sola vez acá.
