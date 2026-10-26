@@ -322,8 +322,23 @@ export function prepararRespuesta(entrada: Entrada, ai: unknown): RespuestaGatew
    */
   const finales = documento ? acciones.filter((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo)) : acciones;
 
+  /*
+   * OpenAI puede devolver `status: "incomplete"` cuando corta la respuesta a
+   * mitad de camino (un pedido grande que se queda sin tokens de salida). El
+   * JSON truncado no completa el campo `documento`, así que lo que quedó del
+   * texto —a veces apenas "Estoy preparando el Excel..."— pasaba como si
+   * fuera la respuesta entera: la persona pensaba que el archivo venía en
+   * camino y no era así (caso real, 25/10/2026). Si se cortó y no hay
+   * documento ni archivo, se avisa en vez de dejar pasar la promesa a medias.
+   */
+  const truncada = datosAi.status === "incomplete";
+  const respuestaFinal =
+    truncada && !documento && finales.every((a) => !ACCIONES_DE_ARCHIVO.has(a.tipo))
+      ? `${respuesta}\n\n(Se cortó antes de terminar: era un pedido grande. Mandámelo de nuevo, si podés por partes.)`
+      : respuesta;
+
   return {
-    respuesta,
+    respuesta: respuestaFinal,
     documento,
     acciones: finales,
     requiere_worker: finales.length > 0,
