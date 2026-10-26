@@ -80,6 +80,14 @@ platform :ios do
     perfil_app = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_APP_PATH"))
     perfil_compartir = instalar_perfil(ENV.fetch("EOS_IOS_PROFILE_SHARE_PATH"))
 
+    update_project_team(
+      path: "App.xcodeproj",
+      teams: {
+        "App" => perfil_app[:team_id],
+        "ShareExtension" => perfil_compartir[:team_id]
+      }
+    )
+
     update_project_provisioning(
       xcodeproj: "App.xcodeproj",
       target_filter: "App",
@@ -132,5 +140,7 @@ def instalar_perfil(ruta)
   xml = sh("security", "cms", "-D", "-i", ruta, log: false)
   nombre = xml[%r{<key>Name</key>\s*<string>(.*?)</string>}m, 1]
   UI.user_error!("No se pudo leer el nombre del perfil #{ruta}") unless nombre
-  { nombre: nombre, ruta: ruta }
+  team_id = xml[%r{<key>TeamIdentifier</key>\s*<array>\s*<string>(.*?)</string>}m, 1]
+  UI.user_error!("No se pudo leer el Team ID del perfil #{ruta}") unless team_id
+  { nombre: nombre, ruta: ruta, team_id: team_id }
 end
