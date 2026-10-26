@@ -318,6 +318,47 @@ test("si fallan los dos, se cae a n8n", async () => {
   assert.equal(resultado, null);
 });
 
+// ---------------------------------------------------------------------------
+// timeoutMs: un pedido de documento puede necesitar más que los 20 s de siempre
+// ---------------------------------------------------------------------------
+
+/*
+ * Caso real, 25/10/2026: un pedido de Excel grande se caía tres veces
+ * seguidas a los 20 s. `TIMEOUT_DOCUMENTO_MS` (procesar-mensaje.ts, cuando
+ * `elegirModelo` marca el turno con motivo "documento") manda un `timeoutMs`
+ * más largo. Acá se prueba que `conversar` de verdad lo respeta, con un
+ * valor chico para que la prueba no tarde los 20 s de siempre: si
+ * `timeoutMs` se ignorara, esta prueba colgaría hasta el default.
+ */
+test("un timeoutMs más corto que el de siempre se respeta, no el de siempre", async () => {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  const inicio = Date.now();
+  globalThis.fetch = ((_url: unknown, opciones?: { signal?: AbortSignal }) =>
+    new Promise((_resolve, reject) => {
+      opciones?.signal?.addEventListener("abort", () => {
+        const error = new Error("abortado");
+        error.name = "AbortError";
+        reject(error);
+      });
+    })) as unknown as typeof fetch;
+
+  try {
+    const resultado = await conversar(payload({ mensaje: "hola" }), { modelo: null, timeoutMs: 15 });
+    assert.equal(resultado, null);
+    assert.ok(
+      Date.now() - inicio < 2_000,
+      "se abortó cerca de los 15 ms pedidos; si tardó más, timeoutMs no se está usando",
+    );
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+});
+
 test("pedir como barato el mismo modelo de siempre no hace dos llamadas", async () => {
   const { resultado, modelos } = await conVariasRespuestas([charla("Hola.")], MODELO);
   assert.deepEqual(modelos, [MODELO]);

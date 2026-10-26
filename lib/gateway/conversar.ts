@@ -70,6 +70,16 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
  */
 export const TIMEOUT_MS = 20_000;
 
+/**
+ * Cuánto esperar cuando `elegirModelo` marcó el turno con motivo "documento"
+ * (`lib/eos/enrutamiento-modelo.ts`): un excel/pdf/word/planilla/informe con
+ * varias tablas es más texto de salida que una conversación, y a los 20 s de
+ * siempre el pedido se caía antes de que el modelo terminara (caso real,
+ * 25/10/2026, el mismo pedido grande tres veces seguidas). La ruta que lo usa
+ * tiene `maxDuration = 300`, así que hay margen de sobra.
+ */
+export const TIMEOUT_DOCUMENTO_MS = 55_000;
+
 /** La bandera de la etapa 1. Sin ella, este archivo no se usa para nada. */
 export function gatewayEnTypeScript(): boolean {
   return process.env.EOS_GATEWAY_TS === "1" && Boolean(process.env.OPENAI_API_KEY);
@@ -162,9 +172,14 @@ export type Resultado =
 type Llamada = { ok: true; ai: unknown } | { ok: false; motivo: "timeout" | "http" | "red"; status?: number };
 
 /** Una llamada a la Responses API. Nunca lanza. */
-async function preguntarAlModelo(clave: string, modelo: string, contenido: Prompt["contenido"]): Promise<Llamada> {
+async function preguntarAlModelo(
+  clave: string,
+  modelo: string,
+  contenido: Prompt["contenido"],
+  timeoutMs: number = TIMEOUT_MS,
+): Promise<Llamada> {
   const controlador = new AbortController();
-  const reloj = setTimeout(() => controlador.abort(), TIMEOUT_MS);
+  const reloj = setTimeout(() => controlador.abort(), timeoutMs);
 
   try {
     const respuesta = await fetch(OPENAI_URL, {
@@ -265,6 +280,17 @@ export async function conversar(
     buscar?: DepsBusqueda["buscar"];
     /** Se llama justo antes de buscar (la web muestra el estado, WhatsApp manda un aviso). */
     alBuscar?: () => void;
+    /**
+     * Cuánto esperar a OpenAI en este turno. Por defecto `TIMEOUT_MS`.
+     *
+     * Un pedido de documento grande (`elegirModelo` lo marca con motivo
+     * "documento") puede necesitar más que una conversación normal: armar
+     * varias tablas es más texto de salida, y a 20 s el pedido se cae antes
+     * de que el modelo termine (caso real, 25/10/2026, tres veces seguidas
+     * con el mismo pedido). La ruta queda con `maxDuration = 300`, así que
+     * hay margen de sobra.
+     */
+    timeoutMs?: number;
   } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
@@ -302,7 +328,7 @@ export async function conversar(
   let enrutado: Enrutado | null = null;
 
   if (barato) {
-    const intento = await preguntarAlModelo(clave, barato, contenido);
+    const intento = await preguntarAlModelo(clave, barato, contenido, opciones.timeoutMs);
 
     // Un timeout ya gastó los 20 s: preguntar otra vez dejaría a la persona
     // esperando el doble. n8n, como cualquier otro timeout de acá.
@@ -331,7 +357,7 @@ export async function conversar(
    */
   const principal = opciones.principal?.trim() || MODELO;
   if (!cuerpo && principal !== MODELO) {
-    const intento = await preguntarAlModelo(clave, principal, contenido);
+    const intento = await preguntarAlModelo(clave, principal, contenido, opciones.timeoutMs);
     if (!intento.ok && intento.motivo === "timeout") return null;
 
     const propuesta = intento.ok ? prepararRespuesta(entrada, intento.ai) : null;
@@ -346,7 +372,7 @@ export async function conversar(
   }
 
   if (!cuerpo) {
-    const llamada = await preguntarAlModelo(clave, MODELO, contenido);
+    const llamada = await preguntarAlModelo(clave, MODELO, contenido, opciones.timeoutMs);
     if (!llamada.ok) {
       if (esCaidaDeIA(llamada)) {
         opciones.alFallarIA?.(llamada.status ? `${llamada.motivo}_${llamada.status}` : llamada.motivo);
@@ -373,7 +399,7 @@ export async function conversar(
       buscar: opciones.buscar,
       alBuscar: opciones.alBuscar,
       sintetizar: async (extendido) => {
-        const llamada = await preguntarAlModelo(clave, modeloSintesis, extendido);
+        const llamada = await preguntarAlModelo(clave, modeloSintesis, extendido, opciones.timeoutMs);
         return llamada.ok ? prepararRespuesta(entrada, llamada.ai) : null;
       },
     });

@@ -62,7 +62,7 @@ import { transcribirAudio } from "@/lib/eos/transcribir-audio";
 import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
+import { TIMEOUT_DOCUMENTO_MS, atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/costo-mensaje";
 import { clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
@@ -1219,6 +1219,7 @@ export async function procesarMensajeEOS(
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
         principal: eleccion.modelo,
+        timeoutMs: eleccion.motivo === "documento" ? TIMEOUT_DOCUMENTO_MS : undefined,
         alFallarIA: (motivo) => {
           iaCaida = motivo;
         },
