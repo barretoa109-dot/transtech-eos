@@ -798,6 +798,10 @@
     z-index: 80;
     width: min(85vw, 300px);
     min-width: 0;
+    /* El panel ocupa toda la altura de la pantalla (top: 0); sin esto, el
+       logo y el nombre quedan tapados por el reloj / la isla dinámica del
+       iPhone. */
+    padding-top: env(safe-area-inset-top);
     transform: translateX(-105%);
     transition: transform 0.24s var(--ease);
     box-shadow: 24px 0 70px rgba(7, 18, 38, 0.28);
@@ -856,6 +860,9 @@
   justify-content: flex-end;
   gap: 18px;
   padding: 14px 28px;
+  /* Sin esto, en el iPhone la barra queda debajo de la isla dinámica / el
+     notch — el padding fijo de arriba no alcanza para esquivarla. */
+  padding-top: calc(14px + env(safe-area-inset-top));
   border-bottom: 1px solid transparent;
   position: relative;
   z-index: 3;
@@ -932,6 +939,7 @@
 @media (max-width: 560px) {
   .eos-app .topbar {
     padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
     gap: 10px;
   }
   .eos-app .topbar .status.mem {
