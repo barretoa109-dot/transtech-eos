@@ -1653,6 +1653,11 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Sin esto, "overflow-y: auto" sin "overflow-x" hace que el navegador
+     trate el eje X también como auto (regla del spec de CSS) — y una fila
+     flex que no se achica (como el título + "Preguntale a EOS") termina
+     scrolleando TODA la página en vez de que cada widget scrollee lo suyo. */
+  overflow-x: hidden;
 }
 .eos-app .page {
   max-width: 920px;
@@ -1666,6 +1671,7 @@
 }
 .eos-app .page-header {
   margin-bottom: 26px;
+  min-width: 0;
 }
 .eos-app .page-eyebrow {
   font-size: 11px;
