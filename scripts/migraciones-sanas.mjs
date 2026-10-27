@@ -228,6 +228,103 @@ for (let i = 1; i < archivos.length; i++) {
 }
 
 // ============================================================
+// 6. Una función no puede quedar viva con dos firmas distintas
+// ============================================================
+//
+// `create or replace function` sólo reemplaza una firma que coincide EXACTO
+// en cantidad y tipo de parámetros. Agregarle un parámetro a una función que
+// ya existía no la reemplaza: crea una SEGUNDA función con el mismo nombre,
+// viva al lado de la primera — y Postgres elige cuál llamar según cuántos
+// argumentos le pasen, no según cuál se escribió último.
+//
+// Pasó dos veces (v90, 28/08/2026, y v283, 13/10/2026): la segunda firma
+// quedó ejecutable sin que nadie lo pidiera, y en la v283 además alcanzable
+// por `anon` sin sesión. `grants-sanos.mjs` ya compara permisos por firma
+// completa; esto mira la FIRMA en sí, para agarrarlo antes de que llegue a
+// los grants.
+//
+// Sólo cuenta la CANTIDAD de parámetros: es la forma concreta en que pasó
+// las dos veces, y comparar tipos exactos (con defaults, arrays, texto
+// multilínea) tendría muchos más falsos positivos de los que vale la pena.
+// Mira el estado FINAL después de aplicar todas las migraciones en orden —
+// igual que el resto de este archivo —, así que un `drop function` posterior
+// que saca la firma vieja a propósito no cuenta como problema.
+
+function separarArgumentosDeNivel(texto) {
+  const partes = [];
+  let profundidad = 0;
+  let actual = "";
+  for (const c of texto) {
+    if (c === "(" || c === "[") profundidad++;
+    if (c === ")" || c === "]") profundidad--;
+    if (c === "," && profundidad === 0) {
+      partes.push(actual);
+      actual = "";
+      continue;
+    }
+    actual += c;
+  }
+  if (actual.trim() !== "") partes.push(actual);
+  return partes;
+}
+
+function firmasDeArchivo(sinComentarios) {
+  const firmas = [];
+  const re = /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z_][a-z0-9_]*)\s*\(/gi;
+  let m;
+  while ((m = re.exec(sinComentarios))) {
+    const nombre = m[1].toLowerCase();
+    let profundidad = 1;
+    let i = re.lastIndex;
+    for (; i < sinComentarios.length && profundidad > 0; i++) {
+      if (sinComentarios[i] === "(") profundidad++;
+      if (sinComentarios[i] === ")") profundidad--;
+    }
+    const argumentos = sinComentarios.slice(re.lastIndex, i - 1);
+    const cantidad = argumentos.trim() === "" ? 0 : separarArgumentosDeNivel(argumentos).length;
+    firmas.push({ nombre, cantidad });
+    re.lastIndex = i;
+  }
+  return firmas;
+}
+
+const vivos = new Map(); // nombre -> Map(cantidad -> archivo donde se definió esa firma)
+
+for (const archivo of archivos) {
+  const texto = fs.readFileSync(path.join(DIR, archivo), "utf8");
+  const sinComentarios = texto.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  // Un `drop function` de este nombre borra TODAS sus firmas vivas: no
+  // sabemos sin parsear tipos cuál firma específica saca, así que se asume
+  // que quien lo escribió sabe lo que borra y se despeja el registro entero
+  // para no arrastrar falsos positivos.
+  for (const m of sinComentarios.matchAll(
+    /drop\s+function\s+(?:if\s+exists\s+)?public\.([a-z_][a-z0-9_]*)/gi,
+  )) {
+    vivos.delete(m[1].toLowerCase());
+  }
+
+  for (const { nombre, cantidad } of firmasDeArchivo(sinComentarios)) {
+    if (!vivos.has(nombre)) vivos.set(nombre, new Map());
+    vivos.get(nombre).set(cantidad, archivo);
+  }
+}
+
+for (const [nombre, cantidades] of vivos) {
+  if (cantidades.size > 1) {
+    const detalle = [...cantidades.entries()]
+      .map(([c, a]) => `${c} parámetro(s) desde ${a}`)
+      .join(" y ");
+    problemas.push(
+      `public.${nombre}(...) queda con más de una firma viva: ${detalle}.\n` +
+        `      "create or replace" no reemplaza una firma con distinta cantidad de parámetros:\n` +
+        `      las dos quedan ejecutables (pasó en la v90 y en la v283). Si el cambio de forma\n` +
+        `      fue a propósito, agregar un "drop function" de la firma vieja.`,
+    );
+  }
+}
+
+// ============================================================
 
 console.log(`${archivos.length} migraciones · ${porVersion.size} versiones distintas`);
 
