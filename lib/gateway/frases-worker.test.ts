@@ -101,6 +101,14 @@ test("toda acción interna decide si tiene frase propia o usa la genérica", () 
     // tiene un número que la persona pueda desmentir. "La decisión quedó
     // registrada." alcanza (08/10/2026).
     "CREAR_DECISION",
+    // ANULAR_MOVIMIENTO y REGISTRAR_RETIRO_PERSONAL (v248) SÍ tienen frase
+    // propia — fraseDeAnulacion y fraseDeRetiro en lib/gateway/frases-finanzas.ts,
+    // cubiertas en frases-finanzas.test.ts—, pero del lado del ejecutor
+    // TypeScript (etapa 3, el que atiende producción hoy). Este nodo de n8n
+    // es el respaldo mientras los dos caminos convivan: decisión escrita, no
+    // pendiente, hasta que haga falta escribirlas también acá.
+    "ANULAR_MOVIMIENTO",
+    "REGISTRAR_RETIRO_PERSONAL",
   ]);
 
   const sinDecidir: string[] = [];

@@ -242,6 +242,43 @@ export function fraseDePersonal(result: any): string {
 }
 
 /**
+ * El retiro del negocio hacia lo personal (v248): el movimiento de dos
+ * lados. Una sola frase para las dos puntas, porque para quien pregunta es
+ * un solo gesto ("saqué 2 millones para mí"), no dos movimientos sueltos.
+ */
+export function fraseDeRetiro(result: any): string {
+  const r = (result && result.resultado) || {};
+  const monto = Number(r.monto);
+  if (!isFinite(monto) || monto <= 0) return "Anoté el retiro.";
+
+  return (
+    "Retiré " + signoFin(r.moneda) + plataFin(monto) + " del negocio para vos. " +
+    "Lo ves como gasto en Negocio › Caja y como ingreso en Personal › Mi mes › Movimientos."
+  );
+}
+
+/**
+ * Anular un movimiento personal (v248): dice CUÁL y CUÁNTO, para que la
+ * persona pueda desmentirlo en el momento si agarró el equivocado (mismo
+ * criterio que ANULAR_VENTA y CORREGIR_MOVIMIENTO).
+ */
+export function fraseDeAnulacion(result: any): string {
+  const r = (result && result.resultado) || {};
+  const desc = typeof r.descripcion === "string" && r.descripcion.trim() ? r.descripcion.trim() : "";
+  const monto = Number(r.monto_anulado);
+
+  if (!isFinite(monto)) return desc ? "Anulé " + desc + "." : "Anulé el movimiento.";
+
+  const fecha = typeof r.fecha === "string" && r.fecha.length >= 10 ? " del " + diaMesFin(r.fecha) : "";
+  const que = desc ? desc : "el movimiento";
+
+  return (
+    "Anulé " + que + fecha + " (" + signoFin(r.moneda) + plataFin(monto) + "). " +
+    "No sigue contando en tu mes. Si agarré el equivocado, decímelo."
+  );
+}
+
+/**
  * El pago del resumen de una tarjeta (v222: REGISTRAR_PAGO_DEUDA contra una
  * tarjeta). En n8n la frase del pago de deuda no conocía `es_tarjeta` y
  * contestaba "No quedó registrado el pago." sobre un pago que sí quedó.

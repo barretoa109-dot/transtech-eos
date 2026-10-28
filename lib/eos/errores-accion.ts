@@ -248,6 +248,27 @@ const REGLAS: Regla[] = [
       `No encontré ningún movimiento tuyo de los últimos 30 días que diga "${d}". ` +
       "Si es más viejo, corregilo desde Personal, en la lista de movimientos.",
   },
+
+  /*
+   * ANULAR_MOVIMIENTO (v248): mismo criterio que CORREGIR_MOVIMIENTO — el
+   * código de "no encontré" se comparte (EOS_ACCION_MOVIMIENTO_NO_ENCONTRADO,
+   * arriba), porque para la persona es exactamente el mismo problema.
+   */
+  {
+    codigo: "EOS_ACCION_ANULACION_SIN_REFERENCIA",
+    mensaje: () =>
+      "Decime cuál movimiento anulo. Alcanza con la palabra con la que lo anotaste: " +
+      '"anulá el gasto de nafta".',
+  },
+
+  /*
+   * REGISTRAR_RETIRO_PERSONAL (v248): el único dato que de verdad hace falta
+   * es el monto — sin él no hay nada que mover de un lado al otro.
+   */
+  {
+    codigo: "EOS_ACCION_RETIRO_SIN_MONTO",
+    mensaje: () => "Decime cuánto retiraste del negocio para vos.",
+  },
   /*
    * Los de declarar un saldo.
    *
