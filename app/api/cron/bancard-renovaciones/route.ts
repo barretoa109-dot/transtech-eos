@@ -103,9 +103,19 @@ export async function GET(request: Request) {
    * webhook no pudo verificar, los que nunca notificó y los charges que se
    * cortaron. Va antes de renovar por dos motivos: un cliente que ya pagó
    * recupera su plan hoy, y el que tiene un cobro dudoso no recibe otro encima.
+   *
+   * Lo que sigue sin respuesta después de 30 días se cierra como "vencido" en
+   * vez de quedar "pendiente" para siempre sin que nadie se entere (auditoría
+   * previa al lanzamiento, 26/10/2026): se junta y se avisa UNA vez al dueño,
+   * no una por cada fila, para no llenarle la bandeja.
    */
+  const vencidas: Array<{ id: string; usuario_id: string }> = [];
+
   const conciliacion = await conciliarPendientesBancard(admin, {
     ahora,
+    alVencer: async (fila) => {
+      vencidas.push({ id: fila.id, usuario_id: fila.usuario_id });
+    },
     alAprobar: (fila, confirmado) =>
       enviarConfirmacionPlan(admin, {
         usuarioId: fila.usuario_id,
@@ -394,5 +404,47 @@ export async function GET(request: Request) {
     }
   }
 
+  if (vencidas.length > 0) {
+    await avisarPagosVencidos(vencidas).catch((e) =>
+      console.error("Renovaciones: vencieron solicitudes pero falló el aviso al dueño", e),
+    );
+  }
+
   return NextResponse.json({ ok: true, ...resumen, conciliacion });
+}
+
+/**
+ * Un correo, con todas las solicitudes vencidas juntas: una fila por cada
+ * una no llena la bandeja del dueño por un día lento de Bancard.
+ */
+async function avisarPagosVencidos(vencidas: Array<{ id: string; usuario_id: string }>) {
+  const clave = process.env.RESEND_API_KEY;
+  const destinos = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((correo) => correo.trim())
+    .filter(Boolean);
+
+  if (!clave || destinos.length === 0) {
+    console.error(
+      "Renovaciones: hay pagos vencidos sin resolver pero no se puede avisar (falta RESEND_API_KEY o ADMIN_EMAILS).",
+      vencidas,
+    );
+    return;
+  }
+
+  const lineas = vencidas.map((v) => `• solicitud ${v.id} (usuario ${v.usuario_id})`);
+  const texto = [
+    `${vencidas.length} solicitud(es) de pago con Bancard quedaron sin respuesta más de 30 días y se cerraron como "vencido":`,
+    "",
+    ...lineas,
+    "",
+    "Bancard nunca confirmó si cobró o no. Conviene revisar a mano si el cliente pagó de verdad antes de darlo por perdido.",
+  ].join("\n");
+
+  await new Resend(clave).emails.send({
+    from: process.env.EOS_BRIEFING_FROM || "EOS <no-reply@transtech.com.py>",
+    to: destinos,
+    subject: `EOS · ${vencidas.length} pago(s) de Bancard sin resolver se vencieron`,
+    text: texto,
+  });
 }
