@@ -72,8 +72,8 @@ registrado. Pasó el 7 de septiembre con una conversación entera de porcicultur
 | "mi tarjeta cierra el 20 y vence el 5" | `REGISTRAR_TARJETA` | **Ejecuta desde hoy** (v153) |
 | "compré la heladera en 6 cuotas de 500 mil" | `REGISTRAR_COMPRA_TARJETA` | **Ejecuta desde hoy** (v153) |
 | "ese gasto de nafta era 80 mil, no 800 mil" | `CORREGIR_MOVIMIENTO` | **Ejecuta desde hoy** (v148) |
-| **"borrá ese movimiento"** | — | **NO EXISTE** |
-| **"saqué 2 millones del negocio para mí"** | — | **NO EXISTE.** Es el movimiento de dos lados |
+| "anulá el gasto de nafta", "ese ingreso no era mío" | `ANULAR_MOVIMIENTO` | **Ejecuta desde hoy** (v248). No borra: un ingreso queda en 0, un gasto se anula con una contrapartida negativa (la tabla no permite un gasto en monto 0). Resuelve por descripción y los últimos 30 días, igual que `CORREGIR_MOVIMIENTO` |
+| "saqué 2 millones del negocio para mí" | `REGISTRAR_RETIRO_PERSONAL` | **Ejecuta desde hoy** (v248). Es el movimiento de dos lados: gasto en la caja del negocio, ingreso en lo personal, las dos filas con el mismo comando |
 
 ---
 
@@ -175,6 +175,20 @@ DESPUÉS, en el mismo mensaje, y con el dato para deshacerlo.
 
 Las dos heredan gratis las protecciones de `eos_erp_anular_venta`, factura
 electrónica incluida: una venta ya facturada no se toca desde el chat.
+
+**7. ~~Anular un movimiento personal~~ y ~~el retiro del negocio~~ — HECHO (v248).**
+Los dos últimos "NO EXISTE" que quedaban, encontrados en la auditoría previa
+al lanzamiento al público (26/10/2026).
+
+`ANULAR_MOVIMIENTO` no reutiliza el borrado que esta misma nota descartó más
+arriba: un ingreso se pone en 0 (la tabla lo permite), un gasto se anula con
+una contrapartida negativa en el mismo casillero —el mecanismo que ya usan
+las devoluciones— porque la tabla no deja un gasto en monto 0. La fila
+original no se toca nunca.
+
+`REGISTRAR_RETIRO_PERSONAL` es el primer verbo que escribe en los DOS
+ámbitos a la vez: un gasto en la caja del negocio y un ingreso personal, con
+el mismo comando. Hasta ahora cada verbo vivía de un solo lado del `ambito`.
 
 ---
 
