@@ -156,15 +156,44 @@ export type ResumenConciliacion = {
   aprobadas: number;
   rechazadas: number;
   sin_respuesta: number;
+  vencidas: number;
   errores: number;
+};
+
+/**
+ * Más allá de esto, un "pendiente" de Bancard deja de reintentarse y se
+ * cierra solo.
+ *
+ * Antes la consulta ni siquiera TRAÍA lo que tenía más de 7 días (`.gte`
+ * sobre `created_at`): no es que se reintentara y siguiera fallando, es que
+ * dejaba de mirarlo —"pendiente" para siempre, sin aviso a nadie—. Caso real
+ * encontrado en la auditoría previa al lanzamiento (25/10/2026): una
+ * solicitud sin resolver desde el 18/09/2026. Con 30 días de margen (la
+ * misma ventana que ya se usa en otras correcciones de este proyecto, "30
+ * días, no 7") se le da a Bancard mucho más tiempo para contestar, y recién
+ * pasado ese plazo se cierra con `vencido` —un estado que la tabla ya acepta—
+ * en vez de quedar invisible.
+ */
+export const DIAS_MAXIMO_CONCILIACION = 30;
+
+type FilaPendiente = {
+  id: string;
+  usuario_id: string;
+  plan_codigo: string;
+  referencia_externa: string;
+  created_at: string;
 };
 
 type Dependencias = {
   consultar?: (shopProcessId: string) => Promise<ConsultaBancard>;
   alAprobar?: (fila: { usuario_id: string; plan_codigo: string; id: string }, confirmado: any) => Promise<void>;
+  /** Se llama cuando una solicitud se cierra como `vencido`: el dueño no se entera solo. */
+  alVencer?: (fila: FilaPendiente) => Promise<void>;
   ahora?: Date;
   /** No se toca lo que tiene menos de esto: el webhook todavía puede llegar. */
   minutosDeGracia?: number;
+  /** Hasta cuántos días de edad se le sigue preguntando a Bancard antes de vencer. */
+  diasMaximo?: number;
   limite?: number;
   /** Conciliar solo esta solicitud (la que está mirando el usuario). */
   referencia?: string;
@@ -180,22 +209,36 @@ export async function conciliarPendientesBancard(
   {
     consultar = consultarCobroBancard,
     alAprobar,
+    alVencer,
     ahora = new Date(),
     minutosDeGracia = 10,
+    diasMaximo = DIAS_MAXIMO_CONCILIACION,
     limite = 50,
     referencia,
   }: Dependencias = {},
 ): Promise<ResumenConciliacion> {
-  const resumen: ResumenConciliacion = { revisadas: 0, aprobadas: 0, rechazadas: 0, sin_respuesta: 0, errores: 0 };
+  const resumen: ResumenConciliacion = {
+    revisadas: 0,
+    aprobadas: 0,
+    rechazadas: 0,
+    sin_respuesta: 0,
+    vencidas: 0,
+    errores: 0,
+  };
 
+  /*
+   * Sin tope de edad hacia atrás: un "pendiente" de hace 40 días tiene que
+   * verse para poder vencerlo. El único límite hacia atrás es `limite` filas,
+   * ordenadas de más vieja a más nueva, así que lo más urgente se atiende
+   * primero.
+   */
   let consulta = admin
     .from("solicitudes_pago")
-    .select("id,usuario_id,plan_codigo,referencia_externa")
+    .select("id,usuario_id,plan_codigo,referencia_externa,created_at")
     .eq("proveedor", "bancard")
     .eq("estado", "pendiente")
     .not("referencia_externa", "is", null)
-    .lte("created_at", new Date(ahora.getTime() - minutosDeGracia * 60_000).toISOString())
-    .gte("created_at", new Date(ahora.getTime() - 7 * 86_400_000).toISOString());
+    .lte("created_at", new Date(ahora.getTime() - minutosDeGracia * 60_000).toISOString());
 
   if (referencia) consulta = consulta.eq("referencia_externa", referencia);
 
@@ -209,12 +252,7 @@ export async function conciliarPendientesBancard(
     return resumen;
   }
 
-  for (const fila of (pendientes ?? []) as Array<{
-    id: string;
-    usuario_id: string;
-    plan_codigo: string;
-    referencia_externa: string;
-  }>) {
+  for (const fila of (pendientes ?? []) as FilaPendiente[]) {
     resumen.revisadas += 1;
 
     try {
@@ -223,6 +261,26 @@ export async function conciliarPendientesBancard(
 
       if (veredicto === "desconocido") {
         resumen.sin_respuesta += 1;
+
+        const edadDias = (ahora.getTime() - new Date(fila.created_at).getTime()) / 86_400_000;
+        if (edadDias > diasMaximo) {
+          const { error: errorVencer } = await admin
+            .from("solicitudes_pago")
+            .update({ estado: "vencido" })
+            .eq("id", fila.id)
+            .eq("estado", "pendiente");
+
+          if (errorVencer) {
+            console.error("Bancard: no se pudo vencer la solicitud", fila.id, errorVencer);
+          } else {
+            resumen.vencidas += 1;
+            if (alVencer) {
+              await alVencer(fila).catch((e) =>
+                console.error("Bancard: venció, pero falló el aviso", fila.id, e),
+              );
+            }
+          }
+        }
         continue;
       }
 

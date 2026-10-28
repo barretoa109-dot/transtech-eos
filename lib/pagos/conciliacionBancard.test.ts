@@ -48,9 +48,10 @@ test("un charge cortado es incierto; un rechazo de la API con mensajes no lo es"
 });
 
 /** Un cliente admin de mentira: guarda los filtros y devuelve filas fijas. */
-function adminFalso(filas: Array<Record<string, unknown>>, opciones: { errorSelect?: boolean } = {}) {
+function adminFalso(filas: Array<Record<string, unknown>>, opciones: { errorSelect?: boolean; errorUpdate?: boolean } = {}) {
   const rpcs: Array<{ nombre: string; args: Record<string, unknown> }> = [];
   const filtros: Array<[string, string, unknown]> = [];
+  const updates: Array<{ id: unknown; valores: Record<string, unknown> }> = [];
 
   const consulta: Record<string, unknown> = {};
   const encadenar = (op: string) => (col: string, val: unknown) => {
@@ -66,9 +67,32 @@ function adminFalso(filas: Array<Record<string, unknown>>, opciones: { errorSele
   consulta.limit = async () =>
     opciones.errorSelect ? { data: null, error: { message: "caída" } } : { data: filas, error: null };
 
+  /*
+   * `.update(valores).eq(...).eq(...)` se arma de nuevo en cada llamada (como
+   * el builder real de supabase-js): cada `.update()` cierra sobre SUS
+   * propios `valores` y SUS propios filtros, y el objeto es "thenable" —
+   * `await` lo resuelve solo, sin un `.limit()` final.
+   */
+  consulta.update = (valores: Record<string, unknown>) => {
+    const filtrosUpdate: Array<[string, unknown]> = [];
+    const builder: Record<string, unknown> = {
+      eq(col: string, val: unknown) {
+        filtrosUpdate.push([col, val]);
+        return builder;
+      },
+      then(resolve: (v: unknown) => void) {
+        const id = filtrosUpdate.find(([c]) => c === "id")?.[1];
+        updates.push({ id, valores });
+        resolve(opciones.errorUpdate ? { error: { message: "no se pudo" } } : { error: null });
+      },
+    };
+    return builder;
+  };
+
   return {
     rpcs,
     filtros,
+    updates,
     from: () => consulta,
     rpc: async (nombre: string, args: Record<string, unknown>) => {
       rpcs.push({ nombre, args });
@@ -79,9 +103,9 @@ function adminFalso(filas: Array<Record<string, unknown>>, opciones: { errorSele
 
 test("concilia: aprueba lo que Bancard cobró, rechaza lo rechazado, deja lo dudoso", async () => {
   const admin = adminFalso([
-    { id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101" },
-    { id: "s2", usuario_id: "u2", plan_codigo: "pro", referencia_externa: "102" },
-    { id: "s3", usuario_id: "u3", plan_codigo: "pro", referencia_externa: "103" },
+    { id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101", created_at: "2026-10-09T00:00:00Z" },
+    { id: "s2", usuario_id: "u2", plan_codigo: "pro", referencia_externa: "102", created_at: "2026-10-09T00:00:00Z" },
+    { id: "s3", usuario_id: "u3", plan_codigo: "pro", referencia_externa: "103", created_at: "2026-10-09T00:00:00Z" },
   ]);
   const respuestas: Record<string, ConsultaBancard> = {
     "101": aprobada,
@@ -92,12 +116,13 @@ test("concilia: aprueba lo que Bancard cobró, rechaza lo rechazado, deja lo dud
 
   const resumen = await conciliarPendientesBancard(admin, {
     consultar: async (ref) => respuestas[ref],
+    ahora: new Date("2026-10-10T00:00:00Z"),
     alAprobar: async (fila) => {
       avisados.push(fila.usuario_id);
     },
   });
 
-  assert.deepEqual(resumen, { revisadas: 3, aprobadas: 1, rechazadas: 1, sin_respuesta: 1, errores: 0 });
+  assert.deepEqual(resumen, { revisadas: 3, aprobadas: 1, rechazadas: 1, sin_respuesta: 1, vencidas: 0, errores: 0 });
   assert.deepEqual(
     admin.rpcs.map((r) => [r.args.p_shop_process_id, r.args.p_aprobado]),
     [
@@ -116,6 +141,82 @@ test("no toca lo recién creado: el webhook todavía puede llegar", async () => 
   await conciliarPendientesBancard(admin, { consultar: async () => aprobada, ahora });
   const lte = admin.filtros.find(([op, col]) => op === "lte" && col === "created_at");
   assert.equal(lte?.[2], "2026-09-24T11:50:00.000Z");
+});
+
+test("no hay tope de edad hacia atrás: algo de hace 40 días igual se trae", async () => {
+  const admin = adminFalso([]);
+  await conciliarPendientesBancard(admin, { consultar: async () => aprobada });
+  assert.equal(
+    admin.filtros.some(([op, col]) => op === "gte" && col === "created_at"),
+    false,
+    "ya no se descarta por edad en la consulta: el vencimiento se decide adentro",
+  );
+});
+
+test("sin respuesta y dentro de la ventana, se deja pendiente para reintentar después", async () => {
+  const admin = adminFalso([
+    { id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101", created_at: "2026-10-01T00:00:00Z" },
+  ]);
+  const ahora = new Date("2026-10-10T00:00:00Z");
+  const resumen = await conciliarPendientesBancard(admin, { consultar: async () => ({ ok: false, data: null }), ahora });
+
+  assert.equal(resumen.sin_respuesta, 1);
+  assert.equal(resumen.vencidas, 0);
+  assert.deepEqual(admin.updates, []);
+});
+
+test("sin respuesta y pasados los 30 días, se cierra como vencido y se avisa", async () => {
+  const admin = adminFalso([
+    { id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101", created_at: "2026-09-01T00:00:00Z" },
+  ]);
+  const ahora = new Date("2026-10-10T00:00:00Z"); // 39 días después
+  const avisados: string[] = [];
+
+  const resumen = await conciliarPendientesBancard(admin, {
+    consultar: async () => ({ ok: false, data: null }),
+    ahora,
+    alVencer: async (fila) => {
+      avisados.push(fila.id);
+    },
+  });
+
+  assert.equal(resumen.sin_respuesta, 1);
+  assert.equal(resumen.vencidas, 1);
+  assert.deepEqual(admin.updates, [{ id: "s1", valores: { estado: "vencido" } }]);
+  assert.deepEqual(avisados, ["s1"]);
+});
+
+test("si vencer falla en la base, no se avisa y no se cuenta como vencida", async () => {
+  const admin = adminFalso(
+    [{ id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101", created_at: "2026-09-01T00:00:00Z" }],
+    { errorUpdate: true },
+  );
+  const ahora = new Date("2026-10-10T00:00:00Z");
+  const avisados: string[] = [];
+
+  const resumen = await conciliarPendientesBancard(admin, {
+    consultar: async () => ({ ok: false, data: null }),
+    ahora,
+    alVencer: async (fila) => {
+      avisados.push(fila.id);
+    },
+  });
+
+  assert.equal(resumen.vencidas, 0);
+  assert.deepEqual(avisados, []);
+});
+
+test("un diasMaximo distinto se respeta", async () => {
+  const admin = adminFalso([
+    { id: "s1", usuario_id: "u1", plan_codigo: "pro", referencia_externa: "101", created_at: "2026-10-01T00:00:00Z" },
+  ]);
+  const ahora = new Date("2026-10-10T00:00:00Z"); // 9 días después
+  const resumen = await conciliarPendientesBancard(admin, {
+    consultar: async () => ({ ok: false, data: null }),
+    ahora,
+    diasMaximo: 5,
+  });
+  assert.equal(resumen.vencidas, 1, "con el tope bajado a 5 días, 9 días ya cuenta como vencido");
 });
 
 test("una consulta que lanza no corta la pasada", async () => {
