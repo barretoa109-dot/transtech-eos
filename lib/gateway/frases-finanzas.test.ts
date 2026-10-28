@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   FUNCIONES_PARA_N8N,
+  fraseDeAnulacion,
   fraseDeCompraTarjeta,
   fraseDePersonal,
+  fraseDeRetiro,
   fraseDeTarjeta,
 } from "./frases-finanzas.ts";
 import { FUNCIONES_SIN_ANUNCIOS_PARA_N8N, anunciosContradichos, esAnuncio, sinAnuncios } from "./sin-anuncios.ts";
@@ -76,6 +78,34 @@ test("movimientos personales: lo nuevo y lo que ya estaba, cada uno con su frase
   });
   assert.match(repetido, /^Ya estaba anotado: ₲ 22\.650 del 27\/09 \(figura como "Punto Farma - Molas López"\)\. No lo anoté otra vez\./);
   assert.doesNotMatch(repetido, /No quedó nada anotado/);
+});
+
+test("retiro: dice el monto y dónde ver las dos puntas", () => {
+  const frase = fraseDeRetiro({ resultado: { monto: 2000000, moneda: "PYG" } });
+  assert.equal(
+    frase,
+    "Retiré ₲ 2.000.000 del negocio para vos. Lo ves como gasto en Negocio › Caja y como ingreso en Personal › Mi mes › Movimientos.",
+  );
+});
+
+test("retiro: sin un monto válido no inventa un número", () => {
+  assert.equal(fraseDeRetiro({ resultado: {} }), "Anoté el retiro.");
+  assert.equal(fraseDeRetiro({ resultado: { monto: 0 } }), "Anoté el retiro.");
+});
+
+test("anulación: dice cuál, cuándo y cuánto", () => {
+  const frase = fraseDeAnulacion({
+    resultado: { descripcion: "nafta", monto_anulado: 80000, moneda: "PYG", fecha: "2026-10-27" },
+  });
+  assert.equal(
+    frase,
+    "Anulé nafta del 27/10 (₲ 80.000). No sigue contando en tu mes. Si agarré el equivocado, decímelo.",
+  );
+});
+
+test("anulación: sin descripción ni monto no rompe", () => {
+  assert.equal(fraseDeAnulacion({ resultado: {} }), "Anulé el movimiento.");
+  assert.equal(fraseDeAnulacion({ resultado: { descripcion: "sueldo" } }), "Anulé sueldo.");
 });
 
 test("tarjeta: sin cambios lo dice; con cambios dice el antes y el después", () => {

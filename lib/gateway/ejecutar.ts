@@ -59,7 +59,14 @@ import { adminSinTipos } from "../supabase/sin-tipos.ts";
 import type { Job } from "./jobs.ts";
 import type { ResultadoWorker } from "./resultados.ts";
 import { fraseDelEnvio, type EnvioDeChat } from "../whatsapp-crm/envio-por-chat.ts";
-import { fraseDeCompraTarjeta, fraseDePagoTarjeta, fraseDePersonal, fraseDeTarjeta } from "./frases-finanzas.ts";
+import {
+  fraseDeAnulacion,
+  fraseDeCompraTarjeta,
+  fraseDePagoTarjeta,
+  fraseDePersonal,
+  fraseDeRetiro,
+  fraseDeTarjeta,
+} from "./frases-finanzas.ts";
 
 /**
  * Los handlers que este ejecutor orquesta.
@@ -114,10 +121,12 @@ export const ACCIONES_INTERNAS = new Set([
   "REGISTRAR_COMPRA",
   "REGISTRAR_GASTO_FIJO",
   "REGISTRAR_MOVIMIENTO_PERSONAL",
+  "REGISTRAR_RETIRO_PERSONAL",
   "REGISTRAR_TRANSFERENCIA",
   "REGISTRAR_DEUDA",
   "REGISTRAR_PAGO_DEUDA",
   "CORREGIR_MOVIMIENTO",
+  "ANULAR_MOVIMIENTO",
   "DECLARAR_SALDO",
   "REGISTRAR_COBRO",
   "REGISTRAR_PAGO_COMPRA",
@@ -381,6 +390,10 @@ async function ramaInterna(
             ? (fraseDeTarjeta({ resultado: resultado.resultado }) ?? HECHO.REGISTRAR_TARJETA)
           : job.accion.tipo === "REGISTRAR_MOVIMIENTO_PERSONAL"
             ? fraseDePersonal({ resultado: resultado.resultado })
+          : job.accion.tipo === "REGISTRAR_RETIRO_PERSONAL"
+            ? fraseDeRetiro({ resultado: resultado.resultado })
+          : job.accion.tipo === "ANULAR_MOVIMIENTO"
+            ? fraseDeAnulacion({ resultado: resultado.resultado })
           : job.accion.tipo === "REGISTRAR_VENTA"
             ? fraseDeVenta(resultado.resultado)
             : job.accion.tipo === "REGISTRAR_PAGO_DEUDA"

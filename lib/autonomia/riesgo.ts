@@ -235,6 +235,23 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
   },
 
   /*
+   * El retiro del negocio hacia lo personal: el movimiento de dos lados.
+   *
+   * Cuesta lo mismo que anotar un movimiento personal —2 puntos—, porque es
+   * exactamente eso, duplicado: mueve plata real (sale de la caja del
+   * negocio, entra como ingreso personal), no solo la reordena como la
+   * transferencia. Un retiro mal cargado deja mal el disponible de los dos
+   * lados a la vez.
+   */
+  REGISTRAR_RETIRO_PERSONAL: {
+    tier: 1,
+    points: 2,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  /*
    * Las deudas.
    *
    * Declarar una es barata —2 puntos— y tiene que serlo: a alguien endeudado
@@ -274,6 +291,21 @@ export const SYSTEM_RISK: Record<string, SystemRisk> = {
    * el chat, a propósito — ver la migración v148.
    */
   CORREGIR_MOVIMIENTO: {
+    tier: 1,
+    points: 1,
+    maxLevel: 3,
+    forceApproval: false,
+    defaultLevelOverride: 3,
+  },
+
+  /*
+   * Anular un movimiento personal cuesta lo mismo que corregirlo: 1 punto.
+   *
+   * No destruye tampoco —v248, mismo espíritu que v148—: un gasto se anula
+   * con una contrapartida negativa (la tabla no deja un gasto en monto 0),
+   * un ingreso queda en 0. La fila que existía nunca desaparece.
+   */
+  ANULAR_MOVIMIENTO: {
     tier: 1,
     points: 1,
     maxLevel: 3,
