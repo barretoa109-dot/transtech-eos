@@ -74,6 +74,7 @@ import { avisosDeLaVenta } from "@/lib/erp/guardia-margen";
 import { respuestaDirectaPara } from "@/lib/eos/respuestas-directas";
 import { mensajeDeCupo, planDelCupo } from "@/lib/eos/mensaje-cupo";
 import { TEXTO_EN_ESPERA, ponerEnEspera, puedeEsperar } from "@/lib/eos/en-espera";
+import { textoComprasRecientes } from "@/lib/eos/compras-recientes";
 import type { RespuestaGateway } from "@/lib/gateway/respuesta";
 import {
   bloqueDeContexto,
@@ -1216,6 +1217,23 @@ export async function procesarMensajeEOS(
     if (n8nResponse === null && atiendeTypeScript(turnoDeAccion)) {
       let iaCaida: string | null = null;
       const claveOpenAI = process.env.OPENAI_API_KEY ?? "";
+
+      /*
+       * Solo para un documento: el detalle de compras no viaja en
+       * `contexto_negocio` de cada turno a propósito (encarecería y
+       * alargaría cada mensaje). Acá sí vale la consulta extra: sin esto,
+       * EOS le preguntaba a la persona datos que ya estaban en Compras y
+       * gastos (caso real, 31/10/2026). Si falla, sigue sin este contexto.
+       */
+      if (eleccion.motivo === "documento") {
+        const detalleCompras = await textoComprasRecientes(adminSinTipos(), usuarioId);
+        if (detalleCompras) {
+          payload.contexto_negocio = payload.contexto_negocio
+            ? `${payload.contexto_negocio}\n\n${detalleCompras}`
+            : detalleCompras;
+        }
+      }
+
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
         principal: eleccion.modelo,
