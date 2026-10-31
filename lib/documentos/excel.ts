@@ -186,6 +186,19 @@ export async function crearExcelDocumento(documento: Documento): Promise<ExcelJS
 
   const usados = new Set<string>();
 
+  /*
+   * El nombre de cada hoja de tabla se decide ACÁ, antes de escribir el
+   * Resumen: un título que en `bloques` viene justo antes de su tabla tiene
+   * que poder enlazarla. Sin esto, el Resumen mostraba el título de la
+   * sección y nada debajo —la tabla estaba en otra pestaña, pero nada lo
+   * decía— y parecía que el dato no se había generado (caso real, 31/10/2026:
+   * "el excel que me envió no tiene nada que ver con lo que le pedí").
+   */
+  const hojaDeTabla = new Map<Bloque, string>();
+  for (const tabla of tablas) {
+    hojaDeTabla.set(tabla, nombreDeHoja(tabla.titulo ?? "Tabla", usados));
+  }
+
   // La hoja de resumen existe cuando hay algo que contar, o cuando NO hay
   // ninguna tabla: un libro de Excel sin hojas no se puede abrir.
   if (narrativa.length > 0 || tablas.length === 0) {
@@ -196,7 +209,10 @@ export async function crearExcelDocumento(documento: Documento): Promise<ExcelJS
 
     let fila = 4;
 
-    for (const bloque of narrativa) {
+    for (let i = 0; i < documento.bloques.length; i++) {
+      const bloque = documento.bloques[i];
+      if (bloque.tipo === "tabla") continue;
+
       if (bloque.tipo === "titulo") {
         const celda = hoja.getCell(`B${fila}`);
         celda.value = bloque.texto;
@@ -206,7 +222,21 @@ export async function crearExcelDocumento(documento: Documento): Promise<ExcelJS
           bold: true,
           color: { argb: AZUL_OSCURO },
         };
-        fila += 2;
+        fila += 1;
+
+        // La tabla de esta sección vive en su propia hoja: dejar el enlace acá
+        // mismo, no dos filas más abajo como el resto de la narrativa, porque
+        // es lo único que hay en esta sección del Resumen.
+        const siguiente = documento.bloques[i + 1];
+        if (siguiente?.tipo === "tabla") {
+          const nombreHoja = hojaDeTabla.get(siguiente) as string;
+          const enlace = hoja.getCell(`B${fila}`);
+          enlace.value = { text: `Ver tabla: ${nombreHoja} →`, hyperlink: `#'${nombreHoja}'!A1` };
+          enlace.font = { name: "Calibri", size: 10, italic: true, color: { argb: AZUL } };
+          fila += 1;
+        }
+
+        fila += 1;
         continue;
       }
 
@@ -254,7 +284,7 @@ export async function crearExcelDocumento(documento: Documento): Promise<ExcelJS
   }
 
   for (const tabla of tablas) {
-    const hoja = libro.addWorksheet(nombreDeHoja(tabla.titulo ?? "Tabla", usados));
+    const hoja = libro.addWorksheet(hojaDeTabla.get(tabla) as string);
 
     if (tablas.length === 1 && narrativa.length === 0) {
       escribirEncabezado(hoja, documento, tabla.columnas.length);
