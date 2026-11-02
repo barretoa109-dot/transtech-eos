@@ -462,3 +462,19 @@ test("01/11/2026: una estimación en el chat no se frena a pedir cada dato, pero
     /Esto es distinto a REGISTRAR algo o armar un documento: ahí un número no sale de un supuesto/,
   );
 });
+
+test("01/11/2026: un dato recurrente del negocio se guarda en memoria aunque no lo pidan", () => {
+  assert.match(
+    PROMPT_SISTEMA,
+    /TAMBIÉN guardala cuando la persona te da un dato que vas a necesitar de\s+nuevo para otra cuenta/,
+  );
+  assert.match(
+    PROMPT_SISTEMA,
+    /es lo que evita que en otra conversación le vuelvas a\s+preguntar algo que ya te dijo/,
+  );
+});
+
+test("01/11/2026: el prompt pide contestar directo y corto, no como un sistema", () => {
+  assert.match(PROMPT_SISTEMA, /Contestá directo y corto, como alguien que te está ayudando de verdad/);
+  assert.match(PROMPT_SISTEMA, /no des vueltas antes de llegar al punto/);
+});
