@@ -474,7 +474,8 @@ test("01/11/2026: un dato recurrente del negocio se guarda en memoria aunque no 
   );
 });
 
-test("01/11/2026: el prompt pide contestar directo y corto, no como un sistema", () => {
-  assert.match(PROMPT_SISTEMA, /Contestá directo y corto, como alguien que te está ayudando de verdad/);
+test("02/11/2026: el prompt pide un tono humano de CFO, no corto ni seco", () => {
+  assert.match(PROMPT_SISTEMA, /Contestá como un CFO de carne y hueso/);
+  assert.match(PROMPT_SISTEMA, /Esto NO es ser corto ni seco: es hablar natural/);
   assert.match(PROMPT_SISTEMA, /no des vueltas antes de llegar al punto/);
 });
