@@ -450,3 +450,15 @@ test("v227 (30/09/2026): un pago de tarjeta va siempre con monto; el mínimo, so
   // Dicho al pasar sigue siendo contexto (#213).
   assert.match(PROMPT_SISTEMA, /Esto vale cuando pagar ES lo que pide el mensaje/);
 });
+
+test("01/11/2026: una estimación en el chat no se frena a pedir cada dato, pero REGISTRAR sigue sin inventar", () => {
+  assert.match(
+    PROMPT_SISTEMA,
+    /no la frenes pidiendo cada dato antes de calcular: usá lo mejor que tengas/,
+  );
+  assert.match(PROMPT_SISTEMA, /DECÍ el supuesto en la respuesta, bien claro/);
+  assert.match(
+    PROMPT_SISTEMA,
+    /Esto es distinto a REGISTRAR algo o armar un documento: ahí un número no sale de un supuesto/,
+  );
+});
