@@ -65,7 +65,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { TIMEOUT_DOCUMENTO_MS, atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/costo-mensaje";
-import { clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
+import { MOTIVOS_CON_TIMEOUT_LARGO, clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
 import { avisarUsoAlto, baseUrlDeLaApp } from "@/lib/monitoreo/uso-alto";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
 import { crearBuscador } from "@/lib/busqueda/servicio";
@@ -1237,7 +1237,7 @@ export async function procesarMensajeEOS(
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
         principal: eleccion.modelo,
-        timeoutMs: eleccion.motivo === "documento" ? TIMEOUT_DOCUMENTO_MS : undefined,
+        timeoutMs: MOTIVOS_CON_TIMEOUT_LARGO.has(eleccion.motivo) ? TIMEOUT_DOCUMENTO_MS : undefined,
         alFallarIA: (motivo) => {
           iaCaida = motivo;
         },

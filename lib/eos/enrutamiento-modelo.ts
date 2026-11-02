@@ -325,6 +325,21 @@ export function motivoComplejo(turno: TurnoParaClasificar): string | null {
 }
 
 /**
+ * Los motivos que no solo cambian de modelo: piden tanto texto de salida
+ * como un documento, así que necesitan el mismo presupuesto de tiempo.
+ *
+ * Caso real, 02/11/2026: un pedido de "cuánto me cuesta mantener el lote,
+ * con estos tres escenarios de venta" no dice "excel" ni "informe" —no es
+ * "documento"— pero exige la misma cuenta larga, con varios montos y
+ * escenarios, que un documento. Con los 20 s de siempre (`TIMEOUT_MS`), el
+ * pedido se caía antes de que el modelo terminara, igual que el caso del
+ * 25/10 que motivó `TIMEOUT_DOCUMENTO_MS`. "largo" (un mensaje de más de 280
+ * caracteres) y "varias_operaciones" (dos montos o más) son la misma clase
+ * de pedido: mucho que calcular y mucho que escribir.
+ */
+export const MOTIVOS_CON_TIMEOUT_LARGO = new Set(["documento", "largo", "varias_operaciones"]);
+
+/**
  * Qué modelo contesta este turno.
  *
  * `EOS_MODELO_PRINCIPAL` reemplaza al principal; igual a `MODELO` (gpt-5.5),
