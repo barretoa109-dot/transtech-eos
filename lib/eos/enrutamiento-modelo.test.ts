@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { MODELO, MODELO_PRINCIPAL } from "../gateway/sistema.ts";
 import {
+  MOTIVOS_CON_TIMEOUT_LARGO,
   clasificarTurno,
   elegirModelo,
   modeloDelTurno,
@@ -181,6 +182,20 @@ test("donde Sol preguntaba en vez de actuar, va al completo", () => {
 test("un teléfono no son varios montos", () => {
   assert.equal(elegido("agendá a Nati, 0985 444 000").motivo, "agenda");
   assert.equal(elegido("el número de Pedro es +595 981 123456").motivo, "principal");
+});
+
+test("02/11/2026: un pedido largo o con varios montos tiene el mismo presupuesto de tiempo que un documento", () => {
+  // Caso real: "cuánto me cuesta mantener el lote, con estos escenarios de
+  // venta" no dice "excel" ni "informe", pero exige la misma cuenta larga
+  // que un documento — y con los 20 s de siempre, se caía antes de terminar.
+  assert.ok(MOTIVOS_CON_TIMEOUT_LARGO.has("documento"));
+  assert.ok(MOTIVOS_CON_TIMEOUT_LARGO.has("largo"));
+  assert.ok(MOTIVOS_CON_TIMEOUT_LARGO.has("varias_operaciones"));
+  // Los que no piden una cuenta larga, no necesitan más tiempo.
+  assert.ok(!MOTIVOS_CON_TIMEOUT_LARGO.has("whatsapp"));
+  assert.ok(!MOTIVOS_CON_TIMEOUT_LARGO.has("cartera"));
+  assert.ok(!MOTIVOS_CON_TIMEOUT_LARGO.has("agenda"));
+  assert.ok(!MOTIVOS_CON_TIMEOUT_LARGO.has("principal"));
 });
 
 test("EOS_MODELO_PRINCIPAL=gpt-5.5 devuelve todo al completo; otro nombre lo reemplaza", () => {
