@@ -134,6 +134,22 @@ const FRASES_BASE: Frase[] = [
 
   // Otros
   { id: "excel", grupo: "otro", mensaje: "pasame en excel las ventas del mes", esperado: [["DOCUMENTO"], ["GENERAR_EXCEL"]], porque: "Documento a pedido: viaja en el campo documento." },
+  // El detalle de compras ya está cargado: no se vuelve a pedir (caso real, 31/10/2026).
+  {
+    id: "documento-usa-compras-cargadas",
+    grupo: "otro",
+    rubro: "agro",
+    contexto:
+      CONTEXTOS_RUBRO.agro +
+      "\n\nCompras y gastos del negocio YA CARGADOS (últimos 6 meses, de Compras y gastos). " +
+      "Usalos para el documento: NO le vuelvas a preguntar a la persona un dato que ya está acá.\n" +
+      "- 2026-10-15 · Agro Sur · ₲ 2.800.000 · 20 × Balanceado (₲ 140.000 c/u)\n" +
+      "- 2026-10-20 · Criadero Don Justo · ₲ 1.250.000 · 5 × Lechón (₲ 250.000 c/u)",
+    mensaje: "pasame en excel cuánto gasté este mes en insumos, con el detalle de cada compra",
+    esperado: [["DOCUMENTO"], ["GENERAR_EXCEL"]],
+    noDebeDecir: ["no tengo (a mano )?(el|los|su) (costo|precio|detalle)", "pasame (el|los) (costo|precio)", "cuánto pagaste"],
+    porque: "El detalle de compras ya viaja en el contexto cuando el pedido es un documento: no hay que volver a preguntarlo (caso real, 31/10/2026).",
+  },
   { id: "venta-y-compra", grupo: "otro", mensaje: "vendí 2 balanceados a 180 y compré 10 harinas a 45 mil", esperado: [["REGISTRAR_VENTA", "REGISTRAR_COMPRA"]], porque: "Dos acciones en un mensaje." },
   { id: "memoria-legitima", grupo: "otro", mensaje: "anotá que Juan siempre paga tarde", esperado: [["GUARDAR_MEMORIA"]], porque: "Una nota de verdad sí es memoria." },
 

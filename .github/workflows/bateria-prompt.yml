@@ -1,0 +1,44 @@
+# La batería de frases (evals/bateria) SÍ llama al modelo de verdad —a
+# diferencia de `npm run evals`, que no cuesta nada y corre siempre— así que
+# solo tiene sentido correrla cuando alguien toca lo que puede cambiar qué
+# verbo elige EOS: el prompt del sistema o el enrutamiento de modelo.
+#
+# Sin OPENAI_API_KEY configurada como secreto del repo, el paso se salta con
+# aviso en vez de fallar: así un fork o un PR externo no se rompe por no
+# tener la clave, y agregarla después activa el chequeo sin tocar este
+# archivo.
+
+name: bateria-prompt
+
+on:
+  pull_request:
+    paths:
+      - "lib/gateway/sistema.ts"
+      - "lib/gateway/prompt.ts"
+      - "lib/gateway/respuesta.ts"
+      - "lib/eos/enrutamiento-modelo.ts"
+      - "evals/bateria/**"
+
+jobs:
+  bateria:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Batería de frases (el verbo que elige EOS)
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: npm run bateria
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Sin OPENAI_API_KEY configurada
+        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        run: |
+          echo "::warning::Falta el secreto OPENAI_API_KEY en el repo: este PR toca el prompt o el enrutamiento, pero la batería no corrió. Agregala en Settings > Secrets and variables > Actions para que este chequeo valga de verdad."
