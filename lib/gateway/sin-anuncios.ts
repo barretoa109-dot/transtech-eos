@@ -39,6 +39,19 @@
  * `n8n/parches/2026-09-29-finanzas-confirma-lo-guardado.mjs` las copia tal
  * cual al nodo `08 GW Agregar Resultados Worker`. Por eso no dependen de nada
  * de afuera y los tipos son solo `any` en la firma.
+ *
+ * ============================================================
+ * EL CASO DEL RELLENO (02/11/2026)
+ * ============================================================
+ *
+ * La persona pidió un plan de pagos, EOS lo dio con montos y fechas, y al
+ * final sumó "Anoté el saldo.", "La acción quedó completada." y "La tarea
+ * quedó registrada.": la acción SÍ se había guardado bien (no había nada
+ * contradicho), así que la regla de arriba no tocaba nada. Pero esas tres
+ * frases no decían ni el monto ni dónde verlo — a diferencia de "Anoté Punto
+ * Farma por ₲ 46.000 en Green", que si acierta queda porque es lo que deja
+ * ver qué entendió EOS. Un anuncio sin un número adentro no informa nada,
+ * salió bien o mal: es relleno, y se saca siempre (`esAnuncioVacio`).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -76,19 +89,37 @@ export function esAnuncio(oracion: any): boolean {
 }
 
 /**
+ * ¿Esta oración anuncia una acción sin decir nada concreto? Sin un número
+ * adentro (monto, hora, cuota) no hay un comprobante que el anuncio pueda
+ * coincidir o contradecir: es relleno, salió bien o mal la acción, y se saca
+ * siempre. "Anoté Punto Farma por ₲ 46.000" no es relleno; "Anoté el saldo."
+ * y "La tarea quedó registrada." sí.
+ */
+export function esAnuncioVacio(oracion: any): boolean {
+  const o = String(oracion || "");
+  return esAnuncio(o) && !/\d/.test(o);
+}
+
+/**
  * Saca del texto del modelo las oraciones que anuncian registros.
+ *
+ * `soloVacios`: si es `true`, deja los anuncios que sí dicen algo concreto
+ * (un número) y solo saca el relleno; si es `false`, saca cualquier anuncio
+ * (uso del caso Green: un comprobante lo contradijo y nada de lo que el
+ * modelo anunció vale).
  *
  * Corta en oraciones solo donde después del punto viene una mayúscula: así
  * "Gs. 46.000" no se parte en dos.
  */
-export function sinAnuncios(texto: any): string {
+export function sinAnuncios(texto: any, soloVacios: boolean = false): string {
   const parrafos = String(texto || "").split(/\n+/);
   const quedan: string[] = [];
 
   for (const parrafo of parrafos) {
     const oraciones = parrafo.split(/(?<=[.!?:])\s+(?=[A-ZÁÉÍÓÚÑ¿¡"“])/);
     const buenas = oraciones.filter(function (o: string) {
-      return o.trim() && !esAnuncio(o);
+      if (!o.trim()) return false;
+      return soloVacios ? !esAnuncioVacio(o) : !esAnuncio(o);
     });
     if (buenas.length > 0) quedan.push(buenas.join(" ").trim());
   }
@@ -97,4 +128,4 @@ export function sinAnuncios(texto: any): string {
 }
 
 /** Lo que viaja a n8n, en orden. */
-export const FUNCIONES_SIN_ANUNCIOS_PARA_N8N = [anunciosContradichos, esAnuncio, sinAnuncios];
+export const FUNCIONES_SIN_ANUNCIOS_PARA_N8N = [anunciosContradichos, esAnuncio, esAnuncioVacio, sinAnuncios];

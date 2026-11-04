@@ -138,11 +138,14 @@ export function juntarResultados(base: Base, resultados: ResultadoWorker[]): Fin
 
   /*
    * Si algo falló o ya estaba, lo que el modelo anunció antes de ejecutar no
-   * vale: se sacan sus anuncios y mandan los comprobantes (29/09/2026, ver
-   * `sin-anuncios.ts`). Si todo salió bien, el texto queda como está.
+   * vale: se sacan TODOS sus anuncios y mandan los comprobantes (29/09/2026,
+   * ver `sin-anuncios.ts`). Si todo salió bien, se sacan igual los anuncios
+   * que no dicen nada concreto (sin un número adentro, 02/11/2026): "Anoté el
+   * saldo." o "La tarea quedó registrada." no informan más que el
+   * comprobante, salió bien o mal.
    */
   const delModelo = extraerTexto(base.respuesta);
-  let respuesta = anunciosContradichos(resultados) ? sinAnuncios(delModelo) : delModelo || "Listo.";
+  let respuesta = sinAnuncios(delModelo, !anunciosContradichos(resultados));
 
   /*
    * Lo que dijo el Worker, sin repetir lo que ya dijo el modelo.

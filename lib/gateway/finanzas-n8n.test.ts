@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 import { transformarGateway, transformarWorker } from "../../n8n/parches/transformar-finanzas-confirma-lo-guardado.mjs";
 import { transformarGateway as transformarGatewayV227 } from "../../n8n/parches/cambios-pago-tarjeta-sin-monto.mjs";
+import { transformarGateway as transformarGatewayRelleno } from "../../n8n/parches/cambios-anuncios-vacios-siempre.mjs";
 import { verificarFlujo } from "../../n8n/parches/verificar.mjs";
 import { fraseDeCompraTarjeta, fraseDePagoTarjeta, fraseDePersonal, fraseDeTarjeta } from "./frases-finanzas.ts";
 
@@ -100,4 +101,15 @@ test("v227: el parche del prompt ya está en el exportado y no se aplica dos vec
   assert.equal(JSON.stringify(transformarGatewayV227(JSON.parse(g))), g);
   const prompt = gateway.nodes.find((n) => n.name === "HTTP Request")!.parameters.jsonBody;
   assert.doesNotMatch(prompt, /el sistema usa el pago mínimo/);
+});
+
+test("02/11/2026: el nodo 08, parcheado, saca el relleno aunque todo haya salido bien", () => {
+  const g = transformarGatewayRelleno(JSON.parse(JSON.stringify(gateway))) as Flujo;
+  const codigo = g.nodes.find((n) => n.name === "08 GW Agregar Resultados Worker")!.parameters.jsCode;
+  assert.match(codigo, /let respuesta = sinAnuncios\(delModelo, !anunciosContradichos\(resultados\)\);/);
+  assert.match(codigo, /function esAnuncioVacio/);
+
+  // Idempotente: aplicada dos veces, queda igual.
+  const una = JSON.stringify(g);
+  assert.equal(JSON.stringify(transformarGatewayRelleno(JSON.parse(una))), una);
 });

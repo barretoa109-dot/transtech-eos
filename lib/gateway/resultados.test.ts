@@ -46,7 +46,9 @@ test("saca texto real y nunca convierte un objeto a string", () => {
 test("un objeto sin texto no ensucia la burbuja del chat", () => {
   const f = juntarResultados(base(), [{ ok: true, executed: true, accion: "CREAR_TAREA", datos: { x: 1 } }]);
   assert.ok(!f.respuesta.includes("[object Object]"));
-  assert.equal(f.respuesta, "Lo dejo listo.");
+  // "Lo dejo listo." no dice nada concreto (sin número): queda como relleno
+  // y se saca (ver sin-anuncios.ts, caso del 02/11/2026).
+  assert.equal(f.respuesta, "Listo.");
 });
 
 test("no se cuelga con nulos ni listas vacías", () => {

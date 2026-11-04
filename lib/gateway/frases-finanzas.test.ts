@@ -9,7 +9,13 @@ import {
   fraseDeRetiro,
   fraseDeTarjeta,
 } from "./frases-finanzas.ts";
-import { FUNCIONES_SIN_ANUNCIOS_PARA_N8N, anunciosContradichos, esAnuncio, sinAnuncios } from "./sin-anuncios.ts";
+import {
+  FUNCIONES_SIN_ANUNCIOS_PARA_N8N,
+  anunciosContradichos,
+  esAnuncio,
+  esAnuncioVacio,
+  sinAnuncios,
+} from "./sin-anuncios.ts";
 import { juntarResultados, type Base } from "./resultados.ts";
 
 /**
@@ -223,4 +229,33 @@ test("anuncios: las palabras con tilde al final también cuentan ('anoté', 'act
   assert.ok(esAnuncio("Anoté la compra."));
   assert.ok(esAnuncio("Actualicé Green ****7450."));
   assert.ok(esAnuncio("Listo, cargué el ingreso."));
+});
+
+test("relleno (02/11/2026): un anuncio sin número adentro se saca aunque todo haya salido bien", () => {
+  const final = juntarResultados(
+    {
+      ...BASE,
+      respuesta:
+        "Yo lo haría así: primero asegurá los ₲1.425.000 de facultad y telefonía.\n\n" +
+        "Anoté el saldo.\n\nLa acción quedó completada.\n\nLa tarea quedó registrada.",
+    },
+    [{ ok: true, executed: true, accion: "GUARDAR_MEMORIA", resultado: {} }],
+  );
+
+  assert.match(final.respuesta, /asegurá los ₲1\.425\.000/);
+  assert.doesNotMatch(final.respuesta, /Anoté el saldo/);
+  assert.doesNotMatch(final.respuesta, /quedó completada/);
+  assert.doesNotMatch(final.respuesta, /quedó registrada/);
+});
+
+test("relleno: un anuncio que sí dice un monto no es relleno y queda, aunque todo haya salido bien", () => {
+  // El primero no dice nada concreto (relleno); el segundo sí (el monto).
+  assert.equal(esAnuncioVacio("Anoté el saldo."), true);
+  assert.equal(esAnuncioVacio("Anoté el saldo de ₲ 575.000."), false);
+
+  const final = juntarResultados(
+    { ...BASE, respuesta: "Anoté el saldo de ₲ 575.000." },
+    [{ ok: true, executed: true, accion: "GUARDAR_MEMORIA", resultado: {} }],
+  );
+  assert.match(final.respuesta, /^Anoté el saldo de ₲ 575\.000\./);
 });
