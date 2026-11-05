@@ -275,11 +275,29 @@ async function procesar(args: {
       ),
     ]);
 
+    // El único caso que no termina acá: no hubo ningún movimiento confiable,
+    // pero el parser sí vio algo (`extraerDeCorreo` nunca devuelve más de un
+    // movimiento por correo). Se guarda en la misma fila para que el usuario
+    // lo pueda confirmar o descartar — antes esto solo quedaba en la
+    // bitácora, donde nadie lo veía salvo que fuera a buscarlo.
+    const unicoDescartado = confiables.length === 0 ? descartados[0] : undefined;
+
     await admin
       .from("eos_correos_entrantes")
       .update({
         movimientos_detectados: confiables.length,
-        estado: confiables.length > 0 ? "procesado" : "sin_movimientos",
+        estado:
+          confiables.length > 0 ? "procesado" : unicoDescartado ? "descartado" : "sin_movimientos",
+        ...(unicoDescartado
+          ? {
+              tipo: unicoDescartado.tipo,
+              monto: unicoDescartado.monto,
+              moneda: unicoDescartado.moneda,
+              descripcion: unicoDescartado.descripcion,
+              confianza: unicoDescartado.confianza,
+              revisado: false,
+            }
+          : {}),
       })
       .eq("email_id", emailId);
 

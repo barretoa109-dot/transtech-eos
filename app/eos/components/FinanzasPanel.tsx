@@ -5,6 +5,7 @@ import { AlertTriangle, CalendarDays, Check, ChevronDown, Lock, Receipt, ShieldC
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasCandidatos from "./FinanzasCandidatos";
 import FinanzasBuzon from "./FinanzasBuzon";
+import AvisosDescartados from "./AvisosDescartados";
 import FinanzasConciliar from "./FinanzasConciliar";
 import FinanzasFijos from "./FinanzasFijos";
 import { formatearMonto } from "@/lib/finanzas/formato";
@@ -395,6 +396,7 @@ export default function FinanzasPanel({
           confirmados={data.prevision?.fijos_confirmados ?? 0}
           onGuardado={() => void cargar()}
         />
+        <AvisosDescartados />
         <FinanzasBuzon />
       </>
     )}

@@ -31,6 +31,7 @@ import FinanzasPulso, { FinanzasPuedoComprar } from "./FinanzasPulso";
 import TuImpacto from "./TuImpacto";
 import FinanzasSetup from "./FinanzasSetup";
 import FinanzasBuzon from "./FinanzasBuzon";
+import AvisosDescartados from "./AvisosDescartados";
 import { SubNav, seccionDe, type Seccion } from "./SeccionNav";
 import { useEtiquetaEspacio } from "./EspacioContext";
 import { useAnotarRapido } from "../hooks/useAnotarRapido";
@@ -1014,7 +1015,12 @@ export default function GastosView({ onOpenChat, seccion = "hoy", subInicial, on
           </div>
         ))}
 
-      {subarea === "buzon" && <FinanzasBuzon explicarAusencia />}
+      {subarea === "buzon" && (
+        <>
+          <AvisosDescartados />
+          <FinanzasBuzon explicarAusencia />
+        </>
+      )}
 
       {/*
         "¿En qué se fue?" en tres partes de "Mi mes": el desglose por destino,
