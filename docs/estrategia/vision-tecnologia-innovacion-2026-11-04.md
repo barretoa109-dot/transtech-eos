@@ -60,15 +60,22 @@ datos** es:
 
 1. **Fase 1 real**: reemplazar/reforzar la ingestión conversacional con un parser de
    mensajes (SMS/email de bancos) más confiable, si esa ingestión por LLM está
-   fallando en producción.
-2. **Fase 3 ligera**: visión por computadora para tickets/facturas en papel (ya existe
-   OCR de comprobantes — extenderlo a tickets de PyME es incremental, no una
-   plataforma nueva).
+   fallando en producción. **Hecho (05/11, PR #308):** los avisos de correo que el
+   parser leía con baja confianza quedaban invisibles; ahora se muestran para
+   confirmar o descartar.
+2. ~~Fase 3 ligera: visión por computadora para tickets/facturas en papel~~ —
+   **ya existe, verificado el 05/11.** No era un hueco: `lib/gateway/prompt.ts`
+   manda cualquier foto adjunta al chat directo al modelo como `input_image` en el
+   mismo turno, y el prompt de sistema ya tiene `REGISTRAR_COMPRA` entre las
+   acciones disponibles — un dueño de PyME que le manda a EOS la foto de un ticket
+   de papel ya puede recibir la compra propuesta en esa misma respuesta. No hay
+   eval case que lo cubra explícitamente (ver "Próximo paso"), pero no es trabajo
+   nuevo por construir.
 3. **Fase 5 incremental**: el esquema de datos ya es RLS-first; falta cifrado por
    campo si hay un dato sensible puntual que lo justifique, no una reescritura.
 4. Integración de **lectura** de facturación electrónica SET para negocios de
    usuarios (distinto del proyecto de SIFEN propio de EOS) — esto sí compone con el
-   diferencial de "cancha propia" sin esperar escala.
+   diferencial de "cancha propia" sin esperar escala. Sigue sin construir.
 
 Todo lo demás del documento (modelo de riesgo, federated learning, agentes
 especializados, scoring, marketplace, API B2B2C, red de fraude compartida) queda

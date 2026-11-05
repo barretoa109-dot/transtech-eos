@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
+import FacturasProveedorPendientes from "./FacturasProveedorPendientes";
 import Anular from "./Anular";
 import PasarAlCatalogo from "./PasarAlCatalogo";
 import CorregirCosto from "./CorregirCosto";
@@ -421,6 +422,8 @@ export default function Compras({
    */
   return (
     <>
+      <FacturasProveedorPendientes onCambio={() => void cargar()} />
+
       <div className="neg-barra">
         {!abierto ? (
           <button type="button" className="btn-pri" onClick={() => { setAbierto(true); setExito(""); }}>

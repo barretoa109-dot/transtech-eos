@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { extraerTextoPdf } from "@/lib/documentos/textoPdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -220,24 +221,15 @@ async function extractXlsx(bytes: Uint8Array): Promise<ExtractionResult> {
  */
 async function extractPdf(bytes: Uint8Array): Promise<ExtractionResult> {
   try {
-    const { extractText, getDocumentProxy } = await import("unpdf");
+    const resultado = await extraerTextoPdf(bytes);
 
-    const pdf = await getDocumentProxy(bytes);
-    const { totalPages, text } = await extractText(pdf, { mergePages: true });
-
-    const contenido = Array.isArray(text) ? text.join("\n") : text;
-    const clipped = clipText(contenido ?? "");
-
-    // Umbral bajo a propósito: con menos de esto no hay nada útil que
-    // analizar y casi siempre significa que el PDF es una imagen escaneada.
-    if (clipped.text.replace(/\s/g, "").length < 20) {
+    if (!resultado) {
       return {
         text: "",
         status: "unsupported",
         language: null,
         metadata: {
           extractor: "unpdf-v1",
-          page_count: totalPages,
           reason:
             "El PDF no tiene capa de texto (probablemente escaneado). Queda guardado a la espera de OCR.",
           needs_ocr: true,
@@ -245,13 +237,15 @@ async function extractPdf(bytes: Uint8Array): Promise<ExtractionResult> {
       };
     }
 
+    const clipped = clipText(resultado.texto);
+
     return {
       text: clipped.text,
       status: clipped.clipped ? "partial" : "ready",
       language: null,
       metadata: {
         extractor: "unpdf-v1",
-        page_count: totalPages,
+        page_count: resultado.paginas,
         clipped: clipped.clipped,
       },
     };
