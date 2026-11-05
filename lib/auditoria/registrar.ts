@@ -37,6 +37,14 @@ export type EventoAuditoria =
   | "compra_pagada"
   | "compra_anulada"
   | "compra_editada"
+  /**
+   * Una factura de proveedor leída de un adjunto de correo (Pilar 3, v251):
+   * todavía no es una compra, es una PROPUESTA que el dueño confirma o
+   * descarta en `/api/erp/facturas-proveedor`.
+   */
+  | "factura_proveedor_detectada"
+  | "factura_proveedor_confirmada"
+  | "factura_proveedor_descartada"
   | "stock_ajustado"
   | "producto_modificado"
   | "comprobante_emitido"

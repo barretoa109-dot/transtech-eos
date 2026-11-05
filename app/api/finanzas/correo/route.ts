@@ -14,6 +14,11 @@ import {
 } from "@/lib/auditoria/registrar";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
+import { elegirAdjuntoFactura, type AdjuntoCrudo } from "@/lib/facturacion/adjuntoFactura";
+import { leerKude } from "@/lib/facturacion/leerKude";
+import { extraerTextoPdf } from "@/lib/documentos/textoPdf";
+import { empresaDe } from "@/lib/empresa/acceso";
+import { sumarCostoIA } from "@/lib/eos/costo-ia";
 
 export const dynamic = "force-dynamic";
 
@@ -202,6 +207,7 @@ async function procesar(args: {
       html?: string | null;
       from?: string | null;
       created_at?: string | null;
+      attachments?: { id: string; filename: string | null; size: number; content_type: string }[];
     };
 
     const movimientos = extraerDeCorreo({
@@ -306,6 +312,15 @@ async function procesar(args: {
       // El contador del buzón es cosmético: que falle no invalida la ingesta.
       (error: unknown) => console.error("Correo: no se pudo actualizar el contador:", error),
     );
+
+    // Aparte, en su propio try/catch: si esto falla no tiene que pisar el
+    // `estado` que ya se guardó arriba por el aviso bancario del cuerpo del
+    // correo — son dos lecturas independientes del mismo correo.
+    try {
+      await leerFacturaDeAdjuntos({ emailId, usuarioId, attachments: correo.attachments ?? [] });
+    } catch (error) {
+      console.error("Correo: no se pudo leer la factura de un adjunto:", error);
+    }
   } catch (error) {
     console.error("Correo: fallo procesando el correo entrante:", error);
     await admin
@@ -313,6 +328,87 @@ async function procesar(args: {
       .update({ estado: "error" })
       .eq("email_id", emailId);
   }
+}
+
+/**
+ * Si el correo trae un KuDE adjunto (Pilar 3 del documento de visión del
+ * 04/11), lo lee y guarda una PROPUESTA de compra — nunca se registra sola.
+ * No parsea el XML del Documento Electrónico de SIFEN: ver `leerKude.ts`.
+ */
+async function leerFacturaDeAdjuntos(args: {
+  emailId: string;
+  usuarioId: string;
+  attachments: AdjuntoCrudo[];
+}) {
+  const { emailId, usuarioId, attachments } = args;
+
+  const elegido = elegirAdjuntoFactura(attachments);
+  if (!elegido) return;
+
+  const admin = adminSinTipos();
+
+  const metaRes = await fetch(
+    `https://api.resend.com/emails/receiving/${emailId}/attachments/${elegido.id}`,
+    { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` }, cache: "no-store" },
+  );
+  if (!metaRes.ok) throw new Error(`Resend devolvió ${metaRes.status} al pedir el adjunto.`);
+
+  const meta = (await metaRes.json()) as { download_url?: string };
+  if (!meta.download_url) throw new Error("El adjunto no trajo URL de descarga.");
+
+  const archivoRes = await fetch(meta.download_url, { cache: "no-store" });
+  if (!archivoRes.ok) throw new Error(`No se pudo descargar el adjunto (${archivoRes.status}).`);
+
+  const bytes = new Uint8Array(await archivoRes.arrayBuffer());
+
+  let costoUsd = 0;
+  const alCosto = (usd: number) => {
+    costoUsd += usd;
+  };
+
+  const factura = elegido.esImagen
+    ? await leerKude(
+        { tipo: "imagen", mime: attachments.find((a) => a.id === elegido.id)?.content_type ?? "image/jpeg", base64: Buffer.from(bytes).toString("base64") },
+        { alCosto },
+      )
+    : await (async () => {
+        const texto = await extraerTextoPdf(bytes);
+        if (!texto) return null;
+        return leerKude({ tipo: "texto", contenido: texto.texto }, { alCosto });
+      })();
+
+  if (costoUsd > 0) await sumarCostoIA(usuarioId, costoUsd, { avisar: true });
+
+  if (!factura) return;
+
+  const empresaId = await empresaDe(admin, usuarioId);
+
+  const { error } = await admin.from("eos_facturas_recibidas").insert({
+    usuario_id: usuarioId,
+    empresa_id: empresaId,
+    email_id: emailId,
+    attachment_id: elegido.id,
+    proveedor_ruc: factura.ruc_emisor,
+    proveedor_nombre: factura.razon_social_emisor,
+    numero_documento: factura.numero_documento,
+    cdc: factura.cdc,
+    fecha: factura.fecha,
+    moneda: factura.moneda,
+    total: factura.total,
+    iva_tasa: factura.iva_tasa,
+  });
+
+  // 23505 = ya existe una fila para este correo (reintento de Resend): no es un error.
+  if (error && (error as { code?: string }).code !== "23505") throw error;
+
+  await registrarAuditoria(admin, {
+    usuarioId,
+    evento: "factura_proveedor_detectada",
+    origen: "correo",
+    resumen: `Se leyó una posible factura de ${factura.razon_social_emisor ?? "un proveedor"} por ${factura.moneda} ${factura.total}, pendiente de confirmar.`,
+    referencia: emailId,
+    detalle: { ruc: factura.ruc_emisor, total: factura.total, moneda: factura.moneda },
+  });
 }
 
 function aFila(movimiento: MovimientoDeCorreo, usuarioId: string, emailId: string) {
