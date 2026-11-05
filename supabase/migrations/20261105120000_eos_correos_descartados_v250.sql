@@ -135,5 +135,5 @@ begin
 end;
 $$;
 
-revoke all on function public.eos_finanzas_resolver_correo_v250(text, text) from public;
+revoke execute on function public.eos_finanzas_resolver_correo_v250(text, text) from public, anon;
 grant execute on function public.eos_finanzas_resolver_correo_v250(text, text) to authenticated;
