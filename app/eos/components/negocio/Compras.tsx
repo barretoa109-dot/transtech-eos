@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Confirmar from "./Confirmar";
 import FacturasProveedorPendientes from "./FacturasProveedorPendientes";
+import PropuestaReposicion from "./PropuestaReposicion";
 import Anular from "./Anular";
 import PasarAlCatalogo from "./PasarAlCatalogo";
 import CorregirCosto from "./CorregirCosto";
@@ -423,6 +424,7 @@ export default function Compras({
   return (
     <>
       <FacturasProveedorPendientes onCambio={() => void cargar()} />
+      <PropuestaReposicion />
 
       <div className="neg-barra">
         {!abierto ? (

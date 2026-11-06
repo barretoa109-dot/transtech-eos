@@ -60,6 +60,16 @@ export type ProyeccionStock = {
   ritmo_diario: number;
   /** Días que alcanza al ritmo actual, redondeado y nunca menos de 1. */
   dias_restantes: number;
+  /**
+   * Cuánto pedir para llegar a cubrir `horizonteDias` al ritmo actual.
+   *
+   * No es una política de compra —no sabe de lotes mínimos, de plazos de
+   * entrega real ni de temporada— es la cuenta más chica que tiene sentido:
+   * lo que hace falta para no quedarse antes de `horizonteDias` si el ritmo
+   * de estos últimos `ventanaDias` sigue igual. El dueño la ajusta con lo que
+   * EOS no puede saber.
+   */
+  cantidad_sugerida: number;
 };
 
 /** Cuánta historia mira. Un mes: alcanza para ver un ritmo sin arrastrar el del trimestre pasado. */
@@ -120,12 +130,18 @@ export function proyectarAgotamiento(datos: {
     const dias = Math.max(1, Math.round(p.stock_actual / ritmo));
     if (dias > horizonte) continue;
 
+    // Lo que hace falta para cubrir el horizonte entero al ritmo actual,
+    // menos lo que ya hay. Nunca negativo: si todavía sobra para el
+    // horizonte, este producto ni siquiera llegó hasta acá (línea 121).
+    const cantidadSugerida = Math.max(0, Math.ceil(ritmo * horizonte) - p.stock_actual);
+
     proyecciones.push({
       id: p.id,
       nombre: p.nombre,
       stock: p.stock_actual,
       ritmo_diario: Math.round(ritmo * 100) / 100,
       dias_restantes: dias,
+      cantidad_sugerida: cantidadSugerida,
     });
   }
 

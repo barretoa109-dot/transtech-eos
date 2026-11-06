@@ -42,6 +42,30 @@ test("el que se vende rápido y todavía no está bajo el mínimo se avisa antes
   assert.equal(r[0].ritmo_diario, 1);
 });
 
+test("la cantidad sugerida cubre el horizonte entero, no solo lo que falta hoy", () => {
+  // 1 por día, horizonte de 14 días (default): hacen falta 14, hay 10 → pedir 4.
+  const r = proyectarAgotamiento({
+    hoy: HOY,
+    productos: [producto({ id: "a", stock_actual: 10, stock_minimo: 2 })],
+    salidas: salidas("a", 6, 5),
+  });
+
+  assert.equal(r[0].cantidad_sugerida, 4);
+});
+
+test("la cantidad sugerida nunca es negativa", () => {
+  // 1 por día, horizonte de 10: lo que hay (10) ya cubre el horizonte justo.
+  const r = proyectarAgotamiento({
+    hoy: HOY,
+    productos: [producto({ id: "a", stock_actual: 10, stock_minimo: 2 })],
+    salidas: salidas("a", 6, 5),
+    horizonteDias: 10,
+  });
+
+  assert.equal(r.length, 1);
+  assert.equal(r[0].cantidad_sugerida, 0);
+});
+
 test("el que tiene poco stock pero no se vende NO se acaba: se calla", () => {
   const r = proyectarAgotamiento({
     hoy: HOY,
