@@ -29,7 +29,7 @@ export type MovimientoBase = {
   descripcion: string | null;
 };
 
-export type Periodicidad = "semanal" | "quincenal" | "mensual" | "bimestral";
+export type Periodicidad = "semanal" | "quincenal" | "mensual" | "bimestral" | "unica";
 
 export type SerieRecurrente = {
   clave: string;
