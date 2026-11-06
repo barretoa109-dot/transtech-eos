@@ -14,7 +14,7 @@ import {
   type VentaACobrar,
 } from "@/lib/erp/riesgos-negocio";
 import { formatearMonto } from "@/lib/finanzas/formato";
-import { trazarTrayectoria } from "@/lib/finanzas/trayectoria";
+import { trazarBanda } from "@/lib/finanzas/trayectoria";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
 import { exigirModulo } from "@/lib/modulos/acceso";
@@ -158,7 +158,17 @@ export async function GET() {
     ingresos: panorama.ingresos,
   });
 
-  const trayectoria = trazarTrayectoria({
+  /*
+   * La curva, con un rango.
+   *
+   * `esperado` es la MISMA línea de siempre —la que usa `detectarRiesgo` de
+   * arriba, para que la pantalla y el aviso nunca se contradigan—. `piso` y
+   * `techo` son nuevos (punto 17 del documento EOS 2030, "Predictive Cash
+   * Flow"): qué tan mal y qué tan bien puede salir, usando la confianza que
+   * cada movimiento proyectado YA trae. Ver el comentario largo en
+   * `trazarBanda`.
+   */
+  const banda = trazarBanda({
     hoy,
     hasta,
     saldoActual: panorama.saldoActual,
@@ -166,6 +176,7 @@ export async function GET() {
     egresos: panorama.egresos,
     ingresos: panorama.ingresos,
   });
+  const trayectoria = banda.esperado;
 
   /*
    * Los riesgos del negocio salen por la MISMA ruta que los de la caja.
@@ -251,6 +262,9 @@ export async function GET() {
         aviso: redactarRiesgoNegocio(r, formatearMonto),
       })),
       trayectoria,
+      // Solo el piso y el techo: el `esperado` ya viaja como `trayectoria` y
+      // mandarlo dos veces duplicaría el payload sin decir nada nuevo.
+      banda: { piso: banda.piso, techo: banda.techo },
       // Sirve para que la interfaz pueda decir "miré los próximos 45 días" en
       // vez de dejar al usuario adivinando qué tan lejos alcanza la promesa.
       horizonte: { desde: hoy, hasta },

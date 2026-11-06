@@ -35,6 +35,13 @@ type Punto = {
   eventos: { descripcion: string; monto: number; tipo: "ingreso" | "egreso" }[];
 };
 
+type Trayectoria = {
+  puntos: Punto[];
+  reservaMinima: number;
+  valle: { fecha: string; saldo: number };
+  cruce: string | null;
+};
+
 type Respuesta =
   | { configurado: false }
   | {
@@ -42,12 +49,15 @@ type Respuesta =
       moneda: string;
       riesgo: { fecha: string; dias: number; faltante: number } | null;
       aviso: string | null;
-      trayectoria: {
-        puntos: Punto[];
-        reservaMinima: number;
-        valle: { fecha: string; saldo: number };
-        cruce: string | null;
-      };
+      trayectoria: Trayectoria;
+      /**
+       * Qué tan mal y qué tan bien puede salir (Predictive Cash Flow, punto 17
+       * del documento EOS 2030). `piso` asume que lo que todavía no es seguro
+       * no entra; `techo`, que lo que todavía no es un patrón firme no se
+       * repite. Nunca una distribución estadística inventada: ver el
+       * comentario largo en `lib/finanzas/trayectoria.ts::trazarBanda`.
+       */
+      banda: { piso: Trayectoria; techo: Trayectoria };
       horizonte: { desde: string; hasta: string };
     };
 
@@ -68,11 +78,19 @@ export default function FinanzasTrayectoria() {
   // situaciones donde no hay nada que decir todavía.
   if (data === null || !data.configurado) return null;
 
-  const { trayectoria, riesgo, aviso, moneda } = data;
+  const { trayectoria, banda, riesgo, aviso, moneda } = data;
   if (trayectoria.puntos.length < 2) return null;
 
   const fmt = (valor: number) => formatearMonto(valor, moneda);
   const hayRiesgo = Boolean(riesgo && trayectoria.cruce);
+
+  // Si el peor y el mejor caso dan lo mismo que lo esperado, no hay nada
+  // incierto que mostrar: todo lo que compone la curva ya es seguro (fijos,
+  // cuotas, montos declarados), y una banda de ancho cero solo agregaría una
+  // leyenda sin información.
+  const hayIncertidumbre = banda.piso.puntos.some(
+    (p, i) => p.saldo !== banda.techo.puntos[i].saldo,
+  );
 
   return (
     <div className="card">
@@ -89,7 +107,15 @@ export default function FinanzasTrayectoria() {
         </span>
       </div>
 
-      <CurvaSaldo trayectoria={trayectoria} fmt={fmt} />
+      <CurvaSaldo trayectoria={trayectoria} banda={hayIncertidumbre ? banda : null} fmt={fmt} />
+
+      {hayIncertidumbre && (
+        <p className="tray-banda-nota">
+          La franja sombreada es el rango posible: desde que lo que todavía no
+          es seguro no entre, hasta que lo que todavía no es un patrón firme no
+          se repita.
+        </p>
+      )}
 
       {hayRiesgo && aviso ? (
         <p className="tray-aviso">{aviso}</p>
@@ -105,14 +131,11 @@ export default function FinanzasTrayectoria() {
 
 function CurvaSaldo({
   trayectoria,
+  banda,
   fmt,
 }: {
-  trayectoria: {
-    puntos: Punto[];
-    reservaMinima: number;
-    valle: { fecha: string; saldo: number };
-    cruce: string | null;
-  };
+  trayectoria: Trayectoria;
+  banda: { piso: Trayectoria; techo: Trayectoria } | null;
   fmt: (valor: number) => string;
 }) {
   const { puntos, reservaMinima, cruce } = trayectoria;
@@ -155,6 +178,12 @@ function CurvaSaldo({
 
   const escala = useMemo(() => {
     const saldos = puntos.map((p) => p.saldo);
+    // La banda tiene que entrar en la escala: si el piso baja más que la
+    // línea esperada y queda afuera del recuadro, el gráfico recorta
+    // justamente el "qué tan mal puede salir" que la banda existe para mostrar.
+    if (banda) {
+      saldos.push(...banda.piso.puntos.map((p) => p.saldo), ...banda.techo.puntos.map((p) => p.saldo));
+    }
 
     // La reserva entra en la escala SIEMPRE. Si el saldo se mantiene muy por
     // encima, la línea quedaría fuera del recuadro y el gráfico dejaría de
@@ -164,7 +193,7 @@ function CurvaSaldo({
     const margen = (crudoMax - crudoMin) * 0.12 || Math.abs(crudoMax) * 0.12 || 1;
 
     return { min: crudoMin - margen, max: crudoMax + margen };
-  }, [puntos, reservaMinima]);
+  }, [puntos, reservaMinima, banda]);
 
   const x = (i: number) => padL + (i / (puntos.length - 1)) * (W - padL - padR);
   const y = (v: number) =>
@@ -177,6 +206,17 @@ function CurvaSaldo({
   const area = `M${x(0)},${H - padB} L${puntos
     .map((p, i) => `${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`)
     .join(" L")} L${x(puntos.length - 1)},${H - padB} Z`;
+
+  // La banda: el contorno del techo de ida y el del piso de vuelta, cerrado.
+  // Mismo truco que `area`, pero entre dos curvas en vez de contra el piso
+  // del gráfico.
+  const bandaPath = banda
+    ? `M${banda.techo.puntos.map((p, i) => `${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`).join(" L")} L${banda.piso.puntos
+        .map((p, i) => ({ p, i }))
+        .reverse()
+        .map(({ p, i }) => `${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`)
+        .join(" L")} Z`
+    : null;
 
   const yReserva = y(reservaMinima);
   const iCruce = cruce ? puntos.findIndex((p) => p.fecha === cruce) : -1;
@@ -236,6 +276,7 @@ function CurvaSaldo({
         Tu reserva · {fmt(reservaMinima)}
       </text>
 
+      {bandaPath && <path className="tray-banda" d={bandaPath} />}
       <path className="tray-area" d={area} />
       <path className="tray-linea" d={linea} />
 

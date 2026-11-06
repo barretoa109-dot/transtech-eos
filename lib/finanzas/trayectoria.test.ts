@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { trazarTrayectoria } from "./trayectoria.ts";
+import { trazarBanda, trazarTrayectoria } from "./trayectoria.ts";
 import { detectarRiesgo } from "./riesgo.ts";
 import type { MovimientoProyectado } from "./recurrencia.ts";
 
-function mov(fecha: string, monto: number, descripcion = "Movimiento"): MovimientoProyectado {
+function mov(fecha: string, monto: number, descripcion = "Movimiento", confianza = 0.9): MovimientoProyectado {
   // El `tipo` no lo mira ni la trayectoria ni el detector: el signo lo decide
   // en qué lista viene el movimiento, egresos o ingresos.
-  return { tipo: "gasto", fecha, monto, descripcion, periodicidad: "mensual", confianza: 0.9 };
+  return { tipo: "gasto", fecha, monto, descripcion, periodicidad: "mensual", confianza };
 }
 
 const BASE = {
@@ -140,4 +140,64 @@ test("un saldo que ya arranca bajo la reserva se marca desde el día uno", () =>
 
   assert.equal(t.cruce, "2026-08-25");
   assert.equal(t.valle.saldo, 400_000);
+});
+
+test("banda: con todo certero, las tres líneas coinciden", () => {
+  const egresos = [mov("2026-08-28", 500_000, "Alquiler", 1)];
+  const ingresos = [mov("2026-09-01", 4_000_000, "Sueldo", 1)];
+
+  const b = trazarBanda({ ...BASE, egresos, ingresos });
+
+  assert.deepEqual(b.esperado.puntos, b.piso.puntos);
+  assert.deepEqual(b.esperado.puntos, b.techo.puntos);
+});
+
+test("banda: el piso descarta el ingreso incierto, no el gasto", () => {
+  const egresos = [mov("2026-08-28", 500_000, "Servicios", 1)];
+  const ingresos = [mov("2026-08-30", 2_000_000, "Changa que suele caer", 0.6)];
+
+  const b = trazarBanda({ ...BASE, egresos, ingresos });
+
+  const esperado = b.esperado.puntos.find((p) => p.fecha === "2026-08-30");
+  const piso = b.piso.puntos.find((p) => p.fecha === "2026-08-30");
+  const techo = b.techo.puntos.find((p) => p.fecha === "2026-08-30");
+
+  // Esperado y techo SÍ cuentan la changa; el piso, no.
+  assert.equal(esperado?.saldo, 4_500_000);
+  assert.equal(techo?.saldo, 4_500_000);
+  assert.equal(piso?.saldo, 2_500_000);
+});
+
+test("banda: el techo descarta el gasto incierto, no el ingreso", () => {
+  const egresos = [mov("2026-08-28", 700_000, "Changa de gasto que no siempre pasa", 0.6)];
+  const ingresos = [mov("2026-08-30", 1_000_000, "Sueldo declarado", 1)];
+
+  const b = trazarBanda({ ...BASE, egresos, ingresos });
+
+  const esperado = b.esperado.puntos.find((p) => p.fecha === "2026-08-30");
+  const piso = b.piso.puntos.find((p) => p.fecha === "2026-08-30");
+  const techo = b.techo.puntos.find((p) => p.fecha === "2026-08-30");
+
+  // Esperado y piso SÍ cuentan el gasto incierto; el techo lo descarta.
+  assert.equal(esperado?.saldo, 3_300_000);
+  assert.equal(piso?.saldo, 3_300_000);
+  assert.equal(techo?.saldo, 4_000_000);
+});
+
+test("banda: piso ≤ esperado ≤ techo en cada día, siempre", () => {
+  const egresos = [
+    mov("2026-08-27", 400_000, "Fijo", 1),
+    mov("2026-08-29", 600_000, "Patrón detectado", 0.7),
+  ];
+  const ingresos = [
+    mov("2026-08-28", 900_000, "Declarado", 1),
+    mov("2026-09-02", 1_500_000, "Changa detectada", 0.6),
+  ];
+
+  const b = trazarBanda({ ...BASE, egresos, ingresos });
+
+  for (let i = 0; i < b.esperado.puntos.length; i += 1) {
+    assert.ok(b.piso.puntos[i].saldo <= b.esperado.puntos[i].saldo, `día ${b.esperado.puntos[i].fecha}: piso > esperado`);
+    assert.ok(b.esperado.puntos[i].saldo <= b.techo.puntos[i].saldo, `día ${b.esperado.puntos[i].fecha}: esperado > techo`);
+  }
 });
