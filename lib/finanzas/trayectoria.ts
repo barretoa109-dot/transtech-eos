@@ -126,3 +126,83 @@ export function trazarTrayectoria(opciones: {
 
   return { puntos, reservaMinima: redondear(reservaMinima), valle, cruce };
 }
+
+/**
+ * La curva, pero con un rango: qué tan seguro está EOS de ese saldo.
+ *
+ * ============================================================
+ * POR QUÉ ESTO NO ES UN MODELO ESTADÍSTICO
+ * ============================================================
+ *
+ * El punto 17 del documento de visión EOS 2030 pide "intervalos de
+ * incertidumbre". La tentación es inventar una distribución —un desvío
+ * estándar sobre el historial de gastos— y dibujar una campana. Eso sería
+ * fabricar una precisión que no existe: `panorama.ts` ya lo dice en su propio
+ * comentario, "un número sin su grado de confianza al lado se lee como
+ * certeza", y una campana estadística sobre tres meses de datos de una PyME
+ * es exactamente eso, con un disfraz matemático.
+ *
+ * Lo que SÍ existe, sin inventar nada, es la `confianza` que cada movimiento
+ * proyectado ya trae desde `recurrencia.ts`: 1 para lo declarado o ya anotado
+ * (un fijo, una cuota, un ingreso que la persona cargó a futuro), y entre 0.6
+ * y 0.95 para un patrón que EOS detectó solo. Esa confianza ya está en cada
+ * ítem de `Panorama.egresos` / `Panorama.ingresos`; lo único que faltaba era
+ * usarla para algo más que filtrar.
+ *
+ * ============================================================
+ * LA REGLA, EN UNA FRASE POR LADO
+ * ============================================================
+ *
+ * - **Piso (peor caso):** los gastos esperados se mantienen TODOS —en el peor
+ *   caso, nada deja de pasar—, pero los ingresos que todavía no son seguros
+ *   (confianza < 1, un patrón detectado y no declarado) se asumen que NO
+ *   entran esta vez.
+ * - **Techo (mejor caso):** los ingresos esperados se mantienen TODOS, pero
+ *   los gastos que todavía no son un patrón firme (confianza < 1) se asumen
+ *   que NO se repiten esta vez.
+ *
+ * El resultado: `piso.saldo ≤ esperado.saldo ≤ techo.saldo` en cada punto,
+ * siempre — nunca al revés, porque cada banda solo le saca certeza a un lado
+ * de la cuenta, nunca se la suma al otro.
+ */
+const CERTEZA = 1;
+
+export type BandaTrayectoria = {
+  esperado: Trayectoria;
+  /** Peor caso: los ingresos inciertos no entran. */
+  piso: Trayectoria;
+  /** Mejor caso: los gastos inciertos no se repiten. */
+  techo: Trayectoria;
+};
+
+export function trazarBanda(opciones: {
+  hoy: string;
+  hasta: string;
+  saldoActual: number;
+  reservaMinima: number;
+  egresos: MovimientoProyectado[];
+  ingresos: MovimientoProyectado[];
+}): BandaTrayectoria {
+  const base = {
+    hoy: opciones.hoy,
+    hasta: opciones.hasta,
+    saldoActual: opciones.saldoActual,
+    reservaMinima: opciones.reservaMinima,
+  };
+
+  const esperado = trazarTrayectoria({ ...base, egresos: opciones.egresos, ingresos: opciones.ingresos });
+
+  const piso = trazarTrayectoria({
+    ...base,
+    egresos: opciones.egresos,
+    ingresos: opciones.ingresos.filter((i) => i.confianza >= CERTEZA),
+  });
+
+  const techo = trazarTrayectoria({
+    ...base,
+    egresos: opciones.egresos.filter((e) => e.confianza >= CERTEZA),
+    ingresos: opciones.ingresos,
+  });
+
+  return { esperado, piso, techo };
+}

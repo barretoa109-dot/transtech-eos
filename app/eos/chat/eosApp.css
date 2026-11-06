@@ -4288,6 +4288,17 @@
   fill: var(--amber);
   opacity: 0.07;
 }
+.eos-app .tray-banda {
+  fill: var(--blue);
+  opacity: 0.1;
+  stroke: none;
+}
+.eos-app .tray-banda-nota {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 .eos-app .tray-reserva {
   stroke: var(--amber);
   stroke-width: 1.2;
