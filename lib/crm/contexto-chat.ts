@@ -44,6 +44,8 @@ function motivo(s: Seguimiento): string {
       return "todavía no lo contactaste";
     case "cierre_proximo":
       return "se acerca el cierre";
+    case "cobro_atrasado":
+      return `te debe, vencido hace ${s.dias} días`;
   }
 }
 
