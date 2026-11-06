@@ -124,6 +124,26 @@ export function ocurrenciasMensuales(opciones: {
   return ocurrencias;
 }
 
+/**
+ * Un movimiento hipotético que cae una sola vez: una compra grande, un
+ * ingreso puntual (un aguinaldo, la venta de algo). A diferencia de
+ * `ocurrenciasMensuales`, no se repite — es la otra mitad de lo que el
+ * documento EOS 2030 pide para el ítem 16 ("simular el futuro económico"),
+ * que no es solo compromisos que se repiten.
+ */
+export function ocurrenciaUnica(opciones: {
+  tipo: MovimientoProyectado["tipo"];
+  descripcion: string;
+  monto: number;
+  fecha: string;
+  desde: string;
+  hasta: string;
+}): MovimientoProyectado[] {
+  const { tipo, descripcion, monto, fecha, desde, hasta } = opciones;
+  if (monto <= 0 || fecha < desde || fecha > hasta) return [];
+  return [{ tipo, descripcion, monto, fecha, periodicidad: "unica", confianza: 1 }];
+}
+
 /** El día pedido del mes, o el último si ese mes no llega tan lejos (31 de febrero → 28 o 29). */
 function primerDiaValido(anio: number, mes: number, dia: number): string {
   const ultimoDelMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate();

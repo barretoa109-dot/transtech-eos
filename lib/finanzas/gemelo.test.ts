@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { compararTrayectorias, ocurrenciasMensuales } from "./gemelo.ts";
+import { compararTrayectorias, ocurrenciasMensuales, ocurrenciaUnica } from "./gemelo.ts";
 import type { MovimientoProyectado } from "./recurrencia.ts";
 
 const BASE = {
@@ -124,6 +124,32 @@ test("ocurrenciasMensuales: si el mes de 'desde' ya pasó ese día, arranca el q
 test("ocurrenciasMensuales: monto cero o negativo no genera nada", () => {
   assert.deepEqual(
     ocurrenciasMensuales({ tipo: "gasto", descripcion: "x", monto: 0, diaDelMes: 5, desde: "2027-01-01", hasta: "2027-03-01" }),
+    [],
+  );
+});
+
+test("ocurrenciaUnica: una compra grande en una fecha puntual baja el cierre lo que cuesta", () => {
+  const compra = ocurrenciaUnica({
+    tipo: "gasto",
+    descripcion: "Arreglo del auto",
+    monto: 400_000,
+    fecha: "2026-11-20",
+    desde: BASE.hoy,
+    hasta: BASE.hasta,
+  });
+  assert.equal(compra.length, 1);
+
+  const gemelo = compararTrayectorias({ ...BASE, egresosHipotetica: [...BASE.egresos, ...compra], ingresosHipotetica: BASE.ingresos });
+  assert.equal(gemelo.diferencia_al_cierre, -400_000);
+});
+
+test("ocurrenciaUnica: fuera del horizonte o sin monto no genera nada", () => {
+  assert.deepEqual(
+    ocurrenciaUnica({ tipo: "gasto", descripcion: "x", monto: 100, fecha: "2027-01-01", desde: BASE.hoy, hasta: BASE.hasta }),
+    [],
+  );
+  assert.deepEqual(
+    ocurrenciaUnica({ tipo: "gasto", descripcion: "x", monto: 0, fecha: BASE.hoy, desde: BASE.hoy, hasta: BASE.hasta }),
     [],
   );
 });

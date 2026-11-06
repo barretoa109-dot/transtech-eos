@@ -169,13 +169,19 @@ function SimuladorCuota({
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState("");
   const [diaDelMes, setDiaDelMes] = useState("10");
+  const [fecha, setFecha] = useState("");
+  const [frecuencia, setFrecuencia] = useState<"mensual" | "unica">("mensual");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
   const simular = () => {
     const montoNumero = Number(monto);
     if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
-      setError("Decime cuánto es la cuota.");
+      setError("Decime cuánto es.");
+      return;
+    }
+    if (frecuencia === "unica" && !fecha) {
+      setError("Decime en qué fecha caería.");
       return;
     }
 
@@ -185,12 +191,16 @@ function SimuladorCuota({
     fetch("/api/finanzas/riesgo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipo: "gasto",
-        descripcion: descripcion.trim() || undefined,
-        monto: montoNumero,
-        dia_del_mes: Number(diaDelMes) || 10,
-      }),
+      body: JSON.stringify(
+        frecuencia === "unica"
+          ? { tipo: "gasto", descripcion: descripcion.trim() || undefined, monto: montoNumero, frecuencia, fecha }
+          : {
+              tipo: "gasto",
+              descripcion: descripcion.trim() || undefined,
+              monto: montoNumero,
+              dia_del_mes: Number(diaDelMes) || 10,
+            },
+      ),
       cache: "no-store",
     })
       .then(async (res) => {
@@ -218,11 +228,27 @@ function SimuladorCuota({
         </button>
       ) : (
         <>
+          <div className="field-row" style={{ gap: 6, marginBottom: 8 }}>
+            <button
+              type="button"
+              className={`chip${frecuencia === "mensual" ? " active" : ""}`}
+              onClick={() => setFrecuencia("mensual")}
+            >
+              Todos los meses
+            </button>
+            <button
+              type="button"
+              className={`chip${frecuencia === "unica" ? " active" : ""}`}
+              onClick={() => setFrecuencia("unica")}
+            >
+              Una sola vez
+            </button>
+          </div>
           <div className="field-row" style={{ gap: 8, flexWrap: "wrap" }}>
             <input
               className="neg-input"
               style={{ flex: 2, minWidth: 140 }}
-              placeholder="Qué es (ej: cuota notebook)"
+              placeholder={frecuencia === "unica" ? "Qué es (ej: arreglo del auto)" : "Qué es (ej: cuota notebook)"}
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
             />
@@ -234,15 +260,25 @@ function SimuladorCuota({
               value={monto}
               onChange={(e) => setMonto(e.target.value)}
             />
-            <input
-              className="neg-input neg-cantidad"
-              type="number"
-              min={1}
-              max={31}
-              title="Día del mes en que caería"
-              value={diaDelMes}
-              onChange={(e) => setDiaDelMes(e.target.value)}
-            />
+            {frecuencia === "unica" ? (
+              <input
+                className="neg-input neg-cantidad"
+                type="date"
+                title="Fecha en que caería"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+            ) : (
+              <input
+                className="neg-input neg-cantidad"
+                type="number"
+                min={1}
+                max={31}
+                title="Día del mes en que caería"
+                value={diaDelMes}
+                onChange={(e) => setDiaDelMes(e.target.value)}
+              />
+            )}
             <button type="button" className="chip active" disabled={cargando} onClick={simular}>
               {cargando ? "Simulando…" : "Simular"}
             </button>

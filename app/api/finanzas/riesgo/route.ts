@@ -15,7 +15,7 @@ import {
 } from "@/lib/erp/riesgos-negocio";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { trazarBanda } from "@/lib/finanzas/trayectoria";
-import { compararTrayectorias, ocurrenciasMensuales, type Gemelo } from "@/lib/finanzas/gemelo";
+import { compararTrayectorias, ocurrenciasMensuales, ocurrenciaUnica, type Gemelo } from "@/lib/finanzas/gemelo";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
 import type { Panorama } from "@/lib/finanzas/panorama";
@@ -326,7 +326,14 @@ export async function POST(request: Request) {
 
   const { hoy, hasta, moneda, panorama } = armado;
 
-  let body: { tipo?: unknown; descripcion?: unknown; monto?: unknown; dia_del_mes?: unknown };
+  let body: {
+    tipo?: unknown;
+    descripcion?: unknown;
+    monto?: unknown;
+    dia_del_mes?: unknown;
+    frecuencia?: unknown;
+    fecha?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -336,18 +343,37 @@ export async function POST(request: Request) {
   const tipo = body.tipo === "ingreso" ? "ingreso" : "gasto";
   const monto = Number(body.monto);
   if (!Number.isFinite(monto) || monto <= 0) {
-    return NextResponse.json({ error: "Decime cuánto es la cuota." }, { status: 400, headers: noStore() });
+    return NextResponse.json({ error: "Decime cuánto es." }, { status: 400, headers: noStore() });
   }
-
-  const diaCrudo = Number(body.dia_del_mes);
-  const diaDelMes = Number.isFinite(diaCrudo) ? Math.min(31, Math.max(1, Math.round(diaCrudo))) : 10;
 
   const descripcion =
     typeof body.descripcion === "string" && body.descripcion.trim() !== ""
       ? body.descripcion.trim().slice(0, 120)
       : "Lo que estás pensando agregar";
 
-  const ocurrencias = ocurrenciasMensuales({ tipo, descripcion, monto, diaDelMes, desde: hoy, hasta });
+  // Dos formas de caer: todos los meses (una cuota) o una sola vez (una
+  // compra grande, un ingreso puntual). Ver el comentario de cabecera de
+  // `ocurrenciaUnica` en gemelo.ts sobre por qué hacía falta la segunda.
+  const esUnica = body.frecuencia === "unica";
+
+  let ocurrencias: ReturnType<typeof ocurrenciasMensuales>;
+  if (esUnica) {
+    const fecha = typeof body.fecha === "string" ? body.fecha : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return NextResponse.json({ error: "Decime en qué fecha caería." }, { status: 400, headers: noStore() });
+    }
+    ocurrencias = ocurrenciaUnica({ tipo, descripcion, monto, fecha, desde: hoy, hasta });
+    if (ocurrencias.length === 0) {
+      return NextResponse.json(
+        { error: `Esa fecha tiene que estar entre ${hoy} y ${hasta}.` },
+        { status: 400, headers: noStore() },
+      );
+    }
+  } else {
+    const diaCrudo = Number(body.dia_del_mes);
+    const diaDelMes = Number.isFinite(diaCrudo) ? Math.min(31, Math.max(1, Math.round(diaCrudo))) : 10;
+    ocurrencias = ocurrenciasMensuales({ tipo, descripcion, monto, diaDelMes, desde: hoy, hasta });
+  }
 
   const gemelo: Gemelo = compararTrayectorias({
     hoy,
