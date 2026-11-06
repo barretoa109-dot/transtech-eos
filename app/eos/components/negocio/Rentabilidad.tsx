@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, BadgeDollarSign, CircleAlert, Info, RefreshCw, Target, TrendingDown, TrendingUp, Users } from "lucide-react";
+import { AlertCircle, BadgeDollarSign, CircleAlert, Info, RefreshCw, Tags, Target, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { calcularMargen } from "@/lib/erp/margen";
+import { detectarPreciosDesalineados } from "@/lib/erp/precio-sugerido";
 import type { Indicadores } from "@/lib/erp/indicadores";
 import type { ResumenRentabilidad } from "@/lib/erp/rentabilidad";
 import type { Producto } from "./tipos";
@@ -99,6 +100,27 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
 
   const sinCosto = catalogo.filter((p) => p.costo === null).length;
   const conPerdida = catalogo.filter((p) => p.margen !== null && p.margen < 0).length;
+
+  /*
+   * Optimization Engine, la parte de "precios" (ítem 18 del documento EOS
+   * 2030): productos cuyo margen quedó muy por debajo del típico del propio
+   * catálogo, con el precio que lo volvería a alinear. Ver
+   * `lib/erp/precio-sugerido.ts` para el porqué completo.
+   */
+  const desalineados = useMemo(
+    () =>
+      detectarPreciosDesalineados(
+        productos.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          precio_venta: Number(p.precio_venta || 0),
+          costo: p.costo === null || p.costo === undefined ? null : Number(p.costo),
+          iva: p.iva,
+          moneda: p.moneda,
+        })),
+      ),
+    [productos],
+  );
 
   if (cargando && nuncaCargo) return <div className="neg-loading" role="status"><span /> Calculando rentabilidad…</div>;
   if (error) return <div className="card neg-empty-state is-error" role="alert"><AlertCircle size={26} /><strong>No pudimos calcular los márgenes</strong><p>{error}</p><button type="button" className="chip active" onClick={() => void cargar()}><RefreshCw size={14} /> Reintentar</button></div>;
@@ -287,6 +309,40 @@ export default function Rentabilidad({ productos }: { productos: Producto[] }) {
           <article><strong>{catalogo.filter((p) => p.bajo_minimo).length}</strong><span>productos con stock bajo</span><p>Priorizá reposición donde haya margen y demanda.</p></article>
         </div>
       </div>
+
+      {desalineados.length > 0 && (
+        <div className="card fin-card">
+          <div className="fin-head">
+            <span className="fin-badge fin-badge-atencion">
+              <Tags size={14} />
+              {desalineados.length === 1
+                ? "EOS DETECTÓ 1 PRECIO DESALINEADO"
+                : `EOS DETECTÓ ${desalineados.length} PRECIOS DESALINEADOS`}
+            </span>
+          </div>
+          <p className="prose" style={{ marginTop: 10 }}>
+            El resto de tu catálogo deja un margen bastante más alto. No sabemos por qué
+            —a veces es a propósito—, pero estos productos quedaron muy por debajo de lo
+            normal en tu propio negocio.
+          </p>
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            {desalineados.map((p) => (
+              <div key={p.id} className="field-row" style={{ gap: 10, alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{p.nombre}</div>
+                  <div className="fin-sub">
+                    {formatearMonto(p.precio_actual, p.moneda)} · {pct(p.margen_actual)} de margen,
+                    tu típico es {pct(p.margen_tipico)}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, whiteSpace: "nowrap", textAlign: "right" }}>
+                  → {formatearMonto(p.precio_sugerido, p.moneda)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title">Margen actual del catálogo</div>
