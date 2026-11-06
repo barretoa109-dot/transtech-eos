@@ -254,6 +254,61 @@ test("datos rotos (fechas ilegibles, contactos huérfanos) no rompen", () => {
   assert.deepEqual(r, []);
 });
 
+// ------------------------------------------------------------------- cobro atrasado
+
+test("cobro_atrasado: una venta vencida hace 45 días es prioridad 1, con el monto y los días", () => {
+  const r = calcularSeguimientos(entrada({
+    oportunidades: [],
+    documentosCobro: [{ contacto_id: "c1", contacto_nombre: "Carlos", saldo: 500_000, moneda: "PYG", dias_atraso: 45 }],
+  }));
+
+  assert.equal(r.length, 1);
+  assert.equal(r[0].tipo, "cobro_atrasado");
+  assert.equal(r[0].prioridad, 1);
+  assert.match(r[0].texto, /Carlos te debe .*500\.000.*vencido hace 45 días/);
+  assert.match(r[0].borrador!, /pago pendiente de .*500\.000/);
+  assert.equal(r[0].puede_escribir, true);
+});
+
+test("cobro_atrasado: menos de 30 días de atraso es prioridad 2", () => {
+  const r = calcularSeguimientos(entrada({
+    documentosCobro: [{ contacto_id: "c1", contacto_nombre: "Carlos", saldo: 100_000, moneda: "PYG", dias_atraso: 5 }],
+  }));
+  assert.equal(r[0].prioridad, 2);
+});
+
+test("cobro_atrasado: dos ventas del mismo cliente se suman en un solo aviso", () => {
+  const r = calcularSeguimientos(entrada({
+    documentosCobro: [
+      { contacto_id: "c1", contacto_nombre: "Carlos", saldo: 300_000, moneda: "PYG", dias_atraso: 10 },
+      { contacto_id: "c1", contacto_nombre: "Carlos", saldo: 200_000, moneda: "PYG", dias_atraso: 40 },
+    ],
+  }));
+
+  assert.equal(r.length, 1);
+  assert.match(r[0].texto, /500\.000.*en 2 ventas.*40 días/);
+  assert.equal(r[0].prioridad, 1); // el más atrasado de los dos manda
+});
+
+test("cobro_atrasado: sin saldo no genera nada", () => {
+  const r = calcularSeguimientos(entrada({
+    documentosCobro: [{ contacto_id: "c1", contacto_nombre: "Carlos", saldo: 0, moneda: "PYG", dias_atraso: 40 }],
+  }));
+  assert.equal(r.length, 0);
+});
+
+test("cobro_atrasado: gana contra un seguimiento comercial de menor prioridad del mismo cliente", () => {
+  const r = calcularSeguimientos(entrada({
+    // "sin_respuesta" sin propuesta abierta es prioridad 2.
+    mensajes: [saliente("2026-09-10T14:00:00Z")],
+    documentosCobro: [{ contacto_id: "c1", contacto_nombre: "Carlos", saldo: 1_000_000, moneda: "PYG", dias_atraso: 60 }],
+  }));
+
+  // UN aviso por cliente: el más urgente, y acá es el cobro (prioridad 1).
+  assert.equal(r.filter((s) => s.contacto_id === "c1").length, 1);
+  assert.equal(r.find((s) => s.contacto_id === "c1")?.tipo, "cobro_atrasado");
+});
+
 test("el titular cuenta y marca lo urgente", () => {
   assert.equal(titularDeSeguimientos([]), "Nada para retomar hoy.");
   const r = calcularSeguimientos(entrada({ oportunidades: [propuesta()], mensajes: [saliente("2026-09-14T14:00:00Z")] }));

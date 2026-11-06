@@ -1,9 +1,12 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { normalizarTelefono } from "../whatsapp-crm/telefono.ts";
+import { leerCartera } from "../erp/cartera-leer.ts";
+import { diasDeAtraso, estaPendiente, saldoDe, vencidos } from "../erp/cartera.ts";
 import {
   calcularSeguimientos,
   type ActividadEntrada,
   type ContactoEntrada,
+  type DocumentoCobroEntrada,
   type EstadoGuardado,
   type MensajeEntrada,
   type OportunidadEntrada,
@@ -119,6 +122,25 @@ export async function leerSeguimientos(
       .map((c) => c.id),
   );
 
+  // Las ventas a crédito vencidas (ítem 14, "cobranzas automáticas"). Si el
+  // usuario no tiene ERP, o la lectura falla por lo que sea, un seguimiento
+  // menos no es motivo para no mostrar los demás — mismo criterio que
+  // `opcional()` de arriba.
+  const documentosCobro: DocumentoCobroEntrada[] = await (async () => {
+    try {
+      const { documentos } = await leerCartera(db, usuarioId, "cobrar");
+      return vencidos(documentos.filter(estaPendiente), hoy).map((d) => ({
+        contacto_id: d.contacto_id,
+        contacto_nombre: d.contacto_nombre,
+        saldo: saldoDe(d),
+        moneda: d.moneda,
+        dias_atraso: diasDeAtraso(d, hoy) ?? 0,
+      }));
+    } catch {
+      return [];
+    }
+  })();
+
   return calcularSeguimientos({
     hoy,
     contactos: (contactosCrudos.data ?? []) as unknown as ContactoEntrada[],
@@ -127,5 +149,6 @@ export async function leerSeguimientos(
     mensajes: mensajes as MensajeEntrada[],
     estados: estados as EstadoGuardado[],
     puedenRecibir,
+    documentosCobro,
   });
 }

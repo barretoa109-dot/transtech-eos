@@ -26,6 +26,10 @@
  *                        nadie le contestó todavía.
  *   cierre_proximo       Una oportunidad con fecha de cierre estimada que se acerca o ya
  *                        pasó, y todavía no se cerró.
+ *   cobro_atrasado       Una venta a crédito vencida sin cobrarse (ítem 14 del documento EOS
+ *                        2030, "Autonomous Business Operations": la cobranza que faltaba, al
+ *                        mismo Nivel 2 de todo lo demás — EOS prepara el mensaje, nunca lo manda
+ *                        solo). Reusa la misma antigüedad que ya calcula `lib/erp/cartera.ts`.
  *
  * ============================================================
  * LAS REGLAS QUE EVITAN EL RUIDO
@@ -90,6 +94,17 @@ export type MensajeEntrada = {
 
 export type EstadoGuardado = { clave: string; estado: "hecho" | "pospuesto" | "descartado"; hasta: string | null };
 
+/** Una venta a crédito vencida, tal como ya la calcula `lib/erp/cartera.ts::vencidos`. */
+export type DocumentoCobroEntrada = {
+  contacto_id: string | null;
+  contacto_nombre: string | null;
+  /** Lo que falta cobrar de ESE documento, no el total: ya neto de pagos parciales. */
+  saldo: number;
+  moneda: string;
+  /** Días desde el vencimiento. Siempre positivo: solo entran los ya vencidos. */
+  dias_atraso: number;
+};
+
 export type EntradaSeguimientos = {
   /** AAAA-MM-DD, hora de Paraguay. */
   hoy: string;
@@ -101,9 +116,18 @@ export type EntradaSeguimientos = {
   estados: EstadoGuardado[];
   /** Los clientes a quienes se les puede escribir AHORA por el canal de la empresa. */
   puedenRecibir: Set<string>;
+  /** Ventas a crédito vencidas. Vacío si no hay ERP, o si no se pudieron leer. */
+  documentosCobro?: DocumentoCobroEntrada[];
 };
 
-export type TipoSeguimiento = "vencido" | "vence_hoy" | "sin_respuesta" | "estancada" | "lead_sin_contactar" | "cierre_proximo";
+export type TipoSeguimiento =
+  | "vencido"
+  | "vence_hoy"
+  | "sin_respuesta"
+  | "estancada"
+  | "lead_sin_contactar"
+  | "cierre_proximo"
+  | "cobro_atrasado";
 
 export type Seguimiento = {
   /** Estable mientras el motivo sea el mismo: es lo que se recuerda al marcarlo hecho o posponerlo. */
@@ -163,7 +187,12 @@ const fechaOk = (v: string | null | undefined): v is string => typeof v === "str
 // ---------------------------------------------------------------------- el borrador
 
 /** Un mensaje razonable para arrancar: la persona lo revisa antes de mandarlo. */
-function borradorPara(tipo: TipoSeguimiento, nombre: string, oportunidad: OportunidadEntrada | null): string {
+function borradorPara(
+  tipo: TipoSeguimiento,
+  nombre: string,
+  oportunidad: OportunidadEntrada | null,
+  monto: Seguimiento["monto"] = null,
+): string {
   const primero = nombre.trim().split(/\s+/)[0] || nombre;
 
   switch (tipo) {
@@ -175,6 +204,10 @@ function borradorPara(tipo: TipoSeguimiento, nombre: string, oportunidad: Oportu
       return `Hola ${primero}, gracias por escribirnos. ¿En qué te puedo ayudar?`;
     case "cierre_proximo":
       return `Hola ${primero}, ¿cómo venís con lo que hablamos? Quería saber si podemos avanzar esta semana.`;
+    case "cobro_atrasado":
+      return monto
+        ? `Hola ${primero}, te escribo por el pago pendiente de ${formatearMonto(monto.valor, monto.moneda)}. ¿Podemos coordinar cuándo lo regularizamos?`
+        : `Hola ${primero}, te escribo por un pago pendiente. ¿Podemos coordinar cuándo lo regularizamos?`;
     default:
       return `Hola ${primero}, ¿cómo estás? Te escribo para retomar lo que veníamos hablando.`;
   }
@@ -200,7 +233,7 @@ export function calcularSeguimientos(e: EntradaSeguimientos): Seguimiento[] {
     candidatos.push({
       ...resto,
       puede_escribir: puede,
-      borrador: s.accion === "escribir" ? borradorPara(s.tipo, s.contacto_nombre, op) : null,
+      borrador: s.accion === "escribir" ? borradorPara(s.tipo, s.contacto_nombre, op, s.monto) : null,
     });
   };
 
@@ -393,6 +426,57 @@ export function calcularSeguimientos(e: EntradaSeguimientos): Seguimiento[] {
       dias: Math.abs(faltan),
       monto: { valor: o.monto, moneda: o.moneda },
       op: o,
+    });
+  }
+
+  // ---- 6. Cobros atrasados: lo que el cliente debe y ya venció.
+  type GrupoCobro = { contactoId: string; contactoNombre: string; moneda: string; total: number; cantidad: number; diasMax: number };
+  const porContactoMoneda = new Map<string, GrupoCobro>();
+
+  for (const d of e.documentosCobro ?? []) {
+    if (!d.contacto_id || d.saldo <= 0) continue;
+    const clave = `${d.contacto_id}:${d.moneda}`;
+    const previo = porContactoMoneda.get(clave);
+    if (previo) {
+      previo.total += d.saldo;
+      previo.cantidad += 1;
+      previo.diasMax = Math.max(previo.diasMax, d.dias_atraso);
+    } else {
+      porContactoMoneda.set(clave, {
+        contactoId: d.contacto_id,
+        contactoNombre: d.contacto_nombre?.trim() || "Un cliente",
+        moneda: d.moneda,
+        total: d.saldo,
+        cantidad: 1,
+        diasMax: d.dias_atraso,
+      });
+    }
+  }
+
+  for (const g of [...porContactoMoneda.values()].sort(
+    (a, b) => a.contactoId.localeCompare(b.contactoId) || a.moneda.localeCompare(b.moneda),
+  )) {
+    const op = opDe(g.contactoId);
+
+    agregar({
+      clave: `cobro_atrasado:${g.contactoId}:${g.moneda}:${g.diasMax}`,
+      tipo: "cobro_atrasado",
+      // Plata ya vencida siempre pesa: a los 30 días es tan urgente como
+      // cualquier otro aviso de prioridad 1 (el mismo corte que usa el aviso
+      // de riesgo del negocio, `lib/erp/riesgos-negocio.ts::DIAS_DEMORA`).
+      prioridad: g.diasMax >= 30 ? 1 : 2,
+      contacto_id: g.contactoId,
+      contacto_nombre: g.contactoNombre,
+      oportunidad_id: op?.id ?? null,
+      texto:
+        g.cantidad === 1
+          ? `${g.contactoNombre} te debe ${formatearMonto(g.total, g.moneda)}, vencido hace ${cuantosDias(g.diasMax)}.`
+          : `${g.contactoNombre} te debe ${formatearMonto(g.total, g.moneda)} en ${plural(g.cantidad, "venta", "ventas")} a crédito, la más vieja vencida hace ${cuantosDias(g.diasMax)}.`,
+      recomendacion: "Recomiendo escribirle para coordinar el pago.",
+      accion: "escribir",
+      dias: g.diasMax,
+      monto: { valor: g.total, moneda: g.moneda },
+      op,
     });
   }
 

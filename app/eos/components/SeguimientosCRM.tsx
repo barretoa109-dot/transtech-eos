@@ -29,6 +29,7 @@ const ETIQUETA: Record<Seguimiento["tipo"], string> = {
   estancada: "Estancada",
   lead_sin_contactar: "Sin contactar",
   cierre_proximo: "Cierre cerca",
+  cobro_atrasado: "Cobro atrasado",
 };
 
 const PRIORIDAD: Record<Seguimiento["prioridad"], string> = {

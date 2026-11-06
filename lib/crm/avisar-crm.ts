@@ -59,6 +59,8 @@ function motivoCorto(s: Seguimiento): string {
       return "sin contactar";
     case "cierre_proximo":
       return "cierre cerca";
+    case "cobro_atrasado":
+      return `te debe, ${s.dias} días vencido`;
   }
 }
 
