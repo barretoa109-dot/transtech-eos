@@ -7,6 +7,8 @@ import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from 
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
 import { hoyEnParaguay } from "../fecha.ts";
+import { formatearMonto } from "./formato.ts";
+import { detectarGastosAnormales, redactarGastoAnormal, type GastoHistorico } from "../erp/gasto-anormal.ts";
 
 /**
  * Que el aviso salga solo.
@@ -104,10 +106,10 @@ export async function avisarRiesgos(
         continue;
       }
 
-      const [movimientos, conciliaciones, fijos, deudas, previo] = await Promise.all([
+      const [movimientos, conciliaciones, fijos, deudas, previo, avisoGastoAnormal] = await Promise.all([
         admin
           .from("eos_movimientos_financieros")
-          .select("tipo,monto,moneda,fecha,descripcion")
+          .select("id,tipo,monto,moneda,fecha,categoria,descripcion,recurrente")
           .eq("usuario_id", uid)
           .eq("ambito", "personal")
           .order("fecha", { ascending: true }),
@@ -135,6 +137,12 @@ export async function avisarRiesgos(
           .eq("usuario_id", uid)
           .order("fecha_riesgo", { ascending: false })
           .limit(1)
+          .maybeSingle(),
+        admin
+          .from("eos_finanzas_avisos")
+          .select("tipo,clave")
+          .eq("usuario_id", uid)
+          .eq("tipo", "gasto_anormal")
           .maybeSingle(),
       ]);
 
@@ -198,60 +206,124 @@ export async function avisarRiesgos(
         ingresos: panorama.ingresos,
       });
 
-      // Lo normal es que no haya nada. Silencio es la respuesta correcta.
-      if (!riesgo) continue;
-      resumen.con_riesgo += 1;
+      if (riesgo) {
+        resumen.con_riesgo += 1;
 
-      // Si no se puede leer el historial de avisos, NO se avisa.
-      //
-      // Parece contradictorio callar por un error de lectura, pero la
-      // alternativa es peor: sin historial, `convieneAvisar` diría que sí
-      // todos los días y el usuario recibiría el mismo susto cinco veces
-      // seguidas. Si EOS no puede saber si ya avisó, no vuelve a avisar.
-      if (previo.error) {
-        console.error("Riesgo: no se pudo leer el historial de avisos:", previo.error);
-        resumen.sin_historial += 1;
-        continue;
-      }
+        // Si no se puede leer el historial de avisos, NO se avisa.
+        //
+        // Parece contradictorio callar por un error de lectura, pero la
+        // alternativa es peor: sin historial, `convieneAvisar` diría que sí
+        // todos los días y el usuario recibiría el mismo susto cinco veces
+        // seguidas. Si EOS no puede saber si ya avisó, no vuelve a avisar.
+        if (previo.error) {
+          console.error("Riesgo: no se pudo leer el historial de avisos:", previo.error);
+          resumen.sin_historial += 1;
+        } else {
+          const anterior = previo.data
+            ? {
+                fecha_riesgo: previo.data.fecha_riesgo as string,
+                faltante: num(previo.data.faltante),
+              }
+            : null;
 
-      const anterior = previo.data
-        ? {
-            fecha_riesgo: previo.data.fecha_riesgo as string,
-            faltante: num(previo.data.faltante),
+          if (!convieneAvisar(riesgo, anterior)) {
+            resumen.omitidos_por_repetido += 1;
+          } else {
+            const texto = redactarAviso(riesgo, principal);
+            const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo, {
+              familia: "finanzas",
+              tipo: "faltante",
+              clave: riesgo.fecha,
+            });
+
+            if (!entregado) {
+              // Sin canal no se anota el aviso: si mañana el usuario activa el
+              // push, tiene que enterarse del problema que sigue vigente.
+              resumen.sin_canal += 1;
+            } else {
+              await admin.from("eos_finanzas_avisos_riesgo").upsert(
+                {
+                  usuario_id: uid,
+                  fecha_riesgo: riesgo.fecha,
+                  faltante: riesgo.faltante,
+                  veces: anterior && anterior.fecha_riesgo === riesgo.fecha ? 2 : 1,
+                  enviado_en: new Date().toISOString(),
+                },
+                { onConflict: "usuario_id,fecha_riesgo" },
+              );
+
+              resumen.avisados += 1;
+            }
           }
-        : null;
-
-      if (!convieneAvisar(riesgo, anterior)) {
-        resumen.omitidos_por_repetido += 1;
-        continue;
+        }
       }
 
-      const texto = redactarAviso(riesgo, principal);
-      const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo, {
-        familia: "finanzas",
-        tipo: "faltante",
-        clave: riesgo.fecha,
-      });
+      /*
+       * ============================================================
+       * EL GASTO QUE NO SE PARECE A NADA, AHORA TAMBIÉN EN PERSONAL
+       * ============================================================
+       *
+       * Mismo detector que ya usa el negocio desde la v128
+       * (`lib/erp/gasto-anormal.ts`, genérico: no sabe de ERP). Es
+       * independiente del faltante de plata de arriba — un mes puede estar
+       * sano de liquidez y tener igual un gasto que no se parece a nada de lo
+       * habitual — así que no se gatea con `if (!riesgo)`.
+       */
+      if (avisoGastoAnormal.error) {
+        console.error("Riesgo: no se pudo leer el historial de avisos de gasto anormal:", avisoGastoAnormal.error);
+      } else {
+        const gastosPersonales = deLaPrincipal((movimientos.data ?? []) as Record<string, unknown>[])
+          .filter((m) => m.tipo === "gasto")
+          .map<GastoHistorico>((m) => ({
+            id: String(m.id),
+            fecha: m.fecha as string,
+            monto: num(m.monto),
+            moneda: m.moneda as string | null,
+            categoria: (m.categoria as string | null) ?? null,
+            descripcion: (m.descripcion as string | null) ?? null,
+            recurrente: (m.recurrente as boolean | null) ?? null,
+          }));
 
-      if (!entregado) {
-        // Sin canal no se anota el aviso: si mañana el usuario activa el push,
-        // tiene que enterarse del problema que sigue vigente.
-        resumen.sin_canal += 1;
-        continue;
+        const fijosDeclarados = ((fijos.data ?? []) as Record<string, unknown>[]).map((f) => ({
+          categoria: null,
+          descripcion: (f.descripcion as string | null) ?? null,
+        }));
+
+        const anormales = detectarGastosAnormales({ hoy, gastos: gastosPersonales, fijos: fijosDeclarados });
+        const claveVigente = anormales
+          .map((g) => g.clave)
+          .sort()
+          .join(",");
+        const claveAnotada = (avisoGastoAnormal.data?.clave as string | undefined) ?? null;
+
+        if (!claveVigente && claveAnotada) {
+          // Ya no hay nada raro: se repuso, se cargó como fijo, o pasó el
+          // tiempo. Se borra para que, si vuelve, se avise de nuevo.
+          await admin.from("eos_finanzas_avisos").delete().eq("usuario_id", uid).eq("tipo", "gasto_anormal");
+        } else if (claveVigente && claveVigente !== claveAnotada) {
+          resumen.con_riesgo += 1;
+
+          const texto = anormales.map((g) => redactarGastoAnormal(g, formatearMonto)).join("\n\n");
+          const entregado = await entregarAviso(admin, uid, texto, opciones.enviarCorreo, {
+            familia: "finanzas",
+            tipo: "gasto_anormal",
+            clave: claveVigente,
+          });
+
+          if (!entregado) {
+            resumen.sin_canal += 1;
+          } else {
+            await admin.from("eos_finanzas_avisos").upsert(
+              { usuario_id: uid, tipo: "gasto_anormal", clave: claveVigente, enviado_en: new Date().toISOString() },
+              { onConflict: "usuario_id,tipo" },
+            );
+            resumen.avisados += 1;
+          }
+        } else if (claveVigente) {
+          resumen.con_riesgo += 1;
+          resumen.omitidos_por_repetido += 1;
+        }
       }
-
-      await admin.from("eos_finanzas_avisos_riesgo").upsert(
-        {
-          usuario_id: uid,
-          fecha_riesgo: riesgo.fecha,
-          faltante: riesgo.faltante,
-          veces: anterior && anterior.fecha_riesgo === riesgo.fecha ? 2 : 1,
-          enviado_en: new Date().toISOString(),
-        },
-        { onConflict: "usuario_id,fecha_riesgo" },
-      );
-
-      resumen.avisados += 1;
     } catch (error) {
       // Un usuario con datos raros no puede dejar sin aviso a los demás.
       console.error("Riesgo: falló la evaluación de un usuario:", error);
