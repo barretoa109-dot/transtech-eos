@@ -134,6 +134,29 @@ test("manda el mismo modelo y el prompt del sistema entero", async () => {
   assert.equal(cuerpo.input[1].role, "user");
 });
 
+test("con promptSistema, manda ESE texto en vez del de siempre (Fase 3 del diseño multiagente)", async () => {
+  const fetchOriginal = globalThis.fetch;
+  const claveOriginal = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "sk-de-prueba";
+
+  let enviado: Record<string, unknown> | null = null;
+  globalThis.fetch = (async (_url: unknown, opciones?: { body?: string }) => {
+    enviado = opciones?.body ? JSON.parse(opciones.body) : null;
+    return ok(respuestaDeOpenAI(JSON.stringify({ respuesta: "Bien.", acciones: [] })));
+  }) as unknown as typeof fetch;
+
+  try {
+    await conversar(payload(), { promptSistema: "NÚCLEO DE PRUEBA, SIN ERP" });
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    if (claveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = claveOriginal;
+  }
+
+  const cuerpo = enviado as unknown as { input: { role: string; content: { text?: string }[] }[] };
+  assert.equal(cuerpo.input[0].content[0].text, "NÚCLEO DE PRUEBA, SIN ERP");
+});
+
 test("con un adjunto delega en n8n sin llamar a OpenAI", async () => {
   const original = process.env.EOS_GATEWAY_TS_IMAGENES;
   delete process.env.EOS_GATEWAY_TS_IMAGENES;

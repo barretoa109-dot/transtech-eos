@@ -177,6 +177,7 @@ async function preguntarAlModelo(
   modelo: string,
   contenido: Prompt["contenido"],
   timeoutMs: number = TIMEOUT_MS,
+  promptSistema: string = PROMPT_SISTEMA,
 ): Promise<Llamada> {
   const controlador = new AbortController();
   const reloj = setTimeout(() => controlador.abort(), timeoutMs);
@@ -193,7 +194,7 @@ async function preguntarAlModelo(
         // Solo a los medidos con ese esfuerzo: ver `CON_ESFUERZO`.
         ...(CON_ESFUERZO.has(modelo) ? { reasoning: { effort: ESFUERZO } } : {}),
         input: [
-          { role: "system", content: [{ type: "input_text", text: PROMPT_SISTEMA }] },
+          { role: "system", content: [{ type: "input_text", text: promptSistema }] },
           { role: "user", content: contenido },
         ],
       }),
@@ -291,10 +292,19 @@ export async function conversar(
      * hay margen de sobra.
      */
     timeoutMs?: number;
+    /**
+     * El prompt de sistema de este turno. Por defecto `PROMPT_SISTEMA`, el de
+     * siempre — omitirlo no cambia nada. Quien llama lo arma con
+     * `promptSistemaDeCuenta` (`lib/gateway/prompt-modulos.ts`), detrás de su
+     * propia bandera: ver `docs/arquitectura-multiagente-2026-11-06.md`.
+     */
+    promptSistema?: string;
   } = {},
 ): Promise<Resultado | null> {
   const clave = process.env.OPENAI_API_KEY;
   if (!clave) return null;
+
+  const promptSistema = opciones.promptSistema ?? PROMPT_SISTEMA;
 
   let entrada;
   try {
@@ -328,7 +338,7 @@ export async function conversar(
   let enrutado: Enrutado | null = null;
 
   if (barato) {
-    const intento = await preguntarAlModelo(clave, barato, contenido, opciones.timeoutMs);
+    const intento = await preguntarAlModelo(clave, barato, contenido, opciones.timeoutMs, promptSistema);
 
     // Un timeout ya gastó los 20 s: preguntar otra vez dejaría a la persona
     // esperando el doble. n8n, como cualquier otro timeout de acá.
@@ -357,7 +367,7 @@ export async function conversar(
    */
   const principal = opciones.principal?.trim() || MODELO;
   if (!cuerpo && principal !== MODELO) {
-    const intento = await preguntarAlModelo(clave, principal, contenido, opciones.timeoutMs);
+    const intento = await preguntarAlModelo(clave, principal, contenido, opciones.timeoutMs, promptSistema);
     if (!intento.ok && intento.motivo === "timeout") return null;
 
     const propuesta = intento.ok ? prepararRespuesta(entrada, intento.ai) : null;
@@ -372,7 +382,7 @@ export async function conversar(
   }
 
   if (!cuerpo) {
-    const llamada = await preguntarAlModelo(clave, MODELO, contenido, opciones.timeoutMs);
+    const llamada = await preguntarAlModelo(clave, MODELO, contenido, opciones.timeoutMs, promptSistema);
     if (!llamada.ok) {
       if (esCaidaDeIA(llamada)) {
         opciones.alFallarIA?.(llamada.status ? `${llamada.motivo}_${llamada.status}` : llamada.motivo);
@@ -399,7 +409,7 @@ export async function conversar(
       buscar: opciones.buscar,
       alBuscar: opciones.alBuscar,
       sintetizar: async (extendido) => {
-        const llamada = await preguntarAlModelo(clave, modeloSintesis, extendido, opciones.timeoutMs);
+        const llamada = await preguntarAlModelo(clave, modeloSintesis, extendido, opciones.timeoutMs, promptSistema);
         return llamada.ok ? prepararRespuesta(entrada, llamada.ai) : null;
       },
     });

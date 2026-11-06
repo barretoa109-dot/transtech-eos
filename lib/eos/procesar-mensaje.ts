@@ -63,6 +63,7 @@ import { POST as ingestDocument } from "@/app/api/documents/ingest/route";
 import { POST as analyzeDocument } from "@/app/api/documents/[id]/analyze/route";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { TIMEOUT_DOCUMENTO_MS, atiendeTypeScript, conversar } from "@/lib/gateway/conversar";
+import { gatewayNucleoPorModulo, promptSistemaDeCuenta } from "@/lib/gateway/prompt-modulos";
 import { resumenDeRespuesta } from "@/lib/seguridad/registro";
 import { costoDelMensaje, normalizarTokens, tarifasDelModelo } from "@/lib/eos/costo-mensaje";
 import { MOTIVOS_CON_TIMEOUT_LARGO, clasificarTurno, elegirModelo, modeloDelTurno, pareceAccion, registroDeEnrutamiento } from "@/lib/eos/enrutamiento-modelo";
@@ -1234,9 +1235,27 @@ export async function procesarMensajeEOS(
         }
       }
 
+      /*
+       * Fase 3 del diseño multiagente (docs/arquitectura-multiagente-2026-11-06.md):
+       * el prompt de sistema se recorta SOLO cuando se confirmó que la
+       * cuenta no tiene el módulo `erp` — nunca por adivinar el mensaje.
+       * Detrás de su propia bandera, apagada por defecto. Un error de
+       * lectura manda `null`, que `promptSistemaDeCuenta` lee como "mandá
+       * todo": mismo criterio que ya usa `puedeBajarDocumentos` más abajo.
+       */
+      let promptSistema: string | undefined;
+      if (gatewayNucleoPorModulo()) {
+        const { data: tieneErp, error: erpError } = await adminSinTipos().rpc("eos_tiene_modulo", {
+          p_usuario_id: usuarioId,
+          p_modulo: "erp",
+        });
+        promptSistema = promptSistemaDeCuenta(erpError ? null : (tieneErp as boolean | null));
+      }
+
       const propio = await conversar(payload, {
         modelo: modeloDelTurno(enrutamiento),
         principal: eleccion.modelo,
+        promptSistema,
         timeoutMs: MOTIVOS_CON_TIMEOUT_LARGO.has(eleccion.motivo) ? TIMEOUT_DOCUMENTO_MS : undefined,
         alFallarIA: (motivo) => {
           iaCaida = motivo;

@@ -191,10 +191,29 @@ el módulo ERP contratado sigue mandando el prompt completo siempre, sin
 excepción, hasta que exista una forma confiable de clasificar POR
 MENSAJE), pero es seguro de verdad, hoy, sin esperar nada más.
 
+## 8. Fase 3 construida, 06/11, detrás de bandera
+
+`EOS_GATEWAY_NUCLEO_SIN_ERP` (apagada por defecto — nadie la prendió
+todavía en Vercel). Con ella prendida: `procesar-mensaje.ts` consulta
+`eos_tiene_modulo("erp")` una vez por turno, y si CONFIRMÓ que no (nunca
+por un error de lectura, que manda todo igual que siempre), `conversar()`
+recibe `promptSistema: PROMPT_NUCLEO` en vez del completo. Las cuentas con
+el módulo ERP activo, o cualquier cuenta donde la consulta falle, no
+notan ningún cambio.
+
+El camino sigue siendo UNO SOLO: el mismo `preguntarAlModelo`, la misma
+verificación de acciones, la misma transacción atómica. Lo único que
+cambia es cuánto texto se manda en el mensaje `system` de la llamada a
+OpenAI.
+
 ## Próximo paso
 
-Confirmar con el dueño si se construye el gate por módulo contratado (el
-pivote de la sección 7) como la Fase 3 real, en lugar del clasificador por
-palabras clave original (descartado por la medición). Es un cambio de plan
-basado en datos, no una vuelta atrás: la Fase 1 hizo exactamente lo que
-tenía que hacer.
+Esto no se prende solo prendiendo la bandera. Antes de poner
+`EOS_GATEWAY_NUCLEO_SIN_ERP=1` en Vercel hace falta:
+
+1. Confirmar con cuentas reales sin módulo ERP que el núcleo sigue
+   contestando igual de bien en finanzas personales (la batería de
+   `evals/bateria` tiene casos "personal" que sirven de primera pasada).
+2. Prenderla primero en un ambiente de prueba, nunca directo en
+   producción — mismo criterio que ya usan `EOS_GATEWAY_TS_ACCIONES` y el
+   resto de las etapas de este archivo.
