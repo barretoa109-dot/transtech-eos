@@ -4355,6 +4355,35 @@
   background: var(--green-light);
   color: var(--green-texto);
 }
+.eos-app .tray-linea-hipotetica {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.eos-app .tray-simulador {
+  margin-top: 12px;
+}
+.eos-app .tray-simular-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.eos-app .tray-simular-abrir:hover {
+  background: var(--blue-light, rgba(22, 86, 189, 0.08));
+}
 
 /* ---- Deudas (FinanzasDeudas.tsx) ---- */
 .eos-app .deuda-resumen {

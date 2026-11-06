@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import FallaDeCarga from "./FallaDeCarga";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Sparkles } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
 
 /**
@@ -61,9 +61,18 @@ type Respuesta =
       horizonte: { desde: string; hasta: string };
     };
 
+type Gemelo = {
+  actual: Trayectoria;
+  hipotetica: Trayectoria;
+  diferencia_al_cierre: number;
+  empeora_el_riesgo: boolean;
+  mejora_el_riesgo: boolean;
+};
+
 export default function FinanzasTrayectoria() {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
+  const [gemelo, setGemelo] = useState<Gemelo | null>(null);
 
   useEffect(() => {
     fetch("/api/finanzas/riesgo", { cache: "no-store" })
@@ -107,35 +116,182 @@ export default function FinanzasTrayectoria() {
         </span>
       </div>
 
-      <CurvaSaldo trayectoria={trayectoria} banda={hayIncertidumbre ? banda : null} fmt={fmt} />
+      <CurvaSaldo
+        trayectoria={trayectoria}
+        banda={gemelo ? null : hayIncertidumbre ? banda : null}
+        hipotetica={gemelo?.hipotetica ?? null}
+        fmt={fmt}
+      />
 
-      {hayIncertidumbre && (
+      {gemelo ? (
+        <p className={`tray-aviso${gemelo.empeora_el_riesgo ? "" : " is-ok"}`}>
+          {resumenGemelo(gemelo, fmt)}
+        </p>
+      ) : hayIncertidumbre ? (
         <p className="tray-banda-nota">
           La franja sombreada es el rango posible: desde que lo que todavía no
           es seguro no entre, hasta que lo que todavía no es un patrón firme no
           se repita.
         </p>
-      )}
+      ) : null}
 
-      {hayRiesgo && aviso ? (
-        <p className="tray-aviso">{aviso}</p>
+      {!gemelo &&
+        (hayRiesgo && aviso ? (
+          <p className="tray-aviso">{aviso}</p>
+        ) : (
+          <p className="tray-aviso is-ok">
+            Tu saldo no baja de la reserva en todo el período. El punto más flaco es el{" "}
+            {formatearDiaMes(trayectoria.valle.fecha)}, con {fmt(trayectoria.valle.saldo)}.
+          </p>
+        ))}
+
+      <SimuladorCuota moneda={moneda} gemelo={gemelo} onResultado={setGemelo} />
+    </div>
+  );
+}
+
+/**
+ * "¿Qué pasa con mi plata si...?" — el gemelo digital (ítem 16 del documento
+ * EOS 2030). Simula un compromiso nuevo —una cuota, un gasto fijo que
+ * arranca— y dibuja cómo se movería la curva de los próximos 45 días, nunca
+ * escribe nada: ver `POST /api/finanzas/riesgo` y `lib/finanzas/gemelo.ts`.
+ */
+function SimuladorCuota({
+  moneda,
+  gemelo,
+  onResultado,
+}: {
+  moneda: string;
+  gemelo: Gemelo | null;
+  onResultado: (g: Gemelo | null) => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [descripcion, setDescripcion] = useState("");
+  const [monto, setMonto] = useState("");
+  const [diaDelMes, setDiaDelMes] = useState("10");
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState("");
+
+  const simular = () => {
+    const montoNumero = Number(monto);
+    if (!Number.isFinite(montoNumero) || montoNumero <= 0) {
+      setError("Decime cuánto es la cuota.");
+      return;
+    }
+
+    setCargando(true);
+    setError("");
+
+    fetch("/api/finanzas/riesgo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tipo: "gasto",
+        descripcion: descripcion.trim() || undefined,
+        monto: montoNumero,
+        dia_del_mes: Number(diaDelMes) || 10,
+      }),
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || "No pudimos simularlo.");
+        onResultado(json.gemelo);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "No pudimos simularlo."))
+      .finally(() => setCargando(false));
+  };
+
+  if (!abierto && !gemelo) {
+    return (
+      <button type="button" className="tray-simular-abrir" onClick={() => setAbierto(true)}>
+        <Sparkles size={14} /> ¿Qué pasa si agrego una cuota nueva?
+      </button>
+    );
+  }
+
+  return (
+    <div className="tray-simulador">
+      {gemelo && !abierto ? (
+        <button type="button" className="tray-simular-abrir" onClick={() => setAbierto(true)}>
+          <Sparkles size={14} /> Probar otro cambio
+        </button>
       ) : (
-        <p className="tray-aviso is-ok">
-          Tu saldo no baja de la reserva en todo el período. El punto más flaco es el{" "}
-          {formatearDiaMes(trayectoria.valle.fecha)}, con {fmt(trayectoria.valle.saldo)}.
-        </p>
+        <>
+          <div className="field-row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <input
+              className="neg-input"
+              style={{ flex: 2, minWidth: 140 }}
+              placeholder="Qué es (ej: cuota notebook)"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+            />
+            <input
+              className="neg-input neg-cantidad"
+              type="number"
+              min={0}
+              placeholder={`Monto en ${moneda}`}
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+            />
+            <input
+              className="neg-input neg-cantidad"
+              type="number"
+              min={1}
+              max={31}
+              title="Día del mes en que caería"
+              value={diaDelMes}
+              onChange={(e) => setDiaDelMes(e.target.value)}
+            />
+            <button type="button" className="chip active" disabled={cargando} onClick={simular}>
+              {cargando ? "Simulando…" : "Simular"}
+            </button>
+          </div>
+          {error && <p className="tray-aviso">{error}</p>}
+          {gemelo && (
+            <button
+              type="button"
+              className="tray-simular-abrir"
+              onClick={() => {
+                setAbierto(false);
+                onResultado(null);
+              }}
+            >
+              Sacar la simulación del gráfico
+            </button>
+          )}
+        </>
       )}
     </div>
   );
 }
 
+function resumenGemelo(gemelo: Gemelo, fmt: (valor: number) => string): string {
+  if (gemelo.empeora_el_riesgo) {
+    return `Con ese cambio, tu saldo perfora la reserva antes de los 45 días — hoy no pasa. Al cierre del período te quedarían ${fmt(
+      gemelo.hipotetica.puntos[gemelo.hipotetica.puntos.length - 1]?.saldo ?? 0,
+    )} en vez de ${fmt(gemelo.actual.puntos[gemelo.actual.puntos.length - 1]?.saldo ?? 0)}.`;
+  }
+  if (gemelo.mejora_el_riesgo) {
+    return "Con ese cambio dejarías de perforar la reserva en este período.";
+  }
+  return `Al cierre de los 45 días te quedarían ${fmt(
+    gemelo.hipotetica.puntos[gemelo.hipotetica.puntos.length - 1]?.saldo ?? 0,
+  )} en vez de ${fmt(gemelo.actual.puntos[gemelo.actual.puntos.length - 1]?.saldo ?? 0)} — ${fmt(
+    Math.abs(gemelo.diferencia_al_cierre),
+  )} menos, sin llegar a comerte la reserva.`;
+}
+
 function CurvaSaldo({
   trayectoria,
   banda,
+  hipotetica,
   fmt,
 }: {
   trayectoria: Trayectoria;
   banda: { piso: Trayectoria; techo: Trayectoria } | null;
+  /** La curva del gemelo digital, para dibujar al lado de la actual. */
+  hipotetica: Trayectoria | null;
   fmt: (valor: number) => string;
 }) {
   const { puntos, reservaMinima, cruce } = trayectoria;
@@ -184,6 +340,9 @@ function CurvaSaldo({
     if (banda) {
       saldos.push(...banda.piso.puntos.map((p) => p.saldo), ...banda.techo.puntos.map((p) => p.saldo));
     }
+    if (hipotetica) {
+      saldos.push(...hipotetica.puntos.map((p) => p.saldo));
+    }
 
     // La reserva entra en la escala SIEMPRE. Si el saldo se mantiene muy por
     // encima, la línea quedaría fuera del recuadro y el gráfico dejaría de
@@ -193,7 +352,7 @@ function CurvaSaldo({
     const margen = (crudoMax - crudoMin) * 0.12 || Math.abs(crudoMax) * 0.12 || 1;
 
     return { min: crudoMin - margen, max: crudoMax + margen };
-  }, [puntos, reservaMinima, banda]);
+  }, [puntos, reservaMinima, banda, hipotetica]);
 
   const x = (i: number) => padL + (i / (puntos.length - 1)) * (W - padL - padR);
   const y = (v: number) =>
@@ -202,6 +361,14 @@ function CurvaSaldo({
   const linea = puntos
     .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`)
     .join(" ");
+
+  // La curva hipotética usa el mismo eje de días que la actual: las dos
+  // parten de hoy y recorren el mismo horizonte, así que se indexan igual.
+  const lineaHipotetica = hipotetica
+    ? hipotetica.puntos
+        .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`)
+        .join(" ")
+    : null;
 
   const area = `M${x(0)},${H - padB} L${puntos
     .map((p, i) => `${x(i).toFixed(1)},${y(p.saldo).toFixed(1)}`)
@@ -279,6 +446,7 @@ function CurvaSaldo({
       {bandaPath && <path className="tray-banda" d={bandaPath} />}
       <path className="tray-area" d={area} />
       <path className="tray-linea" d={linea} />
+      {lineaHipotetica && <path className="tray-linea-hipotetica" d={lineaHipotetica} />}
 
       {iCruce >= 0 && (
         <>

@@ -15,8 +15,10 @@ import {
 } from "@/lib/erp/riesgos-negocio";
 import { formatearMonto } from "@/lib/finanzas/formato";
 import { trazarBanda } from "@/lib/finanzas/trayectoria";
+import { compararTrayectorias, ocurrenciasMensuales, type Gemelo } from "@/lib/finanzas/gemelo";
 import type { Deuda } from "@/lib/finanzas/deudas";
 import type { Fijo } from "@/lib/finanzas/fijos";
+import type { Panorama } from "@/lib/finanzas/panorama";
 import { exigirModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
@@ -25,18 +27,27 @@ export const dynamic = "force-dynamic";
 const HORIZONTE_DIAS = 45;
 
 /**
- * ¿Se viene un aprieto?
+ * Todo lo que hace falta para la curva de saldo, leído una vez.
  *
- * Devuelve `{ riesgo: null }` la mayoría de los días, y eso es el éxito, no la
- * falta de resultado: la fase 3 de la hoja de ruta pide que EOS avise antes de
- * que el problema exista, no que encuentre problemas.
+ * El GET y el POST (el "gemelo digital", ítem 16 del documento EOS 2030)
+ * parten del MISMO panorama: si cada uno lo armara por su lado, la
+ * simulación podría comparar contra un disponible distinto del que la
+ * pantalla acaba de mostrar — el mismo motivo por el que `pulso/route.ts`
+ * comparte `armarPulso` entre sus dos métodos.
  */
-export async function GET() {
-  // La curva del saldo es parte del panel, no del aviso: quien contrató el
-  // panel tiene que poder ver cómo viene su mes. Lo que se contrata aparte es
-  // que EOS AVISE sin que entres, y eso vive en el cron (`avisarRiesgos`).
+async function armarPanoramaPersonal(): Promise<
+  | { respuesta: NextResponse }
+  | {
+      hoy: string;
+      hasta: string;
+      moneda: string;
+      panorama: Panorama;
+      usuarioId: string;
+      fijosData: FilaFijo[];
+    }
+> {
   const puerta = await exigirModulo("dashboard");
-  if (puerta.respuesta) return puerta.respuesta;
+  if (puerta.respuesta) return { respuesta: puerta.respuesta };
 
   const supabase = await createClient();
   const user = { id: puerta.usuarioId };
@@ -87,7 +98,7 @@ export async function GET() {
   // Sin Constitución Financiera no hay punto de partida. EOS no inventa un
   // saldo para poder alarmar: informa que todavía no está configurado.
   if (!politica) {
-    return NextResponse.json({ configurado: false, riesgo: null }, { headers: noStore() });
+    return { respuesta: NextResponse.json({ configurado: false, riesgo: null }, { headers: noStore() }) };
   }
 
   /*
@@ -149,6 +160,34 @@ export async function GET() {
       cuota_monto: d.cuota_monto === null ? null : num(d.cuota_monto),
     })),
   });
+
+  return {
+    hoy,
+    hasta,
+    moneda: principal,
+    panorama,
+    usuarioId: user.id,
+    fijosData: (fijosRes.data ?? []) as FilaFijo[],
+  };
+}
+
+/**
+ * ¿Se viene un aprieto?
+ *
+ * Devuelve `{ riesgo: null }` la mayoría de los días, y eso es el éxito, no la
+ * falta de resultado: la fase 3 de la hoja de ruta pide que EOS avise antes de
+ * que el problema exista, no que encuentre problemas.
+ */
+export async function GET() {
+  // La curva del saldo es parte del panel, no del aviso: quien contrató el
+  // panel tiene que poder ver cómo viene su mes. Lo que se contrata aparte es
+  // que EOS AVISE sin que entres, y eso vive en el cron (`avisarRiesgos`).
+  const armado = await armarPanoramaPersonal();
+  if ("respuesta" in armado) return armado.respuesta;
+
+  const { hoy, hasta, moneda: principal, panorama, usuarioId, fijosData } = armado;
+  const supabase = await createClient();
+  const user = { id: usuarioId };
 
   const riesgo = detectarRiesgo({
     hoy,
@@ -244,7 +283,7 @@ export async function GET() {
      * `eos_finanzas_fijos` no tiene categoría, solo descripción; el detector
      * acepta cualquiera de las dos.
      */
-    fijos: ((fijosRes.data ?? []) as FilaFijo[]).map((f) => ({
+    fijos: fijosData.map((f) => ({
       categoria: null,
       descripcion: f.descripcion ?? null,
     })),
@@ -271,6 +310,57 @@ export async function GET() {
     },
     { headers: noStore() },
   );
+}
+
+/**
+ * El gemelo digital: "¿cómo se ve mi plata si tomo esta cuota?"
+ *
+ * Nivel 2 de autonomía ("preparar y recomendar"): es una simulación pura
+ * sobre una copia del panorama, igual que `escenarios.ts`. No escribe nada,
+ * no registra ningún compromiso — preguntarlo no puede dejar un gasto fijo
+ * que nadie cargó.
+ */
+export async function POST(request: Request) {
+  const armado = await armarPanoramaPersonal();
+  if ("respuesta" in armado) return armado.respuesta;
+
+  const { hoy, hasta, moneda, panorama } = armado;
+
+  let body: { tipo?: unknown; descripcion?: unknown; monto?: unknown; dia_del_mes?: unknown };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
+  }
+
+  const tipo = body.tipo === "ingreso" ? "ingreso" : "gasto";
+  const monto = Number(body.monto);
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return NextResponse.json({ error: "Decime cuánto es la cuota." }, { status: 400, headers: noStore() });
+  }
+
+  const diaCrudo = Number(body.dia_del_mes);
+  const diaDelMes = Number.isFinite(diaCrudo) ? Math.min(31, Math.max(1, Math.round(diaCrudo))) : 10;
+
+  const descripcion =
+    typeof body.descripcion === "string" && body.descripcion.trim() !== ""
+      ? body.descripcion.trim().slice(0, 120)
+      : "Lo que estás pensando agregar";
+
+  const ocurrencias = ocurrenciasMensuales({ tipo, descripcion, monto, diaDelMes, desde: hoy, hasta });
+
+  const gemelo: Gemelo = compararTrayectorias({
+    hoy,
+    hasta,
+    saldoActual: panorama.saldoActual,
+    reservaMinima: panorama.reservaMinima,
+    egresos: panorama.egresos,
+    ingresos: panorama.ingresos,
+    egresosHipotetica: tipo === "gasto" ? [...panorama.egresos, ...ocurrencias] : panorama.egresos,
+    ingresosHipotetica: tipo === "ingreso" ? [...panorama.ingresos, ...ocurrencias] : panorama.ingresos,
+  });
+
+  return NextResponse.json({ moneda, gemelo, horizonte: { desde: hoy, hasta } }, { headers: noStore() });
 }
 
 type Fila = {
