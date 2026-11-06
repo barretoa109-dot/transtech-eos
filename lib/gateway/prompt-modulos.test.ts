@@ -5,8 +5,10 @@ import { PROMPT_SISTEMA } from "./sistema.ts";
 import {
   BLOQUES_ERP_CRM_EXCLUSIVOS,
   construirNucleo,
+  gatewayNucleoPorModulo,
   necesitaModuloErpCrm,
   PROMPT_NUCLEO,
+  promptSistemaDeCuenta,
 } from "./prompt-modulos.ts";
 
 test("cada índice excluido sigue siendo el bloque que dice ser", () => {
@@ -86,4 +88,39 @@ test("necesitaModuloErpCrm: el historial viejo (más de 4 turnos) no arrastra pa
     { texto: "perfecto" },
   ];
   assert.equal(necesitaModuloErpCrm("pagué la cuota del préstamo", historial), false);
+});
+
+test("promptSistemaDeCuenta: false confirmado → núcleo", () => {
+  assert.equal(promptSistemaDeCuenta(false), PROMPT_NUCLEO);
+});
+
+test("promptSistemaDeCuenta: true, o null (sin confirmar), → el prompt completo", () => {
+  // Ante la duda, se manda todo: mismo criterio que `puedeBajarDocumentos`
+  // en procesar-mensaje.ts.
+  assert.equal(promptSistemaDeCuenta(true), PROMPT_SISTEMA);
+  assert.equal(promptSistemaDeCuenta(null), PROMPT_SISTEMA);
+});
+
+test("gatewayNucleoPorModulo: apagada por defecto", () => {
+  const anterior = process.env.EOS_GATEWAY_NUCLEO_SIN_ERP;
+  delete process.env.EOS_GATEWAY_NUCLEO_SIN_ERP;
+  try {
+    assert.equal(gatewayNucleoPorModulo(), false);
+  } finally {
+    if (anterior === undefined) delete process.env.EOS_GATEWAY_NUCLEO_SIN_ERP;
+    else process.env.EOS_GATEWAY_NUCLEO_SIN_ERP = anterior;
+  }
+});
+
+test("gatewayNucleoPorModulo: se prende solo con el valor exacto '1'", () => {
+  const anterior = process.env.EOS_GATEWAY_NUCLEO_SIN_ERP;
+  try {
+    process.env.EOS_GATEWAY_NUCLEO_SIN_ERP = "true";
+    assert.equal(gatewayNucleoPorModulo(), false);
+    process.env.EOS_GATEWAY_NUCLEO_SIN_ERP = "1";
+    assert.equal(gatewayNucleoPorModulo(), true);
+  } finally {
+    if (anterior === undefined) delete process.env.EOS_GATEWAY_NUCLEO_SIN_ERP;
+    else process.env.EOS_GATEWAY_NUCLEO_SIN_ERP = anterior;
+  }
 });

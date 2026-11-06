@@ -154,3 +154,37 @@ export function necesitaModuloErpCrm(mensaje: string, historial: { texto: string
   // mensaje en sí no tenga ninguna palabra propia.
   return historial.slice(-4).some((t) => PALABRAS_NEGOCIO_O_CRM.test(t.texto));
 }
+
+/**
+ * Fase 3, la real: el pivote de la sección 7 del diseño. No clasifica por
+ * mensaje —eso ya se midió y falla 35% de las veces (ver
+ * `evals/bateria/medir-modulo-erp-crm.mts`)— decide por lo que la cuenta
+ * YA tiene contratado, que no es una suposición: `exigirModulo("erp")` ya
+ * bloquea esas acciones del lado del servidor si la cuenta no las tiene.
+ *
+ * `tieneModuloErp` es `false` SOLO cuando se confirmó que la cuenta no
+ * tiene el módulo. `true`, o `null` (no se pudo leer, o no se consultó),
+ * mandan el prompt completo — el mismo criterio "ante la duda, se manda
+ * todo" que ya usa `puedeBajarDocumentos` en `procesar-mensaje.ts` para el
+ * módulo de documentos.
+ */
+/**
+ * La bandera de la Fase 3. Apagada por defecto: aunque el gate por módulo
+ * contratado es mucho más seguro que el clasificador por mensaje (ver
+ * sección 7 del diseño), sigue siendo la primera vez que una cuenta real
+ * recibe un prompt de sistema distinto al de siempre — eso se mide en
+ * producción con el mismo criterio que cualquier otra etapa de este
+ * gateway (`gatewayEnTypeScript`, `accionesEnTypeScript`...) antes de
+ * confiar en que no cambia ninguna respuesta.
+ */
+export function gatewayNucleoPorModulo(): boolean {
+  return process.env.EOS_GATEWAY_NUCLEO_SIN_ERP === "1";
+}
+
+export function promptSistemaDeCuenta(
+  tieneModuloErp: boolean | null,
+  promptCompleto: string = PROMPT_SISTEMA,
+  nucleo: string = PROMPT_NUCLEO,
+): string {
+  return tieneModuloErp === false ? nucleo : promptCompleto;
+}
