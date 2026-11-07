@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import Emisor from "./negocio/Emisor";
+import ClavesApi from "./negocio/ClavesApi";
 import MiEmpresa from "./MiEmpresa";
 import { SubNav } from "./SeccionNav";
 import { useEtiquetaEspacio } from "./EspacioContext";
@@ -16,12 +17,13 @@ import type { FuncionOcultable } from "./espacios";
  * y los datos de la empresa con su equipo (antes solo en el Perfil, que sigue
  * mostrándolos). Y suma lo nuevo de la v232: qué funciones usa este negocio.
  */
-type Parte = "funciones" | "empresa" | "emisor";
+type Parte = "funciones" | "empresa" | "emisor" | "desarrollador";
 
 const PARTES = [
   { clave: "funciones" as const, etiqueta: "Funciones", detalle: "Qué muestra el menú de este negocio" },
   { clave: "empresa" as const, etiqueta: "Empresa y equipo", detalle: "Nombre, RUC y quién entra a este negocio" },
   { clave: "emisor" as const, etiqueta: "Facturación", detalle: "Lo que va impreso en cada comprobante" },
+  { clave: "desarrollador" as const, etiqueta: "Claves de API", detalle: "Leer tus datos desde otro sistema" },
 ];
 
 const FUNCIONES: { clave: FuncionOcultable; nombre: string; detalle: string }[] = [
@@ -133,6 +135,7 @@ export default function AjustesNegocio({ empresaId, funcionesOcultas, puedoAdmin
 
         {parte === "empresa" && <MiEmpresa />}
         {parte === "emisor" && <Emisor />}
+        {parte === "desarrollador" && <ClavesApi puedoAdministrar={puedoAdministrar} />}
       </div>
     </div>
   );
