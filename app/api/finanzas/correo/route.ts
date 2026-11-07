@@ -19,6 +19,7 @@ import { leerKude } from "@/lib/facturacion/leerKude";
 import { extraerTextoPdf } from "@/lib/documentos/textoPdf";
 import { empresaDe } from "@/lib/empresa/acceso";
 import { sumarCostoIA } from "@/lib/eos/costo-ia";
+import { extraerToken } from "@/lib/finanzas/correo-token";
 
 export const dynamic = "force-dynamic";
 
@@ -426,26 +427,4 @@ function aFila(movimiento: MovimientoDeCorreo, usuarioId: string, emailId: strin
       evidencia: movimiento.evidencia,
     },
   };
-}
-
-/**
- * Saca el token del destinatario.
- *
- * Las direcciones son `eos-<token>@<dominio de ingesta>`. Se contempla el
- * sufijo con `+` porque algunos clientes de correo lo agregan al reenviar.
- */
-function extraerToken(destinatarios: string[]): string | null {
-  for (const crudo of destinatarios) {
-    const direccion = crudo.includes("<") ? (crudo.match(/<([^>]+)>/)?.[1] ?? crudo) : crudo;
-    const local = direccion.split("@")[0]?.trim().toLowerCase();
-    if (!local) continue;
-
-    const sinSufijo = local.split("+")[0];
-    if (!sinSufijo.startsWith("eos-")) continue;
-
-    const token = sinSufijo.slice(4);
-    if (/^[a-f0-9]{16,64}$/.test(token)) return token;
-  }
-
-  return null;
 }
