@@ -49,7 +49,7 @@ type NavegadorDelSistema = {
   close(): Promise<void>;
 };
 
-type Escucha = { remove(): Promise<void> };
+export type Escucha = { remove(): Promise<void> };
 
 type EventosDeApp = {
   addListener(
@@ -131,6 +131,51 @@ export function puedeAbrirNavegadorDelSistema(): boolean {
   if (!estaEnAppNativa()) return false;
   try {
     return Capacitor.isPluginAvailable("Browser") && Capacitor.isPluginAvailable("App");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Lo que devuelve `empezar()` al intentar abrir el micrófono: sin `error`
+ * quedó escuchando, y con `error` trae uno de los códigos que entiende
+ * `mensajeDeErrorDeVoz` (`lib/eos/dictado.ts`) — los plugins nativos
+ * (`DictadoPlugin.swift`, `DictadoPlugin.java`) traducen ahí sus propios
+ * errores para no duplicar esa traducción del lado de JavaScript.
+ */
+type ResultadoDictadoNativo = { error?: string };
+
+type Dictado = {
+  empezar(opciones: { idioma: string }): Promise<ResultadoDictadoNativo>;
+  cancelar(): Promise<void>;
+  addListener(
+    evento: "resultado",
+    manejador: (datos: { definitivo: string; provisorio: string }) => void,
+  ): Promise<Escucha>;
+  addListener(evento: "error", manejador: (datos: { codigo: string }) => void): Promise<Escucha>;
+  addListener(evento: "fin", manejador: () => void): Promise<Escucha>;
+};
+
+let dictado: Dictado | null = null;
+
+/** El dictado por voz con el reconocedor nativo de iOS y Android. Ver `app/eos/components/useDictado.ts`. */
+export function dictadoNativo(): Dictado {
+  const plugin = dictado ?? registerPlugin<Dictado>("Dictado");
+  dictado = plugin;
+  return plugin;
+}
+
+/**
+ * ¿Hay que dictar con el plugin nativo en vez del `SpeechRecognition` del
+ * navegador? Dentro de la app instalada hace falta: WKWebView en iOS no
+ * implementa esa API del navegador —por eso Configuración nunca mostraba
+ * "Micrófono" para la app, aunque `Info.plist` ya pedía el permiso—, así que
+ * sin esto el dictado solo andaba abriendo el sitio en Safari.
+ */
+export function puedeDictarNativo(): boolean {
+  if (!estaEnAppNativa()) return false;
+  try {
+    return Capacitor.isPluginAvailable("Dictado");
   } catch {
     return false;
   }

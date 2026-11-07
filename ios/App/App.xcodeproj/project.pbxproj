@@ -20,6 +20,7 @@
 		3A240627A75A4B8588383AAF /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB0C52922AA4F6983533283 /* ShareViewController.swift */; };
 		6885F9E3242849E29B1DC345 /* CompartirRecibidoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */; };
 		4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D680E40158437BB66280D4 /* BridgeViewController.swift */; };
+		C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		FCB0C52922AA4F6983533283 /* ShareViewController.swift */ = {isa = PBXFileReference; path = ShareViewController.swift; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
 		D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompartirRecibidoPlugin.swift; sourceTree = "<group>"; };
 		C1D680E40158437BB66280D4 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
+		697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictadoPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +91,7 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 				D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */,
 				C1D680E40158437BB66280D4 /* BridgeViewController.swift */,
+				697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -207,6 +210,7 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				6885F9E3242849E29B1DC345 /* CompartirRecibidoPlugin.swift in Sources */,
 				4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */,
+				C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -363,7 +367,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.transtech.eos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -386,7 +390,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.transtech.eos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -406,7 +410,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_NAME = "ShareExtension";
 				SKIP_INSTALL = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.transtech.eos.compartir";
@@ -423,7 +427,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_NAME = "ShareExtension";
 				SKIP_INSTALL = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.transtech.eos.compartir";

@@ -23,7 +23,7 @@ Eso tiene dos consecuencias que hay que tener presentes siempre:
 | --- | --- | --- |
 | Apple 3.1.1 y 3.1.3 | Fuera de EE. UU., una app no puede vender funciones por fuera de la compra dentro de la app, ni tener botones o enlaces que lleven a pagar afuera. | La app **no muestra precios, planes ni pagos**. El proxy redirige `/planes` y `/pago` al chat cuando el user agent es el de la app, y `SoloEnWeb` esconde cada botón que llevaba a planes. Los mensajes de cupo no invitan a comprar (`lib/eos/mensaje-cupo.ts`). EOS se contrata en la web. |
 | Google Play, pagos | Los servicios de software dentro de la app se cobran con Google Play Billing. | Igual que arriba: la app no vende nada. |
-| Apple 4.2 | La app tiene que ser más que un sitio empaquetado. | **Pendiente**: notificaciones push nativas, “Compartir con EOS”, permisos nativos de micrófono y cámara. Ver “Qué falta”. |
+| Apple 4.2 | La app tiene que ser más que un sitio empaquetado. | Notificaciones push nativas, “Compartir con EOS” y dictado por voz nativo, los tres hechos (ver “Qué falta”). La cámara ya andaba: el selector de fotos del chat usa el input nativo del sistema, no una API del navegador. |
 | Apple 4.8 | Si hay Google, también tiene que estar Sign in with Apple. | Los dos botones existen (`lib/auth/proveedores.ts`) y salen cuando el proveedor está configurado en Supabase. |
 | Google, OAuth | Google bloquea su inicio de sesión dentro de un WebView embebido (`disallowed_useragent`). | En la app, el inicio con Google o Apple se abre en el navegador del sistema y vuelve por `com.transtech.eos://auth/callback`. Ver “Inicio de sesión”. |
 | Apple 5.1.1(v) y Google | Se tiene que poder borrar la cuenta desde la app, y Google además pide una URL pública para pedirlo. | **Hecho**: "Eliminar cuenta" en Perfil (no está dentro de `SoloEnWeb`, se ve en la app) y la URL pública `https://www.transtech.com.py/eliminar-cuenta`. |
@@ -92,6 +92,7 @@ Hecho desde el repo:
 - Escribir `transtech.com.py/planes` en un enlace dentro de la app: tiene que volver al chat.
 - Llegar al límite de mensajes del plan gratis: el mensaje no nombra “Planes”.
 - Poner el modo avión y abrir la app: aparece “No hay conexión”; al volver la señal, entra sola al chat.
+- Tocar el micrófono del chat: tiene que pedir el permiso del sistema (y a partir de ahí aparecer "Micrófono" en Configuración → TransTech EOS), dictar, y si se niega el permiso, dejar el botón usable sin recargar.
 - En el navegador del teléfono (no en la app), todo lo anterior tiene que seguir como antes.
 
 ## Qué falta, en orden
@@ -188,6 +189,41 @@ Pendiente, y depende del dueño o de un Mac:
    una foto desde Fotos o Safari, y confirmar que entra al cuadro del chat
    (o como adjunto, si es una imagen) la próxima vez que se abre EOS. Nunca
    se probó.
+
+**Dictado por voz nativo (07/11):** el micrófono del compositor usaba
+`SpeechRecognition` del navegador (`lib/eos/dictado.ts`), que anda en Safari
+pero que WKWebView no implementa — por eso, dentro de la app instalada, el
+botón nunca llegaba ni a pedir el permiso, y Configuración no mostraba
+"Micrófono" para la app aunque `Info.plist` ya tenía el texto. Ahora:
+
+- **`DictadoPlugin.swift`** (`Speech` + `AVAudioEngine`) y
+  **`DictadoPlugin.java`** (`android.speech.SpeechRecognizer`), los dos con el
+  mismo contrato de eventos (`resultado`, `error`, `fin`) que ya esperaba
+  `useDictado.ts`, así que la máquina de estados que vive en `lib/eos/dictado.ts`
+  —y sus pruebas— no cambió. `empezar()` nunca rechaza la promesa: resuelve
+  `{}` con el micrófono abierto o `{ error: <código> }`, para no depender de
+  cómo cada plataforma cruza un rechazo del lado nativo al JavaScript.
+- `puedeDictarNativo()` (`lib/app-nativa/cliente.ts`) decide el motor: nativo
+  dentro de la app, `SpeechRecognition` del navegador en cualquier otro lado.
+  Ninguno de los dos componentes que usan el dictado (`ChatView.tsx`,
+  `useDictado.ts`) tuvo que distinguir cuál está hablando.
+- Igual que `CompartirRecibidoPlugin.swift`, el plugin de iOS vive en el
+  proyecto y se registra a mano en `BridgeViewController.swift`; el de
+  Android se registra en `MainActivity.java`, como el suyo.
+- `Info.plist` suma `NSSpeechRecognitionUsageDescription` (el de
+  `NSMicrophoneUsageDescription` ya estaba, sin usarse). `AndroidManifest.xml`
+  suma `RECORD_AUDIO`.
+
+Pendiente, y necesita un teléfono real:
+
+1. Probarlo de punta a punta en un iPhone y en un Android: que al tocar el
+   micrófono dentro de la app aparezca el permiso del sistema (y ahora sí la
+   fila "Micrófono" en Configuración → TransTech EOS), que dicte, y que
+   negar el permiso deje el botón usable como en la web. Nunca se probó.
+2. Confirmar en App Store Connect que la etiqueta de privacidad no cambia:
+   "Audio Data" en `docs/app-nativa/etiquetas-privacidad.md` ya estaba
+   declarada (el audio no viaja a ningún lado nuevo: el reconocimiento es
+   en el propio teléfono, como con `SpeechRecognition` en el navegador).
 
 ## Subir a las tiendas sin tener una Mac (16/10/2026)
 
