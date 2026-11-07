@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import FallaDeCarga from "./FallaDeCarga";
-import { AlertTriangle, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Sparkles, WifiOff } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formato";
+import { guardarSnapshot, hace, leerSnapshot } from "@/lib/offline/cache";
 
 /**
  * Los próximos 45 días de tu plata, dibujados.
@@ -69,16 +70,38 @@ type Gemelo = {
   mejora_el_riesgo: boolean;
 };
 
+/**
+ * Offline-first (ítem 24), primera pieza: si la carga falla, antes de
+ * mostrar un error se intenta la última foto buena que se guardó
+ * (`lib/offline/cache.ts`). Se muestra IGUAL que siempre, pero con un aviso
+ * que dice desde cuándo es — nunca como si fuera el estado de ahora.
+ */
+const CLAVE_CACHE_TRAYECTORIA = "finanzas-trayectoria";
+
 export default function FinanzasTrayectoria() {
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState(false);
   const [gemelo, setGemelo] = useState<Gemelo | null>(null);
+  const [sinConexionDesde, setSinConexionDesde] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/finanzas/riesgo", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fallo"))))
-      .then(setData)
-      .catch(() => setError(true));
+      .then((json: Respuesta) => {
+        setData(json);
+        setSinConexionDesde(null);
+        void guardarSnapshot(CLAVE_CACHE_TRAYECTORIA, json);
+      })
+      .catch(() => {
+        leerSnapshot<Respuesta>(CLAVE_CACHE_TRAYECTORIA).then((snapshot) => {
+          if (snapshot) {
+            setData(snapshot.datos);
+            setSinConexionDesde(snapshot.guardado_en);
+          } else {
+            setError(true);
+          }
+        });
+      });
   }, []);
 
   if (error) return <FallaDeCarga que="tu trayectoria de saldo" />;
@@ -116,6 +139,12 @@ export default function FinanzasTrayectoria() {
         </span>
       </div>
 
+      {sinConexionDesde && (
+        <p className="tray-aviso" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <WifiOff size={14} /> Sin conexión: estos son los últimos datos que se pudieron cargar, {hace(sinConexionDesde)}.
+        </p>
+      )}
+
       <CurvaSaldo
         trayectoria={trayectoria}
         banda={gemelo ? null : hayIncertidumbre ? banda : null}
@@ -145,7 +174,7 @@ export default function FinanzasTrayectoria() {
           </p>
         ))}
 
-      <SimuladorCuota moneda={moneda} gemelo={gemelo} onResultado={setGemelo} />
+      {!sinConexionDesde && <SimuladorCuota moneda={moneda} gemelo={gemelo} onResultado={setGemelo} />}
     </div>
   );
 }
