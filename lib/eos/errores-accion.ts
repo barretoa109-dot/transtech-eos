@@ -97,6 +97,16 @@ const REGLAS: Regla[] = [
       "Decime cuál es exactamente, o pasame el precio de venta y te lo cargo al catálogo.",
   },
   {
+    // "Varios parecidos" (v255): acá el precio nunca ayuda, el problema es
+    // cuál de los que ya tiene es. Antes compartía el mensaje de arriba, que
+    // le pedía a la persona algo que ya había mandado. Mismo patrón que
+    // EOS_ACCION_CONTACTO_AMBIGUO (v215).
+    codigo: "EOS_ACCION_PRODUCTO_AMBIGUO",
+    mensaje: (d) =>
+      `"${d}" se parece a más de uno de tus productos. Decime cuál es, con el nombre exactamente ` +
+      "como lo tenés cargado en el catálogo.",
+  },
+  {
     codigo: "EOS_ACCION_CONTACTO_NO_RESUELTO",
     mensaje: (d) =>
       `No encontré a "${d}" entre tus contactos. Pedime que lo agende primero ` +

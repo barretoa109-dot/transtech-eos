@@ -156,6 +156,18 @@ test("un nombre parecido a un contacto pregunta cuál, sin mandar a agendar (v21
   assert.doesNotMatch(e.mensaje, /agendá a/);
 });
 
+test("un producto parecido a más de uno no pide un precio que ya le dieron (v255)", () => {
+  /*
+   * Encontrado en producción: nueve ventas en 30 días fallaron así, todas con
+   * el precio ya incluido en el mismo mensaje de WhatsApp. El mensaje viejo
+   * (EOS_ACCION_PRODUCTO_NO_RESUELTO) le pedía igual "pasame el precio de
+   * venta", que nunca resuelve una ambigüedad entre productos que ya existen.
+   */
+  const e = errorDeAccion('EOS_ACCION_PRODUCTO_AMBIGUO: Cjto eng Viol')!;
+  assert.match(e.mensaje, /"Cjto eng Viol" se parece a más de uno de tus productos/);
+  assert.doesNotMatch(e.mensaje, /precio de venta/);
+});
+
 test("un pago de tarjeta sin monto pregunta y dice que no anotó nada (v227, caso Green)", () => {
   const e = errorDeAccion("EOS_ACCION_PAGO_TARJETA_SIN_MONTO: Green · 188000.00")!;
   assert.match(e.mensaje, /^No anoté ningún pago de la Green porque no me dijiste el monto\./);
