@@ -51,4 +51,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Dictado por voz (DictadoPlugin.java): el permiso del sistema para
+         usar el micrófono. El reconocimiento en sí lo hace el servicio de
+         voz de Android, no la app. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

@@ -11,6 +11,7 @@ import {
   type EstadoDictado,
   type EventoDictado,
 } from "@/lib/eos/dictado";
+import { dictadoNativo, puedeDictarNativo, type Escucha } from "@/lib/app-nativa/cliente";
 
 /**
  * El micrófono del compositor, atado al reconocedor del navegador.
@@ -19,6 +20,19 @@ import {
  * `lib/eos/dictado.ts` y tiene sus tests —incluida la máquina de estados—. Acá
  * queda solo lo que es inevitablemente del DOM: crear el reconocedor, escuchar
  * sus eventos y apagarlo.
+ *
+ * ============================================================
+ * DOS MOTORES, LA MISMA MÁQUINA DE ESTADOS
+ * ============================================================
+ *
+ * Dentro de la app instalada (iOS y Android) no hay `SpeechRecognition` del
+ * navegador: WKWebView no la implementa, así que ahí se dicta con el plugin
+ * nativo `DictadoPlugin` (`lib/app-nativa/cliente.ts`, `ios/App/App/DictadoPlugin.swift`,
+ * `android/.../DictadoPlugin.java`). En cualquier otro lugar —el sitio en
+ * Safari o Chrome— se sigue usando `SpeechRecognition`/`webkitSpeechRecognition`
+ * como siempre. `puedeDictarNativo()` decide cuál, una sola vez por sesión de
+ * dictado, y `siguienteEstado` no sabe ni le importa cuál de los dos está
+ * hablando.
  *
  * ============================================================
  * SE APAGA SOLO, SIEMPRE, POR UN SOLO CAMINO
@@ -97,7 +111,7 @@ export type Dictado = {
  * servidor y cliente y no hay ni parpadeo ni un render extra al montar.
  */
 const SIN_CAMBIOS = () => () => {};
-const hayVoz = () => soportaDictado(globalThis as never);
+const hayVoz = () => puedeDictarNativo() || soportaDictado(globalThis as never);
 const noHayVozEnElServidor = () => false;
 
 export function useDictado(agregarTexto: (texto: string) => void): Dictado {
@@ -108,6 +122,9 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
   const [error, setError] = useState("");
 
   const reconocedorRef = useRef<ReconocedorMinimo | null>(null);
+  /** Qué motor abrió la sesión actual. `null` cuando no hay ninguna. */
+  const motorRef = useRef<"web" | "nativo" | null>(null);
+  const escuchasNativasRef = useRef<Escucha[]>([]);
   const estadoRef = useRef<EstadoDictado>("inactivo");
   const sesionRef = useRef(0);
   const relojRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,6 +160,19 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
     if (relojRef.current !== null) {
       clearTimeout(relojRef.current);
       relojRef.current = null;
+    }
+
+    const motor = motorRef.current;
+    motorRef.current = null;
+
+    if (motor === "nativo") {
+      const escuchas = escuchasNativasRef.current;
+      escuchasNativasRef.current = [];
+      for (const escucha of escuchas) void escucha.remove();
+      // No espera respuesta: el micrófono se considera suelto del lado de la
+      // interfaz apenas se pide, igual que con el reconocedor del navegador.
+      void dictadoNativo().cancelar();
+      return;
     }
 
     const reconocedor = reconocedorRef.current;
@@ -192,16 +222,89 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
   // quedó de una pestaña que ya no existe no lo puede explicar nadie.
   useEffect(() => () => soltar(), [soltar]);
 
+  /**
+   * La misma máquina de estados que el motor del navegador, con el plugin
+   * nativo como fuente de eventos. `empezar()` del plugin resuelve recién con
+   * el micrófono abierto de verdad —nunca al optimismo—, así que su resolución
+   * hace del `onstart` del otro motor; si el permiso se negó, resuelve con
+   * `{ error }` en vez de rechazar, para no depender de cómo cada plataforma
+   * cruza el código de error por el puente de Capacitor.
+   */
+  const empezarNativo = useCallback(() => {
+    const sesion = sesionRef.current + 1;
+    sesionRef.current = sesion;
+    const vigente = () => sesionRef.current === sesion;
+
+    motorRef.current = "nativo";
+    const plugin = dictadoNativo();
+
+    Promise.all([
+      plugin.addListener("resultado", (datos) => {
+        if (!vigente()) return;
+        if (estadoRef.current !== "escuchando") aplicar({ tipo: "abrio" });
+        setProvisorio(datos.provisorio);
+        if (datos.definitivo) agregarRef.current(datos.definitivo);
+      }),
+      plugin.addListener("error", (datos) => {
+        if (vigente()) aplicar({ tipo: "error", codigo: datos.codigo });
+      }),
+      plugin.addListener("fin", () => {
+        if (vigente()) aplicar({ tipo: "fin" });
+      }),
+    ]).then((escuchas) => {
+      // No alcanza con mirar la sesión: si ya hubo un error o se canceló,
+      // `soltar()` corrió y hasta la misma sesión se queda sin motor. Sin este
+      // segundo chequeo, estas escuchas llegarían después de esa limpieza y se
+      // quedarían registradas para siempre, escuchando a nadie.
+      if (vigente() && motorRef.current === "nativo") {
+        escuchasNativasRef.current = escuchas;
+        return;
+      }
+      for (const escucha of escuchas) void escucha.remove();
+    });
+
+    aplicar({ tipo: "pedir" });
+
+    // Misma red de abajo, por si el plugin nunca resuelve ni rechaza.
+    relojRef.current = setTimeout(() => {
+      if (vigente() && estadoRef.current === "pidiendo_permiso") {
+        aplicar({ tipo: "vencio" });
+      }
+    }, ESPERA_MAXIMA_MS);
+
+    plugin
+      .empezar({ idioma: IDIOMA_DICTADO })
+      .then((resultado) => {
+        if (!vigente()) return;
+        if (resultado?.error) {
+          aplicar({ tipo: "error", codigo: resultado.error });
+        } else {
+          aplicar({ tipo: "abrio" });
+        }
+      })
+      .catch(() => {
+        if (vigente()) aplicar({ tipo: "error", codigo: null });
+      });
+  }, [aplicar]);
+
   const alternar = useCallback(() => {
     if (estadoRef.current !== "inactivo") {
       /*
-       * Cortar NO espera a `onend`.
+       * Cortar NO espera a que el motor avise que terminó.
        *
-       * Es el segundo toque del bug: sobre un reconocedor muerto, `stop()` no
-       * hace nada y `onend` no llega nunca. Se apaga acá mismo y se suelta;
-       * si `onend` llega después, su sesión ya no es la actual y se descarta.
+       * Es el segundo toque del bug original: sobre un reconocedor muerto,
+       * `stop()` no hace nada y `onend` no llega nunca. Se apaga acá mismo y
+       * se suelta; si el motor avisa algo después, su sesión ya no es la
+       * actual y se descarta.
        */
       aplicar({ tipo: "cancelar" });
+      return;
+    }
+
+    // Dentro de la app instalada, `SpeechRecognition` del navegador no existe:
+    // WKWebView no la implementa. El plugin nativo es el único camino ahí.
+    if (puedeDictarNativo()) {
+      empezarNativo();
       return;
     }
 
@@ -210,6 +313,7 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
 
     const sesion = sesionRef.current + 1;
     sesionRef.current = sesion;
+    motorRef.current = "web";
 
     /** Los eventos de un reconocedor viejo no tocan la sesión nueva. */
     const vigente = () => sesionRef.current === sesion;
@@ -284,7 +388,7 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
        */
       aplicar({ tipo: "error", codigo: null });
     }
-  }, [aplicar]);
+  }, [aplicar, empezarNativo]);
 
   return {
     soportado,
