@@ -1,5 +1,5 @@
 -- T-07 del plan maestro de auditoría (07/11/2026): la política de tarjetas
--- reevaluaba auth.uid() fila por fila (v256).
+-- reevaluaba auth.uid() fila por fila (v257).
 --
 -- El Performance Advisor de Supabase marca `auth_rls_initplan` en
 -- `eos_bancard_tarjetas_v51_select_own`: la condición `usuario_id =
