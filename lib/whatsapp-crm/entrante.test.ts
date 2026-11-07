@@ -86,6 +86,16 @@ test("un audio sin texto se registra igual, como otro tipo, sin intención", () 
   assert.equal(m.clase === "mensaje" && m.intencion, "otro");
 });
 
+test("un audio trae su media_id y mime_type, igual que una imagen", () => {
+  const r = prepararEntrantes(
+    valor({ messages: [{ id: "1", from: "595981123456", type: "audio", audio: { id: "m1", mime_type: "audio/ogg; codecs=opus" } }] }),
+    AHORA,
+  );
+  const m = r[0];
+  assert.equal(m.clase === "mensaje" && m.media_id, "m1");
+  assert.equal(m.clase === "mensaje" && m.mime_type, "audio/ogg; codecs=opus");
+});
+
 test("las confirmaciones de Meta se traducen a los estados del mensaje", () => {
   const r = prepararEntrantes(
     valor({
@@ -218,6 +228,61 @@ test("si la base falla en uno, se cuenta el error y los demás se registran igua
   assert.equal(llamadas.length, 2);
   assert.equal(r.errores, 1);
   assert.equal(r.mensajes, 1);
+});
+
+test("un audio de cliente se transcribe antes de guardarse, y la intención sale del texto transcripto", async () => {
+  const { admin, llamadas } = baseFalsa({ eos_wa_recibir_v177: { duplicado: false } });
+  const transcribir = async () => "ya no me interesa, no me escriban más";
+
+  await atenderCanalEmpresa(
+    admin,
+    CANAL,
+    valor({ messages: [{ id: "w1", from: "595981123456", type: "audio", audio: { id: "m1", mime_type: "audio/ogg" } }] }),
+    AHORA,
+    undefined,
+    transcribir,
+  );
+
+  assert.equal(llamadas[0].args.p_texto, "ya no me interesa, no me escriban más");
+  assert.equal(llamadas[0].args.p_intencion, "baja");
+});
+
+test("si la transcripción falla, el audio se guarda con el texto vacío de siempre", async () => {
+  const { admin, llamadas } = baseFalsa({ eos_wa_recibir_v177: { duplicado: false } });
+  const transcribir = async () => null;
+
+  await atenderCanalEmpresa(
+    admin,
+    CANAL,
+    valor({ messages: [{ id: "w1", from: "595981123456", type: "audio", audio: { id: "m1", mime_type: "audio/ogg" } }] }),
+    AHORA,
+    undefined,
+    transcribir,
+  );
+
+  assert.equal(llamadas[0].args.p_texto, "");
+  assert.equal(llamadas[0].args.p_intencion, "otro");
+});
+
+test("un audio sin media_id no intenta transcribir", async () => {
+  const { admin, llamadas } = baseFalsa({ eos_wa_recibir_v177: { duplicado: false } });
+  let llamado = false;
+  const transcribir = async () => {
+    llamado = true;
+    return "no debería llamarse";
+  };
+
+  await atenderCanalEmpresa(
+    admin,
+    CANAL,
+    valor({ messages: [{ id: "w1", from: "595981123456", type: "audio", audio: {} }] }),
+    AHORA,
+    undefined,
+    transcribir,
+  );
+
+  assert.equal(llamado, false);
+  assert.equal(llamadas[0].args.p_texto, "");
 });
 
 test("los estados de Meta se aplican por el id de Meta, sin id interno", async () => {

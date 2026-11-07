@@ -2,6 +2,7 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { clasificarIntencion, type Intencion } from "./intencion.ts";
 import { refinarIntencion } from "./intencion-ia.ts";
 import { procesarComprobante } from "./comprobante-cobro.ts";
+import { transcribirAudioDeCliente } from "./audio-entrante.ts";
 
 /**
  * Lo que Meta manda cuando le escribe un cliente al WhatsApp de una empresa.
@@ -60,7 +61,7 @@ export type EntranteListo =
       nombre_perfil: string;
       ocurrio_en: string;
       intencion: string;
-      /** Sólo para `tipo: "imagen"`: con qué bajar la foto y leerla (comprobante-cobro.ts). */
+      /** Para `tipo: "imagen"` (comprobante-cobro.ts) o `tipo: "audio"` (transcribirlo antes de guardar). */
       media_id: string;
       mime_type: string;
     }
@@ -137,8 +138,11 @@ export function prepararEntrantes(valor: ValorWebhook, ahora: string): EntranteL
       nombre_perfil: nombres.get(desde) ?? "",
       ocurrio_en: instanteDe(m, ahora),
       intencion: clasificarIntencion(texto),
-      media_id: m.type === "image" ? String(m.image?.id ?? "").trim() : "",
-      mime_type: m.type === "image" ? String(m.image?.mime_type ?? "").trim() : "",
+      // El media_id/mime_type de un audio sirve para transcribirlo antes de
+      // guardarlo (ver `atenderCanalEmpresa`): acá, función pura, no se baja
+      // nada todavía — solo se anota con qué bajarlo después.
+      media_id: m.type === "image" ? String(m.image?.id ?? "").trim() : m.type === "audio" ? String((m.audio as { id?: string } | undefined)?.id ?? "").trim() : "",
+      mime_type: m.type === "image" ? String(m.image?.mime_type ?? "").trim() : m.type === "audio" ? String((m.audio as { mime_type?: string } | undefined)?.mime_type ?? "").trim() : "",
     });
   }
 
@@ -227,6 +231,14 @@ export async function atenderCanalEmpresa(
     regla,
     alCosto,
   ) => refinarIntencion(texto, regla, { alCosto }),
+  // También inyectable: sin esto las pruebas de audio tendrían que llamar a
+  // Whisper de verdad. En producción transcribe de verdad, con el mismo
+  // criterio de "si falla, seguí con el texto vacío de siempre".
+  transcribir: (mediaId: string, mimeType: string, alCosto?: (usd: number) => void) => Promise<string | null> = (
+    mediaId,
+    mimeType,
+    alCosto,
+  ) => transcribirAudioDeCliente(mediaId, mimeType, { alCosto }),
 ): Promise<ResumenEntrante> {
   const resumen: ResumenEntrante = {
     mensajes: 0,
@@ -246,15 +258,33 @@ export async function atenderCanalEmpresa(
   for (const item of prepararEntrantes(valor, ahora)) {
     try {
       if (item.clase === "mensaje") {
+        /*
+         * Un audio sin transcribir se guardaría con texto vacío y
+         * `clasificarIntencion` siempre lo lee como "otro" — ver el
+         * comentario de cabecera de `audio-entrante.ts` sobre por qué eso es
+         * grave para una baja dicha por voz. Si la transcripción falla (sin
+         * clave, de red), se sigue con el texto vacío de siempre: ni mejor
+         * ni peor que antes de este cambio.
+         */
+        let texto = item.texto;
+        let intencion = item.intencion as Intencion;
+        if (item.tipo === "audio" && item.media_id) {
+          const transcripto = await transcribir(item.media_id, item.mime_type, sumarCosto);
+          if (transcripto) {
+            texto = transcripto;
+            intencion = clasificarIntencion(texto);
+          }
+        }
+
         const { data, error } = await admin.rpc("eos_wa_recibir_v177", {
           p_canal_id: canal.id,
           p_wa_message_id: item.wa_message_id,
           p_telefono: item.telefono,
-          p_texto: item.texto,
+          p_texto: texto,
           p_tipo: item.tipo,
           p_nombre_perfil: item.nombre_perfil,
           p_ocurrio_en: item.ocurrio_en,
-          p_intencion: await refinar(item.texto, item.intencion as Intencion, sumarCosto),
+          p_intencion: await refinar(texto, intencion, sumarCosto),
         });
 
         if (error) throw error;
