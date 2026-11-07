@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { desactivarPushNativo } from "@/lib/push/cliente";
+import { borrarCache } from "@/lib/offline/cache";
 
 /**
  * Salir de la cuenta.
@@ -49,6 +50,9 @@ export default function CerrarSesion() {
     try {
       // Primero el teléfono: después de cerrar sesión ya no hay quien lo borre.
       await desactivarPushNativo();
+      // Y la caché offline: en una computadora compartida, la plata de esta
+      // cuenta no puede quedar visible para la próxima persona que entre.
+      await borrarCache();
       await createClient().auth.signOut();
     } catch (error) {
       /*

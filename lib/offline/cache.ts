@@ -72,6 +72,31 @@ export async function leerSnapshot<T>(clave: string): Promise<Snapshot<T> | null
   }
 }
 
+/**
+ * Borra todos los snapshots guardados. Se llama al cerrar sesión.
+ *
+ * Esta caché no sabe de quién son los datos que guarda (la clave es la
+ * pantalla, "finanzas-trayectoria", no la cuenta): en una computadora
+ * compartida, sin esto, la próxima persona que entre y se quede sin señal
+ * vería la plata de la persona anterior, con la sola etiqueta "sin conexión,
+ * datos de hace X" — sin ninguna pista de que es de otra cuenta.
+ *
+ * Nunca lanza: si falla, nadie queda con una sesión a medio cerrar por esto.
+ */
+export async function borrarCache(): Promise<void> {
+  try {
+    const db = await abrirDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(ALMACEN, "readwrite");
+      tx.objectStore(ALMACEN).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // Sin caché que borrar, o sin indexedDB: no hay nada que hacer.
+  }
+}
+
 /** "hace 3 horas", "hace 2 días" — para decir sin ambigüedad qué tan viejo es un número cacheado. */
 export function hace(iso: string, ahora: Date = new Date()): string {
   const diferencia = ahora.getTime() - Date.parse(iso);

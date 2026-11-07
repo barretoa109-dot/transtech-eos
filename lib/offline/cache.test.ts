@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { guardarSnapshot, hace, leerSnapshot } from "./cache.ts";
+import { borrarCache, guardarSnapshot, hace, leerSnapshot } from "./cache.ts";
 
 // Node no tiene `indexedDB`: exactamente el mismo camino que un navegador
 // viejo o un modo privado estricto. Sirve para probar que ninguno de los
@@ -13,6 +13,12 @@ test("sin indexedDB, guardarSnapshot no lanza", async () => {
 
 test("sin indexedDB, leerSnapshot devuelve null en vez de lanzar", async () => {
   assert.equal(await leerSnapshot("clave"), null);
+});
+
+test("sin indexedDB, borrarCache no lanza", async () => {
+  // T-10: se llama al cerrar sesión. Si lanzara, dejaría a alguien con la
+  // sesión a medio cerrar en un navegador sin indexedDB (modo privado).
+  await assert.doesNotReject(borrarCache());
 });
 
 test("hace: minutos, horas y días, en singular y plural", () => {
