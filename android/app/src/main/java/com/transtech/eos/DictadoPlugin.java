@@ -34,6 +34,12 @@ import android.speech.SpeechRecognizer;
  * El número de sesión descarta los eventos de un reconocedor que ya se
  * canceló pero todavía tenía algo en vuelo, el mismo problema (y la misma
  * solución) que documenta `useDictado.ts` del lado web.
+ *
+ * `parar()` no es `cancelar()`: `SpeechRecognizer.cancel()` corta sin llamar
+ * nunca a `onResults`, así que lo dicho no llegaba nunca como `definitivo`
+ * —reportado el 07/11/2026: "se habla y no se guarda nada"—. `stopListening()`
+ * deja que el reconocedor cierre el audio y entregue el resultado final por
+ * el camino de siempre (`onResults` → `avisar(..., true)`).
  */
 @CapacitorPlugin(
     name = "Dictado",
@@ -62,6 +68,15 @@ public class DictadoPlugin extends Plugin {
             return;
         }
         arrancar(call);
+    }
+
+    /** Termina prolijo: deja de escuchar y espera el resultado final (ver nota de arriba). */
+    @PluginMethod
+    public void parar(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if (reconocedor != null) reconocedor.stopListening();
+        });
+        call.resolve();
     }
 
     @PluginMethod
