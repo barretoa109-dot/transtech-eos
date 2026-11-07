@@ -1,4 +1,4 @@
--- El historial de chat, separado entre Personal y el negocio (v255).
+-- El historial de chat, separado entre Personal y el negocio (v256).
 --
 -- ============================================================
 -- EL PROBLEMA
@@ -40,4 +40,4 @@ create index if not exists eos_conversaciones_ambito_idx
   on public.conversaciones (usuario_id, ambito, created_at desc);
 
 comment on column public.conversaciones.ambito is
-  'v255: separa el historial de chat entre Personal y el negocio. Default personal (lado seguro para lo que ya existía, incluido WhatsApp).';
+  'v256: separa el historial de chat entre Personal y el negocio. Default personal (lado seguro para lo que ya existía, incluido WhatsApp).';
