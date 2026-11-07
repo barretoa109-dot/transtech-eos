@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { Conversacion, Mensaje } from "../types/chat";
+import type { Espacio } from "../components/espacios";
 import {
   actualizarTituloConversacion,
   archivarConversacion,
@@ -35,8 +36,8 @@ export function useConversations() {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [historial, setHistorial] = useState<Mensaje[]>([]);
 
-  async function cargarConversaciones(usuarioId: string) {
-    const conversacionesData = await obtenerConversaciones(usuarioId);
+  async function cargarConversaciones(usuarioId: string, espacio: Espacio) {
+    const conversacionesData = await obtenerConversaciones(usuarioId, espacio);
     // Se abre la más reciente de la lista, no una archivada: archivar es
     // justamente pedir no verla al entrar.
     const primera = conversacionesData.find((c) => !estaArchivada(c));
@@ -44,7 +45,7 @@ export function useConversations() {
     setConversaciones(conversacionesData);
 
     if (!primera) {
-      await nuevaConversacion(usuarioId);
+      await nuevaConversacion(usuarioId, espacio);
       return;
     }
 
@@ -52,8 +53,8 @@ export function useConversations() {
     await abrirConversacion(primera.id);
   }
 
-  async function nuevaConversacion(usuarioId: string) {
-    const nueva = await crearConversacion(usuarioId);
+  async function nuevaConversacion(usuarioId: string, espacio: Espacio) {
+    const nueva = await crearConversacion(usuarioId, espacio);
 
     if (!nueva) return null;
 
@@ -124,7 +125,7 @@ export function useConversations() {
    * la pantalla seguiría mostrando, y dejando escribir, en un chat que la
    * persona acaba de sacar de su vista.
    */
-  async function salirDe(id: string, restantes: Conversacion[], usuarioId: string) {
+  async function salirDe(id: string, restantes: Conversacion[], usuarioId: string, espacio: Espacio) {
     if (id !== conversacionId) return;
 
     const siguiente = restantes.find((c) => !estaArchivada(c));
@@ -132,7 +133,7 @@ export function useConversations() {
     if (siguiente) {
       await abrirConversacion(siguiente.id);
     } else {
-      await nuevaConversacion(usuarioId);
+      await nuevaConversacion(usuarioId, espacio);
     }
   }
 
@@ -144,25 +145,25 @@ export function useConversations() {
     return true;
   }
 
-  async function archivar(id: string, archivar: boolean, usuarioId: string) {
+  async function archivar(id: string, archivar: boolean, usuarioId: string, espacio: Espacio) {
     const archivadaAt = await archivarConversacion(id, archivar);
     if (archivadaAt === undefined) return false;
 
     const restantes = conversaciones.map((c) => (c.id === id ? { ...c, archivada_at: archivadaAt } : c));
     setConversaciones(restantes);
 
-    if (archivar) await salirDe(id, restantes, usuarioId);
+    if (archivar) await salirDe(id, restantes, usuarioId, espacio);
     return true;
   }
 
-  async function eliminar(id: string, usuarioId: string) {
+  async function eliminar(id: string, usuarioId: string, espacio: Espacio) {
     const ok = await eliminarConversacion(id);
     if (!ok) return false;
 
     const restantes = conversaciones.filter((c) => c.id !== id);
     setConversaciones(restantes);
 
-    await salirDe(id, restantes, usuarioId);
+    await salirDe(id, restantes, usuarioId, espacio);
     return true;
   }
 

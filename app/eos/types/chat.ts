@@ -60,6 +60,8 @@ export type Conversacion = {
   created_at?: string;
   /** Con fecha, el chat está en "Archivados" y no en la lista (v210). */
   archivada_at?: string | null;
+  /** Personal o negocio: separa el historial entre los dos espacios (v255). */
+  ambito?: "personal" | "negocio";
 };
 
 export type VistaEOS =

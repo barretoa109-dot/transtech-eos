@@ -199,6 +199,11 @@ export default function EOSPage() {
     eliminar,
   } = useConversations();
 
+  const nuevaConversacionEnEspacio = useCallback(
+    (id: string) => nuevaConversacion(id, espacio),
+    [nuevaConversacion, espacio],
+  );
+
   const { mensaje, setMensaje, cargando, fase, archivosAdjuntos, setArchivosAdjuntos, cita, setCita, enviarMensaje, regenerarRespuesta } = useChat({
     usuarioId,
     nombre,
@@ -206,7 +211,7 @@ export default function EOSPage() {
     conversacionId,
     historial,
     setHistorial,
-    nuevaConversacion,
+    nuevaConversacion: nuevaConversacionEnEspacio,
     actualizarTituloSiHaceFalta,
     cargarBriefing,
     alResponder: (id) => void mejorarTitulo(id),
@@ -243,7 +248,6 @@ export default function EOSPage() {
     setUsuarioCargado(true);
 
     await cargarBriefing(user.id);
-    await cargarConversaciones(user.id);
   }
 
   useEffect(() => {
@@ -251,6 +255,17 @@ export default function EOSPage() {
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /*
+   * El historial de chats es de cada espacio: Personal y el negocio no
+   * comparten conversaciones. Se recarga cada vez que el espacio activo
+   * cambia, además de la primera vez que se conoce el usuario.
+   */
+  useEffect(() => {
+    if (!usuarioCargado || !usuarioId) return;
+    void cargarConversaciones(usuarioId, espacio);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarioCargado, usuarioId, espacio]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -296,7 +311,7 @@ export default function EOSPage() {
   async function manejarNuevoChat() {
     if (!usuarioId) return;
 
-    await nuevaConversacion(usuarioId);
+    await nuevaConversacion(usuarioId, espacio);
     irA("chat");
     setMenuMovilAbierto(false);
   }
@@ -508,8 +523,8 @@ export default function EOSPage() {
     onNuevoChat: manejarNuevoChat,
     onAbrirConversacion: manejarAbrirConversacion,
     onRenombrar: renombrar,
-    onArchivar: (id: string, archivarlo: boolean) => archivar(id, archivarlo, usuarioId),
-    onEliminar: (id: string) => eliminar(id, usuarioId),
+    onArchivar: (id: string, archivarlo: boolean) => archivar(id, archivarlo, usuarioId, espacio),
+    onEliminar: (id: string) => eliminar(id, usuarioId, espacio),
     onTextoParaCompartir: textoParaCompartir,
   };
 

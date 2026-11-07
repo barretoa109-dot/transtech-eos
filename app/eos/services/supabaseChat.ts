@@ -2,13 +2,15 @@ import { supabase } from "../../../lib/supabase";
 import { fotosDeMetadata, type FotoGuardada } from "@/lib/eos/fotos-chat";
 import { MINIMO_PARA_BUSCAR, fragmento, patronIlike } from "@/lib/eos/buscar-chats";
 import type { Conversacion, Mensaje } from "../types/chat";
+import type { Espacio } from "../components/espacios";
 import { tituloProvisional } from "@/lib/eos/titulo-chat";
 
-export async function obtenerConversaciones(usuarioId: string): Promise<Conversacion[]> {
+export async function obtenerConversaciones(usuarioId: string, ambito: Espacio): Promise<Conversacion[]> {
   const { data, error } = await supabase
     .from("conversaciones")
     .select("*")
     .eq("usuario_id", usuarioId)
+    .eq("ambito", ambito)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -19,10 +21,10 @@ export async function obtenerConversaciones(usuarioId: string): Promise<Conversa
   return data || [];
 }
 
-export async function crearConversacion(usuarioId: string): Promise<Conversacion | null> {
+export async function crearConversacion(usuarioId: string, ambito: Espacio): Promise<Conversacion | null> {
   const { data, error } = await supabase
     .from("conversaciones")
-    .insert([{ usuario_id: usuarioId, titulo: "Nuevo chat" }])
+    .insert([{ usuario_id: usuarioId, titulo: "Nuevo chat", ambito }])
     .select()
     .single();
 
