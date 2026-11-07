@@ -206,14 +206,42 @@ verificación de acciones, la misma transacción atómica. Lo único que
 cambia es cuánto texto se manda en el mensaje `system` de la llamada a
 OpenAI.
 
+## 9. Fase 1.5 medida, 06/11: el paso 1 del próximo paso, con el modelo real
+
+`evals/bateria/medir-nucleo-personal.mts` corre los 76 casos de la batería
+que `necesitaModuloErpCrm` nunca marca como de negocio —los que la bandera
+afectaría— DOS veces cada uno, con el modelo que elegiría producción: una
+con `PROMPT_SISTEMA` (lo de hoy) y otra con `PROMPT_NUCLEO` (lo que se
+prendería). A diferencia de `medir-modulo-erp-crm.mts`, esto SÍ llama a
+OpenAI y cuesta real (fue US$ 1,05 esta corrida — con `--tope`, igual que
+`evals/qa/busqueda-real.mts`).
+
+**Resultado real, 06/11** (`evals/bateria/resultados/2026-11-07-0004-nucleo-personal.md`):
+completo 96,1 %, núcleo 97,4 %, pero con **1 regresión** sobre 76 casos
+comparables: `ropa-excel` ("haceme una planilla con lo que vendí este
+mes") esperaba `DOCUMENTO` o `GENERAR_EXCEL` y con el núcleo no los dio.
+
+**No alcanza la barra de cero regresiones todavía — la bandera sigue sin
+prenderse, en ningún ambiente.** Con n=1 por caso, una sola regresión
+también puede ser variación del modelo y no un defecto real del núcleo:
+antes de concluir algo hace falta correr `ropa-excel` sola varias veces
+con cada prompt (sin gastar en las otras 75) para separar "el núcleo le
+falta algo" de "le tocó una tirada mala". No se intentó adivinar cuál es
+la causa sin ese dato — el bloque de desambiguación de `GENERAR_EXCEL`
+(bloque 53 del prompt) no está en la lista de bloques excluidos, así que
+si es un defecto real no es el sospechoso obvio.
+
 ## Próximo paso
 
 Esto no se prende solo prendiendo la bandera. Antes de poner
 `EOS_GATEWAY_NUCLEO_SIN_ERP=1` en Vercel hace falta:
 
-1. Confirmar con cuentas reales sin módulo ERP que el núcleo sigue
-   contestando igual de bien en finanzas personales (la batería de
-   `evals/bateria` tiene casos "personal" que sirven de primera pasada).
+1. ~~Confirmar con cuentas reales sin módulo ERP que el núcleo sigue
+   contestando igual de bien en finanzas personales~~ — medido el 06/11
+   contra el modelo real (sección 9 arriba). **No se puede confirmar
+   todavía**: hay una regresión sin aislar. Repetir `ropa-excel` sola,
+   varias veces, con cada prompt, antes de decidir si es un defecto del
+   núcleo o ruido del modelo.
 2. Prenderla primero en un ambiente de prueba, nunca directo en
    producción — mismo criterio que ya usan `EOS_GATEWAY_TS_ACCIONES` y el
    resto de las etapas de este archivo.
