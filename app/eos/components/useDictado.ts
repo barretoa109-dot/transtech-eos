@@ -287,8 +287,42 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
       });
   }, [aplicar]);
 
+  /**
+   * Soltar el botón del motor nativo NO corta de golpe.
+   *
+   * `SFSpeechRecognitionTask` (iOS) y `SpeechRecognizer` (Android) solo
+   * entregan el texto definitivo cuando el pedido de audio termina
+   * prolijo —`parar()`, del lado nativo—, nunca si se cancela de golpe.
+   * Cancelar al soltar el botón, como hace el motor del navegador, se
+   * reportó el 07/11/2026: se dictaba y no quedaba nada, porque el
+   * `definitivo` nunca llegaba a generarse. Acá se pide el cierre prolijo y
+   * se espera a que las escuchas ya registradas (`empezarNativo`) traigan el
+   * `resultado` final y el `fin` por su camino de siempre; si el plugin
+   * nunca contesta, el mismo temporizador de "colgado" lo corta igual.
+   */
+  const pararNativo = useCallback(() => {
+    const sesion = sesionRef.current;
+    const vigente = () => sesionRef.current === sesion;
+
+    if (relojRef.current !== null) clearTimeout(relojRef.current);
+    relojRef.current = setTimeout(() => {
+      if (vigente()) aplicar({ tipo: "cancelar" });
+    }, ESPERA_MAXIMA_MS);
+
+    dictadoNativo()
+      .parar()
+      .catch(() => {
+        if (vigente()) aplicar({ tipo: "cancelar" });
+      });
+  }, [aplicar]);
+
   const alternar = useCallback(() => {
     if (estadoRef.current !== "inactivo") {
+      if (motorRef.current === "nativo") {
+        pararNativo();
+        return;
+      }
+
       /*
        * Cortar NO espera a que el motor avise que terminó.
        *
@@ -388,7 +422,7 @@ export function useDictado(agregarTexto: (texto: string) => void): Dictado {
        */
       aplicar({ tipo: "error", codigo: null });
     }
-  }, [aplicar, empezarNativo]);
+  }, [aplicar, empezarNativo, pararNativo]);
 
   return {
     soportado,

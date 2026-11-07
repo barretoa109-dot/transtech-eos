@@ -17,6 +17,19 @@ import AVFoundation
  * de Capacitor, y el error se traduce una sola vez, acá.
  *
  * ============================================================
+ * `parar()` NO ES `cancelar()`
+ * ============================================================
+ *
+ * `SFSpeechRecognitionTask` solo entrega un resultado con `isFinal == true`
+ * cuando el pedido de audio termina solo (silencio) o alguien llama
+ * `endAudio()`. `cancel()` corta la tarea sin avisar ese final: todo lo
+ * dicho quedaba solo en los resultados provisorios (`onresult` con
+ * `provisorio`, nunca `definitivo`) y se perdía apenas se soltaba el botón
+ * —reportado el 07/11/2026 desde un iPhone: "se habla y no se guarda nada".
+ * `parar()` llama `endAudio()`, deja el reconocedor terminar solo y recién
+ * ahí sale el `definitivo` por el mismo camino de siempre.
+ *
+ * ============================================================
  * LA SESIÓN, NO SOLO LA TAREA
  * ============================================================
  *
@@ -32,6 +45,7 @@ public class DictadoPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "Dictado"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "empezar", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "parar", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelar", returnType: CAPPluginReturnPromise),
     ]
 
@@ -53,6 +67,14 @@ public class DictadoPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 self.pedirMicrofono(call: call, idioma: idioma)
             }
+        }
+    }
+
+    /** Termina prolijo: deja de mandar audio y espera el resultado final (ver nota de arriba). */
+    @objc func parar(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            self?.pedido?.endAudio()
+            call.resolve()
         }
     }
 

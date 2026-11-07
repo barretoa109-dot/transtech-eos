@@ -147,6 +147,14 @@ type ResultadoDictadoNativo = { error?: string };
 
 type Dictado = {
   empezar(opciones: { idioma: string }): Promise<ResultadoDictadoNativo>;
+  /**
+   * Termina prolijo: deja de escuchar y espera el resultado final, que llega
+   * por el evento `resultado` (con `definitivo`) y después `fin` — nunca
+   * rechaza ni devuelve el texto directamente. `SFSpeechRecognitionTask` en
+   * iOS y `SpeechRecognizer` en Android solo entregan el texto definitivo al
+   * terminar así, nunca si se corta con `cancelar()`.
+   */
+  parar(): Promise<void>;
   cancelar(): Promise<void>;
   addListener(
     evento: "resultado",
