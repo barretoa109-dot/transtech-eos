@@ -39,6 +39,19 @@
  * `n8n/parches/2026-09-29-finanzas-confirma-lo-guardado.mjs` las copia tal
  * cual al nodo `08 GW Agregar Resultados Worker`. Por eso no dependen de nada
  * de afuera y los tipos son solo `any` en la firma.
+ *
+ * ============================================================
+ * EL CASO DEL LECHÓN (08/11/2026)
+ * ============================================================
+ *
+ * AJUSTAR_STOCK no tiene una frase de confirmación fija (no está en
+ * `fraseDeAccion`): el modelo redacta el anuncio con el verbo que le salga
+ * ("Voy a descontar un lechón del stock..."). La lista de verbos solo cubría
+ * registro/anoto/cargo/guardo/actualizo/corrijo/agendo/sumo/mando/envío/dejo,
+ * así que cuando el efecto interno fallaba, ese anuncio sobrevivía al filtro
+ * y quedaba pegado al lado del error, indistinguible de una acción que sí se
+ * hizo. Se agregaron resto/descuento/ajusto (y sus pasados/"voy a") a la
+ * lista.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -66,7 +79,7 @@ export function esAnuncio(oracion: any): boolean {
   // para \b, y "anoté" no cortaría nunca.
   o = o.replace(/^(igual|entonces|ahora|listo|perfecto|bien|dale|ok|así que|y)[,:;]?\s+/, "");
   if (
-    /^(ya\s+)?(te\s+)?(lo\s+|la\s+|los\s+|las\s+|le\s+)?(registro|registré|registramos|anoto|anoté|cargo|cargué|guardo|guardé|actualizo|actualicé|corrijo|corregí|agendo|agendé|sumo|sumé|vuelvo a|mando|mandé|envío|envié|dejo|dejé|voy a (registrar|anotar|cargar|guardar|actualizar|mandar|agendar|corregir|sumar|dejar))(?=[\s,.:;!?]|$)/.test(
+    /^(ya\s+)?(te\s+)?(lo\s+|la\s+|los\s+|las\s+|le\s+)?(registro|registré|registramos|anoto|anoté|cargo|cargué|guardo|guardé|actualizo|actualicé|corrijo|corregí|agendo|agendé|sumo|sumé|resto|resté|descuento|desconté|ajusto|ajusté|vuelvo a|mando|mandé|envío|envié|dejo|dejé|voy a (registrar|anotar|cargar|guardar|actualizar|mandar|agendar|corregir|sumar|restar|descontar|ajustar|dejar))(?=[\s,.:;!?]|$)/.test(
       o,
     )
   ) {
