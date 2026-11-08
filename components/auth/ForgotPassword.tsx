@@ -1,14 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { crearClienteDeRecuperacion } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   onBack: () => void;
 }
 
 export default function ForgotPassword({ onBack }: Props) {
-  const supabase = crearClienteDeRecuperacion();
+  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);

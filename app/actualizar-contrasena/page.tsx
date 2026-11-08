@@ -43,6 +43,36 @@ export default function ActualizarContrasenaPage() {
       return;
     }
 
+    /*
+     * El enlace de recuperación no siempre deja una sesión ya abierta: el
+     * `?code=` que arma Supabase por defecto exige el mismo navegador que
+     * pidió el enlace, algo que casi nunca pasa con un correo (se abre desde
+     * Gmail, Outlook, etc.). `token_hash` es la alternativa sin ese problema
+     * — no depende de nada guardado en este navegador — pero solo llega acá
+     * si la plantilla de "Reset Password" en Supabase la arma así
+     * (`/actualizar-contrasena?token_hash={{ .TokenHash }}&type=recovery`).
+     * Se verifica recién al mandar el formulario, no al cargar la página, a
+     * propósito: así un escáner de enlaces de un cliente de correo (que solo
+     * hace la petición GET, nunca aprieta un botón) no gasta el token antes
+     * de que la persona lo use.
+     */
+    const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get("token_hash");
+    const tipo = params.get("type");
+
+    if (tokenHash && tipo === "recovery") {
+      const { error: errorVerificacion } = await supabase.auth.verifyOtp({
+        type: "recovery",
+        token_hash: tokenHash,
+      });
+
+      if (errorVerificacion) {
+        setLoading(false);
+        setError(errorVerificacion.message);
+        return;
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({
       password,
     });
