@@ -15,6 +15,7 @@ export const DESTINOS_AUTH_PERMITIDOS = [
   "/eos/onboarding",
   "/planes",
   "/pago",
+  "/actualizar-contrasena",
 ];
 
 export const DESTINO_AUTH_POR_DEFECTO = "/eos/chat";
