@@ -151,6 +151,22 @@ const REGLAS: Regla[] = [
     mensaje: () => "No entendí qué producto cargar. Decime el nombre y el precio de venta.",
   },
   {
+    /*
+     * El caso del lechón (08/11/2026): `eos_erp_ajustar_stock` la tira cuando
+     * el producto no tiene `controla_stock` prendido y la orden es un delta
+     * ("se murió uno", "se rompieron 3") en vez de un conteo. Restar de un
+     * inventario que nadie llevó no tiene sentido; contarlo si, y por eso esa
+     * misma función prende el control sola cuando lo que llega es un conteo
+     * (v156). Sin esta regla caía al 500 genérico: "no fue posible ejecutar
+     * el efecto interno", sin decir que el producto nunca llevó stock.
+     */
+    codigo: "EOS_PRODUCTO_SIN_STOCK",
+    mensaje: () =>
+      "Ese producto no tiene el control de stock activado, así que no le puedo restar nada. " +
+      'Decime cuánto tenés ahora ("tengo 8 lechones") y arranco a llevarle el stock desde ese número; ' +
+      "con eso ya puedo descontar la próxima pérdida o venta.",
+  },
+  {
     codigo: "EOS_ACCION_COMPRA_SIN_ITEMS",
     mensaje: () =>
       "No entendí qué se compró. Decímelo así: \"cargá 3 bolsas de balanceado a 68.000 cada una\".",

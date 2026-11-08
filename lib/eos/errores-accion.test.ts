@@ -49,6 +49,17 @@ test("un error sin detalle no deja comillas vacías", () => {
   assert.doesNotMatch(e.mensaje, /""/);
 });
 
+test("el lechón sin control de stock dice por qué, no el 500 genérico (08/11/2026)", () => {
+  // `eos_erp_ajustar_stock` la tira sin detalle: no hay nombre de producto que
+  // mostrar, pero sí hay que decir qué hacer para destrabarlo.
+  const e = errorDeAccion("EOS_PRODUCTO_SIN_STOCK")!;
+
+  assert.ok(e);
+  assert.equal(e.estado, 422);
+  assert.match(e.mensaje, /control de stock/i);
+  assert.match(e.mensaje, /decime cuánto tenés/i);
+});
+
 test("los seis códigos se reconocen", () => {
   for (const codigo of CODIGOS_DE_NEGOCIO) {
     assert.ok(errorDeAccion(`${codigo}: algo`), `${codigo} no se reconoce`);
