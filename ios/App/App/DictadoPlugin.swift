@@ -70,10 +70,29 @@ public class DictadoPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /** Termina prolijo: deja de mandar audio y espera el resultado final (ver nota de arriba). */
+    /**
+     * Termina prolijo: deja de mandar audio y espera el resultado final (ver
+     * nota de arriba).
+     *
+     * El motor se frena ANTES de terminar el pedido, no después. Si se sigue
+     * llamando `pedido.append(buffer)` desde el *tap* una vez que
+     * `endAudio()` ya se llamó —lo que pasa si no se saca el tap primero—,
+     * el reconocedor nunca termina de cerrar: por eso el primer intento de
+     * este arreglo (07/11/2026) seguía sin guardar nada, aunque ya no
+     * cancelaba de golpe.
+     */
     @objc func parar(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in
-            self?.pedido?.endAudio()
+            guard let self = self else {
+                call.resolve()
+                return
+            }
+
+            if self.motor.isRunning {
+                self.motor.stop()
+                self.motor.inputNode.removeTap(onBus: 0)
+            }
+            self.pedido?.endAudio()
             call.resolve()
         }
     }
