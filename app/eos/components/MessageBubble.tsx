@@ -729,10 +729,10 @@ export default function MessageBubble({
         }
 
         .message-user {
-          border: 1px solid rgba(37, 99, 235, 0.14);
-          border-top-right-radius: 6px;
-          background: var(--blue-solido);
-          color: white;
+          border: 1px solid var(--linea-azul);
+          border-top-right-radius: 4px;
+          background: var(--blue-light);
+          color: var(--ink);
           box-shadow: none;
         }
 
@@ -771,8 +771,8 @@ export default function MessageBubble({
         }
 
         .message-user .message-content :global(code) {
-          border-color: rgba(255, 255, 255, 0.2);
-          background: rgba(255, 255, 255, 0.13);
+          border-color: var(--linea-azul);
+          background: rgba(255, 255, 255, 0.5);
         }
 
         .message-content :global(.message-inline-link) {
@@ -785,7 +785,7 @@ export default function MessageBubble({
         .message-user
           .message-content
           :global(.message-inline-link) {
-          color: #ffffff;
+          color: var(--blue);
         }
 
         .message-space {
@@ -853,8 +853,8 @@ export default function MessageBubble({
         }
 
         .message-user .message-numbered > span {
-          background: rgba(255, 255, 255, 0.17);
-          color: white;
+          background: rgba(255, 255, 255, 0.6);
+          color: var(--blue);
         }
 
         .message-numbered p {
@@ -958,14 +958,14 @@ export default function MessageBubble({
         }
 
         .message-action {
-          min-height: 29px;
+          min-height: 27px;
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 0 9px;
+          padding: 0 10px;
           border: 1px solid transparent;
-          border-radius: 9px;
-          background: transparent;
+          border-radius: 8px;
+          background: var(--line-soft);
           color: var(--muted);
           font-family: inherit;
           font-size: 10px;
