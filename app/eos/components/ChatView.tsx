@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Play, Send, X } from "lucide-react";
+import { Mic, Plus, Play, Send, X } from "lucide-react";
 
 import { formatoDuracion } from "@/lib/eos/videos";
 import MessageBubble from "./MessageBubble";
@@ -576,9 +576,6 @@ function Composer({
       )}
 
       <div className={`composer ${focused ? "focused" : ""}`}>
-        <button type="button" className="icon-btn" onClick={onArchivoClick} aria-label="Adjuntar archivo">
-          <Paperclip size={18} />
-        </button>
         <textarea
           ref={textareaRef}
           rows={1}
@@ -590,43 +587,52 @@ function Composer({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
-        {/*
-          El micrófono solo aparece donde el navegador puede dictar. Un botón
-          gris con "próximamente" ocupa el mismo lugar y no hace nada; peor,
-          invita a apretarlo. Firefox no tiene reconocimiento de voz y no lo
-          va a tener pronto, así que ahí simplemente no hay micrófono.
-        */}
-        {dictado.soportado && (
-          <button
-            type="button"
-            /*
-              Rojo latiendo SOLO con el micrófono abierto de verdad. Mientras
-              se está pidiendo el permiso va en otro estado: el botón rojo
-              sobre un permiso denegado es exactamente lo que hacía creer que
-              EOS estaba grabando cuando no estaba pasando nada.
-            */
-            className={`icon-btn ${dictado.escuchando ? "escuchando" : ""} ${
-              dictado.estado === "pidiendo_permiso" ? "pidiendo" : ""
-            }`}
-            onClick={dictado.alternar}
-            aria-label={
-              dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"
-            }
-            aria-pressed={dictado.estado !== "inactivo"}
-            title={dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"}
-          >
-            <Mic size={18} />
-          </button>
-        )}
-        <button
-          type="button"
-          className={`send-btn ${listo ? "ready" : ""}`}
-          onClick={onEnviar}
-          disabled={!listo || cargando}
-          aria-label="Enviar"
-        >
-          <Send size={16} />
-        </button>
+        <div className="composer-row2">
+          <div className="composer-row2-left">
+            <button type="button" className="icon-btn" onClick={onArchivoClick} aria-label="Adjuntar archivo">
+              <Plus size={18} />
+            </button>
+          </div>
+          <div className="composer-row2-right">
+            {/*
+              El micrófono solo aparece donde el navegador puede dictar. Un botón
+              gris con "próximamente" ocupa el mismo lugar y no hace nada; peor,
+              invita a apretarlo. Firefox no tiene reconocimiento de voz y no lo
+              va a tener pronto, así que ahí simplemente no hay micrófono.
+            */}
+            {dictado.soportado && (
+              <button
+                type="button"
+                /*
+                  Rojo latiendo SOLO con el micrófono abierto de verdad. Mientras
+                  se está pidiendo el permiso va en otro estado: el botón rojo
+                  sobre un permiso denegado es exactamente lo que hacía creer que
+                  EOS estaba grabando cuando no estaba pasando nada.
+                */
+                className={`icon-btn ${dictado.escuchando ? "escuchando" : ""} ${
+                  dictado.estado === "pidiendo_permiso" ? "pidiendo" : ""
+                }`}
+                onClick={dictado.alternar}
+                aria-label={
+                  dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"
+                }
+                aria-pressed={dictado.estado !== "inactivo"}
+                title={dictado.estado === "inactivo" ? "Dictar el mensaje" : "Dejar de dictar"}
+              >
+                <Mic size={18} />
+              </button>
+            )}
+            <button
+              type="button"
+              className={`send-btn ${listo ? "ready" : ""}`}
+              onClick={onEnviar}
+              disabled={!listo || cargando}
+              aria-label="Enviar"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
       </div>
       {/*
         Lo que se está escuchando ahora mismo, en gris y fuera del campo.
