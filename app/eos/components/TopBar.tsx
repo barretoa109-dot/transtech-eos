@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronsUpDown, LifeBuoy, Moon, Sparkles, Store, Sun, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronsUpDown, LifeBuoy, Moon, MoreHorizontal, Sparkles, Store, Sun, User } from "lucide-react";
 
 import Soporte from "./Soporte";
 import type { ControlTema } from "./useTema";
@@ -47,6 +47,29 @@ export default function TopBar({ tema, pantalla, espacio, onAbrirEspacios }: Top
     return () => window.removeEventListener("keydown", alTeclear);
   }, [ayuda]);
 
+  /*
+   * El tema y la ayuda comparten un solo botón ("···"): dos interruptores
+   * sueltos en la barra competían con el espacio y el estado del sistema.
+   */
+  const [masAbierto, setMasAbierto] = useState(false);
+  const masRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!masAbierto) return;
+    const alTocarAfuera = (e: PointerEvent) => {
+      if (masRef.current && !masRef.current.contains(e.target as Node)) setMasAbierto(false);
+    };
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMasAbierto(false);
+    };
+    document.addEventListener("pointerdown", alTocarAfuera);
+    document.addEventListener("keydown", alTeclear);
+    return () => {
+      document.removeEventListener("pointerdown", alTocarAfuera);
+      document.removeEventListener("keydown", alTeclear);
+    };
+  }, [masAbierto]);
+
   return (
     <div className="topbar">
       {/*
@@ -84,34 +107,48 @@ export default function TopBar({ tema, pantalla, espacio, onAbrirEspacios }: Top
         Memoria contextual
       </div>
 
-      {tema && (
+      <div className="mas-opciones" ref={masRef}>
         <button
           type="button"
           className="tema-btn"
-          onClick={tema.alternar}
-          /*
-           * El nombre dice a dónde va, no dónde está. "Modo oscuro" a secas
-           * deja al usuario adivinando si es el estado actual o lo que va a
-           * pasar si aprieta — y con el ícono al lado, las dos lecturas son
-           * plausibles.
-           */
-          aria-label={tema.aplicado === "oscuro" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-          title={tema.aplicado === "oscuro" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          onClick={() => setMasAbierto((v) => !v)}
+          aria-expanded={masAbierto}
+          aria-haspopup="menu"
+          aria-label="Más opciones"
+          title="Más opciones"
         >
-          {tema.aplicado === "oscuro" ? <Sun size={15} /> : <Moon size={15} />}
+          <MoreHorizontal size={16} />
         </button>
-      )}
 
-      <button
-        type="button"
-        className="ayuda-btn"
-        onClick={() => setAyuda((v) => !v)}
-        aria-expanded={ayuda}
-        aria-haspopup="dialog"
-      >
-        <LifeBuoy size={15} />
-        <span>Ayuda</span>
-      </button>
+        {masAbierto && (
+          <div className="conv-menu mas-opciones-pop" role="menu">
+            {tema && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  tema.alternar();
+                  setMasAbierto(false);
+                }}
+              >
+                {tema.aplicado === "oscuro" ? <Sun size={15} /> : <Moon size={15} />}
+                {tema.aplicado === "oscuro" ? "Modo claro" : "Modo oscuro"}
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAyuda(true);
+                setMasAbierto(false);
+              }}
+            >
+              <LifeBuoy size={15} />
+              Ayuda
+            </button>
+          </div>
+        )}
+      </div>
 
       {ayuda && (
         <div className="ayuda-pop" role="dialog" aria-label="Pedir ayuda">

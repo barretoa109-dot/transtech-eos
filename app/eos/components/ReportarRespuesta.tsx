@@ -57,10 +57,10 @@ export default function ReportarRespuesta({ mensajeId, texto }: { mensajeId: str
         className="reportar-boton"
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
+        title="Reportar"
         aria-label="Reportar esta respuesta de EOS"
       >
         <Flag size={13} aria-hidden="true" />
-        <span>Reportar</span>
       </button>
 
       {abierto ? (

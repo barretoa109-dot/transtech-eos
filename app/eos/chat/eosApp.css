@@ -896,6 +896,16 @@
   background: var(--line-soft);
 }
 
+.eos-app .mas-opciones {
+  position: relative;
+}
+.eos-app .mas-opciones-pop {
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  width: 190px;
+}
+
 /*
   Ayuda, siempre a la vista (24/09/2026). Con texto y no solo ícono: un
   salvavidas suelto no se lee como "acá pedís ayuda". El panel se abre debajo,
@@ -1160,14 +1170,25 @@
 }
 .eos-app .composer {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 26px;
-  padding: 10px 10px 10px 18px;
+  padding: 14px 14px 10px;
   box-shadow: 0 6px 20px rgba(17, 24, 39, 0.06);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
   background: var(--panel);
+}
+.eos-app .composer-row2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.eos-app .composer-row2-left,
+.eos-app .composer-row2-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .eos-app .composer.focused {
   border-color: var(--blue);
@@ -1185,6 +1206,8 @@
   resize: none;
 }
 .eos-app .composer textarea {
+  flex: none;
+  width: 100%;
   min-height: 24px;
   max-height: 132px;
   padding: 1px 0;
@@ -7383,18 +7406,16 @@
   flex-wrap: wrap;
 }
 .eos-app .reportar-boton {
-  min-height: 29px;
+  width: 27px;
+  height: 27px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 9px;
+  justify-content: center;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   font-family: inherit;
-  font-size: 10px;
-  font-weight: 750;
   cursor: pointer;
 }
 .eos-app .reportar-boton:hover,

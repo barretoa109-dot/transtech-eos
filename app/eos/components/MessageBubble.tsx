@@ -493,6 +493,7 @@ export default function MessageBubble({
               className={`message-action ${
                 copiado ? "message-action-success" : ""
               }`}
+              title={copiado ? "Copiado" : "Copiar"}
               aria-label={
                 copiado
                   ? "Mensaje copiado"
@@ -500,7 +501,6 @@ export default function MessageBubble({
               }
             >
               {copiado ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copiado ? "Copiado" : "Copiar"}</span>
             </button>
 
             {/*
@@ -518,10 +518,10 @@ export default function MessageBubble({
                   onPreguntarSobre({ texto: texto.trim().slice(0, 1000), mensajeId })
                 }
                 className="message-action"
+                title="Preguntar"
                 aria-label="Preguntar sobre esta respuesta"
               >
                 <MessageSquareQuote size={14} />
-                <span>Preguntar</span>
               </button>
             ) : null}
 
@@ -531,15 +531,13 @@ export default function MessageBubble({
                 onClick={onRegenerar}
                 disabled={regenerando}
                 className="message-action"
+                title={regenerando ? "Regenerando" : "Regenerar"}
                 aria-label="Regenerar respuesta de EOS"
               >
                 <RefreshCw
                   size={14}
                   className={regenerando ? "message-regenerating" : ""}
                 />
-                <span>
-                  {regenerando ? "Regenerando" : "Regenerar"}
-                </span>
               </button>
             ) : null}
 
@@ -729,10 +727,10 @@ export default function MessageBubble({
         }
 
         .message-user {
-          border: 1px solid rgba(37, 99, 235, 0.14);
-          border-top-right-radius: 6px;
-          background: var(--blue-solido);
-          color: white;
+          border: 1px solid var(--linea-azul);
+          border-top-right-radius: 4px;
+          background: var(--blue-light);
+          color: var(--ink);
           box-shadow: none;
         }
 
@@ -771,8 +769,8 @@ export default function MessageBubble({
         }
 
         .message-user .message-content :global(code) {
-          border-color: rgba(255, 255, 255, 0.2);
-          background: rgba(255, 255, 255, 0.13);
+          border-color: var(--linea-azul);
+          background: rgba(255, 255, 255, 0.5);
         }
 
         .message-content :global(.message-inline-link) {
@@ -785,7 +783,7 @@ export default function MessageBubble({
         .message-user
           .message-content
           :global(.message-inline-link) {
-          color: #ffffff;
+          color: var(--blue);
         }
 
         .message-space {
@@ -853,8 +851,8 @@ export default function MessageBubble({
         }
 
         .message-user .message-numbered > span {
-          background: rgba(255, 255, 255, 0.17);
-          color: white;
+          background: rgba(255, 255, 255, 0.6);
+          color: var(--blue);
         }
 
         .message-numbered p {
@@ -958,18 +956,16 @@ export default function MessageBubble({
         }
 
         .message-action {
-          min-height: 29px;
+          width: 27px;
+          height: 27px;
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          padding: 0 9px;
+          justify-content: center;
           border: 1px solid transparent;
-          border-radius: 9px;
+          border-radius: 8px;
           background: transparent;
           color: var(--muted);
           font-family: inherit;
-          font-size: 10px;
-          font-weight: 750;
           cursor: pointer;
           transition:
             color 160ms ease,
