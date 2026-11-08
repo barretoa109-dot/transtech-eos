@@ -1,14 +1,14 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { crearClienteDeRecuperacion } from "@/lib/supabase/client";
 
 interface Props {
   onBack: () => void;
 }
 
 export default function ForgotPassword({ onBack }: Props) {
-  const supabase = createClient();
+  const supabase = crearClienteDeRecuperacion();
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function ForgotPassword({ onBack }: Props) {
     setMessage("");
     setErrorMessage("");
 
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/actualizar-contrasena")}`;
+    const redirectTo = `${window.location.origin}/actualizar-contrasena`;
 
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo,
