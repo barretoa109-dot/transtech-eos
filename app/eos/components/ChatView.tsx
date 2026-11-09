@@ -339,7 +339,6 @@ export default function ChatView({
               onEnviar={() => enviar()}
               onArchivoClick={() => fileInputRef.current?.click()}
               onQuitarArchivo={onQuitarArchivo}
-              esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
               dictado={dictado}
@@ -416,7 +415,6 @@ export default function ChatView({
               onEnviar={() => enviar()}
               onArchivoClick={() => fileInputRef.current?.click()}
               onQuitarArchivo={onQuitarArchivo}
-              esMovil={esMovil}
               obtenerEtiquetaArchivo={obtenerEtiquetaArchivo}
               formatearTamanio={formatearTamanio}
               dictado={dictado}
@@ -444,7 +442,6 @@ type ComposerProps = {
   onEnviar: () => void;
   onArchivoClick: () => void;
   onQuitarArchivo: (indice: number) => void;
-  esMovil: boolean;
   obtenerEtiquetaArchivo: (archivo: ArchivoAdjunto) => string;
   formatearTamanio: (bytes?: number) => string;
   dictado: Dictado;
@@ -463,7 +460,6 @@ function Composer({
   onEnviar,
   onArchivoClick,
   onQuitarArchivo,
-  esMovil,
   obtenerEtiquetaArchivo,
   formatearTamanio,
   dictado,
