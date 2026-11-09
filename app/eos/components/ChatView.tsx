@@ -665,10 +665,6 @@ function Composer({
         )}
       </div>
 
-      <div className="composer-help">
-        {esMovil ? "Enter crea un salto · Tocá enviar para mandar" : "Enter para enviar · Shift + Enter para un salto"}
-      </div>
-      <div className="hint">EOS puede cometer errores. Verificá la información importante antes de tomar decisiones.</div>
     </>
   );
 }
