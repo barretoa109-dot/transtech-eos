@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, Plus, Play, Send, X } from "lucide-react";
 
 import { formatoDuracion } from "@/lib/eos/videos";
@@ -280,12 +280,8 @@ export default function ChatView({
 
   const primerNombre = nombre.split(" ")[0] || nombre;
   const palabrasSaludo = `${saludoDeLaHora()}, ${primerNombre}`.split(" ");
-  // Se elige una sola vez por chat nuevo, no en cada render.
-  const preguntaInicio = useMemo(
-    () => PREGUNTAS_INICIO[Math.floor(Math.random() * PREGUNTAS_INICIO.length)],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  // Rota con la hora en vez de Math.random: React no deja llamar algo impuro en el render.
+  const preguntaInicio = PREGUNTAS_INICIO[new Date().getMinutes() % PREGUNTAS_INICIO.length];
 
   function enviar(texto?: string) {
     onEnviar(texto);
