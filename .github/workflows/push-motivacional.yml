@@ -1,0 +1,57 @@
+# Push motivacional nativo, 3 veces al día. Ver lib/push/motivacionales.ts.
+#
+# No es un cron de Vercel: el plan Hobby solo permite dos, y los dos ya están
+# usados (briefing-diario, bancard-renovaciones). Este workflow llama al
+# endpoint protegido por CRON_SECRET, una vez por franja.
+#
+# Secretos: CRON_SECRET (el mismo que ya usan los otros crons en Vercel).
+
+name: push-motivacional
+
+on:
+  schedule:
+    - cron: "0 12 * * *" # 09:00 en Asunción — franja "manana"
+    - cron: "30 16 * * *" # 13:30 en Asunción — franja "mediodia"
+    - cron: "0 22 * * *" # 19:00 en Asunción — franja "noche"
+  workflow_dispatch:
+    inputs:
+      franja:
+        description: "Franja a forzar (manana, mediodia o noche)"
+        required: true
+        default: "manana"
+
+permissions:
+  contents: read
+
+jobs:
+  push-motivacional:
+    if: github.repository == 'barretoa109-dot/transtech-eos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Elegir franja
+        id: franja
+        run: |
+          case "${{ github.event.schedule }}" in
+            "0 12 * * *") franja="manana" ;;
+            "30 16 * * *") franja="mediodia" ;;
+            "0 22 * * *") franja="noche" ;;
+            *) franja="${{ github.event.inputs.franja }}" ;;
+          esac
+          echo "franja=$franja" >> "$GITHUB_OUTPUT"
+
+      - name: Llamar al endpoint
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en este repositorio (Settings → Secrets and variables → Actions). Tiene que ser el mismo valor que CRON_SECRET en Vercel."
+            exit 1
+          fi
+          respuesta=$(curl -sS -w '\n%{http_code}' -X GET \
+            "https://www.transtech.com.py/api/cron/push-motivacional?franja=${{ steps.franja.outputs.franja }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          codigo="${respuesta##*$'\n'}"
+          echo "${respuesta%$'\n'*}"
+          if [ "$codigo" -ge 400 ]; then
+            echo "::error::El endpoint devolvió HTTP $codigo"
+            exit 1
+          fi

@@ -12,6 +12,7 @@ import MisTarjetas from "./MisTarjetas";
 import MiEmpresa from "./MiEmpresa";
 import Cajas from "./negocio/Cajas";
 import VincularWhatsApp from "./VincularWhatsApp";
+import AvisosMotivacionalesPush from "./AvisosMotivacionalesPush";
 import { NUMERO_WHATSAPP_EOS, enlaceWhatsappEOS } from "@/lib/whatsapp/numero-eos";
 import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
 
@@ -230,6 +231,8 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           */}
           <RehacerOnboarding />
         </div>
+
+        <AvisosMotivacionalesPush />
 
         <div className="card">
           <div className="card-title">Plan y uso</div>
