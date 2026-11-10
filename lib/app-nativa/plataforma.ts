@@ -83,3 +83,41 @@ export function callbackDesdeEnlaceApp(enlace: string, origen: string): string |
 
   return `${destino.pathname}${destino.search}`;
 }
+
+/** Cuánto texto deja pasar el enlace rápido. Un gasto se dice en una línea. */
+const TEXTO_RAPIDO_MAXIMO = 200;
+
+/**
+ * Convierte el enlace con el que un Atajo de Siri o el toque en la parte de
+ * atrás del teléfono abre la app (`com.transtech.eos://rapido?texto=…`) en la
+ * ruta de la pantalla de alta rápida, en el mismo origen del WebView.
+ *
+ * El `texto` es opcional a propósito: viene lleno cuando Siri ya preguntó
+ * "¿qué gastaste?" y vacío cuando el disparador fue el toque en la parte de
+ * atrás, que no tiene forma de pedir nada antes de abrir la app — ahí la
+ * pantalla arranca vacía, lista para escribir o dictar.
+ *
+ * Mismo criterio que `callbackDesdeEnlaceApp`: solo deja pasar lo que esta
+ * función nombra explícitamente. Cualquier otro enlace con el esquema de la
+ * app devuelve `null` y no navega a ninguna parte.
+ */
+export function rapidoDesdeEnlaceApp(enlace: string, origen: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(enlace);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== `${ESQUEMA_APP}:`) return null;
+
+  const ruta = `${url.host}${url.pathname}`.replace(/\/+$/, "");
+  if (ruta !== "rapido") return null;
+
+  const destino = new URL("/eos/rapido", origen);
+
+  const texto = url.searchParams.get("texto");
+  if (texto) destino.searchParams.set("texto", texto.slice(0, TEXTO_RAPIDO_MAXIMO));
+
+  return `${destino.pathname}${destino.search}`;
+}
