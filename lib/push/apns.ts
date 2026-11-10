@@ -129,9 +129,20 @@ function enviarUno(
           // Respuesta sin cuerpo o no-JSON: se trata como fallo, no como muerto.
         }
         // 410 = APNs ya no tiene el token (desinstalada). BadDeviceToken = token inválido.
-        resolve(estado === 410 || razon === "BadDeviceToken" ? "muerto" : "fallido");
+        if (estado === 410 || razon === "BadDeviceToken") {
+          resolve("muerto");
+          return;
+        }
+        // Sin esto, un fallo real (JWT inválido, topic mal configurado, token del
+        // entorno equivocado) queda indistinguible de "no se pudo mandar" para
+        // siempre: se cuenta en `fallidos` y no hay ningún rastro de la razón.
+        console.error(`APNs: fallo HTTP ${estado} para ...${token.slice(-6)}: ${razon || "(sin razón)"}`);
+        resolve("fallido");
       });
-      peticion.on("error", () => resolve("fallido"));
+      peticion.on("error", (error) => {
+        console.error(`APNs: error de conexión para ...${token.slice(-6)}:`, error);
+        resolve("fallido");
+      });
       peticion.end(cuerpo);
     } catch {
       resolve("fallido");
