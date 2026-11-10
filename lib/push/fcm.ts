@@ -134,13 +134,22 @@ export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<R
 
       fallidos += 1;
       const cuerpo = (await respuesta.json().catch(() => null)) as {
-        error?: { details?: { errorCode?: string }[] };
+        error?: { details?: { errorCode?: string }[]; message?: string };
       } | null;
       const codigo = cuerpo?.error?.details?.find((d) => d.errorCode)?.errorCode;
       // UNREGISTERED: la app se desinstaló. INVALID_ARGUMENT: el token no es válido.
-      if (codigo === "UNREGISTERED" || codigo === "INVALID_ARGUMENT") muertos.push(token);
-    } catch {
+      if (codigo === "UNREGISTERED" || codigo === "INVALID_ARGUMENT") {
+        muertos.push(token);
+        continue;
+      }
+      // Sin esto, un fallo real (cuenta de servicio sin permiso, proyecto
+      // equivocado) queda indistinguible de "no se pudo mandar" para siempre.
+      console.error(
+        `FCM: fallo HTTP ${respuesta.status} para ...${token.slice(-6)}: ${codigo ?? cuerpo?.error?.message ?? "(sin detalle)"}`,
+      );
+    } catch (error) {
       fallidos += 1;
+      console.error(`FCM: error de conexión para ...${token.slice(-6)}:`, error);
     }
   }
 
