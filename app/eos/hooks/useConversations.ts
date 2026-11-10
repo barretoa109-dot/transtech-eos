@@ -38,19 +38,12 @@ export function useConversations() {
 
   async function cargarConversaciones(usuarioId: string, espacio: Espacio) {
     const conversacionesData = await obtenerConversaciones(usuarioId, espacio);
-    // Se abre la más reciente de la lista, no una archivada: archivar es
-    // justamente pedir no verla al entrar.
-    const primera = conversacionesData.find((c) => !estaArchivada(c));
 
+    // Se queda en la pantalla de inicio: la lista aparece en la barra
+    // lateral, pero no se entra solo a la más reciente. Si la persona manda
+    // un mensaje sin haber abierto ninguna, `useChat` crea una conversación
+    // nueva (conversacionId vacío).
     setConversaciones(conversacionesData);
-
-    if (!primera) {
-      await nuevaConversacion(usuarioId, espacio);
-      return;
-    }
-
-    setConversacionId(primera.id);
-    await abrirConversacion(primera.id);
   }
 
   async function nuevaConversacion(usuarioId: string, espacio: Espacio) {
