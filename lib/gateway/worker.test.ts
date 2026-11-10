@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { configDelWorker, ejecutarJob, ejecutarJobs, workerEnProceso } from "./worker.ts";
+import { TIMEOUT_WORKER_MS, configDelWorker, ejecutarJob, ejecutarJobs, workerEnProceso } from "./worker.ts";
 import { armarJobs, type Job } from "./jobs.ts";
 import { prepararEntrada } from "./entrada.ts";
 import { prepararRespuesta } from "./respuesta.ts";
@@ -171,6 +171,47 @@ test("nunca se reintenta un job", async () => {
     () => ejecutarJob(job, CONFIG),
   );
   assert.equal(llamadas.length, 1, "un reintento automático puede cargar la venta dos veces");
+});
+
+/*
+ * T-15 del plan maestro de auditoría (07/11/2026): "test de caos" para red
+ * lenta — sin esto, nada notaba si alguien rompía el AbortController que
+ * corta la espera a `TIMEOUT_WORKER_MS`. Es el mismo síntoma de un incidente
+ * real (2026-09-16, "n8n_empty_response" + una colgada): el worker no
+ * contesta, y lo que importa es que EOS lo reporte en vez de quedarse
+ * esperando para siempre o reintentar un efecto que pudo haber ocurrido.
+ *
+ * Con timers de mentira: nadie espera los 120 segundos reales.
+ */
+test("un worker que nunca contesta se corta a los TIMEOUT_WORKER_MS y se reporta, sin reintentar", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+
+  const original = globalThis.fetch;
+  let llamadas = 0;
+  globalThis.fetch = ((_url: unknown, opciones?: { signal?: AbortSignal }) => {
+    llamadas++;
+    return new Promise((_resolve, reject) => {
+      opciones?.signal?.addEventListener("abort", () => {
+        const error = new Error("abortado");
+        error.name = "AbortError";
+        reject(error);
+      });
+    });
+  }) as unknown as typeof fetch;
+
+  try {
+    const [job] = jobs([{ tipo: "REGISTRAR_VENTA", datos: {} }]);
+    const promesa = ejecutarJob(job, CONFIG);
+
+    t.mock.timers.tick(TIMEOUT_WORKER_MS);
+
+    const salida = await promesa;
+    assert.equal(salida.ok, false);
+    assert.match(String(salida.error ?? ""), /tard[oó]/i, "no dice que se agotó el tiempo de espera");
+    assert.equal(llamadas, 1, "un timeout no debe disparar un segundo intento solo");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 // ---------------------------------------------------------------------------
