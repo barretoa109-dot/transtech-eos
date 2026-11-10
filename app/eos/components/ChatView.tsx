@@ -135,6 +135,31 @@ function tarjetasDeCuentaNueva(rubro: string | null | undefined): PromptCard[] {
   ];
 }
 
+/**
+ * El saludo según la hora del día (franjas usuales en Paraguay), como abre
+ * cualquier asistente: "Hola, Marta" no dice nada que la persona no sepa ya.
+ */
+function saludoDeLaHora(): string {
+  const hora = new Date().getHours();
+  if (hora < 6) return "Buenas noches";
+  if (hora < 12) return "Buen día";
+  if (hora < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+/*
+ * La pregunta de abajo rota entre estas al abrir un chat nuevo, en vez de
+ * repetir siempre "¿En qué te ayudo hoy?": así se siente una conversación
+ * con alguien, no una pantalla fija.
+ */
+const PREGUNTAS_INICIO = [
+  "¿Qué resolvemos hoy?",
+  "¿Qué hacemos hoy?",
+  "¿Por dónde arrancamos?",
+  "¿En qué andamos hoy?",
+  "¿Qué anotamos primero?",
+];
+
 type ChatViewProps = {
   historial: Mensaje[];
   nombre: string;
@@ -254,7 +279,9 @@ export default function ChatView({
   }, []);
 
   const primerNombre = nombre.split(" ")[0] || nombre;
-  const palabrasSaludo = `Hola, ${primerNombre}`.split(" ");
+  const palabrasSaludo = `${saludoDeLaHora()}, ${primerNombre}`.split(" ");
+  // Rota con la hora en vez de Math.random: React no deja llamar algo impuro en el render.
+  const preguntaInicio = PREGUNTAS_INICIO[new Date().getMinutes() % PREGUNTAS_INICIO.length];
 
   function enviar(texto?: string) {
     onEnviar(texto);
@@ -315,7 +342,7 @@ export default function ChatView({
               ))}
             </div>
           </div>
-          <div className="greet-sub">¿En qué te ayudo hoy?</div>
+          <div className="greet-sub">{preguntaInicio}</div>
 
           <div className="prompts">
             {(cuentaNueva ? tarjetasDeCuentaNueva(rubro) : PROMPTS).map((p) => (
