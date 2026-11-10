@@ -3225,6 +3225,19 @@
   .eos-app .composer-wrap {
     margin-top: auto;
   }
+  /*
+    Safari en iOS hace zoom solo al foco cuando el campo tiene menos de 16px
+    de letra — no es un bug del navegador, es la regla que usa para asumir
+    que la persona no va a poder leer lo que escribe. Volver atrás después
+    pide dos toques que nadie encuentra solo.
+
+    16px saca el campo de esa regla sin tocar el resto de la tipografía del
+    teléfono ni el zoom que la persona pida con los dedos en cualquier lado.
+  */
+  .eos-app .composer input,
+  .eos-app .composer textarea {
+    font-size: 16px;
+  }
 }
 
 /* ============================================================
