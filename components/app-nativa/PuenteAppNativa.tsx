@@ -2,30 +2,42 @@
 
 import { useEffect } from "react";
 import {
+  estaEnAppNativa,
   eventosDeLaApp,
   navegadorDelSistema,
   puedeAbrirNavegadorDelSistema,
 } from "@/lib/app-nativa/cliente";
-import { callbackDesdeEnlaceApp } from "@/lib/app-nativa/plataforma";
+import { callbackDesdeEnlaceApp, rapidoDesdeEnlaceApp } from "@/lib/app-nativa/plataforma";
 
 /**
- * Escucha el enlace con el que el sistema reabre la app después de iniciar
- * sesión con Google o Apple en el navegador del sistema, y lo lleva al
- * callback web de siempre.
+ * Escucha los enlaces con los que el sistema reabre la app:
  *
- * Google no deja iniciar sesión dentro de un WebView embebido
- * (`disallowed_useragent`), así que en la app ese paso se hace afuera y
- * vuelve por `com.transtech.eos://auth/callback`. En la web no hace nada.
+ * - `auth/callback`, al volver de iniciar sesión con Google o Apple en el
+ *   navegador del sistema — lo lleva al callback web de siempre.
+ * - `rapido`, cuando un Atajo de Siri o el toque en la parte de atrás del
+ *   teléfono abren la pantalla de alta rápida de un gasto.
+ *
+ * Esto corre siempre que la app nativa está instalada, no solo cuando se
+ * puede abrir el navegador del sistema — a diferencia del login, "rapido" no
+ * depende de esa capacidad. En la web no hace nada en ningún caso.
  */
 export default function PuenteAppNativa() {
   useEffect(() => {
-    if (!puedeAbrirNavegadorDelSistema()) return;
+    if (!estaEnAppNativa()) return;
 
     let vigente = true;
     let escucha: { remove(): Promise<void> } | null = null;
 
     eventosDeLaApp()
       .addListener("appUrlOpen", ({ url }) => {
+        const destinoRapido = rapidoDesdeEnlaceApp(url, window.location.origin);
+        if (destinoRapido) {
+          window.location.assign(destinoRapido);
+          return;
+        }
+
+        if (!puedeAbrirNavegadorDelSistema()) return;
+
         const destino = callbackDesdeEnlaceApp(url, window.location.origin);
         if (!destino) return;
 

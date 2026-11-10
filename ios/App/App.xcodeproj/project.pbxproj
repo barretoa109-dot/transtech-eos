@@ -21,6 +21,7 @@
 		6885F9E3242849E29B1DC345 /* CompartirRecibidoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */; };
 		4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D680E40158437BB66280D4 /* BridgeViewController.swift */; };
 		C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */; };
+		B12981640EF7464D86F4D4DB /* AnotarRapidoIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +44,7 @@
 		D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompartirRecibidoPlugin.swift; sourceTree = "<group>"; };
 		C1D680E40158437BB66280D4 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
 		697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictadoPlugin.swift; sourceTree = "<group>"; };
+		70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */ = {isa = PBXFileReference; name = "AnotarRapidoIntent.swift"; path = "AnotarRapidoIntent.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 				D60D11A3401A4AD2A79D2C58 /* CompartirRecibidoPlugin.swift */,
 				C1D680E40158437BB66280D4 /* BridgeViewController.swift */,
 				697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */,
+				70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -211,6 +214,7 @@
 				6885F9E3242849E29B1DC345 /* CompartirRecibidoPlugin.swift in Sources */,
 				4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */,
 				C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */,
+				B12981640EF7464D86F4D4DB /* AnotarRapidoIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

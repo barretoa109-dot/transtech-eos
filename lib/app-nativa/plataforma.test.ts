@@ -8,6 +8,7 @@ import {
   callbackDesdeEnlaceApp,
   esAppNativa,
   esRutaDeCompra,
+  rapidoDesdeEnlaceApp,
   redireccionOAuthApp,
 } from "./plataforma.ts";
 
@@ -90,4 +91,28 @@ test("otros enlaces con el esquema de la app no navegan a ninguna parte", () => 
   assert.equal(callbackDesdeEnlaceApp(`${ESQUEMA_APP}://auth/callback`, ORIGEN), null);
   assert.equal(callbackDesdeEnlaceApp("https://transtech.com.py/auth/callback?code=abc", ORIGEN), null);
   assert.equal(callbackDesdeEnlaceApp("no es una url", ORIGEN), null);
+});
+
+test("el enlace rápido con texto (Siri) abre la pantalla de alta con el texto", () => {
+  assert.equal(
+    rapidoDesdeEnlaceApp(`${ESQUEMA_APP}://rapido?texto=${encodeURIComponent("50 mil en nafta")}`, ORIGEN),
+    "/eos/rapido?texto=50+mil+en+nafta",
+  );
+});
+
+test("el enlace rápido sin texto (Back Tap) abre la pantalla vacía", () => {
+  assert.equal(rapidoDesdeEnlaceApp(`${ESQUEMA_APP}://rapido`, ORIGEN), "/eos/rapido");
+});
+
+test("el texto del enlace rápido se recorta a 200 caracteres", () => {
+  const largo = "a".repeat(500);
+  const destino = rapidoDesdeEnlaceApp(`${ESQUEMA_APP}://rapido?texto=${largo}`, ORIGEN);
+  const texto = new URL(destino!, ORIGEN).searchParams.get("texto");
+  assert.equal(texto?.length, 200);
+});
+
+test("otros enlaces con el esquema de la app no disparan la pantalla rápida", () => {
+  assert.equal(rapidoDesdeEnlaceApp(`${ESQUEMA_APP}://auth/callback?code=abc`, ORIGEN), null);
+  assert.equal(rapidoDesdeEnlaceApp("https://transtech.com.py/eos/rapido?texto=50mil", ORIGEN), null);
+  assert.equal(rapidoDesdeEnlaceApp("no es una url", ORIGEN), null);
 });
