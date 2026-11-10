@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, Mic, Square } from "lucide-react";
 
@@ -66,7 +67,7 @@ function RapidoContenido() {
     <div className="eos-app" data-eos-theme="light">
       <main className="onb-pantalla">
         <div className="onb-marca">
-          <img src="/transtech-logo.png" alt="TransTech" width={28} height={28} />
+          <Image src="/transtech-logo.png" alt="TransTech" width={28} height={28} />
           <span>EOS</span>
         </div>
 
