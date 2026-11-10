@@ -1,13 +1,13 @@
 import AppIntents
-import UIKit
+import Foundation
 
 /**
  * Los Atajos de "Anotar en EOS": por voz (Siri) y en blanco (Back Tap).
  *
- * A diferencia de `CompartirRecibidoPlugin` o `DictadoPlugin`, esto NO es un
- * plugin de Capacitor y no se registra en `BridgeViewController`. Los App
- * Intents los descubre el sistema solo, por el framework `AppIntents` — basta
- * con que este archivo esté en el target de la app.
+ * A diferencia de `CompartirRecibidoPlugin` o `DictadoPlugin`, los dos
+ * `AppIntent` de acá NO son un plugin de Capacitor y no se registran en
+ * `BridgeViewController`. Los descubre el sistema solo, por el framework
+ * `AppIntents` — basta con que este archivo esté en el target de la app.
  *
  * Por qué son DOS intents y no uno con un parámetro opcional:
  *
@@ -21,29 +21,46 @@ import UIKit
  *   configurado una vez en la app Atajos — exactamente lo contrario de "abrí
  *   la ficha en blanco para escribir o dictar ahí".
  *
- * Los dos terminan en el mismo lugar: reabren la app con
- * `com.transtech.eos://rapido[?texto=…]`, el mismo enlace que ya entiende
- * `rapidoDesdeEnlaceApp` (`lib/app-nativa/plataforma.ts`) del lado web. Nada
- * nuevo del lado del servidor: es la misma ficha y el mismo
- * `/api/finanzas/rapido` que ya usa "Ingresos y gastos".
+ * ============================================================
+ * POR QUÉ YA NO REABRE LA APP CON UN ENLACE PROPIO
+ * ============================================================
+ *
+ * La primera versión hacía `UIApplication.shared.open("com.transtech.eos://rapido…")`
+ * desde `perform()`, además de `openAppWhenRun = true`. Probado en un iPhone
+ * real (10/11): Siri reconocía el Atajo y traía la app al frente, pero nunca
+ * llegaba a la pantalla de anotar — el enlace se perdía. La causa más
+ * probable es una carrera entre los dos mecanismos: el sistema ya está
+ * trayendo la app al frente por `openAppWhenRun` cuando el propio proceso de
+ * la app intenta reabrirse con su mismo esquema, y esa segunda apertura no
+ * siempre se entrega al bridge de Capacitor a tiempo.
+ *
+ * Por eso ahora se usa el mismo mecanismo que ya existe y ya está probado
+ * para "Compartir con EOS" en iOS (`ShareViewController.swift` +
+ * `CompartirRecibidoPlugin.swift`): escribir en el contenedor del App Group
+ * y dejar que la app lo lea cuando vuelve a primer plano, en vez de
+ * depender de que un enlace se entregue en el momento justo.
+ * `AnotarRapidoPlugin.swift` es el lado que lo lee.
  *
  * Disponible desde iOS 16 (el framework `AppIntents` no existe antes). El
  * proyecto sigue en el piso 15.0 (`IPHONEOS_DEPLOYMENT_TARGET`): en un
  * teléfono con 15, estos atajos simplemente no aparecen, el resto de la app
  * sigue andando igual.
  */
+private let grupoApp = "group.com.transtech.eos"
+private let archivoAnotarRapido = "anotar-rapido.json"
+
 @available(iOS 16.0, *)
-private func abrirAnotarRapido(texto: String?) async {
-    var componentes = URLComponents(string: "com.transtech.eos://rapido")
-    if let texto, !texto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        componentes?.queryItems = [URLQueryItem(name: "texto", value: texto)]
+private func dejarPendiente(texto: String?) {
+    guard let carpeta = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: grupoApp) else {
+        return
     }
 
-    guard let url = componentes?.url else { return }
+    let limpio = texto?.trimmingCharacters(in: .whitespacesAndNewlines)
+    var contenido: [String: Any] = [:]
+    if let limpio, !limpio.isEmpty { contenido["texto"] = limpio }
 
-    await MainActor.run {
-        UIApplication.shared.open(url)
-    }
+    guard let json = try? JSONSerialization.data(withJSONObject: contenido) else { return }
+    try? json.write(to: carpeta.appendingPathComponent(archivoAnotarRapido), options: .atomic)
 }
 
 /** El de Siri: pregunta qué anotar si no se lo dijeron ya en la misma frase. */
@@ -59,9 +76,8 @@ struct AnotarEnEOSIntent: AppIntent {
     @Parameter(title: "Qué anotaste")
     var texto: String
 
-    @MainActor
     func perform() async throws -> some IntentResult {
-        await abrirAnotarRapido(texto: texto)
+        dejarPendiente(texto: texto)
         return .result()
     }
 }
@@ -76,9 +92,8 @@ struct AbrirAnotarRapidoIntent: AppIntent {
 
     static var openAppWhenRun: Bool = true
 
-    @MainActor
     func perform() async throws -> some IntentResult {
-        await abrirAnotarRapido(texto: nil)
+        dejarPendiente(texto: nil)
         return .result()
     }
 }

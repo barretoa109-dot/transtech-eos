@@ -100,6 +100,24 @@ export function compartirRecibidoNativo(): CompartirRecibido {
   return plugin;
 }
 
+/** Lo que dejó pendiente un Atajo de Siri o Back Tap (solo iOS). Ver AnotarRapidoIntent.swift. */
+export type AnotarPendiente = { texto?: string | null };
+
+type AnotarRapido = {
+  addListener(
+    evento: "anotarPendiente",
+    manejador: (datos: AnotarPendiente) => void,
+  ): Promise<Escucha>;
+};
+
+let anotarRapido: AnotarRapido | null = null;
+
+export function anotarRapidoNativo(): AnotarRapido {
+  const plugin = anotarRapido ?? registerPlugin<AnotarRapido>("AnotarRapido");
+  anotarRapido = plugin;
+  return plugin;
+}
+
 type PushNativo = {
   requestPermissions(): Promise<{ receive: string }>;
   register(): Promise<void>;

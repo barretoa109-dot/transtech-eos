@@ -22,6 +22,7 @@
 		4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D680E40158437BB66280D4 /* BridgeViewController.swift */; };
 		C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */; };
 		B12981640EF7464D86F4D4DB /* AnotarRapidoIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */; };
+		4B07B5D60A9A4747920B6651 /* AnotarRapidoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EE3965269E48669CFB8CCE /* AnotarRapidoPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 		C1D680E40158437BB66280D4 /* BridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeViewController.swift; sourceTree = "<group>"; };
 		697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictadoPlugin.swift; sourceTree = "<group>"; };
 		70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */ = {isa = PBXFileReference; name = "AnotarRapidoIntent.swift"; path = "AnotarRapidoIntent.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		22EE3965269E48669CFB8CCE /* AnotarRapidoPlugin.swift */ = {isa = PBXFileReference; name = "AnotarRapidoPlugin.swift"; path = "AnotarRapidoPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 				C1D680E40158437BB66280D4 /* BridgeViewController.swift */,
 				697BD80BA2D74B7FB03575D4 /* DictadoPlugin.swift */,
 				70F96A71B5C2488A979706F9 /* AnotarRapidoIntent.swift */,
+				22EE3965269E48669CFB8CCE /* AnotarRapidoPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -215,6 +218,7 @@
 				4B997FF30B504916B250223F /* BridgeViewController.swift in Sources */,
 				C3E7EB9B6E304905984BCDDA /* DictadoPlugin.swift in Sources */,
 				B12981640EF7464D86F4D4DB /* AnotarRapidoIntent.swift in Sources */,
+				4B07B5D60A9A4747920B6651 /* AnotarRapidoPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
