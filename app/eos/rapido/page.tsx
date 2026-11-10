@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight, Mic, Square } from "lucide-react";
@@ -29,6 +29,14 @@ import { useDictado } from "../components/useDictado";
  * enseguida, en vez de dejar a la persona mirando un campo ya lleno.
  */
 export default function RapidoPage() {
+  return (
+    <Suspense fallback={null}>
+      <RapidoContenido />
+    </Suspense>
+  );
+}
+
+function RapidoContenido() {
   const parametros = useSearchParams();
   const [tipo, setTipo] = useState<"gasto" | "ingreso">("gasto");
   const autoDisparado = useRef(false);
