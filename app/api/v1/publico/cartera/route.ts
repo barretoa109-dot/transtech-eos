@@ -6,6 +6,7 @@ import { hoyEnParaguay } from "@/lib/fecha";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { leerCartera } from "@/lib/erp/cartera-leer";
 import { antiguedad, estaPendiente, saldoDe, vencidos } from "@/lib/erp/cartera";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,24 @@ export const dynamic = "force-dynamic";
  *
  * `?tipo=cobrar` (ventas, por defecto) o `?tipo=pagar` (compras). Solo
  * lectura.
+ *
+ * T-12: cuota por IP, igual que `/saldo` — ver el comentario ahí.
  */
 export async function GET(request: Request) {
   const admin = adminSinTipos();
+
+  const cupo = await consumirCupo(admin, {
+    ruta: "/api/v1/publico/cartera",
+    cabeceras: request.headers,
+    ventanaSegundos: 60,
+    maximo: 60,
+    secreto: secretoDelEntorno(),
+  });
+
+  if (!cupo.permitido) {
+    return respuestaSinCupo(cupo, "Demasiadas solicitudes en poco tiempo.");
+  }
+
   const clave = await resolverClaveApi(admin, request);
   if (!clave) {
     return NextResponse.json({ error: "Clave de API inválida, revocada o ausente." }, { status: 401, headers: noStore() });

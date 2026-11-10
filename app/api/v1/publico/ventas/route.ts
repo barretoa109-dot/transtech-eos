@@ -4,6 +4,7 @@ import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { resolverClaveApi } from "@/lib/developer/autenticar";
 import { empresaDe, filtroDeEmpresa } from "@/lib/empresa/acceso";
 import { esFechaISOValida, hoyEnParaguay, sumarDias } from "@/lib/fecha";
+import { consumirCupo, respuestaSinCupo, secretoDelEntorno } from "@/lib/seguridad/limite";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,24 @@ const DIAS_DEFECTO = 30;
  * `?limite=` (por defecto 100, máximo 500). Solo lectura, misma tabla y
  * mismas columnas de resumen que ya muestra la pantalla de Ventas — nunca un
  * número recalculado aparte.
+ *
+ * T-12: cuota por IP, igual que `/saldo` — ver el comentario ahí.
  */
 export async function GET(request: Request) {
   const admin = adminSinTipos();
+
+  const cupo = await consumirCupo(admin, {
+    ruta: "/api/v1/publico/ventas",
+    cabeceras: request.headers,
+    ventanaSegundos: 60,
+    maximo: 60,
+    secreto: secretoDelEntorno(),
+  });
+
+  if (!cupo.permitido) {
+    return respuestaSinCupo(cupo, "Demasiadas solicitudes en poco tiempo.");
+  }
+
   const clave = await resolverClaveApi(admin, request);
   if (!clave) {
     return NextResponse.json({ error: "Clave de API inválida, revocada o ausente." }, { status: 401, headers: noStore() });
