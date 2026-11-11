@@ -87,7 +87,17 @@ export type ResultadoApns = {
   fallidos: number;
   /** Tokens que APNs dio por muertos (desinstalada o token inválido): hay que borrarlos. */
   muertos: string[];
+  /**
+   * Por qué no salió cada uno que no salió, en texto.
+   *
+   * El conteo solo dice "no salió"; la diferencia entre una clave mal firmada
+   * (`InvalidProviderToken`) y un bundle equivocado (`DeviceTokenNotForTopic`)
+   * está justo acá. Nunca lleva el token entero, solo sus últimos caracteres.
+   */
+  razones: string[];
 };
+
+type EnvioUno = { estado: "enviado" | "muerto" | "fallido"; razon?: string };
 
 /** Un envío aislado: si falla, no afecta a los demás tokens de la misma tanda. */
 function enviarUno(
@@ -95,8 +105,8 @@ function enviarUno(
   token: string,
   jwt: string,
   cuerpo: string,
-): Promise<"enviado" | "muerto" | "fallido"> {
-  return new Promise((resolve) => {
+): Promise<EnvioUno> {
+  return new Promise<EnvioUno>((resolve) => {
     try {
       const peticion = sesion.request({
         [HTTP2.HTTP2_HEADER_METHOD]: "POST",
@@ -118,7 +128,7 @@ function enviarUno(
       });
       peticion.on("end", () => {
         if (estado === 200) {
-          resolve("enviado");
+          resolve({ estado: "enviado" });
           return;
         }
 
@@ -128,24 +138,25 @@ function enviarUno(
         } catch {
           // Respuesta sin cuerpo o no-JSON: se trata como fallo, no como muerto.
         }
+        const detalle = `HTTP ${estado} ${razon || "(sin razón)"} · ...${token.slice(-6)}`;
         // 410 = APNs ya no tiene el token (desinstalada). BadDeviceToken = token inválido.
         if (estado === 410 || razon === "BadDeviceToken") {
-          resolve("muerto");
+          resolve({ estado: "muerto", razon: detalle });
           return;
         }
         // Sin esto, un fallo real (JWT inválido, topic mal configurado, token del
         // entorno equivocado) queda indistinguible de "no se pudo mandar" para
         // siempre: se cuenta en `fallidos` y no hay ningún rastro de la razón.
-        console.error(`APNs: fallo HTTP ${estado} para ...${token.slice(-6)}: ${razon || "(sin razón)"}`);
-        resolve("fallido");
+        console.error(`APNs: fallo ${detalle}`);
+        resolve({ estado: "fallido", razon: detalle });
       });
       peticion.on("error", (error) => {
         console.error(`APNs: error de conexión para ...${token.slice(-6)}:`, error);
-        resolve("fallido");
+        resolve({ estado: "fallido", razon: `conexión: ${(error as Error).message}` });
       });
       peticion.end(cuerpo);
-    } catch {
-      resolve("fallido");
+    } catch (error) {
+      resolve({ estado: "fallido", razon: `excepción: ${(error as Error).message}` });
     }
   });
 }
@@ -156,7 +167,15 @@ function enviarUno(
  */
 export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<ResultadoApns> {
   const clave = claveApns();
-  if (!clave || tokens.length === 0) return { enviados: 0, fallidos: 0, muertos: [] };
+  if (!clave) {
+    return {
+      enviados: 0,
+      fallidos: tokens.length,
+      muertos: [],
+      razones: tokens.length > 0 ? ["falta la clave de APNs (APNS_TEAM_ID / APNS_KEY_ID / APNS_CLAVE_PRIVADA)"] : [],
+    };
+  }
+  if (tokens.length === 0) return { enviados: 0, fallidos: 0, muertos: [], razones: [] };
 
   const host = process.env.APNS_ENTORNO === "sandbox" ? HOST_SANDBOX : HOST_PRODUCCION;
   const jwt = jwtVigente(clave);
@@ -175,17 +194,23 @@ export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<
       const resultados = await Promise.all(
         tokens.map((token) => enviarUno(sesion, token, jwt, cuerpo)),
       );
-      const muertos = tokens.filter((_token, indice) => resultados[indice] === "muerto");
-      const enviados = resultados.filter((resultado) => resultado === "enviado").length;
+      const muertos = tokens.filter((_token, indice) => resultados[indice].estado === "muerto");
+      const enviados = resultados.filter((resultado) => resultado.estado === "enviado").length;
+      const razones = resultados.flatMap((resultado) => (resultado.razon ? [resultado.razon] : []));
       if (muertos.length > 0) {
         console.error(`APNs: ${muertos.length} de ${tokens.length} token(s) dados por muertos por Apple.`);
       }
-      return { enviados, fallidos: resultados.length - enviados, muertos };
+      return { enviados, fallidos: resultados.length - enviados, muertos, razones };
     } finally {
       sesion.close();
     }
   } catch (error) {
     console.error(`APNs: no se pudo conectar a ${host}:`, error);
-    return { enviados: 0, fallidos: tokens.length, muertos: [] };
+    return {
+      enviados: 0,
+      fallidos: tokens.length,
+      muertos: [],
+      razones: [`no se pudo conectar a ${host}: ${(error as Error).message}`],
+    };
   }
 }

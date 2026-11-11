@@ -2,13 +2,23 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { claveApns, enviarApns, type AvisoNativo, type ResultadoApns } from "./apns.ts";
 import { cuentaDeServicio, enviarFcm, type ResultadoFcm } from "./fcm.ts";
 
-const SIN_ENVIOS: ResultadoFcm = { enviados: 0, fallidos: 0, muertos: [] };
+/**
+ * Cero enviados, pero diciendo por qué.
+ *
+ * Reemplazó a una constante `SIN_ENVIOS` muda: ya no hay forma de devolver
+ * "cero" sin dejar escrito el motivo, que es lo que hacía imposible el
+ * diagnóstico del 2026-11-10.
+ */
+function sinEnviosPorque(razon: string): ResultadoFcm {
+  return { enviados: 0, fallidos: 0, muertos: [], razones: [razon] };
+}
 
 function combinar(android: ResultadoFcm, ios: ResultadoApns): ResultadoFcm {
   return {
     enviados: android.enviados + ios.enviados,
     fallidos: android.fallidos + ios.fallidos,
     muertos: [...android.muertos, ...ios.muertos],
+    razones: [...android.razones, ...ios.razones],
   };
 }
 
@@ -40,7 +50,7 @@ export async function avisarNativo(
 
   if (!hayFcm && !hayApns) {
     console.error("Push nativo: no hay NI cuenta de servicio de FCM NI clave de APNs; no se envía nada.");
-    return SIN_ENVIOS;
+    return sinEnviosPorque("no hay NI cuenta de servicio de FCM NI clave de APNs");
   }
 
   try {
@@ -51,11 +61,13 @@ export async function avisarNativo(
 
     if (error) {
       console.error(`Push nativo: no se pudo leer dispositivos_push de ${usuarioId}:`, error);
-      return SIN_ENVIOS;
+      return sinEnviosPorque(
+        `no se pudo leer dispositivos_push: ${String((error as { message?: string }).message ?? error)}`,
+      );
     }
     if (!data || data.length === 0) {
       console.error(`Push nativo: ${usuarioId} no tiene ningún dispositivo registrado.`);
-      return SIN_ENVIOS;
+      return sinEnviosPorque("esta cuenta no tiene ningún dispositivo registrado");
     }
 
     const dispositivos = data as { plataforma: "android" | "ios"; token: string }[];
@@ -84,8 +96,8 @@ export async function avisarNativo(
     }
 
     const resultado = combinar(
-      android.status === "fulfilled" ? android.value : SIN_ENVIOS,
-      ios.status === "fulfilled" ? ios.value : SIN_ENVIOS,
+      android.status === "fulfilled" ? android.value : sinEnviosPorque(`FCM lanzó: ${String(android.reason)}`),
+      ios.status === "fulfilled" ? ios.value : sinEnviosPorque(`APNs lanzó: ${String(ios.reason)}`),
     );
 
     if (resultado.muertos.length > 0) {
@@ -95,6 +107,6 @@ export async function avisarNativo(
     return resultado;
   } catch (error) {
     console.error(`Push nativo: excepción avisando a ${usuarioId}:`, error);
-    return SIN_ENVIOS;
+    return sinEnviosPorque(`excepción: ${(error as Error).message}`);
   }
 }
