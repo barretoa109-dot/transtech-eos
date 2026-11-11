@@ -69,38 +69,60 @@ async function diagnostico() {
 }
 
 /**
- * Un envío DE VERDAD, a UNA sola cuenta, que devuelve por qué no salió.
+ * Un envío DE VERDAD que devuelve por qué no salió.
  *
- * Va solo al primer correo de `ADMIN_EMAILS` —quien administra EOS— y no a
- * todos los dispositivos registrados: una notificación de prueba en el
- * teléfono de otra persona no es un diagnóstico, es una molestia.
+ * Va a las cuentas de `ADMIN_EMAILS` —quienes administran EOS— y a ninguna
+ * otra: una notificación de prueba en el teléfono de un cliente no es un
+ * diagnóstico, es una molestia.
+ *
+ * RECORRE TODAS, no solo la primera. La primera vez que corrió esto (2026-11-11)
+ * probó únicamente `ADMIN_EMAILS[0]`, que resultó ser una cuenta sin ningún
+ * teléfono: contestó "esta cuenta no tiene dispositivos" y pareció un
+ * diagnóstico cuando en realidad era la cuenta equivocada.
  *
  * No reclama la franja del día (no escribe en `eos_push_motivacionales_v258`),
  * así que se puede repetir las veces que haga falta sin gastar el envío real
  * de esa franja.
  */
 async function pruebaDeEnvio() {
-  const correo = (process.env.ADMIN_EMAILS || "").split(",")[0]?.trim().toLowerCase();
-  if (!correo) return { error: "No hay ADMIN_EMAILS configurado." };
+  const correos = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (correos.length === 0) return { error: "No hay ADMIN_EMAILS configurado." };
 
   const admin = adminSinTipos();
-  const { data, error } = await admin.from("usuarios").select("id").eq("email", correo).maybeSingle();
+  const porCuenta = [];
 
-  if (error) return { error: `No se pudo buscar la cuenta: ${String((error as { message?: string }).message ?? error)}` };
-  if (!data) return { error: "El primer correo de ADMIN_EMAILS no tiene cuenta en EOS." };
+  for (const correo of correos) {
+    const { data, error } = await admin.from("usuarios").select("id").eq("email", correo).maybeSingle();
 
-  const resultado = await avisarNativo(admin, (data as { id: string }).id, {
-    titulo: "Prueba de EOS",
-    cuerpo: "Si ves esto, las notificaciones de EOS ya funcionan en este teléfono.",
-    url: "/eos/chat",
-  });
+    if (error) {
+      porCuenta.push({ correo, error: String((error as { message?: string }).message ?? error) });
+      continue;
+    }
+    if (!data) {
+      porCuenta.push({ correo, error: "no tiene cuenta en EOS" });
+      continue;
+    }
 
-  return {
-    enviados: resultado.enviados,
-    fallidos: resultado.fallidos,
-    tokens_dados_de_baja: resultado.muertos.length,
-    razones: resultado.razones,
-  };
+    const resultado = await avisarNativo(admin, (data as { id: string }).id, {
+      titulo: "Prueba de EOS",
+      cuerpo: "Si ves esto, las notificaciones de EOS ya funcionan en este teléfono.",
+      url: "/eos/chat",
+    });
+
+    porCuenta.push({
+      correo,
+      enviados: resultado.enviados,
+      fallidos: resultado.fallidos,
+      tokens_dados_de_baja: resultado.muertos.length,
+      razones: resultado.razones,
+    });
+  }
+
+  return { cuentas: porCuenta };
 }
 
 export async function GET(request: Request) {
