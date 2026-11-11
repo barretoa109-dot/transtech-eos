@@ -98,6 +98,10 @@ const PERMITIDAS = new Map([
     "El cron recorre a todos los usuarios por definición: es lo que hace un cron. Su puerta es `CRON_SECRET`, no una sesión.",
   ],
   [
+    "app/api/cron/push-motivacional/route.ts::usuarios",
+    "La prueba de envío (`?prueba=1`) busca la cuenta POR SU CORREO, y ese correo no viene de un parámetro: sale de `ADMIN_EMAILS`, la misma puerta que usa el panel de administración. Es justamente lo que evita mandarle una notificación de prueba al teléfono de otra persona. Filtrarla por `usuario_id` es imposible: el id es lo que esta consulta averigua. Devuelve solo `id`, y la puerta de la ruta es `CRON_SECRET`.",
+  ],
+  [
     "app/api/cron/push-motivacional/route.ts::dispositivos_push",
     "Es el diagnóstico (`?diagnostico=1`) de un cron, con `CRON_SECRET` como puerta: cuenta CUÁNTOS teléfonos hay por plataforma para distinguir \"el canal no está configurado\" de \"está configurado y falla\". Solo selecciona la columna `plataforma` y devuelve dos números — ningún token, ningún `usuario_id`, ninguna fila. Acotarlo por persona le quitaría exactamente el sentido: la pregunta es sobre el conjunto.",
   ],

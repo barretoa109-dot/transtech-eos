@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { claveApns } from "@/lib/push/apns";
 import { cuentaDeServicio } from "@/lib/push/fcm";
+import { avisarNativo } from "@/lib/push/nativo";
 import { enviarMotivacionalesPush, FRANJAS, type Franja } from "@/lib/push/motivacionales";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
@@ -67,6 +68,41 @@ async function diagnostico() {
   };
 }
 
+/**
+ * Un envío DE VERDAD, a UNA sola cuenta, que devuelve por qué no salió.
+ *
+ * Va solo al primer correo de `ADMIN_EMAILS` —quien administra EOS— y no a
+ * todos los dispositivos registrados: una notificación de prueba en el
+ * teléfono de otra persona no es un diagnóstico, es una molestia.
+ *
+ * No reclama la franja del día (no escribe en `eos_push_motivacionales_v258`),
+ * así que se puede repetir las veces que haga falta sin gastar el envío real
+ * de esa franja.
+ */
+async function pruebaDeEnvio() {
+  const correo = (process.env.ADMIN_EMAILS || "").split(",")[0]?.trim().toLowerCase();
+  if (!correo) return { error: "No hay ADMIN_EMAILS configurado." };
+
+  const admin = adminSinTipos();
+  const { data, error } = await admin.from("usuarios").select("id").eq("email", correo).maybeSingle();
+
+  if (error) return { error: `No se pudo buscar la cuenta: ${String((error as { message?: string }).message ?? error)}` };
+  if (!data) return { error: "El primer correo de ADMIN_EMAILS no tiene cuenta en EOS." };
+
+  const resultado = await avisarNativo(admin, (data as { id: string }).id, {
+    titulo: "Prueba de EOS",
+    cuerpo: "Si ves esto, las notificaciones de EOS ya funcionan en este teléfono.",
+    url: "/eos/chat",
+  });
+
+  return {
+    enviados: resultado.enviados,
+    fallidos: resultado.fallidos,
+    tokens_dados_de_baja: resultado.muertos.length,
+    razones: resultado.razones,
+  };
+}
+
 export async function GET(request: Request) {
   const permiso = autorizado(request);
   if (permiso.sinConfigurar) {
@@ -76,8 +112,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
-  if (new URL(request.url).searchParams.get("diagnostico") === "1") {
+  const parametros = new URL(request.url).searchParams;
+
+  if (parametros.get("diagnostico") === "1") {
     return NextResponse.json(await diagnostico(), { headers: { "Cache-Control": "no-store" } });
+  }
+
+  if (parametros.get("prueba") === "1") {
+    return NextResponse.json(await pruebaDeEnvio(), { headers: { "Cache-Control": "no-store" } });
   }
 
   const franja = new URL(request.url).searchParams.get("franja");

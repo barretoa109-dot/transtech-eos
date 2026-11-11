@@ -18,7 +18,14 @@ test("sin cuenta de servicio de Firebase no consulta ni envía nada", async () =
       titulo: "Hola",
       cuerpo: "Mirá esto",
     });
-    assert.deepEqual(resultado, { enviados: 0, fallidos: 0, muertos: [] });
+    assert.deepEqual(resultado, {
+      enviados: 0,
+      fallidos: 0,
+      muertos: [],
+      // La razón viaja CON el resultado: "cero enviados" sin motivo fue
+      // exactamente lo que no se pudo diagnosticar el 2026-11-10.
+      razones: ["no hay NI cuenta de servicio de FCM NI clave de APNs"],
+    });
   } finally {
     if (previo === undefined) delete process.env.FCM_SERVICE_ACCOUNT_JSON;
     else process.env.FCM_SERVICE_ACCOUNT_JSON = previo;

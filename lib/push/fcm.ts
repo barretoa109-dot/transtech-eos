@@ -98,6 +98,8 @@ export type ResultadoFcm = {
   fallidos: number;
   /** Tokens que FCM dio por muertos (desinstalada o caducada): hay que borrarlos. */
   muertos: string[];
+  /** Por qué no salió cada uno que no salió. Ver `ResultadoApns.razones`. */
+  razones: string[];
 };
 
 /**
@@ -106,9 +108,18 @@ export type ResultadoFcm = {
  */
 export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<ResultadoFcm> {
   const cuenta = cuentaDeServicio();
-  if (!cuenta || tokens.length === 0) {
-    return { enviados: 0, fallidos: 0, muertos: [] };
+  if (!cuenta) {
+    return {
+      enviados: 0,
+      fallidos: tokens.length,
+      muertos: [],
+      razones:
+        tokens.length > 0
+          ? ["FCM_SERVICE_ACCOUNT_JSON falta, no es JSON válido, o no tiene project_id/client_email/private_key"]
+          : [],
+    };
   }
+  if (tokens.length === 0) return { enviados: 0, fallidos: 0, muertos: [], razones: [] };
 
   const acceso = await tokenDeAcceso(cuenta);
   const url = `https://fcm.googleapis.com/v1/projects/${cuenta.project_id}/messages:send`;
@@ -116,6 +127,7 @@ export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<R
   let enviados = 0;
   let fallidos = 0;
   const muertos: string[] = [];
+  const razones: string[] = [];
 
   for (const token of tokens) {
     try {
@@ -137,6 +149,8 @@ export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<R
         error?: { details?: { errorCode?: string }[]; message?: string };
       } | null;
       const codigo = cuerpo?.error?.details?.find((d) => d.errorCode)?.errorCode;
+      const detalle = `HTTP ${respuesta.status} ${codigo ?? cuerpo?.error?.message ?? "(sin detalle)"} · ...${token.slice(-6)}`;
+      razones.push(detalle);
       // UNREGISTERED: la app se desinstaló. INVALID_ARGUMENT: el token no es válido.
       if (codigo === "UNREGISTERED" || codigo === "INVALID_ARGUMENT") {
         muertos.push(token);
@@ -144,14 +158,13 @@ export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<R
       }
       // Sin esto, un fallo real (cuenta de servicio sin permiso, proyecto
       // equivocado) queda indistinguible de "no se pudo mandar" para siempre.
-      console.error(
-        `FCM: fallo HTTP ${respuesta.status} para ...${token.slice(-6)}: ${codigo ?? cuerpo?.error?.message ?? "(sin detalle)"}`,
-      );
+      console.error(`FCM: fallo ${detalle}`);
     } catch (error) {
       fallidos += 1;
+      razones.push(`conexión: ${(error as Error).message} · ...${token.slice(-6)}`);
       console.error(`FCM: error de conexión para ...${token.slice(-6)}:`, error);
     }
   }
 
-  return { enviados, fallidos, muertos };
+  return { enviados, fallidos, muertos, razones };
 }
