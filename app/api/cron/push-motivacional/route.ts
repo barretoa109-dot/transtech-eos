@@ -65,6 +65,61 @@ async function diagnostico() {
     fcm_configurado: Boolean(cuentaDeServicio()),
     dispositivos: porPlataforma,
     error_leyendo_dispositivos: error ? String((error as { message?: string }).message ?? error) : null,
+    forma_clave_apns: formaDeLaClave(process.env.APNS_CLAVE_PRIVADA),
+    forma_json_fcm: formaDelJson(process.env.FCM_SERVICE_ACCOUNT_JSON),
+  };
+}
+
+/**
+ * La FORMA del valor guardado, sin su contenido.
+ *
+ * El 2026-11-11 la clave de APNs se volvió a cargar dos veces, desde un
+ * archivo sano, y seguía sin poder leerse — ni siquiera después de
+ * reconstruir el PEM. Para saber qué está guardado realmente hay que mirarlo,
+ * pero una clave privada no se mira: se describe.
+ *
+ * Todo lo que sale de acá son números y booleanos. El único texto que puede
+ * devolver es el encabezado `-----BEGIN …-----`, que es público por
+ * definición y es justo el que falta cuando el pegado salió mal.
+ */
+function formaDeLaClave(valor: string | undefined) {
+  if (valor === undefined) return { cargada: false };
+
+  const sinBom = valor.replace(/^﻿/, "");
+  const cuerpo = sinBom
+    .replace(/-----BEGIN [A-Z0-9 ]+?-----/g, "")
+    .replace(/-----END [A-Z0-9 ]+?-----/g, "")
+    .replace(/\\n/g, "")
+    .replace(/\s+/g, "");
+
+  return {
+    cargada: true,
+    longitud: valor.length,
+    lineas: valor.split("\n").length,
+    encabezado: /-----BEGIN [A-Z0-9 ]+?-----/.exec(sinBom)?.[0] ?? "(no tiene encabezado PEM)",
+    tiene_cierre_end: /-----END [A-Z0-9 ]+?-----/.test(sinBom),
+    tiene_barra_ene_literal: valor.includes("\\n"),
+    empieza_con_bom: valor !== sinBom,
+    caracteres_no_ascii: (valor.match(/[^\x20-\x7E\r\n\t]/g) ?? []).length,
+    largo_del_cuerpo: cuerpo.length,
+    cuerpo_es_base64: cuerpo.length > 0 && !/[^A-Za-z0-9+/=]/.test(cuerpo),
+  };
+}
+
+/** Lo mismo para el JSON de FCM: forma, nunca contenido. */
+function formaDelJson(valor: string | undefined) {
+  if (valor === undefined) return { cargada: false };
+
+  const limpio = valor.trim();
+  return {
+    cargada: true,
+    longitud: valor.length,
+    empieza_con_llave: limpio.startsWith("{"),
+    termina_con_llave: limpio.endsWith("}"),
+    envuelto_en_comillas: /^["']/.test(limpio),
+    tiene_barra_ene_literal: valor.includes("\\n"),
+    empieza_con_bom: /^﻿/.test(valor),
+    caracteres_no_ascii: (valor.match(/[^\x20-\x7E\r\n\t]/g) ?? []).length,
   };
 }
 
