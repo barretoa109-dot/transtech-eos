@@ -789,7 +789,8 @@ export default function Home() {
         }
 
         .hero {
-          padding: 100px 0 90px;
+          padding-top: 100px;
+          padding-bottom: 90px;
           text-align: center;
           position: relative;
         }
@@ -1443,6 +1444,19 @@ export default function Home() {
         }
 
         @media (max-width: 640px) {
+          .hero {
+            padding-top: 64px;
+            padding-bottom: 56px;
+          }
+          .hero-ctas {
+            flex-direction: column;
+            align-items: stretch;
+            margin-bottom: 56px;
+          }
+          .hero-ctas :global(.btn) {
+            justify-content: center;
+            width: 100%;
+          }
           .home-page :global(.eos-section) {
             margin: 0 16px;
             padding: 44px 22px;
