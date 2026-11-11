@@ -48,7 +48,8 @@ import {
   FORMATOS as FORMATOS_DOCUMENTO,
 } from "@/lib/documentos/guardar";
 import { textoContexto, type ContextoNegocio } from "@/lib/eos/contexto-negocio";
-import { textoMemoria } from "@/lib/eos/memoria-contexto";
+import { encabezadoDeEspacio, filtroDeMemorias, type EspacioDelChat } from "@/lib/eos/espacio";
+import { textoMemoria, type ObjetivoAbierto } from "@/lib/eos/memoria-contexto";
 import { contextoDeSeguimientos } from "@/lib/crm/contexto-chat";
 import { hoyEnParaguay } from "@/lib/fecha";
 import {
@@ -203,6 +204,18 @@ export type EntradaProcesamiento = {
    * buscando información actual…"). La web lo ve por la fase del pedido.
    */
   alBuscar?: () => void;
+  /**
+   * Desde qué espacio escribe la persona: "personal" o "negocio" (v259).
+   *
+   * Decide QUÉ datos entran al prompt de este mensaje. En "Mi negocio" no
+   * viajan sus cuentas, sus tarjetas, sus deudas ni sus objetivos personales;
+   * en "Personal" no viajan el catálogo, las ventas ni la cartera del
+   * negocio. Sin esto —WhatsApp, que no tiene espacios, o un cliente viejo—
+   * sigue viajando todo junto, como hasta la v258.
+   *
+   * Ver `lib/eos/espacio.ts`.
+   */
+  espacio?: EspacioDelChat | null;
 };
 
 function buscarTexto(valor: unknown): string {
@@ -656,6 +669,10 @@ export async function procesarMensajeEOS(
     const { mensaje, archivos, cita: citaEntrada } = entrada;
     const archivo = archivos[0] ?? null;
     const conversacionId = entrada.conversacionId;
+    // El espacio desde el que se escribe, o null si el canal no tiene
+    // espacios. Se lee una vez: lo usan el contexto, la memoria y el
+    // encabezado que le dice al modelo dónde está parado.
+    const espacio = entrada.espacio ?? null;
 
     // El perfil no depende de la verificación de la conversación ni del
     // análisis del adjunto, así que se dispara ya y se espera recién cuando
@@ -682,21 +699,60 @@ export async function procesarMensajeEOS(
      * falla, se sigue sin contexto: quedarse sin contestar por no poder contar
      * las ventas sería peor que contestar sin las ventas.
      */
-    const contextoPromise: Promise<ContextoNegocio | null> = Promise.resolve(
-      adminSinTipos().rpc("eos_contexto_negocio", { p_usuario_id: usuarioId }),
-    )
-      .then(({ data, error }: { data: ContextoNegocio | null; error: unknown }) => {
-        if (error) {
-          console.error("EOS: no se pudo armar el contexto del negocio:", error);
+    const contextoPromise: Promise<ContextoNegocio | null> = (async () => {
+      type Respuesta = { data: ContextoNegocio | null; error: unknown };
+
+      /*
+       * Con espacio, la función que lo entiende; sin espacio, la de siempre.
+       *
+       * WhatsApp no tiene espacios y sigue por la firma vieja, que devuelve
+       * los dos lados juntos: sus conversaciones quedaron en 'personal' por
+       * el default de la v256, que es el lado seguro de una columna nueva y
+       * no una clasificación que se pueda usar para esconderle el negocio.
+       */
+      const pedir = (): Promise<Respuesta> =>
+        espacio
+          ? Promise.resolve(
+              adminSinTipos().rpc("eos_contexto_del_espacio", {
+                p_usuario_id: usuarioId,
+                p_ambito: espacio,
+              }),
+            )
+          : Promise.resolve(
+              adminSinTipos().rpc("eos_contexto_negocio", { p_usuario_id: usuarioId }),
+            );
+
+      try {
+        const { data, error } = await pedir();
+        if (!error) return data;
+
+        /*
+         * La migración v259 se aplica DESPUÉS del merge (ver CLAUDE.md), así
+         * que existe una ventana en la que este código ya está desplegado y
+         * `eos_contexto_del_espacio` todavía no existe. En esa ventana se
+         * vuelve a pedir el contexto de siempre: sale mezclado, como hasta la
+         * v258, pero sale. Un chat sin una sola cifra sería mucho peor que un
+         * chat que todavía no separa los espacios.
+         */
+        console.error("EOS: no se pudo armar el contexto del negocio:", error);
+
+        if (!espacio) return null;
+
+        const respaldo = await Promise.resolve(
+          adminSinTipos().rpc("eos_contexto_negocio", { p_usuario_id: usuarioId }),
+        );
+
+        if (respaldo.error) {
+          console.error("EOS: el contexto de respaldo tampoco salió:", respaldo.error);
           return null;
         }
 
-        return data;
-      })
-      .catch((error: unknown) => {
+        return respaldo.data as ContextoNegocio | null;
+      } catch (error: unknown) {
         console.error("EOS: error inesperado armando el contexto:", error);
         return null;
-      });
+      }
+    })();
 
     /*
      * Lo que EOS ya sabía de esta persona, y nunca leía.
@@ -717,7 +773,20 @@ export async function procesarMensajeEOS(
       try {
         const admin = adminSinTipos();
 
-        const [memorias, objetivosPersonales, objetivosNegocio, tareas, aprendizajes] = await Promise.all([
+        /*
+         * Las memorias del espacio en el que se está parado (v259).
+         *
+         * `eos_memory` es texto libre —"quiero saldar los 3 millones de la
+         * Amex"— y viaja entero en cada mensaje: era la otra mitad de por qué
+         * una pregunta del negocio se contestaba con la tarjeta de la persona.
+         * Desde la v259 cada memoria nace con el ámbito de la conversación
+         * donde se guardó.
+         *
+         * `ambito is null` entra siempre: son las guardadas antes de la v259,
+         * que no se pueden clasificar sin inventar (ver la cabecera de la
+         * migración). Se siguen viendo en los dos lados, como hasta hoy.
+         */
+        const memoriasDeTodos = () =>
           admin
             .from("eos_memory")
             .select("titulo, contenido, importancia, estado")
@@ -725,31 +794,53 @@ export async function procesarMensajeEOS(
             .eq("estado", "activo")
             .order("importancia", { ascending: false })
             .order("updated_at", { ascending: false })
-            .limit(30),
+            .limit(30);
+
+        const memoriasDelEspacio = async () => {
+          const filtro = filtroDeMemorias(espacio);
+          if (!filtro) return memoriasDeTodos();
+
+          const conAmbito = await memoriasDeTodos().or(filtro);
+          if (!conAmbito.error) return conAmbito;
+
           /*
-           * Los objetivos, en dos consultas y no en una.
-           *
-           * "Llegar a 30 millones" significa cosas distintas si es la
-           * facturación del negocio o el ahorro de la persona. Leerlos juntos
-           * los deja indistinguibles para el modelo, que después contesta
-           * sobre una mezcla; `textoMemoria` los rotula cuando hay de los dos.
+           * La columna llega con la migración v259, que se aplica DESPUÉS del
+           * merge: en esa ventana la consulta falla por columna inexistente.
+           * Se piden todas, como hasta la v258 — con las memorias mezcladas
+           * EOS responde de más, sin ellas parece que se olvidó de todo.
            */
+          console.error("EOS: memoria sin ámbito todavía:", conAmbito.error);
+          return memoriasDeTodos();
+        };
+
+        /*
+         * Los objetivos, en dos consultas y no en una.
+         *
+         * "Llegar a 30 millones" significa cosas distintas si es la
+         * facturación del negocio o el ahorro de la persona. Leerlos juntos
+         * los deja indistinguibles para el modelo, que después contesta
+         * sobre una mezcla; `textoMemoria` los rotula cuando hay de los dos.
+         *
+         * Desde la v259, parado en un espacio se lee SOLO el de ese espacio:
+         * rotular no alcanzaba, porque a "dame un resumen de mis objetivos"
+         * el modelo contesta con todo lo que tiene adelante.
+         */
+        const objetivosDe = (ambito: EspacioDelChat) =>
           admin
             .from("eos_goals")
             .select("titulo, progreso, fecha_limite, proximo_paso, estado, ambito")
             .eq("usuario_id", usuarioId)
-            .eq("ambito", "personal")
+            .eq("ambito", ambito)
             .eq("estado", "activo")
             .order("prioridad", { ascending: false })
-            .limit(20),
-          admin
-            .from("eos_goals")
-            .select("titulo, progreso, fecha_limite, proximo_paso, estado, ambito")
-            .eq("usuario_id", usuarioId)
-            .eq("ambito", "negocio")
-            .eq("estado", "activo")
-            .order("prioridad", { ascending: false })
-            .limit(20),
+            .limit(20);
+
+        const sinObjetivos = Promise.resolve({ data: [] as ObjetivoAbierto[] });
+
+        const [memorias, objetivosPersonales, objetivosNegocio, tareas, aprendizajes] = await Promise.all([
+          memoriasDelEspacio(),
+          espacio === "negocio" ? sinObjetivos : objetivosDe("personal"),
+          espacio === "personal" ? sinObjetivos : objetivosDe("negocio"),
           // Lo que tiene pendiente. "¿Qué tengo pendiente hoy?" es una de las
           // cuatro tarjetas de la pantalla de inicio, y el modelo nunca recibía
           // una sola tarea.
@@ -786,7 +877,12 @@ export async function procesarMensajeEOS(
      * algo. Solo para quien tiene el CRM y con un plazo corto: si tarda, el chat sigue sin esto.
      * Nunca rechaza. Ver `lib/crm/contexto-chat.ts`.
      */
-    const seguimientosPromise = contextoDeSeguimientos(adminSinTipos(), usuarioId, { hoy: hoyEnParaguay() });
+    const seguimientosPromise =
+      espacio === "personal"
+        ? // Parado en Personal, a quién retomar del CRM es del otro espacio
+          // (v259): no se pide ni viaja.
+          Promise.resolve("")
+        : contextoDeSeguimientos(adminSinTipos(), usuarioId, { hoy: hoyEnParaguay() });
 
     if (conversacionId) {
       if (!esUuid(conversacionId)) {
@@ -938,8 +1034,34 @@ export async function procesarMensajeEOS(
      * El día que el gateway corra entero en TypeScript esto se puede partir en
      * dos; hasta entonces, un campo que llega es mejor que dos que se pierden.
      */
+    const contexto = await contextoPromise;
+
+    /*
+     * El encabezado se escribe solo si las cifras son de verdad de un espacio.
+     *
+     * `eos_contexto_del_espacio` devuelve el ámbito con el que contestó. Si
+     * el contexto volvió por la función vieja —la migración v259 todavía no
+     * aplicada— viene mezclado, y decirle al modelo "todo lo que sigue es de
+     * su negocio" sería ponerle la tarjeta personal de alguien adentro del
+     * negocio con un rótulo que la vuelve creíble. En esa ventana el chat se
+     * comporta como hasta la v258: mezclado, pero sin afirmarlo.
+     *
+     * Con el contexto en null no hay cifras que puedan mentir, y la memoria y
+     * los objetivos sí salieron filtrados: el encabezado va igual.
+     */
+    const espacioDeclarable = contexto === null || contexto.ambito === espacio ? espacio : null;
+
     const contextoNegocio = [
-      textoContexto(await contextoPromise),
+      /*
+       * Dónde está parada la persona, antes que cualquier cifra (v259).
+       *
+       * Va primero porque gobierna todo lo que sigue, y va acá —en el
+       * contexto— y no en el prompt de sistema porque el prompt vive en dos
+       * lados (TypeScript y el parche de n8n) y esto es un dato del turno, no
+       * una regla del producto. Vacío cuando el canal no tiene espacios.
+       */
+      encabezadoDeEspacio(espacioDeclarable),
+      textoContexto(contexto),
       await seguimientosPromise,
       await memoriaPromise,
       bloqueDeContexto(await recientesPromise),
@@ -1226,7 +1348,9 @@ export async function procesarMensajeEOS(
        * EOS le preguntaba a la persona datos que ya estaban en Compras y
        * gastos (caso real, 31/10/2026). Si falla, sigue sin este contexto.
        */
-      if (eleccion.motivo === "documento") {
+      // Y solo fuera de Personal (v259): las compras son del negocio, y un
+      // Excel pedido desde el espacio de la persona no se arma con ellas.
+      if (eleccion.motivo === "documento" && espacio !== "personal") {
         const detalleCompras = await textoComprasRecientes(adminSinTipos(), usuarioId);
         if (detalleCompras) {
           payload.contexto_negocio = payload.contexto_negocio
@@ -1318,6 +1442,8 @@ export async function procesarMensajeEOS(
           mensaje,
           appNativa: entrada.appNativa === true,
           motivo: `ia_${iaCaida}`,
+          // Para que el reintento arme el contexto del mismo espacio (v259).
+          espacio,
         });
         if (guardado) {
           await releaseQuota(`ia_no_responde_${iaCaida}`);

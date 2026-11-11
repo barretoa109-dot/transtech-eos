@@ -11,6 +11,7 @@ import type {
 
 import { enviarMensajeAEOS } from "../services/eosApi";
 import { textoConCita, type Cita } from "@/lib/eos/cita";
+import type { EspacioDelChat } from "@/lib/eos/espacio";
 import {
   etiquetaDeAdjuntos,
   type FotoGuardada,
@@ -48,6 +49,16 @@ type UseChatParams = {
 
   /** Después de cada respuesta: el título de la conversación se escribe solo (lib/eos/titulo-chat.ts). */
   alResponder?: (conversacionId: string) => void;
+
+  /**
+   * En qué espacio está parada la persona: Personal o el negocio.
+   *
+   * Viaja con cada mensaje porque es lo que decide QUÉ datos recibe el modelo
+   * (v259). Sin esto el contexto lleva la plata de los dos lados y EOS
+   * contesta una pregunta del negocio con la tarjeta personal de quien
+   * pregunta. Ver `lib/eos/espacio.ts`.
+   */
+  espacio: EspacioDelChat;
 };
 
 type EjecutarEOSParams = {
@@ -261,6 +272,7 @@ export function useChat({
   actualizarTituloSiHaceFalta,
   cargarBriefing,
   alResponder,
+  espacio,
 }: UseChatParams) {
   const [mensaje, setMensaje] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -344,6 +356,7 @@ export function useChat({
           nuevoChat: historialParaContexto.length === 0,
           archivos,
           cita: citaDelEnvio,
+          espacio,
           alCambiarFase: setFase,
         });
 
@@ -455,6 +468,7 @@ export function useChat({
       actualizarTituloSiHaceFalta,
       alResponder,
       cargarBriefing,
+      espacio,
       nombre,
       plan,
       setHistorial,

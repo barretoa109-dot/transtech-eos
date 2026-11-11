@@ -227,3 +227,49 @@ test("el texto de entrega cita el mensaje corto", () => {
   const largo = fila({ mensaje: "a".repeat(100) });
   assert.match(textoDeEntrega(largo, "ok"), /«a{57}…»/);
 });
+
+test("el espacio se guarda con el mensaje y vuelve igual en el reintento", async () => {
+  /*
+   * Un mensaje escrito en "Mi negocio" que esperó media hora tiene que
+   * contestarse con el contexto del negocio, no con los dos lados mezclados
+   * (v259). La fila lo guarda igual que `app_nativa`: el reintento rehace el
+   * turno y necesita las mismas condiciones.
+   */
+  const filas: Fila[] = [];
+  await ponerEnEspera(baseFalsa(filas), {
+    usuarioId: "u1",
+    conversacionId: "c1",
+    origen: "eos-web",
+    mensaje: "cuánto me queda este mes",
+    appNativa: false,
+    motivo: "ia_timeout",
+    espacio: "negocio",
+  });
+
+  assert.equal(filas[0].ambito, "negocio");
+
+  const pendientes = [fila({ ambito: "negocio", origen: "eos-web" })];
+  const { d, pedidos } = deps([{ status: 200, body: { respuesta: "Listo." } }]);
+  await reintentarEnEspera(baseFalsa(pendientes), d);
+
+  assert.equal(pedidos[0].espacio, "negocio");
+});
+
+test("sin espacio guardado —WhatsApp, o una fila vieja— el reintento no inventa ninguno", async () => {
+  const filas: Fila[] = [];
+  await ponerEnEspera(baseFalsa(filas), {
+    usuarioId: "u1",
+    conversacionId: "c1",
+    origen: "whatsapp",
+    mensaje: "vendí 3 bolsas",
+    appNativa: false,
+    motivo: "ia_timeout",
+  });
+
+  assert.equal(filas[0].ambito, null);
+
+  const { d, pedidos } = deps([{ status: 200, body: { respuesta: "Listo." } }]);
+  await reintentarEnEspera(baseFalsa([fila()]), d);
+
+  assert.equal(pedidos[0].espacio, null);
+});

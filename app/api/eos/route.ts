@@ -8,6 +8,7 @@ import {
   type ArchivoEOS,
 } from "@/lib/eos/procesar-mensaje";
 import { anotarLlegada, guardarRespuesta } from "@/lib/eos/respuestas-guardadas";
+import { espacioDelPedido } from "@/lib/eos/espacio";
 import { esAppNativa } from "@/lib/app-nativa/plataforma";
 
 /*
@@ -167,6 +168,21 @@ export async function POST(req: Request) {
       nombreFallback,
       requestOrigin: new URL(req.url).origin,
       appNativa: esAppNativa(req.headers.get("user-agent")),
+      /*
+       * Desde qué espacio escribe: lo que decide si este mensaje lleva la
+       * plata del negocio o la de la persona (v259).
+       *
+       * Lo manda el cliente porque es él quien lo sabe: la sesión no lo dice
+       * y leerlo de la conversación costaría un viaje más a la base antes de
+       * poder pedir el contexto, justo en el camino crítico del chat. Un
+       * cliente viejo no lo manda, y entonces queda null — el contexto sale
+       * mezclado, como hasta la v258, que es lo que ese cliente espera.
+       *
+       * No abre nada: todo lo que se lee sigue filtrado por `usuario_id`, y
+       * lo único que elige este campo es cuál de los dos lados de la plata de
+       * esa misma persona viaja en el prompt.
+       */
+      espacio: espacioDelPedido(body.ambito),
     });
   } catch (error) {
     // Sin esto la fila quedaba "en proceso" y la app esperaba minutos por nada.

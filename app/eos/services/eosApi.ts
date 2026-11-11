@@ -1,5 +1,6 @@
 import type { ArchivoAdjunto, Mensaje } from "../types/chat";
 import type { Cita } from "@/lib/eos/cita";
+import type { EspacioDelChat } from "@/lib/eos/espacio";
 import { enviarHastaQueLlegue, type ConsultaBuzon } from "@/lib/eos/envio-confiable";
 import { HISTORIAL_MAXIMO } from "@/lib/eos/historial";
 
@@ -13,6 +14,14 @@ type EnviarEOSParams = {
   nuevoChat: boolean;
   archivos?: ArchivoAdjunto[];
   cita?: Cita | null;
+  /**
+   * Desde qué espacio se escribe: Personal o el negocio.
+   *
+   * El servidor no tiene otra forma de saberlo —la sesión no lo dice y la
+   * conversación recién lo guarda desde la v256—, y sin eso el contexto de
+   * cada mensaje lleva las dos cosas juntas. Ver `lib/eos/espacio.ts`.
+   */
+  espacio?: EspacioDelChat;
   /** La etapa en que está el pedido en el servidor ("buscando_web"), mientras se espera. */
   alCambiarFase?: (fase: string | null) => void;
 };
@@ -254,6 +263,9 @@ function enviarAlServidor(params: EnviarEOSParams, requestId: string): Promise<R
        * escribió la persona y vuelve a calcularlo en vez de explicarlo.
        */
       cita:params.cita?.texto ? {texto:params.cita.texto, mensaje_id:params.cita.mensajeId||""} : null,
+      // El espacio desde el que se escribe (v259). Un cliente viejo no lo
+      // manda y el servidor lo trata como "este canal no tiene espacios".
+      ambito:params.espacio ?? null,
       origen:"eos-web"
     })
   });
