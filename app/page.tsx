@@ -981,6 +981,9 @@ export default function Home() {
           gap: 56px;
           align-items: center;
         }
+        .eos-grid > :global(*) {
+          min-width: 0;
+        }
         .eos-eyebrow {
           font-size: 12px;
           font-weight: 700;
@@ -1436,6 +1439,45 @@ export default function Home() {
           .home-page :global(.business-footer) {
             align-items: flex-start;
             flex-direction: column;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .home-page :global(.eos-section) {
+            margin: 0 16px;
+            padding: 44px 22px;
+            border-radius: 24px;
+          }
+          .eos-grid {
+            gap: 34px;
+          }
+          .eos-title {
+            font-size: 32px;
+          }
+          .eos-features {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 26px;
+          }
+          .eos-feat {
+            align-items: flex-start;
+          }
+          .eos-feat .fic {
+            margin-top: 1px;
+          }
+          .eos-ctas {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .eos-ctas :global(.btn) {
+            justify-content: center;
+            width: 100%;
+          }
+          .mock {
+            transform: none;
+          }
+          .eos-grid:hover .mock {
+            transform: none;
           }
         }
       `}</style>
