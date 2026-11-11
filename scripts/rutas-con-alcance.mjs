@@ -98,6 +98,10 @@ const PERMITIDAS = new Map([
     "El cron recorre a todos los usuarios por definición: es lo que hace un cron. Su puerta es `CRON_SECRET`, no una sesión.",
   ],
   [
+    "app/api/cron/push-motivacional/route.ts::dispositivos_push",
+    "Es el diagnóstico (`?diagnostico=1`) de un cron, con `CRON_SECRET` como puerta: cuenta CUÁNTOS teléfonos hay por plataforma para distinguir \"el canal no está configurado\" de \"está configurado y falla\". Solo selecciona la columna `plataforma` y devuelve dos números — ningún token, ningún `usuario_id`, ninguna fila. Acotarlo por persona le quitaría exactamente el sentido: la pregunta es sobre el conjunto.",
+  ],
+  [
     "app/api/crm/equipo/route.ts::usuarios",
     "Lee SOLO el nombre de quienes son miembros de LA empresa de la sesión: los ids salen de `eos_empresa_miembros` filtrada por `empresa_id` (que sale de la sesión, nunca de un parámetro) y se consultan con `.in(\"id\", ids)`. La política de `usuarios` solo deja ver la fila propia, así que sin el cliente de servicio el selector de responsable no podría mostrar a nadie más.",
   ],

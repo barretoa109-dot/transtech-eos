@@ -164,7 +164,12 @@ export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<
 
   try {
     const sesion = connect(`https://${host}`);
-    sesion.on("error", () => {});
+    // El error de sesión hay que escucharlo igual (si no, Node lo convierte en
+    // una excepción no capturada), pero callarlo escondía justo el caso en que
+    // NINGÚN envío sale: la conexión con Apple nunca se llegó a abrir.
+    sesion.on("error", (error) => {
+      console.error(`APNs: error de sesión HTTP/2 contra ${host}:`, error);
+    });
 
     try {
       const resultados = await Promise.all(
@@ -172,11 +177,15 @@ export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<
       );
       const muertos = tokens.filter((_token, indice) => resultados[indice] === "muerto");
       const enviados = resultados.filter((resultado) => resultado === "enviado").length;
+      if (muertos.length > 0) {
+        console.error(`APNs: ${muertos.length} de ${tokens.length} token(s) dados por muertos por Apple.`);
+      }
       return { enviados, fallidos: resultados.length - enviados, muertos };
     } finally {
       sesion.close();
     }
-  } catch {
+  } catch (error) {
+    console.error(`APNs: no se pudo conectar a ${host}:`, error);
     return { enviados: 0, fallidos: tokens.length, muertos: [] };
   }
 }
