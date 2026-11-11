@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 
-import { claveApns, jwtApns, mensajeApns, type ClaveApns } from "./apns.ts";
+import { claveApns, jwtApns, mensajeApns, normalizarClavePem, type ClaveApns } from "./apns.ts";
 
 const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
 const clave: ClaveApns = {
@@ -80,4 +80,51 @@ test("sin las tres variables de APNs no hay clave", () => {
       else process.env[nombre] = valor;
     }
   }
+});
+
+// ------------------------------------------- la clave mal pegada (2026-11-11)
+
+/**
+ * El caso real: la clave estaba cargada en producción, era correcta, y APNs no
+ * mandaba nada porque el panel de entorno le había comido los saltos de línea.
+ * El síntoma era `DECODER routines::unsupported`, que no menciona el pegado.
+ */
+const pemOriginal = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+
+test("una clave con los saltos de línea como `\n` literales vuelve a firmar", () => {
+  const rota = pemOriginal.replace(/\n/g, "\n");
+  assert.ok(rota.includes("\n"), "la clave de prueba tiene que estar rota");
+
+  const firmable: ClaveApns = { ...clave, clavePrivada: normalizarClavePem(rota) };
+  assert.doesNotThrow(() => jwtApns(firmable, 1_700_000_000));
+});
+
+test("una clave aplastada en un solo renglón con espacios vuelve a firmar", () => {
+  const rota = pemOriginal.replace(/\n/g, " ");
+  const firmable: ClaveApns = { ...clave, clavePrivada: normalizarClavePem(rota) };
+  assert.doesNotThrow(() => jwtApns(firmable, 1_700_000_000));
+});
+
+test("una clave entre comillas vuelve a firmar", () => {
+  const rota = `"${pemOriginal.replace(/\n/g, "\n")}"`;
+  const firmable: ClaveApns = { ...clave, clavePrivada: normalizarClavePem(rota) };
+  assert.doesNotThrow(() => jwtApns(firmable, 1_700_000_000));
+});
+
+test("una clave que ya estaba bien no se toca de más", () => {
+  const firmable: ClaveApns = { ...clave, clavePrivada: normalizarClavePem(pemOriginal) };
+  assert.doesNotThrow(() => jwtApns(firmable, 1_700_000_000));
+  // Idempotente: normalizar dos veces da lo mismo que una.
+  assert.equal(normalizarClavePem(normalizarClavePem(pemOriginal)), normalizarClavePem(pemOriginal));
+});
+
+test("preserva la etiqueta del PEM en vez de imponer una fija", () => {
+  const ec = ["-----BEGIN EC PRIVATE KEY-----", "QUJDRA==", "-----END EC PRIVATE KEY-----"].join("\n");
+  assert.match(normalizarClavePem(ec), /-----BEGIN EC PRIVATE KEY-----/);
+  assert.match(normalizarClavePem(ec), /-----END EC PRIVATE KEY-----/);
+});
+
+test("un texto que no es una clave se devuelve igual, sin inventar un PEM", () => {
+  assert.equal(normalizarClavePem("esto no es una clave"), "esto no es una clave");
+  assert.equal(normalizarClavePem(""), "");
 });

@@ -29,17 +29,33 @@ function base64url(entrada: string | Buffer): string {
   return Buffer.from(entrada).toString("base64url");
 }
 
+/**
+ * Por qué no se pudo armar la cuenta de servicio, en una frase.
+ *
+ * "No es válida" tiene tres causas muy distintas y el arreglo de cada una es
+ * otro; decirlas juntas obliga a adivinar. Pura: recibe el texto crudo.
+ */
+export function motivoDeCuentaInvalida(crudo: string | undefined): string | null {
+  if (!crudo || crudo.trim() === "") return "FCM_SERVICE_ACCOUNT_JSON está vacía o no existe";
+
+  let cuenta: Partial<ServiceAccount>;
+  try {
+    cuenta = JSON.parse(crudo) as Partial<ServiceAccount>;
+  } catch {
+    return "FCM_SERVICE_ACCOUNT_JSON no es JSON válido (¿se pegó cortado, o con comillas de más alrededor?)";
+  }
+
+  const faltan = (["project_id", "client_email", "private_key"] as const).filter((campo) => !cuenta[campo]);
+  if (faltan.length > 0) return `al JSON de FCM le faltan estos campos: ${faltan.join(", ")}`;
+
+  return null;
+}
+
 /** La cuenta de servicio, si está configurada y es válida. */
 export function cuentaDeServicio(): ServiceAccount | null {
   const crudo = process.env.FCM_SERVICE_ACCOUNT_JSON;
-  if (!crudo) return null;
-  try {
-    const cuenta = JSON.parse(crudo) as Partial<ServiceAccount>;
-    if (!cuenta.project_id || !cuenta.client_email || !cuenta.private_key) return null;
-    return cuenta as ServiceAccount;
-  } catch {
-    return null;
-  }
+  if (motivoDeCuentaInvalida(crudo) !== null) return null;
+  return JSON.parse(crudo as string) as ServiceAccount;
 }
 
 /** El JWT que se intercambia por un token de acceso de Google. Pura: recibe el instante. */
@@ -115,7 +131,7 @@ export async function enviarFcm(tokens: string[], aviso: AvisoNativo): Promise<R
       muertos: [],
       razones:
         tokens.length > 0
-          ? ["FCM_SERVICE_ACCOUNT_JSON falta, no es JSON válido, o no tiene project_id/client_email/private_key"]
+          ? [motivoDeCuentaInvalida(process.env.FCM_SERVICE_ACCOUNT_JSON) ?? "FCM no quedó configurado"]
           : [],
     };
   }
