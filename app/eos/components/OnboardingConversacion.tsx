@@ -5,10 +5,13 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Columns2,
   Landmark,
   Loader2,
+  PiggyBank,
   Plus,
   ShieldCheck,
+  ShoppingBag,
   Trash2,
 } from "lucide-react";
 
@@ -38,6 +41,7 @@ import { RUBROS } from "@/lib/eos/rubros";
 
 type Paso =
   | "bienvenida"
+  | "rubro"
   | "cuentas"
   | "ingresos"
   | "gastos_fijos"
@@ -46,6 +50,12 @@ type Paso =
   | "correo"
   | "cierre";
 
+/*
+ * El cuestionario de plata personal, en orden. `rubro` NO está acá a
+ * propósito: es la rama del negocio, no un paso del cuestionario — no suma al
+ * "N de 8" ni avanza con `avanzar()`, y por eso tampoco se guarda en el
+ * servidor (recargar en esa pantalla devuelve a la elección, que es correcto).
+ */
 const ORDEN: Paso[] = [
   "bienvenida",
   "cuentas",
@@ -103,6 +113,8 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [rubroElegido, setRubroElegido] = useState<string | null>(null);
+  /** "Las dos cosas": después del rubro sigue el cuestionario, no el chat. */
+  const [tambienPersonal, setTambienPersonal] = useState(false);
 
   const [cuentas, setCuentas] = useState<Cuenta[]>([{ ...CUENTA_VACIA }]);
   const [fijos, setFijos] = useState<Fijo[]>([]);
@@ -329,7 +341,10 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
    * Antes el primer paso era el cuestionario de plata personal y el negocio
    * era un botón secundario. Los datos dicen lo contrario: quienes se quedan
    * usan EOS para su negocio, y 3 de 5 cuentas reales nunca recibieron valor.
-   * El cuestionario sigue intacto, un toque más abajo.
+   * El cuestionario sigue intacto, en su propio camino.
+   *
+   * Con "las dos cosas" el rubro no termina la conversación: sigue el
+   * cuestionario de plata personal, que es lo que esa opción prometió.
    *
    * El rubro va a los metadatos de la cuenta. Si no se pudo guardar, se sigue
    * igual: sin rubro, el chat muestra los ejemplos generales.
@@ -343,6 +358,12 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
       const { error: errorRubro } = await createClient().auth.updateUser({ data: { rubro: clave } });
       if (errorRubro) console.error("Onboarding: no se pudo guardar el rubro:", errorRubro.message);
 
+      if (tambienPersonal) {
+        await marcarPaso("cuentas");
+        setPaso("cuentas");
+        return;
+      }
+
       await marcarPaso("completado");
       onListo?.();
     } catch (e) {
@@ -354,6 +375,13 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
   }
 
   function retroceder() {
+    // Desde los rubros se vuelve a la elección, que es de dónde se llegó:
+    // `rubro` no está en ORDEN y su índice sería -1.
+    if (paso === "rubro") {
+      setPaso("bienvenida");
+      return;
+    }
+
     const indice = ORDEN.indexOf(paso);
     if (indice > 0) setPaso(ORDEN[indice - 1]);
   }
@@ -368,6 +396,8 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
 
   const indice = ORDEN.indexOf(paso);
   const cuentasCiegas = cuentas.filter((c) => c.nombre.trim() && !c.recibe_avisos).length;
+  /** Las dos pantallas de elección no son parte del "N de 8". */
+  const enCuestionario = paso !== "bienvenida" && paso !== "rubro";
 
   return (
     <div className="card fin-card">
@@ -376,16 +406,17 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
           <ShieldCheck size={14} />
           EMPECEMOS
         </span>
-        {/* En la bienvenida no: "1 de 8" le haría creer al dueño de un negocio
-            que le esperan ocho pasos, cuando a él le alcanza con un toque. */}
-        {paso !== "bienvenida" && (
+        {/* En la elección y en los rubros no: "1 de 8" le haría creer al dueño
+            de un negocio que le esperan ocho pasos, cuando a él le alcanza con
+            un toque. */}
+        {enCuestionario && (
           <span className="fin-setup-progreso">
             {indice + 1} de {ORDEN.length}
           </span>
         )}
       </div>
 
-      {paso !== "bienvenida" && (
+      {enCuestionario && (
         <div className="fin-setup-barra">
           <div
             className="fin-setup-barra-fill"
@@ -394,7 +425,89 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
         </div>
       )}
 
+      {/*
+       * Los tres caminos, con el mismo peso.
+       *
+       * Antes el negocio era el camino principal y la plata personal un link
+       * chico abajo. EOS sirve igual a un negocio que a una persona —la plata
+       * de cada ámbito ya vive separada por columna— y dejar uno de los dos
+       * como letra chica escondía la mitad del producto. "Las dos cosas" es el
+       * caso real de quien tiene un negocio Y quiere ordenar lo suyo: empieza
+       * por el rubro y sigue con el cuestionario.
+       */}
       {paso === "bienvenida" && (
+        <>
+          <div className="fin-setup-pregunta">¿Qué querés ordenar?</div>
+          <div className="fin-setup-ayuda">
+            Las tres valen lo mismo. Nunca mezclo tu plata personal con la del negocio, elijas lo
+            que elijas.
+          </div>
+
+          <div className="onb-caminos">
+            <button
+              type="button"
+              className="onb-camino onb-camino-negocio"
+              onClick={() => {
+                setTambienPersonal(false);
+                setPaso("rubro");
+              }}
+              disabled={guardando}
+            >
+              <span className="onb-camino-icono">
+                <ShoppingBag size={18} />
+              </span>
+              <span className="onb-camino-texto">
+                <span className="onb-camino-titulo">Mi negocio</span>
+                <span className="onb-camino-sub">
+                  Elegís el rubro y anotás tu primera venta, con tu stock y tu caja.
+                </span>
+              </span>
+              <ArrowRight size={16} className="onb-camino-flecha" />
+            </button>
+
+            <button
+              type="button"
+              className="onb-camino onb-camino-personal"
+              onClick={() => void avanzar()}
+              disabled={guardando}
+            >
+              <span className="onb-camino-icono">
+                <PiggyBank size={18} />
+              </span>
+              <span className="onb-camino-texto">
+                <span className="onb-camino-titulo">Mi plata personal</span>
+                <span className="onb-camino-sub">
+                  Cuentas, ingresos, gastos fijos y deudas. Una sola vez, sin juzgarte.
+                </span>
+              </span>
+              <ArrowRight size={16} className="onb-camino-flecha" />
+            </button>
+
+            <button
+              type="button"
+              className="onb-camino onb-camino-ambos"
+              onClick={() => {
+                setTambienPersonal(true);
+                setPaso("rubro");
+              }}
+              disabled={guardando}
+            >
+              <span className="onb-camino-icono">
+                <Columns2 size={18} />
+              </span>
+              <span className="onb-camino-texto">
+                <span className="onb-camino-titulo">Las dos cosas</span>
+                <span className="onb-camino-sub">
+                  Empezamos por el negocio y después ordenamos tu plata, por separado.
+                </span>
+              </span>
+              <ArrowRight size={16} className="onb-camino-flecha" />
+            </button>
+          </div>
+        </>
+      )}
+
+      {paso === "rubro" && (
         <>
           <div className="fin-setup-pregunta">¿A qué se dedica tu negocio?</div>
           <div className="fin-setup-ayuda">
@@ -414,10 +527,11 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
               </button>
             ))}
           </div>
-          <div className="fin-setup-ayuda">
-            ¿Preferís ordenar primero tu plata personal? Te hago unas preguntas, una sola vez, y
-            después te aviso si algo necesita tu atención.
-          </div>
+          {tambienPersonal && (
+            <div className="fin-setup-ayuda">
+              Después del rubro seguimos con tu plata personal, como elegiste.
+            </div>
+          )}
         </>
       )}
 
@@ -695,22 +809,19 @@ export default function OnboardingConversacion({ onListo }: { onListo?: () => vo
       {error && <p className="fin-setup-error" role="alert">{error}</p>}
 
       {/*
-       * En la bienvenida el camino principal son los rubros de arriba: acá abajo
-       * queda solo el de la plata personal, como opción secundaria.
+       * En la elección no hay pie: los tres caminos SON las acciones. En los
+       * rubros, solo volver — elegir uno ya avanza.
        */}
-      {paso === "bienvenida" ? (
+      {paso === "bienvenida" ? null : paso === "rubro" ? (
         <div className="fin-setup-acciones">
-          <button type="button" className="fin-toggle" onClick={() => void avanzar()} disabled={guardando}>
-            {guardando && !rubroElegido ? (
-              <Loader2 size={12} className="fin-spin onb-icono" />
-            ) : null}
-            Ordenar mi plata personal
-            <ArrowRight size={12} className="onb-icono onb-icono-der" />
+          <button type="button" className="fin-toggle" onClick={retroceder} disabled={guardando}>
+            <ArrowLeft size={13} />
+            Atrás
           </button>
           {guardando && rubroElegido && (
             <span className="fin-setup-ayuda">
               <Loader2 size={12} className="fin-spin onb-icono" />
-              Preparando tu chat…
+              {tambienPersonal ? "Guardando…" : "Preparando tu chat…"}
             </span>
           )}
         </div>
