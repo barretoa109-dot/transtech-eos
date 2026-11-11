@@ -7239,6 +7239,87 @@
 }
 
 /* ---------------------------------------------------------------
+   Los tres caminos del primer paso: negocio, plata personal, o los
+   dos (10/11/2026).
+
+   Pesan lo mismo a propósito. EOS sirve igual a un negocio que a una
+   persona —la plata de cada ámbito ya vive separada por columna— y
+   tener uno de los dos como link chico abajo escondía la mitad del
+   producto. Cada fila dice qué pasa si la elegís, porque elegir a
+   ciegas entre tres cosas es peor que no elegir.
+   --------------------------------------------------------------- */
+.eos-app .onb-caminos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.eos-app .onb-camino {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 15px 16px;
+  border-radius: 12px;
+  background: var(--panel-suave);
+  border: 1px solid var(--line);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.eos-app .onb-camino:hover:not(:disabled) {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.eos-app .onb-camino:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.eos-app .onb-camino-icono {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.eos-app .onb-camino-negocio .onb-camino-icono {
+  background: var(--blue-solido);
+}
+.eos-app .onb-camino-personal .onb-camino-icono {
+  background: var(--green-texto);
+}
+.eos-app .onb-camino-ambos .onb-camino-icono {
+  background: var(--ink);
+}
+.eos-app .onb-camino-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.eos-app .onb-camino-titulo {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.eos-app .onb-camino-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.eos-app .onb-camino-flecha {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------
    Respuestas con búsqueda web (01/10/2026): citas como números
    tocables y fuentes como tarjetas con vista previa. Ver
    app/eos/components/RespuestaWeb.tsx.
