@@ -20,6 +20,16 @@ import { formatearMonto } from "../finanzas/formato.ts";
 
 export type ContextoNegocio = {
   mes?: string;
+  /*
+   * De qué espacio son estas cifras: "negocio", "personal" o nada.
+   *
+   * Lo devuelve `eos_contexto_del_espacio` (v259) con el ámbito que se le
+   * pidió. Sin esta clave, las cifras vienen de los dos lados juntos: o el
+   * canal no tiene espacios (WhatsApp) o contestó la función vieja porque la
+   * migración todavía no se aplicó. Quien arma el prompt lo mira antes de
+   * decirle al modelo que todo lo que sigue es de un solo espacio.
+   */
+  ambito?: string | null;
   finanzas?: Array<{
     moneda: string;
     ingresos_mes: number;

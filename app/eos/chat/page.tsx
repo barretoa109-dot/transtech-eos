@@ -215,6 +215,9 @@ export default function EOSPage() {
     actualizarTituloSiHaceFalta,
     cargarBriefing,
     alResponder: (id) => void mejorarTitulo(id),
+    // Lo que decide qué datos recibe el modelo en este mensaje (v259): en
+    // "Mi negocio" no viaja la plata de la persona, y al revés.
+    espacio,
   });
 
   async function iniciarEOS() {

@@ -22,6 +22,7 @@
  */
 
 import type { adminSinTipos } from "../supabase/sin-tipos.ts";
+import { espacioDelPedido, type EspacioDelChat } from "./espacio.ts";
 import { HISTORIAL_MAXIMO, enOrdenDeTurno, historialDeLaSesion } from "./historial.ts";
 
 export const TABLA = "eos_mensajes_en_espera_v214";
@@ -63,11 +64,25 @@ export type FilaEnEspera = {
   estado: string;
   intentos: number;
   created_at: string;
+  /**
+   * El espacio desde el que se escribió, guardado igual que `app_nativa`
+   * (v259): el reintento rehace el turno y tiene que armar el mismo contexto.
+   * NULL es "este canal no tiene espacios" o una fila anterior a la v259.
+   */
+  ambito?: string | null;
 };
 
 export async function ponerEnEspera(
   admin: ClienteEnEspera,
-  fila: { usuarioId: string; conversacionId: string; origen: string; mensaje: string; appNativa: boolean; motivo: string },
+  fila: {
+    usuarioId: string;
+    conversacionId: string;
+    origen: string;
+    mensaje: string;
+    appNativa: boolean;
+    motivo: string;
+    espacio?: EspacioDelChat | null;
+  },
 ): Promise<boolean> {
   try {
     const { data, error } = await admin
@@ -79,6 +94,8 @@ export async function ponerEnEspera(
         mensaje: fila.mensaje.slice(0, 4000),
         app_nativa: fila.appNativa,
         motivo: fila.motivo.slice(0, 160),
+        // v259: con qué espacio se arma el contexto cuando se reintente.
+        ambito: fila.espacio ?? null,
       })
       .select("id")
       .single();
@@ -105,6 +122,7 @@ export type Dependencias = {
     appNativa: boolean;
     requestId: string;
     reintentoDe: string;
+    espacio: EspacioDelChat | null;
   }) => Promise<Procesado>;
   /** Manda el texto a la persona por su canal. Devuelve si salió. */
   entregar: (fila: FilaEnEspera, texto: string) => Promise<boolean>;
@@ -151,7 +169,7 @@ export async function reintentarEnEspera(admin: ClienteEnEspera, deps: Dependenc
   try {
     const { data, error } = await admin
       .from(TABLA)
-      .select("id, usuario_id, conversacion_id, origen, mensaje, app_nativa, estado, intentos, created_at")
+      .select("id, usuario_id, conversacion_id, origen, mensaje, app_nativa, estado, intentos, created_at, ambito")
       .in("estado", ["esperando", "procesando"])
       .lte("proximo_intento_at", ahora().toISOString())
       .order("created_at", { ascending: true })
@@ -204,6 +222,10 @@ async function reintentarUna(
     appNativa: fila.app_nativa,
     requestId: deps.idDelIntento(`en-espera:${fila.id}:${intento}`),
     reintentoDe: fila.id,
+    // El mismo espacio que cuando se escribió (v259). Una fila anterior a la
+    // v259, o de un canal sin espacios, vuelve con null: contexto mezclado,
+    // como se contestaba cuando entró.
+    espacio: espacioDelPedido(fila.ambito),
   });
 
   const respuesta = typeof resultado.body.respuesta === "string" ? resultado.body.respuesta : "";
