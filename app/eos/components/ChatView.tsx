@@ -183,6 +183,8 @@ type ChatViewProps = {
   cuentaNueva?: boolean;
   /** El rubro que eligió al empezar, si eligió (`lib/eos/rubros.ts`). */
   rubro?: string | null;
+  /** Ya se sabe quién es: hasta entonces no hay nombre que saludar. */
+  usuarioCargado?: boolean;
 };
 
 export default function ChatView({
@@ -204,6 +206,7 @@ export default function ChatView({
   onCitaChange,
   cuentaNueva = false,
   rubro = null,
+  usuarioCargado = true,
 }: ChatViewProps) {
   const started = historial.length > 0;
   const [focused, setFocused] = useState(false);
@@ -327,7 +330,21 @@ export default function ChatView({
 
   return (
     <div className="view" id="view-chat" style={{ display: "flex", flexDirection: "column" }}>
-      {!started && (
+      {!started && !usuarioCargado && (
+        /*
+         * Todavía no se sabe quién es. Antes acá se dibujaba el saludo con un
+         * nombre de relleno ("Buenas tardes, Usuario") y al llegar el real
+         * cambiaba a la vista. Mejor esperar: el bloque entra una sola vez,
+         * ya con el nombre del cliente y con su animación de entrada.
+         */
+        <div className="hero-wrap">
+          <div className="neg-loading" role="status">
+            <span /> Cargando…
+          </div>
+        </div>
+      )}
+
+      {!started && usuarioCargado && (
         <div className="hero-wrap">
           <div className="greet-stage">
             <div className="greet">

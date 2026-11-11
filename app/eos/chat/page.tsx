@@ -145,7 +145,13 @@ const DESTINO_DE_NEGOCIO: Record<SeccionNegocio, Destino> = {
 };
 
 export default function EOSPage() {
-  const [nombre, setNombre] = useState("Usuario");
+  /*
+   * Vacío, no "Usuario": el nombre real llega recién después de `iniciarEOS`
+   * (una consulta a Supabase). Con un marcador acá, al abrir la app se leía
+   * "Buenas tardes, Usuario" y recién después saltaba al nombre del cliente.
+   * Mientras está vacío, las pantallas no muestran ningún nombre en su lugar.
+   */
+  const [nombre, setNombre] = useState("");
   // El rubro que eligió al empezar: da ejemplos suyos en el chat vacío.
   const [rubro, setRubro] = useState<string | null>(null);
   const [plan, setPlan] = useState("free");
@@ -563,7 +569,8 @@ export default function EOSPage() {
         <TopBar
           tema={tema}
           pantalla={nombreDeDestino(destino, espacio)}
-          espacio={{ nombre: nombreEspacio, tipo: espacio }}
+          /* Sin nombre todavía no hay chapita: diría "Personal" en vez del cliente. */
+          espacio={usuarioCargado ? { nombre: nombreEspacio, tipo: espacio } : undefined}
           onAbrirEspacios={() => {
             setMenuMovilAbierto(true);
             setSelectorAbierto(true);
@@ -590,6 +597,7 @@ export default function EOSPage() {
             onRegenerar={regenerarRespuesta}
             cuentaNueva={conversaciones.length > 0 && conversaciones.every(tieneTituloPorDefecto)}
             rubro={rubro}
+            usuarioCargado={usuarioCargado}
           />
         )}
 
