@@ -3214,14 +3214,23 @@
   }
   /*
     En el teléfono, el saludo y las tarjetas no llenan la pantalla, y
-    `.hero-wrap` los centra a los tres (saludo, tarjetas, compositor) como un
-    solo bloque: con poco contenido, eso deja el compositor flotando a mitad
-    de pantalla, con un hueco vacío abajo en vez de uno arriba.
+    `.hero-wrap` los centra a los cuatro (saludo, pregunta, tarjetas y
+    compositor) como un solo bloque: con poco contenido, eso deja el
+    compositor flotando a mitad de pantalla, con un hueco vacío abajo.
 
-    El margen automático empuja SOLO al compositor hasta el fondo —el saludo
-    y las tarjetas quedan arriba, donde ya estaban— sin tocar el centrado del
-    escritorio, que tiene lugar de sobra.
+    Un solo margen automático en el compositor lo arregla a medias: se lleva
+    TODO el sobrante, así que el compositor baja pero el saludo y las
+    tarjetas quedan pegados arriba, con un hueco enorme en el medio.
+
+    Con los dos márgenes, el sobrante se reparte en partes iguales: el
+    compositor queda abajo del todo y el saludo con las tarjetas queda
+    centrado en lo que sobra. Si el contenido llena la pantalla los dos
+    márgenes valen cero y todo vuelve a empezar arriba. El escritorio no se
+    toca: ahí sigue mandando `justify-content`.
   */
+  .eos-app .greet-stage {
+    margin-top: auto;
+  }
   .eos-app .composer-wrap {
     margin-top: auto;
   }
