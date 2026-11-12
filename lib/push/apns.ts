@@ -68,12 +68,19 @@ export function normalizarClavePem(valor: string): string {
   // `\n` y `\r\n` escritos como texto, no como salto real.
   texto = texto.replace(/\\r\\n|\\r|\\n/g, "\n");
 
-  // Sin la marca `BEGIN` no hay nada que reconstruir: podría ser cualquier
-  // texto, y envolverlo en un PEM inventado convierte un error claro ("esto no
-  // es una clave") en uno incomprensible. Las tres formas de pegado roto que
-  // importan conservan la marca; es lo que se pierde alrededor.
+  // Sin la marca `BEGIN`, la primera versión de esto devolvía el texto tal
+  // cual: envolver cualquier cosa en un PEM inventado convierte un error
+  // claro ("esto no es una clave") en uno incomprensible.
+  //
+  // Pero el 2026-11-11 lo que había guardado en producción era exactamente
+  // eso: las 200 letras del cuerpo, en cuatro líneas, SIN encabezado ni
+  // cierre. La clave estaba entera; se habían perdido las dos líneas de los
+  // extremos. Así que sí se envuelve —pero solo cuando se puede comprobar que
+  // es una clave de verdad, no cuando lo parece: el cuerpo tiene que ser
+  // base64 y lo que decodifica tiene que empezar con 0x30, la marca de
+  // SEQUENCE con la que arranca todo DER de PKCS#8.
   const etiqueta = /-----BEGIN ([A-Z0-9 ]+?)-----/.exec(texto)?.[1];
-  if (!etiqueta) return texto;
+  if (!etiqueta) return pareceDerPkcs8(texto) ? envolverPem("PRIVATE KEY", texto) : texto;
 
   const cuerpo = texto
     .replace(/-----BEGIN [A-Z0-9 ]+?-----/g, "")
@@ -84,8 +91,34 @@ export function normalizarClavePem(valor: string): string {
   // preferible el error original de OpenSSL a una reconstrucción inventada.
   if (cuerpo === "" || /[^A-Za-z0-9+/=]/.test(cuerpo)) return texto;
 
+  return envolverPem(etiqueta, cuerpo);
+}
+
+/** El PEM canónico: encabezado, cuerpo en líneas de 64, cierre. */
+function envolverPem(etiqueta: string, cuerpoCrudo: string): string {
+  const cuerpo = cuerpoCrudo.replace(/\s+/g, "");
   const lineas = cuerpo.match(/.{1,64}/g) ?? [];
   return `-----BEGIN ${etiqueta}-----\n${lineas.join("\n")}\n-----END ${etiqueta}-----\n`;
+}
+
+/**
+ * ¿Este texto suelto es el cuerpo de una clave PKCS#8, sin sus extremos?
+ *
+ * Dos condiciones, las dos necesarias: que sea base64 limpio y que lo que
+ * decodifica empiece con `0x30` (SEQUENCE) y tenga un largo plausible. Un
+ * texto cualquiera pasa la primera —las letras son base64 válido— pero no la
+ * segunda, que es la que evita fabricar un PEM a partir de una frase.
+ */
+function pareceDerPkcs8(texto: string): boolean {
+  const cuerpo = texto.replace(/\s+/g, "");
+  if (cuerpo.length < 64 || /[^A-Za-z0-9+/=]/.test(cuerpo)) return false;
+
+  try {
+    const der = Buffer.from(cuerpo, "base64");
+    return der.length >= 48 && der[0] === 0x30;
+  } catch {
+    return false;
+  }
 }
 
 /** La clave de APNs, si las tres variables están cargadas. */
