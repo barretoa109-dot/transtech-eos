@@ -67,6 +67,37 @@ async function diagnostico() {
     error_leyendo_dispositivos: error ? String((error as { message?: string }).message ?? error) : null,
     forma_clave_apns: formaDeLaClave(process.env.APNS_CLAVE_PRIVADA),
     forma_json_fcm: formaDelJson(process.env.FCM_SERVICE_ACCOUNT_JSON),
+    identificadores_apns: identificadoresApns(),
+  };
+}
+
+/**
+ * El Team ID y el Key ID tal cual están guardados.
+ *
+ * No son secretos: son identificadores. El Team ID viaja dentro de cada
+ * perfil de aprovisionamiento de la app, y el Key ID nombra una clave sin
+ * decir nada de su contenido; el secreto es el `.p8`, que este endpoint no
+ * devuelve nunca. Hacen falta a la vista porque cuando Apple contesta
+ * `InvalidProviderToken` —como el 2026-11-11— el problema es justamente que
+ * alguno de los dos no se corresponde con la clave, y compararlos contra el
+ * portal de Apple es la única forma de saber cuál.
+ *
+ * En Apple los dos son exactamente diez caracteres alfanuméricos: cuando no
+ * lo son, el error está ahí y no hace falta ir a mirar a ningún lado.
+ */
+function identificadoresApns() {
+  const team = process.env.APNS_TEAM_ID ?? "";
+  const key = process.env.APNS_KEY_ID ?? "";
+  const bienFormado = (valor: string) => /^[A-Z0-9]{10}$/.test(valor.trim());
+
+  return {
+    team_id: team.trim(),
+    key_id: key.trim(),
+    team_id_bien_formado: bienFormado(team),
+    key_id_bien_formado: bienFormado(key),
+    // Un espacio o un salto invisible al final es un clásico del copiar y pegar.
+    team_id_tenia_espacios: team !== team.trim(),
+    key_id_tenia_espacios: key !== key.trim(),
   };
 }
 
