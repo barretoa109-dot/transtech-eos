@@ -491,13 +491,19 @@ export default function Sidebar({
       ) : null}
 
       <div className="side-bottom">
-        <button type="button" className="profile-row" onClick={() => onDestino("perfil")}>
-          <div className="avatar">{iniciales}</div>
-          <div>
-            <div className="pname">{nombre || "Usuario"}</div>
-            <div className="plan">Plan {planFormateado}</div>
-          </div>
-        </button>
+        {/*
+          Sin nombre todavía (recién se abre la app) no se dibuja nada: antes
+          decía "Usuario" y después saltaba al nombre real del cliente.
+        */}
+        {nombre.trim() ? (
+          <button type="button" className="profile-row" onClick={() => onDestino("perfil")}>
+            <div className="avatar">{iniciales}</div>
+            <div>
+              <div className="pname">{nombre}</div>
+              <div className="plan">Plan {planFormateado}</div>
+            </div>
+          </button>
+        ) : null}
       </div>
     </>
   );

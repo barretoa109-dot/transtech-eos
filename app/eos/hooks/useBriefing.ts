@@ -116,7 +116,7 @@ export function useBriefing(nombre: string) {
 
     return {
       ...current,
-      saludo: current.saludo || `Hola ${nombre}.`,
+      saludo: current.saludo || (nombre.trim() ? `Hola ${nombre}.` : "Hola."),
       titulo_dia: current.titulo_dia || "Tu foco para hoy",
       resumen:
         current.resumen ||
