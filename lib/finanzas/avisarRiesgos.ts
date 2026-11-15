@@ -4,6 +4,7 @@ import { codigoMoneda } from "./monedas.ts";
 import { detectarRiesgo, redactarAviso } from "./riesgo.ts";
 import { convieneAvisar, TITULO_AVISO } from "./avisos.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
+import { avisarNativo } from "../push/nativo.ts";
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
 import { hoyEnParaguay } from "../fecha.ts";
@@ -435,6 +436,8 @@ async function entregarPorCanal(
   texto: string,
   enviarCorreo?: EnviarCorreo,
 ): Promise<boolean> {
+  let llegoPorPush = false;
+
   if (pushConfigurado()) {
     const { data } = await admin
       .from("eos_push_suscripciones")
@@ -462,9 +465,22 @@ async function entregarPorCanal(
           .in("id", resultado.muertas);
       }
 
-      if (resultado.enviados > 0) return true;
+      if (resultado.enviados > 0) llegoPorPush = true;
     }
   }
+
+  // La app del teléfono (iPhone por APNs, Android por FCM). Hasta el
+  // 2026-11-15 estos avisos solo salían por push web, que casi nadie tiene
+  // activado desde que se sacó su pantalla: quien usaba la app se enteraba por
+  // correo, horas después, de algo que tenía fecha. Sin configuración no hace nada.
+  const nativo = await avisarNativo(admin, usuarioId, {
+    titulo: TITULO_AVISO,
+    cuerpo: resumirParaPush(texto, 160),
+    url: "/eos/chat",
+  });
+  if (nativo.enviados > 0) llegoPorPush = true;
+
+  if (llegoPorPush) return true;
 
   if (!enviarCorreo) return false;
 

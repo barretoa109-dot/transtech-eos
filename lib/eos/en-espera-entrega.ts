@@ -14,6 +14,8 @@
 
 import { enviarTexto } from "../whatsapp/enviar.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
+import { avisarNativo } from "../push/nativo.ts";
+import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import type { ClienteEnEspera, FilaEnEspera } from "./en-espera.ts";
 
 export function entregaEnEspera(admin: ClienteEnEspera) {
@@ -63,6 +65,15 @@ export function entregaEnEspera(admin: ClienteEnEspera) {
         if (resultado.enviados > 0) llego = true;
       }
     }
+
+    // La app del teléfono: quien preguntó desde ahí y cerró la app se entera
+    // de que EOS ya contestó. Sin FCM ni APNs configurados no hace nada.
+    const nativo = await avisarNativo(admin as unknown as ClienteSinTipos, fila.usuario_id, {
+      titulo: "EOS ya te respondió",
+      cuerpo: resumirParaPush(texto, 160),
+      url: "/eos/chat",
+    });
+    if (nativo.enviados > 0) llego = true;
 
     return llego;
   };
