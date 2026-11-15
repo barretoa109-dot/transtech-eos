@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 
+import {
+  cambioDePreferencia,
+  esClaveDeNotificacion,
+  leerPreferencias,
+  type FilaDePreferencias,
+} from "@/lib/push/preferencias";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 /**
- * El interruptor del push motivacional (hasta 3 veces al día).
+ * Qué notificaciones recibe la persona en la app, una por una (v260).
  *
- * Misma tabla que los demás avisos —`eos_followup_preferences`— para que la
- * persona no tenga un lugar nuevo donde apagar algo. Sin fila, o sin dato, es
- * "sí": arranca encendido (decisión del dueño, 2026-11-10).
+ * Misma tabla que los demás avisos —`eos_followup_preferences`— para que no
+ * haya un lugar nuevo donde apagar algo. Sin fila, o sin dato, es "sí": todo
+ * arranca encendido (decisión del dueño, 2026-11-10).
+ *
+ * Qué interruptores hay y qué columna toca cada uno está en
+ * `lib/push/preferencias.ts`, que es lo mismo que leen los envíos.
  */
 
 function noStore() {
@@ -27,21 +36,21 @@ export async function GET() {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
+  // `*` y no la lista de columnas: si la migración v260 todavía no corrió, una
+  // columna nombrada que no existe hace fallar la lectura entera, y la pantalla
+  // quedaría en blanco en vez de mostrar todo encendido.
   const { data, error } = await supabase
     .from("eos_followup_preferences")
-    .select("avisos_motivacionales_push")
+    .select("*")
     .eq("usuario_id", user.id)
     .maybeSingle();
 
   if (error) {
-    console.error("Push: no se pudo leer la preferencia de motivacionales:", error);
-    return NextResponse.json({ error: "No pudimos cargar tu preferencia." }, { status: 503, headers: noStore() });
+    console.error("Push: no se pudieron leer las preferencias de notificaciones:", error);
+    return NextResponse.json({ error: "No pudimos cargar tus preferencias." }, { status: 503, headers: noStore() });
   }
 
-  return NextResponse.json(
-    { avisos_motivacionales_push: data?.avisos_motivacionales_push ?? true },
-    { headers: noStore() },
-  );
+  return NextResponse.json(leerPreferencias(data as FilaDePreferencias), { headers: noStore() });
 }
 
 export async function PUT(request: Request) {
@@ -55,40 +64,46 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Sesión no válida." }, { status: 401, headers: noStore() });
   }
 
-  let cuerpo: { avisos_motivacionales_push?: unknown };
+  let cuerpo: { clave?: unknown; valor?: unknown };
   try {
     cuerpo = await request.json();
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
 
-  if (typeof cuerpo.avisos_motivacionales_push !== "boolean") {
+  if (!esClaveDeNotificacion(cuerpo.clave) || typeof cuerpo.valor !== "boolean") {
     return NextResponse.json(
-      { error: "avisos_motivacionales_push debe ser verdadero o falso." },
+      { error: "Hace falta `clave` (una notificación conocida) y `valor` (verdadero o falso)." },
       { status: 400, headers: noStore() },
     );
   }
 
-  // upsert y no update: la mayoría todavía no tiene fila, y apagar el aviso no
+  const { data: actual, error: errorLectura } = await supabase
+    .from("eos_followup_preferences")
+    .select("*")
+    .eq("usuario_id", user.id)
+    .maybeSingle();
+
+  if (errorLectura) {
+    console.error("Push: no se pudieron leer las preferencias antes de guardar:", errorLectura);
+    return NextResponse.json({ error: "No pudimos guardar tu preferencia." }, { status: 503, headers: noStore() });
+  }
+
+  const cambio = cambioDePreferencia(actual as FilaDePreferencias, cuerpo.clave, cuerpo.valor);
+
+  // upsert y no update: la mayoría todavía no tiene fila, y apagar un aviso no
   // debería depender de que alguien la haya creado antes.
   const { error } = await supabase
     .from("eos_followup_preferences")
-    .upsert(
-      {
-        usuario_id: user.id,
-        avisos_motivacionales_push: cuerpo.avisos_motivacionales_push,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "usuario_id" },
-    );
+    .upsert({ usuario_id: user.id, ...cambio, updated_at: new Date().toISOString() }, { onConflict: "usuario_id" });
 
   if (error) {
-    console.error("Push: no se pudo guardar la preferencia de motivacionales:", error);
+    console.error("Push: no se pudo guardar la preferencia de notificaciones:", error);
     return NextResponse.json({ error: "No pudimos guardar tu preferencia." }, { status: 503, headers: noStore() });
   }
 
   return NextResponse.json(
-    { ok: true, avisos_motivacionales_push: cuerpo.avisos_motivacionales_push },
+    { ok: true, ...leerPreferencias({ ...(actual as Record<string, boolean> | null), ...cambio }) },
     { headers: noStore() },
   );
 }
