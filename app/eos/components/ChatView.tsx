@@ -12,7 +12,7 @@ import type { Cita } from "@/lib/eos/cita";
 import { useDictado, type Dictado } from "./useDictado";
 import { compartirRecibidoNativo, estaEnAppNativa } from "@/lib/app-nativa/cliente";
 import { archivoDesdeCompartido } from "@/lib/app-nativa/compartido";
-import { activarPushNativo } from "@/lib/push/cliente";
+import { activarPushNativo, escucharToquesDePush } from "@/lib/push/cliente";
 import { comienzo, rubroDe } from "@/lib/eos/rubros";
 
 type PromptCard = {
@@ -266,6 +266,10 @@ export default function ChatView({
    * El permiso de notificaciones se pide después del primer momento de valor:
    * cuando EOS ya respondió algo a un mensaje de la persona, no al abrir la app.
    */
+  useEffect(() => {
+    escucharToquesDePush();
+  }, []);
+
   useEffect(() => {
     if (!estaEnAppNativa()) return;
     const hayMensajeDeLaPersona = historial.some((m) => m.rol === "usuario");

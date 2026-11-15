@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { enviarMotivacionalesPush } from "./motivacionales.ts";
+import { avisoDeObjetivo, CONSEJOS_PUSH, enviarMotivacionalesPush } from "./motivacionales.ts";
 
 const HOY = "2026-11-10";
 const VIEJA = "2026-01-01T00:00:00Z";
@@ -14,9 +14,9 @@ function admin(opciones: {
   reclamados?: { usuario_id: string; fecha: string; franja: string }[];
   creadaEn?: Record<string, string>;
   sinAccionDesde?: Record<string, string | null>;
-  registro?: { insertados: unknown[] };
+  registro?: { insertados: unknown[]; devueltos?: number };
 }) {
-  const registro = opciones.registro ?? { insertados: [] };
+  const registro: { insertados: unknown[]; devueltos?: number } = opciones.registro ?? { insertados: [] };
   const reclamados = opciones.reclamados ?? [];
 
   return {
@@ -25,6 +25,10 @@ function admin(opciones: {
       let uid = "";
 
       for (const m of ["select", "not", "or", "limit", "order", "neq"]) cadena[m] = () => cadena;
+      cadena.delete = () => {
+        registro.devueltos = (registro.devueltos ?? 0) + 1;
+        return cadena;
+      };
       cadena.eq = (col: string, valor: string) => {
         if (col === "usuario_id" || col === "id") uid = valor;
         return cadena;
@@ -189,4 +193,56 @@ test("noche: el mismo día siempre da el mismo mensaje del pool", async () => {
 
   assert.equal(vistos[0], vistos[1]);
   assert.equal(vistos[1], vistos[2]);
+});
+
+test("si el servicio de push lo rechaza, se cuenta como fallido, se dice por qué y se devuelve el reclamo", async () => {
+  const registro = { insertados: [] as unknown[], devueltos: 0 };
+
+  const r = await enviarMotivacionalesPush(
+    admin({ dispositivos: ["u1", "u2"], registro }) as never,
+    "manana",
+    {
+      hoy: HOY,
+      enviar: async () => ({
+        enviados: 0,
+        fallidos: 2,
+        razones: ["HTTP 403 InvalidProviderToken · ...2F0FD6", "HTTP 403 InvalidProviderToken · ...153E82"],
+      }),
+    },
+  );
+
+  assert.equal(r.enviados, 0);
+  assert.equal(r.fallidos, 2);
+  assert.equal(r.sin_dispositivo, 0);
+  // Dos personas, cuatro rechazos, una sola razón: la misma, sin el token.
+  assert.deepEqual(r.razones, ["HTTP 403 InvalidProviderToken"]);
+  assert.equal(registro.devueltos, 2);
+});
+
+test("sin fallos y sin envíos, es que no había a dónde mandar", async () => {
+  const r = await enviarMotivacionalesPush(
+    admin({ dispositivos: ["u1"] }) as never,
+    "noche",
+    { hoy: HOY, enviar: async () => ({ enviados: 0, fallidos: 0, razones: ["esta cuenta no tiene ningún dispositivo registrado"] }) },
+  );
+
+  assert.equal(r.sin_dispositivo, 1);
+  assert.equal(r.fallidos, 0);
+});
+
+test("todo texto de la mañana entra entero en una notificación", () => {
+  const largo = "Juntar para la camioneta nueva del reparto antes de que termine el año que viene sin falta";
+  const avisos = [
+    ...CONSEJOS_PUSH,
+    ...["cumplido", "atrasado", "en_ritmo", "vencido", "sin_fecha", "otro"].map((estado) =>
+      avisoDeObjetivo({ estado, titulo: largo, progreso: 100 }),
+    ),
+  ];
+
+  for (const aviso of avisos) {
+    assert.ok(aviso.titulo.length <= 45, `título largo: ${aviso.titulo}`);
+    assert.ok(aviso.cuerpo.length <= 150, `cuerpo largo (${aviso.cuerpo.length}): ${aviso.cuerpo}`);
+    // Se lee con el teléfono bloqueado: nunca un monto.
+    assert.doesNotMatch(aviso.cuerpo, /Gs\.|₲|USD|\$/);
+  }
 });
