@@ -1,5 +1,6 @@
 import { hoyEnParaguay } from "../fecha.ts";
-import { objetivoPrincipal, lineaDeObjetivo, lineaDeConsejoFinanciero } from "../email/consejoDeObjetivo.ts";
+import { objetivoPrincipal } from "../email/consejoDeObjetivo.ts";
+import type { EstadoObjetivo } from "../finanzas/objetivos.ts";
 import { avisarNativo } from "./nativo.ts";
 import { resumirParaPush } from "./enviar.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
@@ -8,9 +9,12 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
  * Push motivacional nativo, hasta 3 veces por día ("franjas").
  *
  * Convive con el correo de cada 3 días (`lib/email/motivacionales.ts`), no lo
- * reemplaza — decisión del dueño, 2026-11-10. Reutiliza su misma fuente de
- * contenido (`consejoDeObjetivo.ts`) para la franja de la mañana en vez de
- * inventar un segundo texto para la misma pregunta ("¿cómo va mi objetivo?").
+ * reemplaza — decisión del dueño, 2026-11-10. Lee el MISMO objetivo que el
+ * correo (`objetivoPrincipal`), pero no reutiliza sus frases: las del correo
+ * tienen 180 caracteres y montos, y un push se lee en dos renglones de una
+ * pantalla bloqueada. Recortadas a 160 quedaban cortadas a la mitad, con "…"
+ * justo donde estaba lo importante. Acá cada texto está escrito para entrar
+ * entero, y sin montos: lo que se ve con el teléfono bloqueado lo ve cualquiera.
  *
  * Solo llega a la app nativa (`avisarNativo`): no hay pantalla de suscripción
  * al push web desde el 2026-08-25, y reconstruirla es otro trabajo (ver
@@ -43,14 +47,68 @@ function diaDesdeEpoca(hoy: string): number {
   return Math.floor(Date.UTC(anio, mes - 1, dia) / 86_400_000);
 }
 
+function rotar<T>(lista: T[], dia: number): T {
+  return lista[((dia % lista.length) + lista.length) % lista.length];
+}
+
+/** El título de un objetivo, corto: lo escribió la persona y puede ser un párrafo. */
+function nombreCorto(titulo: string): string {
+  const limpio = titulo.trim().replace(/\s+/g, " ");
+  return limpio.length <= 40 ? limpio : `${limpio.slice(0, 39).trimEnd()}…`;
+}
+
+/** Cómo va el objetivo, en el tamaño de una notificación. Sin montos. Pura. */
+export function avisoDeObjetivo(e: Pick<EstadoObjetivo, "titulo" | "progreso"> & { estado: string }): AvisoMotivacional {
+  const nombre = nombreCorto(e.titulo);
+
+  switch (e.estado) {
+    case "cumplido":
+      return { titulo: "Llegaste a tu objetivo", cuerpo: `Cumpliste "${nombre}". Buen momento para ponerte una meta nueva.` };
+    case "atrasado":
+      return {
+        titulo: "Tu objetivo necesita un empujón",
+        cuerpo: `Vas al ${e.progreso}% de "${nombre}" y el ritmo se atrasó. Abrí EOS y vemos cómo ajustarlo.`,
+      };
+    case "en_ritmo":
+      return { titulo: "Vas en ritmo", cuerpo: `Vas al ${e.progreso}% de "${nombre}". Seguí así y llegás a tiempo.` };
+    case "vencido":
+      return {
+        titulo: "Tu objetivo llegó a su fecha",
+        cuerpo: `"${nombre}" quedó en ${e.progreso}%. Lo ahorrado no se pierde: pongámosle una fecha nueva.`,
+      };
+    case "sin_fecha":
+      return { titulo: "Ponele fecha a tu meta", cuerpo: `Llevás ${e.progreso}% de "${nombre}". Con una fecha pasa de idea a plan.` };
+    default:
+      return { titulo: "Así va tu objetivo", cuerpo: `Vas al ${e.progreso}% de "${nombre}".` };
+  }
+}
+
+/**
+ * Consejos de la mañana para quien todavía no tiene un objetivo con plata.
+ *
+ * El título ES el consejo; el cuerpo, el porqué en una frase. Así se entiende
+ * aunque la persona lea solo la primera línea, que es lo que pasa casi siempre.
+ */
+export const CONSEJOS_PUSH: AvisoMotivacional[] = [
+  { titulo: "Separá el 10% apenas entra la plata", cuerpo: "Apartalo antes de gastar nada. En un año es un mes entero de respaldo." },
+  { titulo: "Antes de una compra grande, 48 horas", cuerpo: "Si en dos días sigue pareciendo necesaria, probablemente lo sea. Si no, te ahorraste esa plata." },
+  { titulo: "¿Qué deuda pagar primero?", cuerpo: "La de interés más alto, no la más chica. Es la que más te cuesta cada mes." },
+  { titulo: "Un mes de gastos guardado", cuerpo: "Ese fondo, aunque lo armes de a poco, separa un imprevisto de una crisis." },
+  { titulo: "¿En qué se te va la plata?", cuerpo: "Es la primera pregunta que conviene contestar. Preguntale a EOS y te lo muestra." },
+  { titulo: "Renegociá antes de buscar más ingresos", cuerpo: "Bajar una tasa o una cuota es plata que no tenés que volver a ganar cada mes." },
+  { titulo: "Cobrar también es vender", cuerpo: "Revisá quién te debe esta semana. Preguntale a EOS qué cobros tenés pendientes." },
+  { titulo: "Tu plata y la del negocio, separadas", cuerpo: "Mezclarlas esconde cuánto gana de verdad el negocio. EOS las lleva por separado." },
+  { titulo: "Una meta con fecha es un plan", cuerpo: "Decile a EOS cuánto querés juntar y para cuándo, y te va contando cómo venís." },
+  { titulo: "Lo chico también suma", cuerpo: "Los gastos de todos los días son los que más se escapan. Anotalos con una frase y aparecen solos." },
+];
+
 /**
  * Franja "mañana": cómo va el objetivo financiero principal, o un consejo si
- * todavía no tiene uno — igual que el correo, mismo motor.
+ * todavía no tiene uno.
  */
 async function contenidoManana(admin: ClienteSinTipos, usuarioId: string, hoy: string, dia: number): Promise<AvisoMotivacional> {
   const estado = await objetivoPrincipal(admin, usuarioId, hoy);
-  const cuerpo = estado ? lineaDeObjetivo(estado) : lineaDeConsejoFinanciero(dia);
-  return { titulo: "Arrancá el día con un número claro", cuerpo };
+  return estado ? avisoDeObjetivo(estado) : rotar(CONSEJOS_PUSH, dia);
 }
 
 type FilaUltimaAccion = { created_at: string };
@@ -125,11 +183,26 @@ const CIERRES_NOCHE: AvisoMotivacional[] = [
     titulo: "Lo que ya hiciste hoy",
     cuerpo: "Cada venta cargada y cada gasto anotado ya es camino recorrido. Date un momento para verlo antes de cerrar el día.",
   },
+  {
+    titulo: "¿Cómo te fue hoy?",
+    cuerpo: "Contámelo en una frase y lo dejo anotado. Mañana arrancás sabiendo dónde estás parado.",
+  },
+  {
+    titulo: "Mañana se decide mejor con lo de hoy",
+    cuerpo: "Lo que vendiste y lo que gastaste hoy es lo que mañana te dice si vas bien. Dejalo anotado.",
+  },
+  {
+    titulo: "Dos minutos y cerrás",
+    cuerpo: "¿Quedó algún cobro por hacer o un pago por recordar? Decímelo y te lo recuerdo yo.",
+  },
+  {
+    titulo: "No te lleves pendientes a la cama",
+    cuerpo: "Lo que te ronda la cabeza, dejámelo a mí. Anotalo en EOS y mañana lo retomamos.",
+  },
 ];
 
 function contenidoNoche(dia: number): AvisoMotivacional {
-  const indice = ((dia % CIERRES_NOCHE.length) + CIERRES_NOCHE.length) % CIERRES_NOCHE.length;
-  return CIERRES_NOCHE[indice];
+  return rotar(CIERRES_NOCHE, dia);
 }
 
 async function contenidoDeFranja(
@@ -150,9 +223,27 @@ export type ResumenMotivacionalesPush = {
   evaluados: number;
   enviados: number;
   sin_dispositivo: number;
+  /** Tenía teléfono y el servicio de push lo rechazó. Distinto de no tener dónde mandar. */
+  fallidos: number;
   apagados: number;
   con_error: number;
+  /**
+   * Por qué fallaron los que fallaron, sin repetir y sin tokens.
+   *
+   * Del 10 al 15 de noviembre de 2026 este resumen dijo "enviados: 0,
+   * sin_dispositivo: 2" tres veces por día, en verde, mientras Apple
+   * rechazaba la credencial (`InvalidProviderToken`). La razón existía, pero
+   * se quedaba en `avisarNativo` y nunca llegaba a quien mira la corrida.
+   */
+  razones: string[];
 };
+
+const MAX_RAZONES = 6;
+
+/** Le saca a la razón la cola del token (" · ...A1B2C3") para que dos teléfonos con el mismo fallo cuenten una vez. */
+function razonSinToken(razon: string): string {
+  return razon.replace(/ · \.\.\.[0-9A-Za-z_-]{1,8}/g, "").trim();
+}
 
 /** Quién tiene al menos un dispositivo nativo registrado: sin eso, no hay a quién mandarle nada. */
 async function candidatos(admin: ClienteSinTipos): Promise<string[] | null> {
@@ -167,7 +258,11 @@ async function candidatos(admin: ClienteSinTipos): Promise<string[] | null> {
   return [...ids].slice(0, MAX_USUARIOS);
 }
 
-type Enviar = (admin: ClienteSinTipos, usuarioId: string, aviso: AvisoMotivacional) => Promise<{ enviados: number }>;
+type Enviar = (
+  admin: ClienteSinTipos,
+  usuarioId: string,
+  aviso: AvisoMotivacional,
+) => Promise<{ enviados: number; fallidos?: number; razones?: string[] }>;
 
 async function enviarDeVerdad(admin: ClienteSinTipos, usuarioId: string, aviso: AvisoMotivacional) {
   return avisarNativo(admin, usuarioId, {
@@ -191,8 +286,10 @@ export async function enviarMotivacionalesPush(
     evaluados: 0,
     enviados: 0,
     sin_dispositivo: 0,
+    fallidos: 0,
     apagados: 0,
     con_error: 0,
+    razones: [],
   };
 
   const ids = await candidatos(admin);
@@ -238,8 +335,25 @@ export async function enviarMotivacionalesPush(
 
       if (resultado.enviados > 0) {
         resumen.enviados += 1;
+        continue;
+      }
+
+      // No llegó a ningún teléfono: se devuelve el reclamo. Si queda tomado,
+      // arreglar la configuración a media tarde no alcanza para que la franja
+      // de hoy salga — habría que esperar a mañana para saber si anduvo.
+      await admin.from(TABLA).delete().eq("usuario_id", uid).eq("fecha", hoy).eq("franja", franja);
+
+      if ((resultado.fallidos ?? 0) > 0) {
+        resumen.fallidos += 1;
       } else {
         resumen.sin_dispositivo += 1;
+      }
+
+      for (const razon of resultado.razones ?? []) {
+        const limpia = razonSinToken(razon);
+        if (limpia && !resumen.razones.includes(limpia) && resumen.razones.length < MAX_RAZONES) {
+          resumen.razones.push(limpia);
+        }
       }
     } catch (error) {
       resumen.con_error += 1;

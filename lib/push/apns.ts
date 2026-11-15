@@ -184,7 +184,12 @@ export type ResultadoApns = {
   razones: string[];
 };
 
-type EnvioUno = { estado: "enviado" | "muerto" | "fallido"; razon?: string };
+type EnvioUno = {
+  estado: "enviado" | "muerto" | "fallido";
+  razon?: string;
+  /** Apple dijo `BadDeviceToken`: el token puede ser del OTRO entorno, no uno muerto. */
+  tokenDeOtroEntorno?: boolean;
+};
 
 /** Un envío aislado: si falla, no afecta a los demás tokens de la misma tanda. */
 function enviarUno(
@@ -228,7 +233,7 @@ function enviarUno(
         const detalle = `HTTP ${estado} ${razon || "(sin razón)"} · ...${token.slice(-6)}`;
         // 410 = APNs ya no tiene el token (desinstalada). BadDeviceToken = token inválido.
         if (estado === 410 || razon === "BadDeviceToken") {
-          resolve({ estado: "muerto", razon: detalle });
+          resolve({ estado: "muerto", razon: detalle, tokenDeOtroEntorno: razon === "BadDeviceToken" });
           return;
         }
         // Sin esto, un fallo real (JWT inválido, topic mal configurado, token del
@@ -282,28 +287,45 @@ export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<
   const cuerpo = mensajeApns(aviso);
 
   try {
-    const sesion = connect(`https://${host}`);
-    // El error de sesión hay que escucharlo igual (si no, Node lo convierte en
-    // una excepción no capturada), pero callarlo escondía justo el caso en que
-    // NINGÚN envío sale: la conexión con Apple nunca se llegó a abrir.
-    sesion.on("error", (error) => {
-      console.error(`APNs: error de sesión HTTP/2 contra ${host}:`, error);
-    });
+    const resultados = await enviarTanda(host, tokens, jwt, cuerpo);
 
-    try {
-      const resultados = await Promise.all(
-        tokens.map((token) => enviarUno(sesion, token, jwt, cuerpo)),
-      );
-      const muertos = tokens.filter((_token, indice) => resultados[indice].estado === "muerto");
-      const enviados = resultados.filter((resultado) => resultado.estado === "enviado").length;
-      const razones = resultados.flatMap((resultado) => (resultado.razon ? [resultado.razon] : []));
-      if (muertos.length > 0) {
-        console.error(`APNs: ${muertos.length} de ${tokens.length} token(s) dados por muertos por Apple.`);
+    // Un token de un iPhone instalado desde Xcode es de SANDBOX; uno de
+    // TestFlight o de la tienda es de PRODUCCIÓN. Mandado al entorno que no
+    // es, Apple contesta `BadDeviceToken` — lo mismo que para un token
+    // inventado. Antes de borrar el teléfono de alguien por eso, se prueba en
+    // el otro entorno: si ahí entra, el token estaba vivo y el aviso llegó.
+    const aReintentar = resultados.flatMap((r, i) => (r.tokenDeOtroEntorno ? [i] : []));
+    if (aReintentar.length > 0) {
+      const otroHost = host === HOST_PRODUCCION ? HOST_SANDBOX : HOST_PRODUCCION;
+      try {
+        const segundos = await enviarTanda(otroHost, aReintentar.map((i) => tokens[i]), jwt, cuerpo);
+        segundos.forEach((segundo, j) => {
+          const i = aReintentar[j];
+          if (segundo.estado === "enviado") {
+            resultados[i] = segundo;
+          } else if (segundo.estado === "fallido") {
+            // No se pudo saber (red, credencial): no se da por muerto un token
+            // que nadie llegó a rechazar dos veces.
+            resultados[i] = { estado: "fallido", razon: `${resultados[i].razon} | en ${otroHost}: ${segundo.razon}` };
+          }
+        });
+      } catch (error) {
+        console.error(`APNs: no se pudo reintentar en ${otroHost}:`, error);
+        for (const i of aReintentar) {
+          resultados[i] = { estado: "fallido", razon: `${resultados[i].razon} | sin poder probar en ${otroHost}` };
+        }
       }
-      return { enviados, fallidos: resultados.length - enviados, muertos, razones };
-    } finally {
-      sesion.close();
     }
+
+    const muertos = tokens.filter((_token, indice) => resultados[indice].estado === "muerto");
+    const enviados = resultados.filter((resultado) => resultado.estado === "enviado").length;
+    const razones = resultados.flatMap((resultado) =>
+      resultado.estado !== "enviado" && resultado.razon ? [resultado.razon] : [],
+    );
+    if (muertos.length > 0) {
+      console.error(`APNs: ${muertos.length} de ${tokens.length} token(s) dados por muertos por Apple.`);
+    }
+    return { enviados, fallidos: resultados.length - enviados, muertos, razones };
   } catch (error) {
     console.error(`APNs: no se pudo conectar a ${host}:`, error);
     return {
@@ -312,5 +334,22 @@ export async function enviarApns(tokens: string[], aviso: AvisoNativo): Promise<
       muertos: [],
       razones: [`no se pudo conectar a ${host}: ${(error as Error).message}`],
     };
+  }
+}
+
+/** Una tanda contra UN entorno de Apple, en una sola conexión HTTP/2. */
+async function enviarTanda(host: string, tokens: string[], jwt: string, cuerpo: string): Promise<EnvioUno[]> {
+  const sesion = connect(`https://${host}`);
+  // El error de sesión hay que escucharlo igual (si no, Node lo convierte en
+  // una excepción no capturada), pero callarlo escondía justo el caso en que
+  // NINGÚN envío sale: la conexión con Apple nunca se llegó a abrir.
+  sesion.on("error", (error) => {
+    console.error(`APNs: error de sesión HTTP/2 contra ${host}:`, error);
+  });
+
+  try {
+    return await Promise.all(tokens.map((token) => enviarUno(sesion, token, jwt, cuerpo)));
+  } finally {
+    sesion.close();
   }
 }

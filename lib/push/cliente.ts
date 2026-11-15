@@ -11,6 +11,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { estaEnAppNativa, pushNativo } from "@/lib/app-nativa/cliente";
+import { rutaDeAviso } from "./toque";
 
 let activacion: Promise<void> | null = null;
 let tokenActual: string | null = null;
@@ -57,6 +58,31 @@ async function registrar(): Promise<void> {
   }
 
   await plugin.register();
+}
+
+let escuchaDeToques: Promise<unknown> | null = null;
+
+/**
+ * Que tocar un aviso lleve a lo que el aviso dice, y no a donde la app haya
+ * quedado. Se engancha al abrir el chat, no al pedir el permiso: quien abre la
+ * app tocando una notificación todavía no mandó ningún mensaje en esta sesión.
+ * Capacitor guarda el toque hasta que alguien lo escucha, así que también
+ * sirve cuando la app estaba cerrada.
+ */
+export function escucharToquesDePush(): void {
+  if (!estaEnAppNativa() || escuchaDeToques) return;
+
+  escuchaDeToques = pushNativo()
+    .addListener("pushNotificationActionPerformed", ({ notification }) => {
+      const ruta = rutaDeAviso(notification?.data);
+      if (!ruta) return;
+
+      const actual = `${window.location.pathname}${window.location.search}`;
+      if (ruta !== actual) window.location.assign(ruta);
+    })
+    .catch(() => {
+      escuchaDeToques = null;
+    });
 }
 
 /**

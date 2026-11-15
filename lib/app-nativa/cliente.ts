@@ -125,6 +125,11 @@ type PushNativo = {
     evento: "registration",
     manejador: (datos: { value: string }) => void,
   ): Promise<Escucha>;
+  /** La persona tocó un aviso. `data` es lo que el servidor mandó junto al texto. */
+  addListener(
+    evento: "pushNotificationActionPerformed",
+    manejador: (datos: { notification?: { data?: unknown } }) => void,
+  ): Promise<Escucha>;
 };
 
 let push: PushNativo | null = null;

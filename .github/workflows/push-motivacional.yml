@@ -55,3 +55,14 @@ jobs:
             echo "::error::El endpoint devolvió HTTP $codigo"
             exit 1
           fi
+          # Del 10 al 15/11 esta corrida estuvo en verde tres veces por día
+          # mientras Apple rechazaba TODOS los envíos. Si había teléfonos y no
+          # salió ninguno porque el servicio de push los rechazó, es rojo.
+          cuerpo="${respuesta%$'\n'*}"
+          enviados=$(echo "$cuerpo" | jq -r '.enviados // 0' 2>/dev/null || echo 0)
+          fallidos=$(echo "$cuerpo" | jq -r '.fallidos // 0' 2>/dev/null || echo 0)
+          if [ "$fallidos" -gt 0 ] && [ "$enviados" -eq 0 ]; then
+            razones=$(echo "$cuerpo" | jq -r '(.razones // []) | join(" | ")' 2>/dev/null || true)
+            echo "::error::No salió ninguna notificación: $razones"
+            exit 1
+          fi
