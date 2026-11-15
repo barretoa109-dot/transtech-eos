@@ -568,9 +568,10 @@ export default function PagoCheckout() {
 
               <p className="security-note">
                 <strong>Cómo funciona:</strong> revisamos tu comprobante las 24 horas, todos los días.
-                Si transferiste y tu acceso no se activa dentro de 1 hora de enviar el comprobante,
-                te devolvemos el monto transferido. El comprobante tiene que mostrar la cuenta de
-                destino, el monto exacto y la fecha.
+                Si no activamos el plan que pediste, te devolvemos la totalidad de tu dinero en un
+                plazo máximo de 24 horas. El comprobante tiene que mostrar la cuenta de destino, el
+                titular, el monto exacto y la fecha. Más detalle en los{" "}
+                <a href="/terminos#reembolsos">Términos</a>.
               </p>
 
               <p className="security-note">

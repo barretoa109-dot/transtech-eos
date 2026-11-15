@@ -44,12 +44,15 @@ export default function TerminosPage() {
             vigentes están en la página de planes.
           </li>
           <li style={li}>
-            Los pagos con tarjeta se procesan a través de Bancard. Nosotros no vemos ni guardamos el
-            número de tu tarjeta.
+            Por ahora los planes se pagan por transferencia a la cuenta bancaria de TRANSTECH E.A.S.
+            que se muestra en la pantalla de pago. Un plan pagado por transferencia no se renueva
+            solo: antes de que venza te avisamos para que puedas pagarlo de nuevo.
           </li>
           <li style={li}>
-            <strong>Las suscripciones se renuevan automáticamente</strong> al vencer, con la tarjeta
-            que hayas dejado registrada, hasta que las canceles.
+            Cuando el pago con tarjeta esté disponible, se procesa a través de Bancard. Nosotros no
+            vemos ni guardamos el número de tu tarjeta, y{" "}
+            <strong>las suscripciones con tarjeta se renuevan automáticamente</strong> al vencer,
+            hasta que las canceles.
           </li>
           <li style={li}>
             Podés cancelar cuando quieras. La cancelación evita el siguiente cobro; seguís usando el
@@ -60,6 +63,52 @@ export default function TerminosPage() {
           </li>
           <li style={li}>
             Si cambiamos los precios, te avisamos antes de que se aplique a tu próxima renovación.
+          </li>
+        </Lista>
+      </Seccion>
+
+      <div id="reembolsos" />
+      <Seccion titulo="Pagos por transferencia, verificación y reembolsos">
+        <Lista>
+          <li style={li}>
+            <strong>Cómo pagás.</strong> Transferís el monto exacto del pedido a la cuenta indicada y
+            subís el comprobante desde la pantalla de pago. Aceptamos comprobantes de bancos,
+            cooperativas, financieras y billeteras, en imagen o PDF. Tiene que verse la cuenta de
+            destino, el titular, el monto y la fecha.
+          </li>
+          <li style={li}>
+            <strong>Cómo lo verificamos.</strong> Revisamos los comprobantes las 24 horas, todos los
+            días, con un sistema automático y con una persona de nuestro equipo. Comprobamos que la
+            cuenta y el titular de destino sean los nuestros, que el monto sea el del pedido y que
+            la transferencia se haya acreditado.
+          </li>
+          <li style={li}>
+            <strong>Cuándo se activa.</strong> Activamos lo que pediste apenas confirmamos el pago, y
+            te avisamos por correo. La mayoría de las veces son minutos.
+          </li>
+          <li style={li}>
+            <strong>Reembolso total si no se activa.</strong> Si hiciste la transferencia y no
+            activamos el plan que pediste, te devolvemos la totalidad del monto transferido en un
+            plazo máximo de 24 horas, a la misma cuenta desde la que lo enviaste. No descontamos
+            comisiones ni gastos.
+          </li>
+          <li style={li}>
+            <strong>Si el comprobante no se puede verificar.</strong> Si detectamos que el
+            comprobante no corresponde al pedido, que fue alterado o que la transferencia no se
+            acreditó en nuestra cuenta, no activamos el plan y te enviamos un correo explicando qué
+            encontramos y cómo seguir. Podés generar un pedido nuevo y subir el comprobante correcto.
+          </li>
+          <li style={li}>
+            <strong>Transferencias de más o repetidas.</strong> Si transferiste un monto mayor al
+            del pedido, o transferiste dos veces, te devolvemos la diferencia en el mismo plazo.
+          </li>
+          <li style={li}>
+            <strong>Uso indebido.</strong> Presentar un comprobante falso o alterado para obtener
+            acceso es motivo para dar de baja el plan activado y la cuenta.
+          </li>
+          <li style={li}>
+            Para cualquier reclamo sobre un pago escribinos a soporte@transtech.com.py con la
+            referencia del pedido.
           </li>
         </Lista>
       </Seccion>

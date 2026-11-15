@@ -10,6 +10,10 @@ const BUENA: LecturaComprobante = {
   banco_destino: "Banco Continental",
   cuenta_destino: "1234567809",
   titular_destino: "Transtech E.A.S.",
+  documento_destino: null,
+  entidad_origen: "Cooperativa Universitaria",
+  tipo_entidad_origen: "cooperativa",
+  senales_de_edicion: [],
   monto: 150000,
   moneda: "PYG",
   fecha: "2026-11-15",
@@ -73,11 +77,11 @@ test("la respuesta del modelo se limpia: monto con puntos, fecha rara, estado de
   assert.equal(interpretarLectura('{"monto": 5}'), null);
 });
 
-test("sin clave o con un PDF no se llama al proveedor", async () => {
+test("sin clave o con un archivo que no es imagen ni PDF no se llama al proveedor", async () => {
   let llamadas = 0;
   const fetcher = (async () => { llamadas += 1; return new Response("{}"); }) as typeof fetch;
   assert.equal(await leerComprobante({ mime: "image/png", base64: "AAAA" }, { env: {}, fetcher }), null);
-  assert.equal(await leerComprobante({ mime: "application/pdf", base64: "AAAA" }, { env: { OPENAI_API_KEY: "x" }, fetcher }), null);
+  assert.equal(await leerComprobante({ mime: "text/plain", base64: "AAAA" }, { env: { OPENAI_API_KEY: "x" }, fetcher }), null);
   assert.equal(llamadas, 0);
 });
 
@@ -86,4 +90,33 @@ test("con clave, lee lo que devuelve el proveedor", async () => {
     new Response(JSON.stringify({ output_text: JSON.stringify(BUENA) }), { status: 200 })) as typeof fetch;
   const l = await leerComprobante({ mime: "image/jpeg", base64: "AAAA" }, { env: { OPENAI_API_KEY: "x" }, fetcher });
   assert.equal(l?.monto, 150000);
+});
+
+test("la cuenta correcta con otro titular, otro RUC u otro banco no coincide", () => {
+  assert.equal(evaluarComprobante({ ...BUENA, titular_destino: "Juan Pérez" }, ESPERADO).resultado, "no_coincide");
+  assert.equal(evaluarComprobante({ ...BUENA, documento_destino: "4.123.456" }, ESPERADO).resultado, "no_coincide");
+  assert.equal(evaluarComprobante({ ...BUENA, banco_destino: "Banco Itaú" }, ESPERADO).resultado, "no_coincide");
+});
+
+test("con el número de cuenta solo no alcanza: hace falta el titular o el RUC", () => {
+  assert.equal(evaluarComprobante({ ...BUENA, titular_destino: null }, ESPERADO).resultado, "dudoso");
+  assert.equal(evaluarComprobante({ ...BUENA, titular_destino: null, documento_destino: "80000000-1" }, ESPERADO).resultado, "coincide");
+});
+
+test("si el lector vio algo raro en la imagen, lo mira una persona", () => {
+  const v = evaluarComprobante({ ...BUENA, senales_de_edicion: ["el monto tiene otra tipografía"] }, ESPERADO);
+  assert.equal(v.resultado, "dudoso");
+  assert.match(v.motivos.join(" "), /otra tipografía/);
+});
+
+test("un PDF se manda como archivo, no como imagen", async () => {
+  let cuerpo = "";
+  const fetcher = (async (_url: unknown, init?: { body?: unknown }) => {
+    cuerpo = String(init?.body ?? "");
+    return new Response(JSON.stringify({ output_text: JSON.stringify(BUENA) }), { status: 200 });
+  }) as typeof fetch;
+  const l = await leerComprobante({ mime: "application/pdf", base64: "AAAA" }, { env: { OPENAI_API_KEY: "x" }, fetcher });
+  assert.equal(l?.es_comprobante, true);
+  assert.match(cuerpo, /input_file/);
+  assert.doesNotMatch(cuerpo, /input_image/);
 });

@@ -2,6 +2,7 @@ import { hoyEnParaguay } from "../fecha.ts";
 import { avisarNativo } from "../push/nativo.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 import { evaluarComprobante, leerComprobante, type LecturaComprobante, type Veredicto } from "./comprobante-ia.ts";
+import { avisarComprobanteNoVerificado } from "./correo-comprobante.ts";
 import { CUENTA } from "./cuenta.ts";
 
 /**
@@ -205,7 +206,7 @@ export async function revisarComprobanteSubido(
   const comprobante = (solicitud.metadata?.comprobante ?? null) as { ruta?: string; tipo?: string } | null;
   let lectura: LecturaComprobante | null = null;
 
-  if (comprobante?.ruta && (comprobante.tipo ?? "").startsWith("image/")) {
+  if (comprobante?.ruta && comprobante.tipo) {
     try {
       const { data: archivo } = await admin.storage.from("comprobantes-pago").download(comprobante.ruta);
       if (archivo) {
@@ -218,16 +219,13 @@ export async function revisarComprobanteSubido(
   }
 
   const monto = Number(solicitud.monto);
-  const veredicto: Veredicto =
-    comprobante?.tipo === "application/pdf"
-      ? { resultado: "dudoso", motivos: ["El comprobante es un PDF: el agente solo lee imágenes."] }
-      : evaluarComprobante(lectura, {
-          monto,
-          cuenta: CUENTA.numero,
-          titular: CUENTA.titular,
-          ruc: CUENTA.ruc,
-          hoy: hoyEnParaguay(ahora),
-        });
+  const veredicto: Veredicto = evaluarComprobante(lectura, {
+    monto,
+    cuenta: CUENTA.numero,
+    titular: CUENTA.titular,
+    ruc: CUENTA.ruc,
+    hoy: hoyEnParaguay(ahora),
+  });
 
   const revision: RevisionIa = {
     veredicto: veredicto.resultado,
@@ -246,6 +244,21 @@ export async function revisarComprobanteSubido(
       .update({ metadata: { ...(filaFresca.metadata ?? {}), revision_ia: revision } })
       .eq("id", solicitudId)
       .eq("estado", "en_revision");
+  }
+
+  // Si algo está mal a la vista, quien pagó se entera ya y con el detalle, en
+  // vez de quedarse mirando "en verificación". No es un rechazo: decide el dueño.
+  if (veredicto.resultado === "no_coincide") {
+    await avisarComprobanteNoVerificado(
+      admin,
+      {
+        usuarioId: solicitud.usuario_id,
+        referencia: solicitud.referencia_interna ?? solicitud.id,
+        motivos: veredicto.motivos,
+        momento: "en_revision",
+      },
+      deps.enviarCorreo,
+    );
   }
 
   const nombre = await nombreDe(admin, solicitud.usuario_id);
