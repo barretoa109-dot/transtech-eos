@@ -1,10 +1,14 @@
 import { randomUUID } from "crypto";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { enviarCorreoSimple } from "@/lib/email/enviar-simple";
+import { revisarComprobanteSubido } from "@/lib/pagos/agente-transferencias";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const MAXIMO_BYTES = 8 * 1024 * 1024;
 const TIPOS_PERMITIDOS = new Set([
@@ -260,6 +264,20 @@ export async function POST(request: Request) {
     }
 
     rutaSubida = "";
+
+    // El agente lee el comprobante y le avisa al dueño, después de contestarle
+    // a la persona: su pantalla no espera a que un modelo termine de leer.
+    const solicitudRevisada = resultado.solicitud_id || solicitudId;
+    after(async () => {
+      try {
+        await revisarComprobanteSubido(adminSinTipos(), solicitudRevisada, {
+          enviarCorreo: enviarCorreoSimple(),
+          baseUrl: new URL(request.url).origin,
+        });
+      } catch (error) {
+        console.error("Pagos: falló la revisión del comprobante:", error);
+      }
+    });
 
     return NextResponse.json({
       ok: true,

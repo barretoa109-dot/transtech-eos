@@ -16,7 +16,13 @@ export function tarjetaHabilitadaPara(
   email: string | null | undefined,
   env: Record<string, string | undefined> = process.env,
 ): boolean {
-  if ((env.BANCARD_ENV || "staging").trim().toLowerCase() === "production") return true;
+  // Pausa del dueño (2026-11-15): mientras Bancard no responda, EOS cobra solo
+  // por transferencia, esté Bancard en producción o no. `BANCARD_PAUSADO=0` la
+  // levanta sin tocar código. Quien certifica y los administradores siguen
+  // pudiendo probar la tarjeta, para no perder la certificación.
+  const pausado = (env.BANCARD_PAUSADO ?? "1").trim() !== "0";
+
+  if (!pausado && (env.BANCARD_ENV || "staging").trim().toLowerCase() === "production") return true;
 
   const correo = (email ?? "").trim().toLowerCase();
   if (!correo) return false;
@@ -32,4 +38,4 @@ export function tarjetaHabilitadaPara(
 }
 
 export const MOTIVO_TARJETA_NO_HABILITADA =
-  "El pago con tarjeta se habilita en octubre. Por ahora podés pagar por transferencia bancaria.";
+  "El pago con tarjeta no está disponible por ahora. Podés pagar por transferencia bancaria.";
