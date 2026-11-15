@@ -1,4 +1,13 @@
-import { hoyEnParaguay } from "../fecha.ts";
+import { hoyEnParaguay, sumarDias } from "../fecha.ts";
+import {
+  avisoDeRacha,
+  avisoRachaEnRiesgo,
+  avisoSemanal,
+  diasActivos,
+  diasActivosEnLaSemana,
+  esLunes,
+  rachaHasta,
+} from "./seguimiento.ts";
 import { objetivoPrincipal } from "../email/consejoDeObjetivo.ts";
 import type { EstadoObjetivo } from "../finanzas/objetivos.ts";
 import { avisarNativo } from "./nativo.ts";
@@ -134,11 +143,39 @@ async function diasSinAccion(admin: ClienteSinTipos, usuarioId: string, hoy: str
   return dias >= 0 ? dias : 0;
 }
 
+/** Hasta dónde se mira para atrás al contar una racha: alcanza para el hito de 90 días. */
+const DIAS_DE_HISTORIA = 95;
+
+/**
+ * Los días en que la persona hizo algo con EOS, para las rachas y el resumen
+ * del lunes. Si no se puede leer, devuelve vacío: sin dato no hay festejo ni
+ * aviso de racha, y cada franja cae a su texto de siempre.
+ */
+async function leerDiasActivos(admin: ClienteSinTipos, usuarioId: string, hoy: string): Promise<Set<string>> {
+  const { data, error } = await admin
+    .from("eos_action_commands")
+    .select("created_at")
+    .eq("usuario_id", usuarioId)
+    .eq("estado", "completada")
+    .neq("accion", "RESPONDER")
+    // Un día de margen por el desfase entre UTC y Paraguay.
+    .gte("created_at", `${sumarDias(hoy, -DIAS_DE_HISTORIA - 1)}T00:00:00Z`)
+    .order("created_at", { ascending: false })
+    .limit(3000);
+
+  if (error || !Array.isArray(data)) return new Set();
+  return diasActivos((data as { created_at?: string }[]).map((fila) => fila.created_at));
+}
+
 /** Franja "mediodía": una señal de uso real, no un texto genérico. */
 async function contenidoMediodia(admin: ClienteSinTipos, usuarioId: string, hoy: string): Promise<AvisoMotivacional> {
   const dias = await diasSinAccion(admin, usuarioId, hoy);
 
   if (dias === 0) {
+    // Ya anotó hoy: si con esto llega a un hito (3, 7, 14, 30 días…), se festeja.
+    const festejo = avisoDeRacha(rachaHasta(await leerDiasActivos(admin, usuarioId, hoy), hoy));
+    if (festejo) return festejo;
+
     return {
       titulo: "Vas bien hoy",
       cuerpo: "Ya le contaste algo a EOS hoy. Cada cosa que anotás ahora es una decisión más fácil mañana.",
@@ -212,8 +249,22 @@ async function contenidoDeFranja(
   hoy: string,
   dia: number,
 ): Promise<{ indice: number; aviso: AvisoMotivacional }> {
-  if (franja === "manana") return { indice: 0, aviso: await contenidoManana(admin, usuarioId, hoy, dia) };
+  if (franja === "manana") {
+    // El lunes la mañana es del resumen de la semana: es el único día en que
+    // "cómo te fue" tiene una semana entera para contestar.
+    if (esLunes(hoy)) {
+      const activos = diasActivosEnLaSemana(await leerDiasActivos(admin, usuarioId, hoy), hoy);
+      return { indice: 0, aviso: avisoSemanal(activos) };
+    }
+    return { indice: 0, aviso: await contenidoManana(admin, usuarioId, hoy, dia) };
+  }
   if (franja === "mediodia") return { indice: 0, aviso: await contenidoMediodia(admin, usuarioId, hoy) };
+
+  // A la noche, antes que el cierre genérico: si hay una racha y hoy todavía
+  // no se anotó nada, eso es lo que la persona querría saber mientras puede.
+  const enRiesgo = avisoRachaEnRiesgo(await leerDiasActivos(admin, usuarioId, hoy), hoy);
+  if (enRiesgo) return { indice: 0, aviso: enRiesgo };
+
   const indice = ((dia % CIERRES_NOCHE.length) + CIERRES_NOCHE.length) % CIERRES_NOCHE.length;
   return { indice, aviso: contenidoNoche(dia) };
 }

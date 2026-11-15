@@ -14,6 +14,8 @@ function admin(opciones: {
   reclamados?: { usuario_id: string; fecha: string; franja: string }[];
   creadaEn?: Record<string, string>;
   sinAccionDesde?: Record<string, string | null>;
+  /** Días (AAAA-MM-DD) con actividad, para rachas y resumen semanal. */
+  diasActivos?: Record<string, string[]>;
   registro?: { insertados: unknown[]; devueltos?: number };
 }) {
   const registro: { insertados: unknown[]; devueltos?: number } = opciones.registro ?? { insertados: [] };
@@ -24,7 +26,7 @@ function admin(opciones: {
       const cadena: Record<string, unknown> = {};
       let uid = "";
 
-      for (const m of ["select", "not", "or", "limit", "order", "neq"]) cadena[m] = () => cadena;
+      for (const m of ["select", "not", "or", "limit", "order", "neq", "gte"]) cadena[m] = () => cadena;
       cadena.delete = () => {
         registro.devueltos = (registro.devueltos ?? 0) + 1;
         return cadena;
@@ -60,6 +62,10 @@ function admin(opciones: {
       };
       cadena.then = (resolver: (r: unknown) => unknown) => {
         const ids = (opciones.dispositivos ?? []).map((usuario_id) => ({ usuario_id }));
+        if (tabla === "eos_action_commands") {
+          const filas = ((opciones.diasActivos ?? {})[uid] ?? []).map((d) => ({ created_at: `${d}T15:00:00Z` }));
+          return Promise.resolve({ data: filas, error: null }).then(resolver);
+        }
         return Promise.resolve({ data: tabla === "dispositivos_push" ? ids : [], error: null }).then(resolver);
       };
       return cadena;
@@ -245,4 +251,40 @@ test("todo texto de la mañana entra entero en una notificación", () => {
     // Se lee con el teléfono bloqueado: nunca un monto.
     assert.doesNotMatch(aviso.cuerpo, /Gs\.|₲|USD|\$/);
   }
+});
+
+const capturar = async (franja: "manana" | "mediodia" | "noche", hoy: string, opciones: Parameters<typeof admin>[0]) => {
+  const capturado: { aviso?: { titulo: string; cuerpo: string } } = {};
+  await enviarMotivacionalesPush(admin({ dispositivos: ["u1"], ...opciones }) as never, franja, {
+    hoy,
+    enviar: async (_a, _uid, aviso) => { capturado.aviso = aviso; return { enviados: 1 }; },
+  });
+  return capturado.aviso;
+};
+
+test("mediodía: al llegar a 3 días seguidos se festeja la racha", async () => {
+  const aviso = await capturar("mediodia", HOY, {
+    sinAccionDesde: { u1: HOY },
+    diasActivos: { u1: ["2026-11-10", "2026-11-09", "2026-11-08"] },
+  });
+  assert.equal(aviso?.titulo, "Tres días seguidos");
+});
+
+test("mediodía: una racha que no es hito no interrumpe el texto de siempre", async () => {
+  const aviso = await capturar("mediodia", HOY, {
+    sinAccionDesde: { u1: HOY },
+    diasActivos: { u1: ["2026-11-10", "2026-11-09", "2026-11-08", "2026-11-07"] },
+  });
+  assert.equal(aviso?.titulo, "Vas bien hoy");
+});
+
+test("noche: con racha y sin nada anotado hoy, avisa antes de que se corte", async () => {
+  const aviso = await capturar("noche", HOY, { diasActivos: { u1: ["2026-11-09", "2026-11-08", "2026-11-07"] } });
+  assert.equal(aviso?.titulo, "Llevás 3 días seguidos");
+});
+
+test("lunes a la mañana: el resumen de la semana, no el consejo", async () => {
+  const aviso = await capturar("manana", "2026-11-16", { diasActivos: { u1: ["2026-11-15", "2026-11-13", "2026-11-12"] } });
+  assert.equal(aviso?.titulo, "Tu semana con EOS");
+  assert.match(aviso!.cuerpo, /3 de los últimos 7 días/);
 });
