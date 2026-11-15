@@ -5,6 +5,7 @@ import { detectarRiesgo, redactarAviso } from "./riesgo.ts";
 import { convieneAvisar, TITULO_AVISO } from "./avisos.ts";
 import { enviarAviso, pushConfigurado, resumirParaPush, type Suscripcion } from "../push/enviar.ts";
 import { avisarNativo } from "../push/nativo.ts";
+import { leerPreferencias } from "../push/preferencias.ts";
 import type { Deuda } from "./deudas.ts";
 import type { Fijo } from "./fijos.ts";
 import { hoyEnParaguay } from "../fecha.ts";
@@ -473,22 +474,28 @@ async function entregarPorCanal(
   // 2026-11-15 estos avisos solo salían por push web, que casi nadie tiene
   // activado desde que se sacó su pantalla: quien usaba la app se enteraba por
   // correo, horas después, de algo que tenía fecha. Sin configuración no hace nada.
-  const nativo = await avisarNativo(admin, usuarioId, {
-    titulo: TITULO_AVISO,
-    cuerpo: resumirParaPush(texto, 160),
-    url: "/eos/chat",
-  });
-  if (nativo.enviados > 0) llegoPorPush = true;
+  //
+  // `*` y no la lista de columnas: tolera una base sin las columnas de v260.
+  const { data: preferencia } = await admin
+    .from("eos_followup_preferences")
+    .select("*")
+    .eq("usuario_id", usuarioId)
+    .maybeSingle();
+
+  // Quien apagó "Avisos importantes" en la app no los recibe en el teléfono;
+  // el correo tiene su propio interruptor y sigue su camino más abajo.
+  if (leerPreferencias(preferencia).riesgos) {
+    const nativo = await avisarNativo(admin, usuarioId, {
+      titulo: TITULO_AVISO,
+      cuerpo: resumirParaPush(texto, 160),
+      url: "/eos/chat",
+    });
+    if (nativo.enviados > 0) llegoPorPush = true;
+  }
 
   if (llegoPorPush) return true;
 
   if (!enviarCorreo) return false;
-
-  const { data: preferencia } = await admin
-    .from("eos_followup_preferences")
-    .select("habilitado,avisos_riesgo_correo")
-    .eq("usuario_id", usuarioId)
-    .maybeSingle();
 
   if (!puedeAvisarPorCorreo(preferencia)) return false;
 

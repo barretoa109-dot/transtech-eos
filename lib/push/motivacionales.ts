@@ -12,6 +12,7 @@ import { objetivoPrincipal } from "../email/consejoDeObjetivo.ts";
 import type { EstadoObjetivo } from "../finanzas/objetivos.ts";
 import { avisarNativo } from "./nativo.ts";
 import { resumirParaPush } from "./enviar.ts";
+import { leerPreferencias, type FilaDePreferencias } from "./preferencias.ts";
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 
 /**
@@ -353,11 +354,13 @@ export async function enviarMotivacionalesPush(
 
     try {
       const [{ data: preferencia }, { data: perfil }] = await Promise.all([
-        admin.from("eos_followup_preferences").select("avisos_motivacionales_push").eq("usuario_id", uid).maybeSingle(),
+        // `*`: tolera una base que todavía no tiene las columnas de v260.
+        admin.from("eos_followup_preferences").select("*").eq("usuario_id", uid).maybeSingle(),
         admin.from("usuarios").select("created_at").eq("id", uid).maybeSingle(),
       ]);
 
-      if ((preferencia as { avisos_motivacionales_push?: boolean } | null)?.avisos_motivacionales_push === false) {
+      // Cada franja tiene su interruptor (v260); el general viejo apaga las tres.
+      if (!leerPreferencias(preferencia as FilaDePreferencias)[franja]) {
         resumen.apagados += 1;
         continue;
       }
