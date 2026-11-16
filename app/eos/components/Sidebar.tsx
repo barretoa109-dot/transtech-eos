@@ -83,7 +83,6 @@ type SidebarProps = {
 
 export default function Sidebar({
   nombre,
-  plan,
   destino,
   espacio,
   itemsMenu,
@@ -327,7 +326,6 @@ export default function Sidebar({
       .map((p) => p.charAt(0).toUpperCase())
       .join("") || "U";
 
-  const planFormateado = capitalizar(plan || "free");
 
   return (
     <>
@@ -500,7 +498,13 @@ export default function Sidebar({
             <div className="avatar">{iniciales}</div>
             <div>
               <div className="pname">{nombre}</div>
-              <div className="plan">Plan {planFormateado}</div>
+              {/*
+                Antes decía "Plan Free" / "Plan Business". EOS ya no se vende
+                por planes: cada cuenta arma sus funciones, y quien paga tres
+                de ellas veía "Plan Free" debajo de su nombre. Lo que tiene
+                contratado está en el perfil, en "Tu EOS".
+              */}
+              <div className="plan">Tu cuenta</div>
             </div>
           </button>
         ) : null}
@@ -509,11 +513,6 @@ export default function Sidebar({
   );
 }
 
-function capitalizar(value: string) {
-  const normalizado = value.trim();
-  if (!normalizado) return "Free";
-  return normalizado.charAt(0).toUpperCase() + normalizado.slice(1).toLowerCase();
-}
 
 function formatearFecha(fecha?: string) {
   if (!fecha) return "";

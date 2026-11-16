@@ -32,7 +32,13 @@ export type LecturaComprobante = {
   /** De dónde salió la plata: "Banco Itaú", "Cooperativa Universitaria", "Tigo Money"… */
   entidad_origen: string | null;
   tipo_entidad_origen: "banco" | "cooperativa" | "financiera" | "billetera" | "otro" | null;
-  /** Lo que el lector vio raro en la imagen: tipografías distintas, números desalineados, recortes. */
+  /**
+   * Lo que el lector vio que indica que la imagen fue alterada. Solo se llena
+   * cuando el lector, además, dijo que la imagen PARECE editada: en el primer
+   * comprobante real (2026-11-16) listó acá cosas normales —la cuenta de
+   * origen enmascarada, el punto de miles, el formato de la fecha— y un
+   * comprobante impecable quedó como "dudoso".
+   */
   senales_de_edicion: string[];
   monto: number | null;
   moneda: string | null;
@@ -189,7 +195,9 @@ const INSTRUCCIONES = [
   '- "documento_destino": RUC o cédula del que recibe, o null.',
   '- "entidad_origen": nombre de la entidad desde la que se envió (banco, cooperativa, financiera o billetera), o null.',
   '- "tipo_entidad_origen": "banco", "cooperativa", "financiera", "billetera" u "otro", o null.',
-  '- "senales_de_edicion": lista de frases cortas con lo que veas raro en la imagen (tipografías o tamaños que no coinciden entre campos, números desalineados o con otro fondo, bordes de recorte, datos que se contradicen). Lista vacía si no ves nada raro. No acuses: describí.',
+  '- "parece_editada": true SOLO si ves evidencia concreta de que la imagen fue alterada después de generada: un número con otra tipografía, tamaño, color o fondo que el resto, texto desalineado o pegado encima, bordes de recorte alrededor de un dato, o dos datos que se contradicen entre sí. En cualquier otro caso, false. La gran mayoría de los comprobantes son false.',
+  '- "senales_de_edicion": si "parece_editada" es true, lista de frases cortas con esa evidencia; si es false, lista vacía.',
+  "NO son señales de edición, porque así se ven los comprobantes normales: la cuenta de origen enmascarada con asteriscos, el monto con punto de miles o con \"GS.\" o \"Gs\", la fecha con barras u hora, el tipo de cuenta (\"AHORRO-GS\", \"CTA. CTE.\"), los logos, una captura de pantalla con la barra del teléfono, o que falte algún dato.",
   '- "monto": el monto transferido como número entero, sin puntos ni símbolos, o null.',
   '- "moneda": "PYG" para guaraníes, "USD" para dólares, u otra sigla, o null.',
   '- "fecha": la fecha de la operación en formato AAAA-MM-DD, o null.',
@@ -235,9 +243,12 @@ export function interpretarLectura(texto: string): LecturaComprobante | null {
     tipo_entidad_origen: ["banco", "cooperativa", "financiera", "billetera", "otro"].includes(String(datos.tipo_entidad_origen))
       ? (datos.tipo_entidad_origen as LecturaComprobante["tipo_entidad_origen"])
       : null,
-    senales_de_edicion: Array.isArray(datos.senales_de_edicion)
-      ? datos.senales_de_edicion.flatMap((s) => (cadena(s, 140) ? [cadena(s, 140) as string] : [])).slice(0, 5)
-      : [],
+    // Sin el "sí, parece editada" explícito, la lista se descarta: lo que el
+    // lector anota por las dudas no puede frenar un comprobante bueno.
+    senales_de_edicion:
+      datos.parece_editada === true && Array.isArray(datos.senales_de_edicion)
+        ? datos.senales_de_edicion.flatMap((s) => (cadena(s, 140) ? [cadena(s, 140) as string] : [])).slice(0, 5)
+        : [],
     monto,
     moneda: cadena(datos.moneda, 12),
     fecha,

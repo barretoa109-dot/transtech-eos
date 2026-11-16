@@ -277,7 +277,7 @@ export default function AdminPagosPage() {
                   </div>
 
                   <div className="details">
-                    <Detail label="Plan" value={`EOS ${pago.plan_codigo}`} />
+                    <Detail label="Compra" value={pago.plan_codigo === "free" ? "Funciones a medida" : `EOS ${pago.plan_codigo}`} />
                     <Detail
                       label="Referencia"
                       value={pago.referencia_interna}
@@ -402,7 +402,7 @@ export default function AdminPagosPage() {
                   <div style={{ minWidth: 0 }}>
                     <strong>{pago.nombre || pago.email || "Cliente"}</strong>
                     <div style={{ color: "#64748b", fontSize: 13, marginTop: 2 }}>
-                      EOS {pago.plan_codigo} · {pago.periodicidad} · Gs.{" "}
+                      {pago.plan_codigo === "free" ? "Funciones a medida" : `EOS ${pago.plan_codigo}`} · {pago.periodicidad} · Gs.{" "}
                       {new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(Number(pago.monto))} ·{" "}
                       {pago.referencia_interna}
                     </div>

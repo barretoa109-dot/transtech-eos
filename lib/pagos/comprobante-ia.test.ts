@@ -120,3 +120,26 @@ test("un PDF se manda como archivo, no como imagen", async () => {
   assert.match(cuerpo, /input_file/);
   assert.doesNotMatch(cuerpo, /input_image/);
 });
+
+test("lo que el lector anota por las dudas no cuenta si no dijo que la imagen parece editada", () => {
+  // El caso real del 2026-11-16: un comprobante bueno con cuatro "señales" que eran lo normal.
+  const real = {
+    es_comprobante: true,
+    banco_destino: "Banco Continental S.A.E.C.A",
+    cuenta_destino: "1234567809",
+    titular_destino: "TRANSTECH E.A.S.",
+    monto: 150000,
+    moneda: "PYG",
+    fecha: "2026-11-15",
+    numero_operacion: "252723823",
+    estado_operacion: "desconocido",
+    senales_de_edicion: ["Cuenta origen enmascarada '**** 9201'", "Monto mostrado como '150.000 GS.'"],
+  };
+  const sinAfirmar = interpretarLectura(JSON.stringify(real));
+  assert.deepEqual(sinAfirmar?.senales_de_edicion, []);
+  assert.equal(evaluarComprobante(sinAfirmar, ESPERADO).resultado, "coincide");
+
+  const afirmando = interpretarLectura(JSON.stringify({ ...real, parece_editada: true, senales_de_edicion: ["el monto tiene otro fondo"] }));
+  assert.deepEqual(afirmando?.senales_de_edicion, ["el monto tiene otro fondo"]);
+  assert.equal(evaluarComprobante(afirmando, ESPERADO).resultado, "dudoso");
+});

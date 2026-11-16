@@ -135,10 +135,25 @@ export async function enviarConfirmacionPlan(
   const nombre = primerNombre(usuario.nombre);
   const saludo = nombre ? `Hola ${nombre},` : "Hola,";
 
+  // Un EOS armado a medida viaja con el código interno "free". Decirle
+  // "Tu plan EOS Free ya está activo" a quien acaba de pagar es decirle que
+  // compró el plan gratis (visto en la primera compra real, 2026-11-16).
+  const aMedida = planCodigo === "free";
+
   const html = envolverEmailDeMarca({
-    titulo: renovacion ? `Renovamos tu plan ${nombrePlan}` : `Tu plan ${nombrePlan} ya está activo`,
+    titulo: aMedida
+      ? renovacion
+        ? "Renovamos tus funciones de EOS"
+        : "Tus funciones de EOS ya están activas"
+      : renovacion
+        ? `Renovamos tu plan ${nombrePlan}`
+        : `Tu plan ${nombrePlan} ya está activo`,
     parrafos: [
-      renovacion
+      aMedida
+        ? renovacion
+          ? `${saludo} confirmamos tu pago y las funciones que elegiste siguen activas sin que tengas que hacer nada.`
+          : `${saludo} gracias por confiar en EOS. Confirmamos tu pago y las funciones que elegiste ya están funcionando en tu cuenta.`
+        : renovacion
         ? `${saludo} confirmamos el cobro y tu plan <strong>${nombrePlan}</strong> se renovó sin que tengas que hacer nada.`
         : `${saludo} gracias por confiar en EOS. Confirmamos tu pago y tu plan <strong>${nombrePlan}</strong> ya está funcionando en tu cuenta.`,
       "Podés ver el detalle de lo que incluye, y cambiarlo cuando quieras, desde tu perfil.",
