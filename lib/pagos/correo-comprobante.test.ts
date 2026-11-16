@@ -36,3 +36,17 @@ test("nunca acusa: ni 'falso' ni 'fraude' en el texto que lee la persona", () =>
     assert.match(c.texto, /No pudimos confirmar los datos/);
   }
 });
+
+test("el correo de anulación dice que el plan se dio de baja, por qué, y que los datos siguen", () => {
+  const c = redactarCorreoNoVerificado({
+    nombre: "Marta",
+    referencia: "EOS-77",
+    motivos: ["La transferencia no llegó a nuestra cuenta."],
+    momento: "anulado",
+  });
+  assert.match(c.asunto, /Dimos de baja/);
+  assert.match(c.texto, /volvió al plan que tenía antes/);
+  assert.match(c.texto, /no perdiste ninguno de tus datos/);
+  assert.match(c.texto, /La transferencia no llegó a nuestra cuenta/);
+  assert.match(c.texto, /24 horas/);
+});

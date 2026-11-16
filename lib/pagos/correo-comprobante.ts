@@ -10,6 +10,8 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
  *     saberlo ya, y saber qué, en vez de quedarse mirando "en verificación".
  *   · "rechazado": el dueño lo rechazó desde el panel (el comprobante no sirve,
  *     o la transferencia no se acreditó en la cuenta).
+ *   · "anulado": el plan ya se había activado y se dio de baja después (v261),
+ *     porque la transferencia no llegó o se aprobó por error.
  *
  * Dice QUÉ se encontró, con las mismas frases que ve el dueño. No acusa: una
  * captura cortada y una captura trucha se ven igual desde acá, y a la primera
@@ -18,7 +20,7 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
 
 export type EnviarCorreo = (args: { para: string; asunto: string; texto: string }) => Promise<void>;
 
-export type MomentoDelAviso = "en_revision" | "rechazado";
+export type MomentoDelAviso = "en_revision" | "rechazado" | "anulado";
 
 export const MOTIVO_NO_ACREDITADA = "No vimos acreditada la transferencia en nuestra cuenta bancaria.";
 
@@ -33,13 +35,19 @@ export function redactarCorreoNoVerificado(args: {
   const motivos = args.motivos.length > 0 ? args.motivos : ["No pudimos confirmar los datos del comprobante."];
 
   const apertura =
-    args.momento === "rechazado"
+    args.momento === "anulado"
+      ? `Habíamos activado tu plan por el pedido ${args.referencia}, pero al revisar el pago tuvimos que darlo de baja. Tu cuenta volvió al plan que tenía antes; no perdiste ninguno de tus datos.`
+      : args.momento === "rechazado"
       ? `Revisamos el comprobante que subiste para el pedido ${args.referencia} y no pudimos aprobar el pago. Tu plan no fue activado.`
       : `Recibimos el comprobante que subiste para el pedido ${args.referencia}, pero al revisarlo encontramos algo que no coincide. Una persona de nuestro equipo lo va a mirar también; mientras tanto, tu plan todavía no está activo.`;
 
   return {
     asunto:
-      args.momento === "rechazado" ? "No pudimos aprobar tu pago de EOS" : "Tu comprobante de EOS necesita una revisión",
+      args.momento === "anulado"
+        ? "Dimos de baja el plan de EOS que habíamos activado"
+        : args.momento === "rechazado"
+          ? "No pudimos aprobar tu pago de EOS"
+          : "Tu comprobante de EOS necesita una revisión",
     texto: [
       saludo,
       "",
