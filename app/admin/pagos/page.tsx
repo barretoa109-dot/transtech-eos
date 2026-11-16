@@ -46,14 +46,29 @@ type PagoPendiente = {
   comprobante_url?: string | null;
 };
 
+type PagoAprobado = {
+  id: string;
+  plan_codigo: string;
+  periodicidad: string;
+  monto: number;
+  moneda: string;
+  referencia_interna: string;
+  pagado_at: string | null;
+  nombre: string | null;
+  email: string | null;
+  activado_por_el_agente: boolean;
+};
+
 type RespuestaListado = {
   ok?: boolean;
   pagos?: PagoPendiente[];
+  aprobados?: PagoAprobado[];
   error?: string;
 };
 
 export default function AdminPagosPage() {
   const [pagos, setPagos] = useState<PagoPendiente[]>([]);
+  const [aprobados, setAprobados] = useState<PagoAprobado[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesandoId, setProcesandoId] = useState("");
   const [error, setError] = useState("");
@@ -84,6 +99,7 @@ export default function AdminPagosPage() {
       }
 
       setPagos(resultado?.pagos || []);
+      setAprobados(resultado?.aprobados || []);
       // Lograrlo limpia el error de la vez anterior, que es lo que antes
       // hacía el `setError("")` de arriba.
       setError("");
@@ -149,6 +165,43 @@ export default function AdminPagosPage() {
           ? err.message
           : "No se pudo procesar la solicitud.",
       );
+    } finally {
+      setProcesandoId("");
+    }
+  }
+
+  /**
+   * Dar de baja un plan que ya se había activado: la plata no entró, o se
+   * aprobó la fila equivocada. Pide el motivo porque es lo que le llega por
+   * correo a la persona.
+   */
+  async function anular(pago: PagoAprobado) {
+    const motivo = window.prompt(
+      `Vas a dar de baja el plan de ${pago.nombre || pago.email || "este cliente"} (${pago.referencia_interna}). Su cuenta vuelve al plan que tenía antes y le llega un correo con el motivo.\n\nEscribí el motivo, tal como querés que lo lea:`,
+      "La transferencia no llegó a nuestra cuenta bancaria.",
+    );
+
+    if (motivo === null) return;
+    if (motivo.trim().length < 5) {
+      setError("Escribí el motivo de la anulación.");
+      return;
+    }
+
+    setProcesandoId(pago.id);
+    setError("");
+
+    try {
+      const respuesta = await fetch("/api/admin/pagos/anular", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ solicitud_id: pago.id, motivo: motivo.trim() }),
+      });
+      const resultado = await respuesta.json().catch(() => null);
+      if (!respuesta.ok) throw new Error(resultado?.error || "No se pudo anular el pago.");
+
+      await cargarPagos();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo anular el pago.");
     } finally {
       setProcesandoId("");
     }
@@ -319,6 +372,70 @@ export default function AdminPagosPage() {
                 </article>
               );
             })}
+          </section>
+        )}
+
+        {!cargando && aprobados.length > 0 && (
+          <section style={{ marginTop: 34 }}>
+            <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>Aprobados en los últimos 45 días</h2>
+            <p style={{ margin: "0 0 14px", color: "#64748b", fontSize: 13 }}>
+              Si la plata no entró o aprobaste el que no era, anulalo: la cuenta vuelve al plan que tenía antes y la
+              persona recibe un correo con el motivo. No devuelve plata; eso se hace desde el banco.
+            </p>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {aprobados.map((pago) => (
+                <div
+                  key={pago.id}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "14px 16px",
+                    border: "1px solid #dbe5f2",
+                    borderRadius: 16,
+                    background: "#fff",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{pago.nombre || pago.email || "Cliente"}</strong>
+                    <div style={{ color: "#64748b", fontSize: 13, marginTop: 2 }}>
+                      EOS {pago.plan_codigo} · {pago.periodicidad} · Gs.{" "}
+                      {new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(Number(pago.monto))} ·{" "}
+                      {pago.referencia_interna}
+                    </div>
+                    <div style={{ color: pago.activado_por_el_agente ? "#b45309" : "#64748b", fontSize: 12, marginTop: 2 }}>
+                      {pago.activado_por_el_agente
+                        ? "Lo activó EOS sin tu revisión: confirmá en tu banco que la plata entró."
+                        : "Lo aprobaste vos."}
+                      {pago.pagado_at
+                        ? ` Activado el ${new Date(pago.pagado_at).toLocaleString("es-PY", { dateStyle: "short", timeStyle: "short" })}.`
+                        : ""}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={procesandoId === pago.id}
+                    onClick={() => void anular(pago)}
+                    style={{
+                      minHeight: 40,
+                      padding: "0 16px",
+                      border: "1px solid #fecaca",
+                      borderRadius: 12,
+                      background: "#fff",
+                      color: "#b91c1c",
+                      fontWeight: 700,
+                      cursor: procesandoId === pago.id ? "wait" : "pointer",
+                    }}
+                  >
+                    {procesandoId === pago.id ? "Anulando…" : "Anular y dar de baja"}
+                  </button>
+                </div>
+              ))}
+            </div>
           </section>
         )}
       </div>
