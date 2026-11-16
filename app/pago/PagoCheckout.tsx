@@ -7,9 +7,10 @@ import {
   Building2,
   Check,
   Clipboard,
-  Loader2,
   Headphones,
+  Landmark,
   ListChecks,
+  Loader2,
   Mail,
   ShieldCheck,
   Upload,
@@ -334,12 +335,47 @@ export default function PagoCheckout() {
         ) : !pedido ? (
           <section className="payment-layout">
             <article className="buyer-card">
-              <span className="eyebrow">PASO 1 DE 2</span>
+              <ol className="eos-pasos" aria-label="Pasos del pago">
+                {["Tus datos", "Transferencia", "Comprobante"].map((nombre, i) => (
+                  <li
+                    key={nombre}
+                    className={`eos-paso ${i + 1 < 1 ? "es-hecho" : i + 1 === 1 ? "es-actual" : ""}`}
+                    aria-current={i + 1 === 1 ? "step" : undefined}
+                  >
+                    <span className="eos-paso-num">{i + 1 < 1 ? <Check size={13} /> : i + 1}</span>
+                    {nombre}
+                  </li>
+                ))}
+              </ol>
+
+              <span className="eyebrow">PAGO POR TRANSFERENCIA BANCARIA</span>
               <h1>Confirmá tu suscripción.</h1>
               <p className="intro">
-                Completá tus datos. Después te mostraremos los datos bancarios de
-                TRANSTECH E.A.S. para realizar la transferencia.
+                EOS se paga por transferencia. Confirmá tus datos, transferí{" "}
+                <strong>Gs. {montoFormateado}</strong> a esta cuenta y subí el comprobante: revisamos los
+                pagos las 24 horas, todos los días, y activamos lo que pediste apenas lo confirmamos.
               </p>
+
+              {/*
+                La cuenta va a la vista desde el primer paso. Antes recién aparecía
+                después del formulario, y quien llegaba acá no veía por ningún lado
+                CÓMO se pagaba: parecía que faltaba el botón de la tarjeta.
+              */}
+              <div className="eos-cuenta-previa">
+                <div className="eos-cuenta-previa-titulo">
+                  <Landmark size={18} />
+                  Vas a transferir a
+                </div>
+                <dl>
+                  <div><dt>Banco</dt><dd>{CUENTA.banco}</dd></div>
+                  <div><dt>Titular</dt><dd>{CUENTA.titular}</dd></div>
+                  <div><dt>Cuenta</dt><dd>{CUENTA.numero}</dd></div>
+                  <div><dt>RUC</dt><dd>{CUENTA.ruc}</dd></div>
+                </dl>
+                <p>
+                  En el paso siguiente te damos la referencia de tu pedido y los datos listos para copiar.
+                </p>
+              </div>
 
               <form onSubmit={crearPedido}>
                 <div className="fields-grid">
@@ -446,7 +482,20 @@ export default function PagoCheckout() {
         ) : (
           <section className="transfer-layout">
             <article className="transfer-card">
-              <span className="eyebrow">PASO 2 DE 2</span>
+              <ol className="eos-pasos" aria-label="Pasos del pago">
+                {["Tus datos", "Transferencia", "Comprobante"].map((nombre, i) => (
+                  <li
+                    key={nombre}
+                    className={`eos-paso ${i + 1 < (comprobante ? 3 : 2) ? "es-hecho" : i + 1 === (comprobante ? 3 : 2) ? "es-actual" : ""}`}
+                    aria-current={i + 1 === (comprobante ? 3 : 2) ? "step" : undefined}
+                  >
+                    <span className="eos-paso-num">{i + 1 < (comprobante ? 3 : 2) ? <Check size={13} /> : i + 1}</span>
+                    {nombre}
+                  </li>
+                ))}
+              </ol>
+
+              <span className="eyebrow">PAGO POR TRANSFERENCIA BANCARIA</span>
               <h1>Realizá la transferencia.</h1>
               <p className="intro">
                 Transferí exactamente <strong>Gs. {montoFormateado}</strong> y
@@ -540,8 +589,9 @@ export default function PagoCheckout() {
               </div>
 
               {comprobante && (
-                <p className="selected-file">
-                  Archivo seleccionado: <strong>{comprobante.name}</strong>
+                <p className="selected-file eos-aparece">
+                  <Check size={14} style={{ verticalAlign: -2, marginRight: 4 }} />
+                  Comprobante listo: <strong>{comprobante.name}</strong>. Tocá “Enviar para verificación”.
                 </p>
               )}
 
@@ -556,7 +606,7 @@ export default function PagoCheckout() {
                 {subiendo ? (
                   <>
                     <Loader2 className="spin" size={18} />
-                    Enviando comprobante...
+                    Enviando tu comprobante…
                   </>
                 ) : (
                   <>
@@ -608,6 +658,34 @@ export default function PagoCheckout() {
           </section>
         )}
       </div>
+
+      <style>{`
+        .eos-pasos { display: flex; gap: 8px; margin: 0 0 22px; padding: 0; list-style: none; flex-wrap: wrap; }
+        .eos-paso { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 7px; border-radius: 999px;
+          border: 1px solid #dbe5f2; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 700;
+          transition: background .25s, color .25s, border-color .25s; }
+        .eos-paso-num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+          background: #e2e8f0; color: #475569; font-size: 11px; }
+        .eos-paso.es-actual { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+        .eos-paso.es-actual .eos-paso-num { background: #2563eb; color: #fff; animation: eos-latido 1.8s ease-in-out infinite; }
+        .eos-paso.es-hecho { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+        .eos-paso.es-hecho .eos-paso-num { background: #16a34a; color: #fff; }
+        .eos-cuenta-previa { margin: 20px 0 24px; padding: 16px 18px; border: 1px solid #bfdbfe; border-radius: 16px;
+          background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%); animation: eos-sube .45s ease-out both; }
+        .eos-cuenta-previa-titulo { display: flex; align-items: center; gap: 8px; color: #1d4ed8; font-size: 12px;
+          font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+        .eos-cuenta-previa dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 12px 0 0; }
+        .eos-cuenta-previa dt { color: #64748b; font-size: 11px; font-weight: 700; }
+        .eos-cuenta-previa dd { margin: 2px 0 0; color: #0f172a; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+        .eos-cuenta-previa p { margin: 12px 0 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+        .eos-aparece { animation: eos-sube .35s ease-out both; }
+        @keyframes eos-sube { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @keyframes eos-latido { 0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .45); } 50% { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0); } }
+        @media (max-width: 520px) { .eos-cuenta-previa dl { grid-template-columns: 1fr; } }
+        @media (prefers-reduced-motion: reduce) {
+          .eos-cuenta-previa, .eos-aparece, .eos-paso.es-actual .eos-paso-num { animation: none; }
+        }
+      `}</style>
 
       <style jsx>{`
         .payment-page {

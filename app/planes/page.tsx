@@ -314,11 +314,13 @@ export default function PlanesPage() {
       }
 
       /*
-       * Al checkout de TARJETA, que es el camino principal y ofrece la
-       * transferencia como alternativa. Mandar directo a transferencia haría
-       * que el que quiere pagar con tarjeta —la mayoría— tenga que buscar cómo.
+       * Directo a la transferencia, que desde el 2026-11-16 es la única forma
+       * de pago: Bancard está en pausa. Pasar antes por `/pago/tarjeta` (que
+       * rebota solo hacia acá) mostraba por un instante "Pago con tarjeta", y
+       * a un administrador se lo mostraba entero. El día que la tarjeta
+       * vuelva (`BANCARD_PAUSADO=0`), esto vuelve a `/pago/tarjeta`.
        */
-      router.push(`/pago/tarjeta?armado=${encodeURIComponent(resultado.armado_id)}`);
+      router.push(`/pago?armado=${encodeURIComponent(resultado.armado_id)}`);
     } catch (err) {
       console.error("No se pudo preparar el pago del armado:", err);
       setError(err instanceof Error ? err.message : "No pudimos preparar el pago.");
