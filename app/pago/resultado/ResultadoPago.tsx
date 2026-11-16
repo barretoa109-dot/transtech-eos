@@ -111,7 +111,7 @@ export default function ResultadoPago() {
 
         if (valor === "pagado") {
           setEstado("pagado");
-          setMensaje("El pago fue aprobado y tu plan de TransTech EOS ya está activo.");
+          setMensaje("El pago fue aprobado y lo que pediste ya está activo en tu cuenta de EOS.");
           return;
         }
 
@@ -171,7 +171,7 @@ export default function ResultadoPago() {
     estado === "cargando"
       ? "Consultando solicitud"
       : estado === "pagado"
-        ? "Suscripción activada"
+        ? "¡Listo, ya está activo!"
         : estado === "revision"
           ? refBancard
             ? "Esperando al banco"
@@ -189,7 +189,11 @@ export default function ResultadoPago() {
         {solicitud && (
           <div className="detail">
             {solicitud.plan_codigo && (
-              <div><span>Plan</span><strong>EOS {solicitud.plan_codigo}</strong></div>
+              <div>
+                <span>{solicitud.plan_codigo === "free" ? "Compra" : "Plan"}</span>
+                {/* Un EOS armado a medida viaja con el código interno "free": no es un plan gratis. */}
+                <strong>{solicitud.plan_codigo === "free" ? "Tus funciones de EOS" : `EOS ${solicitud.plan_codigo}`}</strong>
+              </div>
             )}
             {solicitud.periodicidad && (
               <div><span>Facturación</span><strong>{solicitud.periodicidad}</strong></div>
