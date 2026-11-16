@@ -113,7 +113,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
         <div className="profile-hero">
           <div className="profile-avatar-lg">{iniciales}</div>
           <div>
-            <div className="profile-name">{nombre || "Usuario"}</div>
+            <div className="profile-name">{nombre || "—"}</div>
             {/*
               Ya no dice "Plan Pro": desde que el plan lo arma el usuario, ese
               nombre es un dato interno que no se corresponde con lo que compró.
@@ -132,7 +132,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           <div className="card-title">Información de la cuenta</div>
           <div className="field-row">
             <span className="field-label">Usuario</span>
-            <span className="field-value">{nombre || "Usuario"}</span>
+            <span className="field-value">{nombre || "—"}</span>
           </div>
           <div className="field-row">
             <span className="field-label">Correo</span>

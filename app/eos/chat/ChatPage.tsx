@@ -630,7 +630,7 @@ export default function EOSPage({ inicial }: { inicial: DatosIniciales | null })
           />
         )}
 
-        {destino !== "chat" && destino !== "briefing" && destino !== "perfil" && !usuarioCargado && (
+        {destino !== "chat" && destino !== "briefing" && !usuarioCargado && (
           <div className="neg-loading" role="status">
             <span /> Cargando…
           </div>
@@ -708,7 +708,7 @@ export default function EOSPage({ inicial }: { inicial: DatosIniciales | null })
 
         {usuarioCargado && destino === "calendario" && <CalendarioView onOpenChat={() => irA("chat")} />}
 
-        {destino === "perfil" && (
+        {usuarioCargado && destino === "perfil" && (
           <ProfileView
             nombre={nombre}
             plan={plan}
