@@ -15,6 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { CUENTA } from "@/lib/pagos/cuenta";
 
 type PlanPago = {
   codigo: string;
@@ -48,13 +49,6 @@ type PedidoCreado = {
 
 const PLANES_PAGOS = new Set(["personal", "pro", "business"]);
 
-const CUENTA = {
-  banco: "Banco Continental S.A.E.C.A.",
-  titular: "TRANSTECH E.A.S.",
-  numero: "060061320004",
-  ruc: "80174259-5",
-  moneda: "Guaraníes",
-};
 
 export default function PagoCheckout() {
   const router = useRouter();
@@ -571,6 +565,14 @@ export default function PagoCheckout() {
                   </>
                 )}
               </button>
+
+              <p className="security-note">
+                <strong>Cómo funciona:</strong> revisamos tu comprobante las 24 horas, todos los días.
+                Si no activamos el plan que pediste, te devolvemos la totalidad de tu dinero en un
+                plazo máximo de 24 horas. El comprobante tiene que mostrar la cuenta de destino, el
+                titular, el monto exacto y la fecha. Más detalle en los{" "}
+                <a href="/terminos#reembolsos">Términos</a>.
+              </p>
 
               <p className="security-note">
                 El plan se activa después de verificar que el pago ingresó.

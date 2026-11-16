@@ -1,0 +1,42 @@
+# El reloj del agente de transferencias. Ver app/api/cron/pagos-transferencia.
+#
+# Cada diez minutos mira los comprobantes en revisión y, si el agente está
+# encendido y el dueño no contestó a tiempo, activa los que coinciden.
+#
+# GitHub puede atrasar un `schedule` bastante: por eso el camino principal es
+# la pantalla de espera de quien pagó (que consulta cada pocos segundos) y esto
+# es el respaldo para quien cerró la pestaña.
+#
+# Secretos: CRON_SECRET (el mismo que los otros crons).
+
+name: pagos-transferencia
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pagos-transferencia:
+    if: github.repository == 'barretoa109-dot/transtech-eos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Llamar al endpoint
+        run: |
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then
+            echo "::error::Falta el secreto CRON_SECRET en este repositorio."
+            exit 1
+          fi
+          respuesta=$(curl -sS -w '\n%{http_code}' -X GET \
+            "https://www.transtech.com.py/api/cron/pagos-transferencia" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          codigo="${respuesta##*$'\n'}"
+          echo "${respuesta%$'\n'*}"
+          if [ "$codigo" -ge 400 ]; then
+            echo "::error::El endpoint devolvió HTTP $codigo"
+            exit 1
+          fi

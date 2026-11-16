@@ -94,6 +94,10 @@ const PERMITIDAS = new Map([
     "El panel de administración: existe para ver las solicitudes de TODOS, que es su función. La puerta es `ADMIN_EMAILS`, verificada en la misma ruta y antes de consultar.",
   ],
   [
+    "app/api/admin/pagos/accion/route.ts::solicitudes_pago",
+    "El panel de administración, después de rechazar un pago: lee ESA solicitud (por `id`, el que el administrador acaba de procesar) para saber a quién mandarle el correo con el detalle. No se puede acotar por el usuario de la sesión porque la sesión es la del administrador y la fila es de quien pagó. La puerta es `ADMIN_EMAILS`, verificada antes de cualquier consulta.",
+  ],
+  [
     "app/api/cron/briefing-diario/route.ts::usuarios",
     "El cron recorre a todos los usuarios por definición: es lo que hace un cron. Su puerta es `CRON_SECRET`, no una sesión.",
   ],

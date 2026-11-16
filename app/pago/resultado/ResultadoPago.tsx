@@ -120,7 +120,7 @@ export default function ResultadoPago() {
           setMensaje(
             refBancard
               ? "El banco no aprobó el pago. Podés intentar con otra tarjeta."
-              : "El comprobante no pudo ser aprobado. Contactá con TransTech.",
+              : "No pudimos aprobar tu comprobante. Te enviamos un correo con el detalle de lo que encontramos y cómo seguir. Si la transferencia llegó a nuestra cuenta, te devolvemos la totalidad en un plazo máximo de 24 horas.",
           );
           return;
         }
@@ -129,7 +129,7 @@ export default function ResultadoPago() {
         setMensaje(
           refBancard
             ? "Estamos esperando la confirmación del banco. Esta pantalla se actualizará automáticamente."
-            : "Recibimos tu comprobante. Verificaremos el ingreso y activaremos tu plan. Esta pantalla se actualizará automáticamente.",
+            : "Recibimos tu comprobante y tu pago está en verificación. Revisamos los pagos las 24 horas, todos los días. Apenas confirmemos el ingreso activamos lo que pediste y te avisamos por correo; no hace falta que te quedes en esta pantalla.",
         );
         programarNuevaConsulta();
       } catch (error) {
@@ -175,7 +175,7 @@ export default function ResultadoPago() {
         : estado === "revision"
           ? refBancard
             ? "Esperando al banco"
-            : "Comprobante recibido"
+            : "¡Gracias por tu pago!"
           : "No pudimos confirmar la solicitud";
 
   return (
@@ -203,7 +203,10 @@ export default function ResultadoPago() {
 
         <div className="security">
           <ShieldCheck size={18} />
-          <span>La activación se realiza solamente después de verificar el ingreso bancario.</span>
+          <span>
+            La activación se realiza solamente después de verificar el ingreso bancario. Si no activamos tu
+            plan, te devolvemos la totalidad en un plazo máximo de 24 horas.
+          </span>
         </div>
 
         <div className="actions">

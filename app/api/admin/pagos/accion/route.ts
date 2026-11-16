@@ -2,6 +2,9 @@ import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { enviarConfirmacionPlan } from "@/lib/email/transaccionales";
+import { enviarCorreoSimple } from "@/lib/email/enviar-simple";
+import { avisarComprobanteNoVerificado, MOTIVO_NO_ACREDITADA } from "@/lib/pagos/correo-comprobante";
+import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -202,6 +205,47 @@ export async function POST(request: Request) {
             referencia: solicitudProcesadaId,
             renovacion: resultado.same_plan_renewal === true,
           });
+        }
+      });
+    }
+
+    // Recién rechazada por esta llamada: la persona recibe un correo con el
+    // detalle. Si el agente había encontrado algo, van sus motivos; si el
+    // comprobante se veía bien, es que la plata no entró, y eso es lo que se dice.
+    if (resultado.status === "rechazado" && resultado.idempotent !== true) {
+      after(async () => {
+        try {
+          const servicio = adminSinTipos();
+          const { data: rechazada } = await servicio
+            .from("solicitudes_pago")
+            .select("usuario_id,referencia_interna,metadata")
+            .eq("id", solicitudProcesadaId)
+            .maybeSingle();
+          const fila = rechazada as {
+            usuario_id?: string;
+            referencia_interna?: string | null;
+            metadata?: { revision_ia?: { veredicto?: string; motivos?: string[] } } | null;
+          } | null;
+          if (!fila?.usuario_id) return;
+
+          const revision = fila.metadata?.revision_ia;
+          const motivos =
+            revision?.veredicto && revision.veredicto !== "coincide" && (revision.motivos ?? []).length > 0
+              ? (revision.motivos as string[])
+              : [MOTIVO_NO_ACREDITADA];
+
+          await avisarComprobanteNoVerificado(
+            servicio,
+            {
+              usuarioId: fila.usuario_id,
+              referencia: fila.referencia_interna ?? solicitudProcesadaId,
+              motivos,
+              momento: "rechazado",
+            },
+            enviarCorreoSimple(),
+          );
+        } catch (error) {
+          console.error("Pagos: no se pudo avisar el rechazo por correo:", error);
         }
       });
     }

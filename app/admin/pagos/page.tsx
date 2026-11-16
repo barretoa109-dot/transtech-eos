@@ -37,6 +37,11 @@ type PagoPendiente = {
       tipo?: string;
       subido_at?: string;
     };
+    /** Lo que encontró el agente al leer el comprobante. Ver lib/pagos/agente-transferencias.ts. */
+    revision_ia?: {
+      veredicto?: "coincide" | "dudoso" | "no_coincide";
+      motivos?: string[];
+    };
   };
   comprobante_url?: string | null;
 };
@@ -255,6 +260,20 @@ export default function AdminPagosPage() {
                         administrador.
                       </span>
                     </div>
+
+                    {pago.metadata?.revision_ia?.veredicto && (
+                      <span>
+                        <strong>
+                          {pago.metadata.revision_ia.veredicto === "coincide"
+                            ? "Revisión de EOS: coincide con el pedido."
+                            : pago.metadata.revision_ia.veredicto === "dudoso"
+                              ? "Revisión de EOS: necesita que lo mires."
+                              : "Revisión de EOS: NO coincide con el pedido."}
+                        </strong>{" "}
+                        {(pago.metadata.revision_ia.motivos ?? []).join(" ")} Confirmá siempre en tu banco que
+                        la plata entró.
+                      </span>
+                    )}
 
                     {pago.comprobante_url ? (
                       <a
