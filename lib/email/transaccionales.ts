@@ -87,6 +87,11 @@ export async function enviarBienvenida(admin: ClienteSinTipos, usuarioId: string
       `${saludo} gracias por crear tu cuenta en TransTech EOS.`,
       "EOS es la IA que lleva tu negocio y tus finanzas personales: le contás lo que pasó —una venta, un gasto, un cliente nuevo— en tu idioma, y ella se encarga de clasificarlo, guardarlo y mantener tus números al día. Vos revisás y decidís; el trabajo manual lo hace EOS.",
       "Para arrancar no hace falta ningún formulario: abrí el chat y contale algo real de tu día, por ejemplo \"gasté 50 mil en el almuerzo\" o \"vendí 2 unidades a 100 mil cada una\".",
+      // La app del teléfono no puede mostrar planes ni llevar a comprarlos
+      // (Apple 3.1.1(a)); sí se puede contar por correo, fuera de la app
+      // (3.1.3). Sin esto, quien solo usa la app nunca se entera de que EOS
+      // tiene funciones para sumar ni de dónde se contratan.
+      `EOS se arma por partes: elegís las funciones que vas a usar y pagás solo esas. Las contratás y las cambiás cuando quieras desde la web, en ${APP_URL}/planes.`,
     ],
     ctaTexto: "Abrir EOS",
     ctaUrl: `${APP_URL}/eos`,

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { DIAS_AVISO_VENCIMIENTO } from "@/lib/modulos/catalogo";
 import SoloEnWeb from "@/components/app-nativa/SoloEnWeb";
+import { useEsAppNativa } from "@/lib/app-nativa/cliente";
 
 /**
  * Qué funciones tiene contratadas el usuario, y hasta cuándo.
@@ -40,6 +41,7 @@ type Modulo = {
 
 export default function MisModulos() {
   const [modulos, setModulos] = useState<Modulo[] | null>(null);
+  const enApp = useEsAppNativa();
 
   useEffect(() => {
     let activo = true;
@@ -133,6 +135,21 @@ export default function MisModulos() {
           {activos.length === 0 ? "Armar mi EOS" : "Cambiar mis funciones"}
         </Link>
       </SoloEnWeb>
+
+      {/*
+        Dentro de la app no puede haber botón, enlace ni invitación a comprar
+        afuera (Apple 3.1.1(a), fuera de EE. UU.). Pero una tarjeta que dice
+        "elegís las funciones" y no ofrece cómo, parece rota: quien la lee cree
+        que EOS no tiene nada para contratar. Esta frase dice lo único que se
+        puede decir —que desde acá no se hace— sin nombrar la web, sin enlace y
+        sin ser tocable. Cómo se contrata se le cuenta fuera de la app, en el
+        correo de bienvenida.
+      */}
+      {enApp && (
+        <p className="prose" style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>
+          Desde la app no se pueden contratar ni cambiar funciones.
+        </p>
+      )}
     </div>
   );
 }

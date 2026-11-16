@@ -18,8 +18,8 @@ export function tarjetaHabilitadaPara(
 ): boolean {
   // Pausa del dueño (2026-11-15): mientras Bancard no responda, EOS cobra solo
   // por transferencia, esté Bancard en producción o no. `BANCARD_PAUSADO=0` la
-  // levanta sin tocar código. Quien certifica y los administradores siguen
-  // pudiendo probar la tarjeta, para no perder la certificación.
+  // levanta sin tocar código. La cuenta de certificación sigue pudiendo probar
+  // la tarjeta, para no perder la certificación.
   const pausado = (env.BANCARD_PAUSADO ?? "1").trim() !== "0";
 
   if (!pausado && (env.BANCARD_ENV || "staging").trim().toLowerCase() === "production") return true;
@@ -27,8 +27,12 @@ export function tarjetaHabilitadaPara(
   const correo = (email ?? "").trim().toLowerCase();
   if (!correo) return false;
 
+  // Con la pausa puesta, ni los administradores: el dueño entra con su cuenta a
+  // ver lo que ve un cliente, y encontrarse la pantalla de tarjeta le decía que
+  // EOS seguía cobrando por Bancard (2026-11-16). Queda solo la cuenta de
+  // certificación, que existe para eso.
   const permitidos = [
-    ...(env.ADMIN_EMAILS || "").split(","),
+    ...(pausado ? [] : (env.ADMIN_EMAILS || "").split(",")),
     env.EOS_CERT_EMAIL || "demo@transtech.com.py",
   ]
     .map((e) => e.trim().toLowerCase())
