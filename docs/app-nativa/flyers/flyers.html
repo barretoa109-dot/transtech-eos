@@ -136,21 +136,75 @@ svg{display:block}
   </div>
 </template>
 
-<!-- ============ 1 · CONVERSÁ CON EOS ============ -->
-<section class="flyer" id="f1">
+<template id="tpl-appbar">
+  <div class="appbar">
+    <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+    <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span><span data-nombre></span><svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+    <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+  </div>
+  <div class="demo">Vista de demostración · datos ficticios</div>
+</template>
+
+<!-- ============ PORTADA · TU PROGRESO ============ -->
+<section class="flyer" id="fp">
   <div class="head">
-    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Conversá con EOS</div>
-    <h1 class="title">Anotá tu negocio hablando</h1>
-    <p class="sub">Escribile o hablale a EOS como a una persona: registra, ordena y te responde.</p>
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>TransTech EOS</div>
+    <h1 class="title">Crecé con tu plata, desde donde estés</h1>
+    <p class="sub">Estés empezando, con deudas o ahorrando, EOS te ayuda a administrar y aprovechar mejor lo que tenés.</p>
   </div>
   <div class="phone"><div class="screen"><div class="ui">
     <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    <div data-appbar="Personal"></div>
+    <div class="body">
+      <div class="h1">Personal</div>
+      <div class="tabs">
+        <span class="tab">Mi mes</span><span class="tab">Tengo y debo</span><span class="tab">Mis metas</span><span class="tab on">Informes</span>
+      </div>
+      <div class="subs"><span class="sub-t">Tu impacto</span><span class="sub-t on">Tu progreso</span></div>
+      <div class="card" style="margin-top:12px">
+        <div class="lbl">Patrimonio neto</div>
+        <div class="big">₲&nbsp;18.400.000</div>
+        <div class="t2" style="margin-top:2px">Lo que tenés menos lo que debés</div>
+        <svg viewBox="0 0 330 70" width="100%" height="70" style="margin-top:10px">
+          <defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1656bd" stop-opacity=".18"/><stop offset="1" stop-color="#1656bd" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0 52 L55 47 L110 50 L165 40 L220 36 L275 30 L330 24 L330 70 L0 70Z" fill="url(#gp)"/>
+          <path d="M0 52 L55 47 L110 50 L165 40 L220 36 L275 30 L330 24" fill="none" stroke="#1656bd" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="330" cy="24" r="4" fill="#1656bd" transform="translate(-4 0)"/>
+        </svg>
+        <div style="display:flex;justify-content:space-between" class="t2"><span>jun</span><span>jul</span><span>ago</span><span>set</span><span>oct</span><span>nov</span></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Tu resultado, mes a mes</div>
+        <div class="t2" style="margin-top:2px">Lo que entró menos lo que salió</div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;height:92px;margin-top:10px;position:relative;padding:0 6px">
+          <div style="position:absolute;left:0;right:0;top:62px;border-top:1px dashed #c9d3e3"></div>
+          <i style="width:26px;height:22px;margin-bottom:30px;border-radius:6px 6px 2px 2px;background:#a9c6ef"></i>
+          <i style="width:26px;height:14px;margin-bottom:16px;border-radius:2px 2px 6px 6px;background:#f3b4b4"></i>
+          <i style="width:26px;height:28px;margin-bottom:30px;border-radius:6px 6px 2px 2px;background:#a9c6ef"></i>
+          <i style="width:26px;height:34px;margin-bottom:30px;border-radius:6px 6px 2px 2px;background:#6fa3e8"></i>
+          <i style="width:26px;height:30px;margin-bottom:30px;border-radius:6px 6px 2px 2px;background:#6fa3e8"></i>
+          <i style="width:26px;height:44px;margin-bottom:30px;border-radius:6px 6px 2px 2px;background:var(--blue)"></i>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:0 8px" class="t2"><span>jun</span><span>jul</span><span>ago</span><span>set</span><span>oct</span><span>nov</span></div>
+      </div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <span class="ico" style="background:var(--green-light);color:var(--green)"><svg width="17" height="17"><use href="#i-check"/></svg></span>
+        <div class="grow"><div class="t1" style="white-space:normal;font-size:13.5px">Este mes te sobraron <span style="white-space:nowrap">₲&nbsp;780.000</span></div><div class="t2">Podés llevarlos a tu fondo o a una meta</div></div>
+      </div>
     </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
+  </div></div></div>
+</section>
+
+<!-- ============ 1 · CONVERSÁ CON EOS ============ -->
+<section class="flyer" id="f1">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Organización</div>
+    <h1 class="title">Ordená tu plata hablando</h1>
+    <p class="sub">Contale a EOS lo que vendés, gastás o cobrás. Lo anota, lo ordena y te responde.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div data-appbar="Comercio Demo"></div>
     <div class="chat">
       <div class="u">Vendí 3 cajas de yerba a Cliente Demo, me pagó en efectivo</div>
       <div>
@@ -181,18 +235,13 @@ svg{display:block}
 <!-- ============ 2 · NEGOCIO ============ -->
 <section class="flyer" id="f2">
   <div class="head">
-    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Negocio</div>
-    <h1 class="title">Tu negocio, más organizado</h1>
-    <p class="sub">Ventas, compras, productos y números en un mismo lugar, con avisos de lo que pide atención.</p>
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Tu negocio</div>
+    <h1 class="title">Que tu negocio también crezca</h1>
+    <p class="sub">Ventas, cobros, stock y números claros, con avisos de lo que pide atención.</p>
   </div>
   <div class="phone"><div class="screen"><div class="ui">
     <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
-    </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div data-appbar="Comercio Demo"></div>
     <div class="body">
       <div class="h1">Negocio</div>
       <div class="tabs">
@@ -228,61 +277,16 @@ svg{display:block}
   </div></div></div>
 </section>
 
-<!-- ============ 3 · VENTAS Y COBROS ============ -->
-<section class="flyer" id="f3">
-  <div class="head">
-    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Ventas y cobros</div>
-    <h1 class="title">Sabé qué vendiste y qué te deben</h1>
-    <p class="sub">Tus ventas ordenadas, lo cobrado y lo pendiente, del atraso más viejo al más nuevo.</p>
-  </div>
-  <div class="phone"><div class="screen"><div class="ui">
-    <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
-    </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
-    <div class="body">
-      <div class="h1">Negocio</div>
-      <div class="tabs">
-        <span class="tab on">Vender</span><span class="tab">Comprar</span><span class="tab">Catálogo</span><span class="tab">Números</span>
-      </div>
-      <div class="subs"><span class="sub-t">Ventas</span><span class="sub-t on">Por cobrar</span></div>
-      <div class="card" style="margin-top:12px">
-        <div class="lbl">Te deben en total</div>
-        <div class="big">₲ 1.140.000</div>
-        <div class="bar" style="display:flex;gap:3px;background:none"><i style="width:45%;background:var(--red)"></i><i style="width:30%;background:var(--amber)"></i><i style="width:25%;background:#c9d3e3"></i></div>
-        <div style="display:flex;gap:12px;margin-top:8px" class="t2"><span style="color:var(--red)">● Más de 7 días</span><span style="color:var(--amber)">● Esta semana</span><span>● Al día</span></div>
-      </div>
-      <div class="card" style="padding-top:12px;padding-bottom:4px">
-        <div class="row"><div class="grow"><div class="t1">Cliente Demo B</div><div class="t2">Venta del 5 de nov.</div></div><div><div class="amt">₲ 510.000</div><div style="text-align:right;margin-top:3px"><span class="pill bad">12 días de atraso</span></div></div></div>
-        <div class="row"><div class="grow"><div class="t1">Cliente Demo C</div><div class="t2">Venta del 14 de nov.</div></div><div><div class="amt">₲ 345.000</div><div style="text-align:right;margin-top:3px"><span class="pill warn">Vence el viernes</span></div></div></div>
-        <div class="row"><div class="grow"><div class="t1">Cliente Demo D</div><div class="t2">Venta del 18 de nov.</div></div><div><div class="amt">₲ 285.000</div><div style="text-align:right;margin-top:3px"><span class="pill neu">Al día</span></div></div></div>
-      </div>
-      <div class="sec">COBRADO HOY</div>
-      <div class="card" style="padding-top:12px;padding-bottom:4px">
-        <div class="row"><span class="ico" style="background:var(--green-light);color:var(--green)"><svg width="16" height="16"><use href="#i-check"/></svg></span><div class="grow"><div class="t1">Cliente Demo</div><div class="t2">Efectivo · 10:24</div></div><div class="amt">₲ 105.000</div></div>
-      </div>
-    </div>
-  </div></div></div>
-</section>
-
 <!-- ============ 4 · FINANZAS PERSONALES ============ -->
 <section class="flyer" id="f4">
   <div class="head">
-    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Finanzas personales</div>
-    <h1 class="title">Entendé cómo viene tu mes</h1>
-    <p class="sub">Lo que entró, lo que salió y cuánto te queda para el día a día, en tu espacio personal.</p>
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Administración</div>
+    <h1 class="title">Sabé cuánto te queda de verdad</h1>
+    <p class="sub">Lo que entró, lo que salió y lo que queda libre para el día a día, antes de que termine el mes.</p>
   </div>
   <div class="phone"><div class="screen"><div class="ui">
     <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Personal<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
-    </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div data-appbar="Personal"></div>
     <div class="body">
       <div class="h1">Personal</div>
       <div class="tabs">
@@ -316,21 +320,48 @@ svg{display:block}
   </div></div></div>
 </section>
 
-<!-- ============ 5 · OBJETIVOS ============ -->
-<section class="flyer" id="f5">
+<!-- ============ DEUDAS ============ -->
+<section class="flyer" id="fd">
   <div class="head">
-    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Objetivos</div>
-    <h1 class="title">Avanzá con un plan</h1>
-    <p class="sub">Decile a EOS qué querés juntar y para cuándo. Te muestra cuánto apartar por mes.</p>
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Deudas</div>
+    <h1 class="title">Ordená tus deudas con un plan</h1>
+    <p class="sub">EOS te propone en qué orden pagar y por qué, y te prepara el mensaje para negociar lo que no entra.</p>
   </div>
   <div class="phone"><div class="screen"><div class="ui">
     <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Personal<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    <div data-appbar="Personal"></div>
+    <div class="body">
+      <div class="h1">Personal</div>
+      <div class="tabs">
+        <span class="tab">Mi mes</span><span class="tab">Lo que viene</span><span class="tab on">Tengo y debo</span>
+      </div>
+      <div class="subs"><span class="sub-t">Cuentas</span><span class="sub-t on">Deudas</span><span class="sub-t">Tarjetas</span></div>
+      <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><span class="badge">TU PLAN DE ESTE MES</span><span class="t2" style="margin:0">Propuesta: EOS no paga por vos</span></div>
+      <div class="card" style="margin-top:10px">
+        <div style="font-size:13.5px;line-height:1.45">Después de vivir, te quedan <b>₲&nbsp;1.200.000</b> para deudas.</div>
+        <div class="sec" style="margin:12px 0 4px">EN QUÉ ORDEN PAGAR</div>
+        <div class="row"><span class="ico" style="font-weight:800;font-size:14px">1</span><div class="grow"><div class="t1">Tarjeta Demo</div><div class="t2">Tiene recargo por atraso</div></div><div class="amt">₲&nbsp;450.000</div></div>
+        <div class="row"><span class="ico" style="font-weight:800;font-size:14px">2</span><div class="grow"><div class="t1">Financiera Demo</div><div class="t2">Es la de interés más alto</div></div><div class="amt">₲&nbsp;380.000</div></div>
+        <div class="row"><span class="ico" style="font-weight:800;font-size:14px">3</span><div class="grow"><div class="t1">Préstamo Demo</div><div class="t2">Cuota fija del mes</div></div><div class="amt">₲&nbsp;370.000</div></div>
+      </div>
+      <div class="aviso" style="align-items:flex-start;flex-direction:column;gap:8px">
+        <div class="t1" style="font-size:13px">Cooperativa Demo no entra este mes. Te preparé un borrador:</div>
+        <div style="display:flex;gap:6px"><span class="fmt">Pedir prórroga</span><span class="fmt">Ofrecer un pago parcial</span></div>
+      </div>
     </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
+  </div></div></div>
+</section>
+
+<!-- ============ 5 · OBJETIVOS ============ -->
+<section class="flyer" id="f5">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Ahorro y metas</div>
+    <h1 class="title">Avanzá con un plan</h1>
+    <p class="sub">Armá tu colchón y definí metas. EOS te dice cuánto apartar por mes para llegar.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div data-appbar="Personal"></div>
     <div class="body">
       <div class="h1">Personal</div>
       <div class="tabs">
@@ -367,12 +398,7 @@ svg{display:block}
   </div>
   <div class="phone"><div class="screen"><div class="ui">
     <div data-status></div>
-    <div class="appbar">
-      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
-      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
-      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
-    </div>
-    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div data-appbar="Comercio Demo"></div>
     <div class="chat">
       <div class="att">
         <span class="ico"><svg width="17" height="17"><use href="#i-img"/></svg></span>
@@ -411,6 +437,11 @@ svg{display:block}
 <script>
   const tpl = document.getElementById("tpl-status").innerHTML;
   document.querySelectorAll("[data-status]").forEach((el) => (el.outerHTML = tpl));
+  const bar = document.getElementById("tpl-appbar").innerHTML;
+  document.querySelectorAll("[data-appbar]").forEach((el) => {
+    const nombre = el.dataset.appbar;
+    el.outerHTML = bar.replace(/<span data-nombre[^>]*><\/span>/, nombre);
+  });
 </script>
 </body>
 </html>
