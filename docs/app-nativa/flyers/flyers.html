@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Flyers App Store EOS</title>
+<!--
+  Serie de 6 flyers para la ficha de App Store (1290 × 2796 px, iPhone 6,9").
+  Las pantallas dentro del iPhone son MAQUETAS ILUSTRATIVAS con datos
+  ficticios, armadas con los colores y componentes reales de EOS
+  (app/eos-design/tokens.css, app/eos/chat/eosApp.css). No son capturas.
+  Reemplazar por capturas verificadas cuando existan.
+  Render: node docs/app-nativa/flyers/render.mjs
+-->
+<style>
+:root{
+  --blue:#1656bd; --blue-dark:#113f8c; --blue-bright:#2f72d6; --blue-light:#e9f0fb;
+  --ink:#07132a; --muted:#6b7280; --line:#e5e9f0; --surface:#f6f8fc; --bg2:#f1f5fb;
+  --green:#10a37f; --green-light:#e6f7f1; --amber:#d97706; --amber-light:#fffbeb;
+  --red:#dc2626; --red-light:#fef2f2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b1220;font-family:"Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:var(--ink)}
+.flyer{width:1290px;height:2796px;position:relative;overflow:hidden;background:var(--blue);margin:0 auto 40px}
+/* Un solo brillo suave arriba, el mismo en las seis: da profundidad sin competir con el teléfono. */
+.flyer::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 85% 42% at 50% 0%,rgba(111,163,232,.45),transparent 70%)}
+.head{position:absolute;left:110px;right:110px;top:170px;text-align:center;color:#fff}
+.eyebrow{display:inline-flex;align-items:center;gap:22px;font-size:38px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.9)}
+.eyebrow .chip{width:76px;height:76px;border-radius:20px;background:#fff;overflow:hidden;position:relative;flex:none;box-shadow:0 6px 18px rgba(7,19,42,.25)}
+.eyebrow .chip img{position:absolute;width:126px;height:126px;left:-25px;top:-25px}
+.title{margin-top:52px;font-size:116px;line-height:1.04;font-weight:800;letter-spacing:-.035em;text-wrap:balance}
+.sub{margin:40px auto 0;max-width:980px;font-size:50px;line-height:1.34;font-weight:500;color:rgba(255,255,255,.86);text-wrap:balance}
+
+/* iPhone */
+.phone{position:absolute;left:129.75px;top:985px;width:1030.5px;height:2100px;border-radius:168px;background:#0d1424;padding:24px;
+  box-shadow:0 0 0 5px #2b3a55,0 60px 120px rgba(4,12,32,.45)}
+.screen{width:982.5px;height:2052px;border-radius:144px;overflow:hidden;background:#fff;position:relative}
+.ui{width:393px;transform:scale(2.5);transform-origin:0 0;position:absolute;left:0;top:0;font-size:14px;line-height:1.4}
+
+/* Pantalla (unidades en puntos de iPhone) */
+.status{height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;font-weight:600;font-size:16px;position:relative}
+.island{position:absolute;left:50%;top:11px;width:124px;height:36px;margin-left:-62px;background:#000;border-radius:20px}
+.sicons{display:flex;gap:6px;align-items:center}
+.appbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.iconbtn{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:var(--ink)}
+.iconbtn.line{border:1px solid var(--line)}
+.espacio{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.mini-logo{width:24px;height:24px;border-radius:50%;overflow:hidden;position:relative;flex:none}
+.mini-logo img{position:absolute;width:42px;height:42px;left:-9px;top:-9px}
+.demo{margin:2px auto 0;width:max-content;font-size:10.5px;font-weight:600;color:var(--muted);background:var(--bg2);border:1px dashed #c9d3e3;border-radius:99px;padding:3px 10px;letter-spacing:.02em}
+.body{padding:12px 16px 0}
+.h1{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-top:10px;overflow:hidden}
+.tab{padding:9px 10px 10px;font-size:13.5px;font-weight:650;color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.tab.on{color:var(--blue);border-color:var(--blue)}
+.tab .n{background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:0 5px;line-height:15px}
+.subs{display:flex;gap:6px;margin-top:10px}
+.sub-t{font-size:12.5px;font-weight:600;padding:6px 11px;border-radius:99px;color:var(--muted);background:var(--surface);border:1px solid var(--line)}
+.sub-t.on{color:var(--blue-dark);background:var(--blue-light);border-color:#cfdcf3}
+.card{border:1px solid var(--line);border-radius:16px;background:#fff;padding:14px 15px}
+.card+.card{margin-top:10px}
+.lbl{font-size:12px;font-weight:600;color:var(--muted)}
+.big{font-size:27px;font-weight:800;letter-spacing:-.02em;margin-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.grid2 .card{margin:0;padding:12px 13px}
+.mid{font-size:18px;font-weight:750;letter-spacing:-.01em;margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:750;letter-spacing:.06em;padding:4px 8px;border-radius:99px;background:var(--blue-light);color:var(--blue-dark)}
+.pill{font-size:11px;font-weight:650;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.ok{background:var(--green-light);color:#0b7a5f}.warn{background:var(--amber-light);color:#b45309}.bad{background:var(--red-light);color:#b91c1c}.neu{background:var(--bg2);color:var(--muted)}
+.sec{font-size:12px;font-weight:700;color:var(--muted);margin:16px 2px 8px;letter-spacing:.02em}
+.row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0;padding-top:2px}
+.ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;background:var(--blue-light);color:var(--blue)}
+.grow{flex:1;min-width:0}
+.t1{font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:12px;color:var(--muted);margin-top:1px}
+.amt{font-size:14px;font-weight:700;text-align:right;white-space:nowrap}
+.bar{height:8px;border-radius:99px;background:var(--bg2);overflow:hidden;margin-top:10px}
+.bar>i{display:block;height:100%;border-radius:99px;background:var(--blue)}
+.aviso{display:flex;gap:10px;align-items:center;background:var(--amber-light);border:1px solid #fde7b0;border-radius:14px;padding:11px 12px;margin-top:10px}
+.aviso .t1{white-space:normal;font-size:13px;font-weight:600;line-height:1.35}
+.link{font-size:12.5px;font-weight:700;color:var(--blue);white-space:nowrap}
+
+/* Chat */
+.chat{padding:14px 16px 0;display:flex;flex-direction:column;gap:16px}
+.u{align-self:flex-end;max-width:80%;background:var(--blue-light);border-radius:18px 18px 4px 18px;padding:10px 14px;font-size:14.5px;line-height:1.5}
+.a-name{font-size:12px;font-weight:800;letter-spacing:.3px;color:var(--blue-dark);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.a-txt{font-size:14.5px;line-height:1.55}
+.a-txt b{font-weight:700}
+.reg{margin-top:9px;border:1px solid var(--line);border-radius:14px;padding:11px 13px;background:var(--surface)}
+.reg .r{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.reg .r span:first-child{color:var(--muted)}
+.reg .r span:last-child{font-weight:650}
+.file{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:#fff;margin-top:9px}
+.fmts{display:flex;gap:6px;margin-top:9px}
+.fmt{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:650;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:#fff;color:var(--ink)}
+.att{align-self:flex-end;display:flex;align-items:center;gap:10px;border:1px solid #cfdcf3;background:#fff;border-radius:14px;padding:9px 12px;max-width:80%}
+.composer{position:absolute;left:12px;right:12px;top:648px;border:1px solid var(--line);border-radius:22px;padding:11px 12px 11px 16px;display:flex;align-items:center;gap:10px;background:#fff;box-shadow:0 4px 18px rgba(7,19,42,.06)}
+.composer .ph{flex:1;color:#9aa3b2;font-size:14.5px}
+.send{width:34px;height:34px;border-radius:50%;background:var(--blue);display:grid;place-items:center;color:#fff}
+svg{display:block}
+</style>
+</head>
+<body>
+
+<!-- Íconos (trazos de lucide, la librería de íconos de la app) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 2h2l2.7 12.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L22 6H5.1"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M8 13h2M14 13h2M8 17h2M14 17h2"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/></symbol>
+    <symbol id="i-img" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+    <symbol id="i-down-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  </defs>
+</svg>
+
+<!-- Piezas que se repiten: barra de estado y barra superior -->
+<template id="tpl-status">
+  <div class="status"><span>9:41</span><div class="island"></div>
+    <div class="sicons">
+      <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#07132a"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#07132a"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#07132a"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#07132a"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0zM3.3 6.7a6.6 6.6 0 0 1 9.4 0l-1.5 1.5a4.5 4.5 0 0 0-6.4 0zM1 4.4a9.9 9.9 0 0 1 14 0l-1.5 1.5a7.8 7.8 0 0 0-11 0z" fill="#07132a"/></svg>
+      <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#07132a" opacity=".4"/><rect x="2" y="2" width="17" height="8" rx="2" fill="#07132a"/><rect x="24" y="4" width="1.6" height="4" rx=".8" fill="#07132a" opacity=".4"/></svg>
+    </div>
+  </div>
+</template>
+
+<!-- ============ 1 · CONVERSÁ CON EOS ============ -->
+<section class="flyer" id="f1">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Conversá con EOS</div>
+    <h1 class="title">Anotá tu negocio hablando</h1>
+    <p class="sub">Escribile o hablale a EOS como a una persona: registra, ordena y te responde.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="chat">
+      <div class="u">Vendí 3 cajas de yerba a Cliente Demo, me pagó en efectivo</div>
+      <div>
+        <div class="a-name">EOS</div>
+        <div class="a-txt">Listo, anoté la venta.</div>
+        <div class="reg">
+          <div class="r"><span>Cliente</span><span>Cliente Demo</span></div>
+          <div class="r"><span>Producto</span><span>3 × Yerba 1 kg</span></div>
+          <div class="r"><span>Total</span><span>₲ 105.000</span></div>
+          <div class="r"><span>Cobro</span><span style="color:#0b7a5f">Cobrada · efectivo</span></div>
+        </div>
+      </div>
+      <div class="u">¿Cómo vengo este mes?</div>
+      <div>
+        <div class="a-name">EOS</div>
+        <div class="a-txt">En noviembre vendiste <b>₲ 4.820.000</b> y gastaste <b>₲ 2.960.000</b>. Todavía te deben <b>₲ 1.140.000</b> entre 3 clientes.</div>
+      </div>
+    </div>
+    <div class="composer">
+      <svg width="20" height="20" style="color:var(--muted)"><use href="#i-clip"/></svg>
+      <span class="ph">Escribile a EOS...</span>
+      <svg width="20" height="20" style="color:var(--muted)"><use href="#i-mic"/></svg>
+      <span class="send"><svg width="17" height="17"><use href="#i-up"/></svg></span>
+    </div>
+  </div></div></div>
+</section>
+
+<!-- ============ 2 · NEGOCIO ============ -->
+<section class="flyer" id="f2">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Negocio</div>
+    <h1 class="title">Tu negocio, más organizado</h1>
+    <p class="sub">Ventas, compras, productos y números en un mismo lugar, con avisos de lo que pide atención.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="body">
+      <div class="h1">Negocio</div>
+      <div class="tabs">
+        <span class="tab on">Vender</span><span class="tab">Comprar</span><span class="tab">Catálogo</span><span class="tab">Números</span>
+        <span class="tab" style="margin-left:auto"><svg width="15" height="15"><use href="#i-gear"/></svg></span>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="lbl">Vendido en noviembre</div>
+        <div class="big">₲ 4.820.000</div>
+        <div class="t2" style="margin-top:4px">38 ventas · 21 clientes</div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="lbl">Por cobrar</div><div class="mid">₲ 1.140.000</div><div class="t2">3 clientes</div></div>
+        <div class="card"><div class="lbl">Por pagar</div><div class="mid">₲ 640.000</div><div class="t2">2 proveedores</div></div>
+      </div>
+      <div class="sec">EOS TE AVISA</div>
+      <div class="aviso" style="margin-top:0">
+        <span style="color:var(--amber)"><svg width="20" height="20"><use href="#i-alert"/></svg></span>
+        <span class="grow t1">Cliente Demo B tiene un saldo con 12 días de atraso.</span>
+        <span class="link">Ver</span>
+      </div>
+      <div class="aviso">
+        <span style="color:var(--amber)"><svg width="20" height="20"><use href="#i-box"/></svg></span>
+        <span class="grow t1">Quedan 4 unidades de Producto Demo A.</span>
+        <span class="link">Ver</span>
+      </div>
+      <div class="sec">ÚLTIMOS MOVIMIENTOS</div>
+      <div class="card" style="padding-top:12px;padding-bottom:4px">
+        <div class="row"><span class="ico"><svg width="17" height="17"><use href="#i-bag"/></svg></span><div class="grow"><div class="t1">Venta · Cliente Demo</div><div class="t2">Hoy, 10:24</div></div><div class="amt">₲ 105.000</div></div>
+        <div class="row"><span class="ico" style="background:var(--bg2);color:var(--muted)"><svg width="17" height="17"><use href="#i-cart"/></svg></span><div class="grow"><div class="t1">Compra · Proveedor Demo</div><div class="t2">Ayer</div></div><div class="amt">₲ 320.000</div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<!-- ============ 3 · VENTAS Y COBROS ============ -->
+<section class="flyer" id="f3">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Ventas y cobros</div>
+    <h1 class="title">Sabé qué vendiste y qué te deben</h1>
+    <p class="sub">Tus ventas ordenadas, lo cobrado y lo pendiente, del atraso más viejo al más nuevo.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="body">
+      <div class="h1">Negocio</div>
+      <div class="tabs">
+        <span class="tab on">Vender</span><span class="tab">Comprar</span><span class="tab">Catálogo</span><span class="tab">Números</span>
+      </div>
+      <div class="subs"><span class="sub-t">Ventas</span><span class="sub-t on">Por cobrar</span></div>
+      <div class="card" style="margin-top:12px">
+        <div class="lbl">Te deben en total</div>
+        <div class="big">₲ 1.140.000</div>
+        <div class="bar" style="display:flex;gap:3px;background:none"><i style="width:45%;background:var(--red)"></i><i style="width:30%;background:var(--amber)"></i><i style="width:25%;background:#c9d3e3"></i></div>
+        <div style="display:flex;gap:12px;margin-top:8px" class="t2"><span style="color:var(--red)">● Más de 7 días</span><span style="color:var(--amber)">● Esta semana</span><span>● Al día</span></div>
+      </div>
+      <div class="card" style="padding-top:12px;padding-bottom:4px">
+        <div class="row"><div class="grow"><div class="t1">Cliente Demo B</div><div class="t2">Venta del 5 de nov.</div></div><div><div class="amt">₲ 510.000</div><div style="text-align:right;margin-top:3px"><span class="pill bad">12 días de atraso</span></div></div></div>
+        <div class="row"><div class="grow"><div class="t1">Cliente Demo C</div><div class="t2">Venta del 14 de nov.</div></div><div><div class="amt">₲ 345.000</div><div style="text-align:right;margin-top:3px"><span class="pill warn">Vence el viernes</span></div></div></div>
+        <div class="row"><div class="grow"><div class="t1">Cliente Demo D</div><div class="t2">Venta del 18 de nov.</div></div><div><div class="amt">₲ 285.000</div><div style="text-align:right;margin-top:3px"><span class="pill neu">Al día</span></div></div></div>
+      </div>
+      <div class="sec">COBRADO HOY</div>
+      <div class="card" style="padding-top:12px;padding-bottom:4px">
+        <div class="row"><span class="ico" style="background:var(--green-light);color:var(--green)"><svg width="16" height="16"><use href="#i-check"/></svg></span><div class="grow"><div class="t1">Cliente Demo</div><div class="t2">Efectivo · 10:24</div></div><div class="amt">₲ 105.000</div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<!-- ============ 4 · FINANZAS PERSONALES ============ -->
+<section class="flyer" id="f4">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Finanzas personales</div>
+    <h1 class="title">Entendé cómo viene tu mes</h1>
+    <p class="sub">Lo que entró, lo que salió y cuánto te queda para el día a día, en tu espacio personal.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Personal<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="body">
+      <div class="h1">Personal</div>
+      <div class="tabs">
+        <span class="tab">Hoy</span><span class="tab on">Mi mes</span><span class="tab">Lo que viene</span><span class="tab">Tengo y debo</span>
+      </div>
+      <div class="subs"><span class="sub-t on">Cuánto me queda</span><span class="sub-t">En qué se fue</span><span class="sub-t">Movimientos</span></div>
+      <div class="card" style="margin-top:12px">
+        <div class="lbl">Te queda para el día a día</div>
+        <div class="big">₲ 1.250.000</div>
+        <div class="bar"><i style="width:58%"></i></div>
+        <div style="display:flex;justify-content:space-between;margin-top:7px" class="t2"><span>Usaste el 58%</span><span>Faltan 11 días</span></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="lbl">Entró</div><div class="mid" style="color:#0b7a5f">₲ 5.400.000</div></div>
+        <div class="card"><div class="lbl">Salió</div><div class="mid">₲ 3.180.000</div></div>
+      </div>
+      <div class="sec">EN QUÉ SE FUE</div>
+      <div class="card">
+        <div style="display:grid;gap:11px">
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>Supermercado</span><span>₲ 1.120.000</span></div><div class="bar" style="margin-top:5px;height:7px"><i style="width:82%"></i></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>Servicios</span><span>₲ 760.000</span></div><div class="bar" style="margin-top:5px;height:7px"><i style="width:56%;background:var(--blue-bright)"></i></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>Transporte</span><span>₲ 540.000</span></div><div class="bar" style="margin-top:5px;height:7px"><i style="width:40%;background:#6fa3e8"></i></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>Salidas</span><span>₲ 410.000</span></div><div class="bar" style="margin-top:5px;height:7px"><i style="width:30%;background:#a9c6ef"></i></div></div>
+        </div>
+      </div>
+      <div class="sec">ÚLTIMO MOVIMIENTO</div>
+      <div class="card" style="padding-top:12px;padding-bottom:4px">
+        <div class="row"><span class="ico"><svg width="17" height="17"><use href="#i-cart"/></svg></span><div class="grow"><div class="t1">Movimiento de prueba</div><div class="t2">Supermercado · hoy</div></div><div class="amt">− ₲ 86.000</div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<!-- ============ 5 · OBJETIVOS ============ -->
+<section class="flyer" id="f5">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Objetivos</div>
+    <h1 class="title">Avanzá con un plan</h1>
+    <p class="sub">Decile a EOS qué querés juntar y para cuándo. Te muestra cuánto apartar por mes.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Personal<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="body">
+      <div class="h1">Personal</div>
+      <div class="tabs">
+        <span class="tab">Mi mes</span><span class="tab">Lo que viene</span><span class="tab on">Mis metas</span><span class="tab">Informes</span>
+      </div>
+      <div class="subs"><span class="sub-t">Fondo de emergencia</span><span class="sub-t on">Objetivos</span></div>
+      <div style="margin-top:14px"><span class="badge"><svg width="13" height="13"><use href="#i-target"/></svg>LO QUE QUERÉS LOGRAR</span></div>
+      <div class="card" style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="t1" style="font-size:15.5px">Meta de ahorro: viaje</div><span class="pill ok">En ritmo</span></div>
+        <div style="margin-top:8px;font-size:13px;color:var(--muted)"><b style="color:var(--ink);font-size:17px">₲ 3.600.000</b> de ₲ 9.000.000</div>
+        <div class="bar"><i style="width:40%"></i></div>
+        <div style="margin-top:12px;padding:10px 12px;background:var(--blue-light);border-radius:12px;font-size:13.5px;line-height:1.45">Para llegar en <b>julio de 2027</b>, apartá <b>₲ 675.000 por mes</b>.</div>
+        <div style="margin-top:12px;display:grid;gap:7px">
+          <div style="display:flex;gap:8px;font-size:13px;align-items:center"><span class="ico" style="width:20px;height:20px;border-radius:6px;background:var(--green-light);color:var(--green)"><svg width="12" height="12"><use href="#i-check"/></svg></span>Aporte de noviembre apartado</div>
+          <div style="display:flex;gap:8px;font-size:13px;align-items:center;color:var(--muted)"><span style="width:20px;height:20px;border-radius:6px;border:1.5px solid #c9d3e3;flex:none"></span>Próximo aporte: 5 de diciembre</div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="t1" style="font-size:15.5px">Meta de ahorro: equipo nuevo</div><span class="pill warn">Atrasado</span></div>
+        <div style="margin-top:8px;font-size:13px;color:var(--muted)"><b style="color:var(--ink);font-size:17px">₲ 900.000</b> de ₲ 4.000.000</div>
+        <div class="bar"><i style="width:22%;background:var(--amber)"></i></div>
+        <div style="margin-top:10px;font-size:13px;color:var(--muted);line-height:1.45">Al ritmo que llevás, llegás en octubre de 2027.</div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<!-- ============ 6 · DOCUMENTOS ============ -->
+<section class="flyer" id="f6">
+  <div class="head">
+    <div class="eyebrow"><span class="chip"><img src="logo-eos.png" alt=""></span>Documentos</div>
+    <h1 class="title">Tus documentos, desde el chat</h1>
+    <p class="sub">Mandale a EOS tus comprobantes y pedile tu balance en PDF, Excel o Word.</p>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div data-status></div>
+    <div class="appbar">
+      <div class="iconbtn"><svg width="20" height="20"><use href="#i-menu"/></svg></div>
+      <div class="espacio"><span class="mini-logo"><img src="logo-eos.png" alt=""></span>Comercio Demo<svg width="14" height="14" style="color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="iconbtn line"><svg width="18" height="18"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="demo">Vista de demostración · datos ficticios</div>
+    <div class="chat">
+      <div class="att">
+        <span class="ico"><svg width="17" height="17"><use href="#i-img"/></svg></span>
+        <div><div class="t1" style="font-size:13.5px">comprobante-demo.jpg</div><div class="t2">Imagen · 1,2 MB</div></div>
+      </div>
+      <div class="u" style="margin-top:-8px">Guardá este comprobante de Proveedor Demo</div>
+      <div>
+        <div class="a-name">EOS</div>
+        <div class="a-txt">Listo, guardé el comprobante de <b>Proveedor Demo</b>.</div>
+      </div>
+      <div class="u">Armame el balance de noviembre</div>
+      <div>
+        <div class="a-name">EOS</div>
+        <div class="a-txt">Acá tenés tu balance de noviembre, con ventas, compras y gastos.</div>
+        <div class="file">
+          <span class="ico"><svg width="18" height="18"><use href="#i-doc"/></svg></span>
+          <div class="grow"><div class="t1">Balance de noviembre</div><div class="t2">Comercio Demo</div></div>
+          <svg width="18" height="18" style="color:var(--blue)"><use href="#i-down-arrow"/></svg>
+        </div>
+        <div class="fmts">
+          <span class="fmt"><svg width="15" height="15" style="color:#0b7a5f"><use href="#i-sheet"/></svg>Excel</span>
+          <span class="fmt"><svg width="15" height="15" style="color:var(--red)"><use href="#i-doc"/></svg>PDF</span>
+          <span class="fmt"><svg width="15" height="15" style="color:var(--blue)"><use href="#i-doc"/></svg>Word</span>
+        </div>
+      </div>
+    </div>
+    <div class="composer">
+      <svg width="20" height="20" style="color:var(--muted)"><use href="#i-clip"/></svg>
+      <span class="ph">Escribile a EOS...</span>
+      <svg width="20" height="20" style="color:var(--muted)"><use href="#i-mic"/></svg>
+      <span class="send"><svg width="17" height="17"><use href="#i-up"/></svg></span>
+    </div>
+  </div></div></div>
+</section>
+
+<script>
+  const tpl = document.getElementById("tpl-status").innerHTML;
+  document.querySelectorAll("[data-status]").forEach((el) => (el.outerHTML = tpl));
+</script>
+</body>
+</html>
