@@ -1,7 +1,12 @@
 # Flyers para la ficha de App Store
 
-Siete piezas de 1290 × 2796 px (iPhone 6,9"), listas para subir en `png/`
-(App Store acepta hasta 10). Cuentan una sola idea: **EOS ayuda a crecer
+Siete piezas, en dos tamaños (App Store acepta hasta 10 por tamaño):
+
+- `png/iphone-6.3/` — 1206 × 2622. Va en el espacio **"iPhone con Dynamic
+  Island (pantalla mediana)"** de App Store Connect (6,1" y 6,3"). Ese espacio
+  rechaza 1290 × 2796 con "las dimensiones del archivo no son válidas".
+- `png/iphone-6.9/` — 1290 × 2796, para la pantalla grande (6,7" y 6,9"),
+  si App Store Connect la pide. Cuentan una sola idea: **EOS ayuda a crecer
 financieramente desde cualquier situación**, con mejor administración,
 organización y uso de los recursos. Se dice como ayuda, nunca como resultado
 garantizado.
