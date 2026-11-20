@@ -1,111 +1,72 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Loader2, Mail, Send, X } from "lucide-react";
+import { Briefcase, Check, Layers, Loader2, Mail, MessageCircle, Send, Wallet, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
 import {
-  calcularArmado,
+  esCodigoPlan,
   MENSAJES_GRATIS_POR_DIA,
-  MESES_DEL_ANUAL,
-  TOPE_MENSUAL_PYG,
-  type ModuloCatalogo,
-} from "@/lib/modulos/armado";
-import {
-  esCodigoPreset,
-  presetsDisponibles,
-  presetsVisibles,
-  seleccionIgualAPreset,
-  type CodigoPreset,
-  type PresetCalculado,
-} from "@/lib/modulos/presets";
+  PLANES,
+  precioDelPlan,
+  type CodigoPlan,
+} from "@/lib/modulos/planes";
 
 /**
- * Armá tu EOS.
+ * Planes y precios.
  *
  * ============================================================
- * POR QUÉ ACÁ YA NO HAY PLANES
+ * CUATRO PLANES (v263)
  * ============================================================
  *
- * Había cinco escalones y cada uno era una apuesta sobre qué combinación de
- * funciones quiere la gente. La apuesta fallaba siempre igual: el que solo
- * quería conversar más tenía que pagar un panel financiero que no usa, y el que
- * solo quería el panel tenía que pagar mensajes que no iba a mandar.
+ * El 20/11/2026 el dueño cambió "armá tu EOS" por cuatro planes cerrados:
+ * Gratis, Finanzas Personales, Emprendedor / Empresas y Full. En una prueba
+ * con 100 clientes simulados, los que compraban pasaron de 18 a 32 con estos
+ * cuatro precios frente al armador.
  *
- * Ahora cada función tiene precio y el usuario prende las que quiere. La cuenta
- * se ve cambiar mientras elige, y hay un techo: prendas lo que prendas, no
- * pagás más de Gs. 500.000.
+ * Los precios de esta pantalla salen de `lib/modulos/planes.ts` y NO cobran:
+ * el que cobra es `eos_paquetes`, en la base. `planes.test.ts` los compara.
+ *
+ * Ningún plan dice "ilimitado", "sin tope" ni "sin límite": todos tienen un
+ * tope interno y al cliente no se le promete lo contrario.
  *
  * ============================================================
- * DOS DETALLES QUE NO SON DETALLE
+ * NADA DE `<Link>` CON CLASES DE ESTE ARCHIVO
  * ============================================================
  *
- * 1. **El total de esta pantalla no cobra.** Se calcula acá para que el número
- *    responda al instante, pero el que cobra es `eos_precio_armado`, en la
- *    base. Si los dos no coinciden, manda la base — y por eso el servidor
- *    ignora cualquier total que le mande el navegador.
- *
- * 2. **Nada de `<Link>` con clases de este archivo.** styled-jsx no estila
- *    componentes propios: las clases se aplican al elemento generado y el
- *    componente las pierde. Se rompe SOLO en producción, así que se descubre
- *    tarde. Los enlaces con estilo usan `:global(.btn)`, que ya existía por
- *    exactamente el mismo motivo.
+ * styled-jsx no estila componentes propios: las clases se aplican al elemento
+ * generado y el componente las pierde. Se rompe SOLO en producción. Los
+ * enlaces con estilo usan `:global(.btn)`.
  */
-
-type ModuloContratado = {
-  codigo: string;
-  contratado?: boolean;
-};
 
 const PERIODOS = [
   { clave: "mensual" as const, etiqueta: "Mensual" },
   { clave: "anual" as const, etiqueta: "Anual" },
 ];
 
-/**
- * Lo que ya había elegido antes de que lo mandáramos a iniciar sesión.
- *
- * Sin esto, quien arma su EOS, toca "contratar" y no tiene sesión vuelve del
- * login a una pantalla en blanco y tiene que volver a elegir todo: el momento
- * exacto en el que la gente abandona una compra.
- *
- * ============================================================
- * POR QUÉ NO SE USA useSearchParams
- * ============================================================
- *
- * Porque arrastra al cliente todo lo que cuelgue de él. Cuando colgaba la
- * página entera, el HTML que servía el servidor traía TRECE caracteres
- * visibles: ni Google ni un teléfono lento veían nada hasta que cargaba el
- * JavaScript — en la página donde se vende el producto.
- *
- * El parámetro solo importa al volver del login, que pasa siempre en el
- * navegador. Leerlo acá da lo mismo y deja la página prerenderizada entera.
- */
-/**
- * Los atajos de "Empezar / Negocio / Negocio completo" (punto 9 del plan de
- * fortalecimiento). Apagados salvo que el deploy traiga la bandera: ver
- * `lib/modulos/presets.ts` para por qué la decisión es del usuario.
- */
-const MOSTRAR_PRESETS = presetsVisibles(process.env.NEXT_PUBLIC_EOS_PRESETS_PLANES);
+const ICONOS: Record<CodigoPlan, typeof Wallet> = {
+  finanzas_personales: Wallet,
+  emprendedor: Briefcase,
+  full: Layers,
+};
 
-/** El preset con el que se había partido antes de ir al login, si hubo uno. */
-function presetDeLaUrl(): CodigoPreset | null {
+/**
+ * El plan que había tocado antes de que lo mandáramos a iniciar sesión.
+ *
+ * Se lee de `window` y no con `useSearchParams`, que arrastraría la página
+ * entera al cliente y dejaría el HTML del servidor vacío para Google y para
+ * un teléfono lento.
+ */
+function pedidoDeLaUrl(): { plan: CodigoPlan; periodicidad: "mensual" | "anual" } | null {
   if (typeof window === "undefined") return null;
-  const valor = new URLSearchParams(window.location.search).get("preset");
-  return esCodigoPreset(valor) ? valor : null;
-}
-
-function elegidasDeLaUrl(): string[] {
-  if (typeof window === "undefined") return [];
-
-  return (new URLSearchParams(window.location.search).get("elegidas") ?? "")
-    .split(",")
-    .map((c) => c.trim().toLowerCase())
-    .filter(Boolean);
+  const params = new URLSearchParams(window.location.search);
+  const plan = params.get("plan");
+  if (!esCodigoPlan(plan)) return null;
+  return { plan, periodicidad: params.get("periodo") === "anual" ? "anual" : "mensual" };
 }
 
 export default function PlanesPage() {
@@ -113,14 +74,10 @@ export default function PlanesPage() {
   const supabase = useMemo(() => createClient(), []);
   const scrolled = useNavScrolled();
 
-  const [catalogo, setCatalogo] = useState<ModuloCatalogo[]>([]);
-  const [seleccion, setSeleccion] = useState<string[]>([]);
-  const [contratados, setContratados] = useState<string[]>([]);
   const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">("mensual");
-  const [presetElegido, setPresetElegido] = useState<CodigoPreset | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [planActual, setPlanActual] = useState<CodigoPlan | null>(null);
+  const [enviando, setEnviando] = useState<CodigoPlan | null>(null);
   const [error, setError] = useState("");
-  const [enviando, setEnviando] = useState(false);
   const [mostrarContacto, setMostrarContacto] = useState(false);
   const [enviandoContacto, setEnviandoContacto] = useState(false);
   const [contactoEnviado, setContactoEnviado] = useState(false);
@@ -134,147 +91,10 @@ export default function PlanesPage() {
     website: "",
   });
 
-  useEffect(() => {
-    let activo = true;
-    const elegidasEnLaUrl = elegidasDeLaUrl();
-    const presetEnLaUrl = presetDeLaUrl();
+  async function contratar(plan: CodigoPlan, periodo: "mensual" | "anual" = periodicidad) {
+    if (enviando) return;
 
-    async function cargarCatalogo() {
-      setCargando(true);
-      setError("");
-      if (presetEnLaUrl) setPresetElegido(presetEnLaUrl);
-
-      try {
-        const respuesta = await fetch("/api/modulos/catalogo", { cache: "no-store" });
-        if (!respuesta.ok) throw new Error("catálogo no disponible");
-
-        const payload = (await respuesta.json()) as { modulos: ModuloCatalogo[] };
-        if (!activo) return;
-
-        setCatalogo(payload.modulos ?? []);
-
-        /*
-         * Lo que ya tiene contratado viene marcado, y arranca prendido.
-         *
-         * Alguien que entra a agregar una función no puede tener que volver a
-         * elegir todo lo que ya paga: si el armado arrancara vacío, el primer
-         * clic en "pagar" le cancelaría en la práctica lo que ya tenía.
-         */
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          // Sin sesión, un punto de partida razonable: conversar y ver su plata.
-          if (activo) {
-            setSeleccion(
-              elegidasEnLaUrl.length > 0 ? elegidasEnLaUrl : ["conversaciones_full", "dashboard"],
-            );
-          }
-          return;
-        }
-
-        if (activo) {
-          setContacto((actual) => ({
-            ...actual,
-            nombre: actual.nombre || user.user_metadata?.nombre || user.user_metadata?.name || "",
-            email: actual.email || user.email || "",
-          }));
-        }
-
-        const mios = await fetch("/api/modulos", { cache: "no-store" })
-          .then((res) => (res.ok ? res.json() : null))
-          .catch(() => null);
-
-        const activos = ((mios?.modulos ?? []) as ModuloContratado[])
-          .filter((m) => m.contratado)
-          .map((m) => m.codigo);
-
-        if (!activo) return;
-
-        setContratados(activos);
-        setSeleccion(
-          elegidasEnLaUrl.length > 0
-            ? [...new Set([...activos, ...elegidasEnLaUrl])]
-            : activos.length > 0
-              ? activos
-              : ["conversaciones_full", "dashboard"],
-        );
-      } catch (err) {
-        console.error("No se pudo cargar el catálogo de funciones:", err);
-        if (activo) setError("No pudimos cargar las funciones en este momento. Volvé a intentarlo.");
-      } finally {
-        if (activo) setCargando(false);
-      }
-    }
-
-    cargarCatalogo();
-
-    return () => {
-      activo = false;
-    };
-  }, [supabase]);
-
-  const armado = useMemo(
-    () => calcularArmado(seleccion, catalogo, periodicidad),
-    [seleccion, catalogo, periodicidad],
-  );
-
-  const elegido = useCallback((codigo: string) => armado.modulos.includes(codigo), [armado.modulos]);
-
-  const presets = useMemo(
-    () => (MOSTRAR_PRESETS ? presetsDisponibles(catalogo, periodicidad) : []),
-    [catalogo, periodicidad],
-  );
-
-  /**
-   * Partir de una combinación armada.
-   *
-   * Reemplaza la selección por la del preset, pero sin soltar lo que la
-   * persona ya paga: elegir "Empezar" no puede, en la práctica, darle de baja
-   * el ERP que tiene contratado. Todo sigue editable debajo.
-   */
-  function elegirPreset(preset: PresetCalculado) {
-    setSeleccion([...new Set([...contratados, ...preset.seleccion])]);
-    setPresetElegido(preset.codigo);
-  }
-
-  /**
-   * Prender o apagar una función.
-   *
-   * En los grupos de alternativas —los tramos de conversaciones— elegir uno
-   * reemplaza al otro en vez de sumarse, y volver a tocar el que ya estaba
-   * apaga el grupo entero. Es lo que uno espera de un grupo de opciones, y
-   * evita que alguien termine pagando dos tramos de lo mismo.
-   */
-  function alternar(modulo: ModuloCatalogo) {
-    setSeleccion((actual) => {
-      const yaEstaba = actual.includes(modulo.codigo);
-
-      if (!modulo.grupo) {
-        return yaEstaba ? actual.filter((c) => c !== modulo.codigo) : [...actual, modulo.codigo];
-      }
-
-      const hermanos = catalogo.filter((m) => m.grupo === modulo.grupo).map((m) => m.codigo);
-      const sinElGrupo = actual.filter((c) => !hermanos.includes(c));
-
-      return yaEstaba ? sinElGrupo : [...sinElGrupo, modulo.codigo];
-    });
-  }
-
-  /**
-   * "Gratis" en conversaciones no es un módulo: es no tener ningún tramo
-   * prendido, que deja a la persona en los mensajes por día del plan free.
-   */
-  function elegirGratis(grupo: string) {
-    const delGrupo = catalogo.filter((m) => m.grupo === grupo).map((m) => m.codigo);
-    setSeleccion((actual) => actual.filter((c) => !delGrupo.includes(c)));
-  }
-
-  async function irAPagar() {
-    if (armado.modulos.length === 0 || enviando) return;
-
-    setEnviando(true);
+    setEnviando(plan);
     setError("");
 
     try {
@@ -283,10 +103,8 @@ export default function PlanesPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        // La selección viaja en la URL para que volver del login no la pierda.
-        const destino =
-          `/planes?elegidas=${encodeURIComponent(armado.modulos.join(","))}` +
-          (presetElegido ? `&preset=${presetElegido}` : "");
+        // El plan viaja en la URL para que volver del login siga la compra.
+        const destino = `/planes?plan=${plan}&periodo=${periodo}`;
         router.push(`/login?redirect=${encodeURIComponent(destino)}`);
         return;
       }
@@ -294,40 +112,71 @@ export default function PlanesPage() {
       const respuesta = await fetch("/api/modulos/armado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          modulos: armado.modulos,
-          periodicidad,
-          // Solo medición (v193): el servidor no lo usa para el precio.
-          ...(presetElegido
-            ? {
-                preset: presetElegido,
-                preset_editado: !seleccionIgualAPreset(armado.modulos, presetElegido, catalogo),
-              }
-            : {}),
-        }),
+        body: JSON.stringify({ plan, periodicidad: periodo }),
       });
 
       const resultado = await respuesta.json().catch(() => null);
 
       if (!respuesta.ok || !resultado?.armado_id) {
-        throw new Error(resultado?.error || "No pudimos guardar tu selección.");
+        throw new Error(resultado?.error || "No pudimos guardar tu plan.");
       }
 
       /*
        * Directo a la transferencia, que desde el 2026-11-16 es la única forma
-       * de pago: Bancard está en pausa. Pasar antes por `/pago/tarjeta` (que
-       * rebota solo hacia acá) mostraba por un instante "Pago con tarjeta", y
-       * a un administrador se lo mostraba entero. El día que la tarjeta
-       * vuelva (`BANCARD_PAUSADO=0`), esto vuelve a `/pago/tarjeta`.
+       * de pago: Bancard está en pausa. El día que la tarjeta vuelva
+       * (`BANCARD_PAUSADO=0`), esto vuelve a `/pago/tarjeta`.
        */
       router.push(`/pago?armado=${encodeURIComponent(resultado.armado_id)}`);
     } catch (err) {
-      console.error("No se pudo preparar el pago del armado:", err);
+      console.error("No se pudo preparar el pago del plan:", err);
       setError(err instanceof Error ? err.message : "No pudimos preparar el pago.");
-    } finally {
-      setEnviando(false);
+      setEnviando(null);
     }
   }
+
+  useEffect(() => {
+    let activo = true;
+    const pedido = pedidoDeLaUrl();
+
+    async function cargar() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !activo) return;
+
+      setContacto((actual) => ({
+        ...actual,
+        nombre: actual.nombre || user.user_metadata?.nombre || user.user_metadata?.name || "",
+        email: actual.email || user.email || "",
+      }));
+
+      // Volvió del login con un plan elegido: se sigue la compra donde quedó.
+      if (pedido) {
+        setPeriodicidad(pedido.periodicidad);
+        void contratar(pedido.plan, pedido.periodicidad);
+        return;
+      }
+
+      // La política de RLS solo deja leer los armados propios.
+      const { data } = await supabase
+        .from("eos_planes_armados")
+        .select("paquete")
+        .eq("estado", "vigente")
+        .maybeSingle();
+
+      const paquete = (data as { paquete?: unknown } | null)?.paquete;
+      if (activo && esCodigoPlan(paquete)) setPlanActual(paquete);
+    }
+
+    cargar().catch((err) => console.error("Planes: no se pudo leer el plan actual:", err));
+
+    return () => {
+      activo = false;
+    };
+    // `contratar` se usa una sola vez, al volver del login.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
   async function enviarSolicitudEnterprise(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -374,8 +223,6 @@ export default function PlanesPage() {
     }
   }
 
-  const grupos = agruparCatalogo(catalogo);
-
   return (
     <main className="planes-page" data-eos-theme="light">
       <AmbientBackground techConfig={planesTechCanvas} spanCount={2} />
@@ -395,10 +242,9 @@ export default function PlanesPage() {
       </nav>
 
       <div className="head wrap">
-        <h1 className="head-title">Armá el EOS que vas a usar. Pagá solo eso.</h1>
+        <h1 className="head-title">Un plan para tu plata, otro para tu negocio, o los dos.</h1>
         <p className="head-sub">
-          Prendé las funciones que te sirven y apagá las que no. La cuenta se actualiza sola, y
-          nunca pasa de {formatearGs(TOPE_MENSUAL_PYG)} por mes, tengas todo prendido o casi todo.
+          Probá gratis y pasate a un plan cuando EOS ya te esté sirviendo.
         </p>
         <div className="toggle-wrap">
           <div className="toggle">
@@ -408,6 +254,7 @@ export default function PlanesPage() {
                 type="button"
                 className={periodicidad === p.clave ? "active" : ""}
                 onClick={() => setPeriodicidad(p.clave)}
+                aria-pressed={periodicidad === p.clave}
               >
                 {p.etiqueta}
                 {p.clave === "anual" && <span className="badge">2 meses gratis</span>}
@@ -418,254 +265,115 @@ export default function PlanesPage() {
       </div>
 
       <div className="wrap">
-        {cargando ? (
-          <div className="state-card">
-            <Loader2 className="spin" size={24} />
-            Cargando funciones...
-          </div>
-        ) : catalogo.length === 0 ? (
-          <div className="state-card">
-            <strong>No se pudieron cargar las funciones</strong>
-            <p>{error || "Volvé a intentarlo en un momento."}</p>
-            <button type="button" onClick={() => window.location.reload()}>
-              Reintentar
-            </button>
-          </div>
-        ) : (
-          <>
-          {presets.length > 0 && (
-            <section className="presets" aria-labelledby="presets-titulo">
-              <h2 className="bloque-titulo" id="presets-titulo">
-                ¿No sabés por dónde empezar?
-              </h2>
-              <p className="bloque-sub">
-                Elegí un punto de partida. Se prende abajo y podés cambiar lo que quieras.
-              </p>
-              <div className="presets-lista">
-                {presets.map((preset) => {
-                  const actual = presetElegido === preset.codigo;
-                  return (
-                    <button
-                      type="button"
-                      key={preset.codigo}
-                      className={`preset ${actual ? "activa" : ""}`}
-                      onClick={() => elegirPreset(preset)}
-                      aria-pressed={actual}
-                      aria-label={`${preset.nombre}, ${formatearGs(preset.total)} ${
-                        periodicidad === "anual" ? "por año" : "por mes"
-                      }`}
-                    >
-                      <span className="preset-nombre">{preset.nombre}</span>
-                      <span className="preset-precio">
-                        {formatearGs(preset.total)}
-                        <span className="preset-periodo">
-                          {periodicidad === "anual" ? " / año" : " / mes"}
-                        </span>
-                      </span>
-                      <span className="preset-para">{preset.para}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-          <div className="armador">
-            <div className="armador-lista">
-              {grupos.map((grupo) => (
-                <section className="bloque" key={grupo.clave}>
-                  <h2 className="bloque-titulo">{grupo.titulo}</h2>
-                  <p className="bloque-sub">{grupo.sub}</p>
-
-                  <div className="opciones">
-                    {grupo.clave === "conversaciones" && (() => {
-                      const gratis = !grupo.modulos.some((m) => elegido(m.codigo));
-                      return (
-                        <button
-                          type="button"
-                          className={`opcion ${gratis ? "activa" : ""}`}
-                          onClick={() => elegirGratis("conversaciones")}
-                          aria-pressed={gratis}
-                          aria-label={`Gratis, ${MENSAJES_GRATIS_POR_DIA} mensajes por día, sin costo`}
-                        >
-                          <span className={`marca ${gratis ? "marcada" : ""}`}>
-                            {gratis && <Check size={13} />}
-                          </span>
-
-                          <span className="opcion-texto">
-                            <span className="opcion-nombre">Gratis</span>
-                            <span className="opcion-desc">
-                              {MENSAJES_GRATIS_POR_DIA} mensajes por día para probar, sin tarjeta.
-                            </span>
-                          </span>
-
-                          <span className="opcion-precio">Sin costo</span>
-                        </button>
-                      );
-                    })()}
-                    {grupo.modulos.map((modulo) => {
-                      const activo = elegido(modulo.codigo);
-                      const agregado = armado.agregados.includes(modulo.codigo);
-                      const yaLoTiene = contratados.includes(modulo.codigo);
-
-                      return (
-                        <button
-                          type="button"
-                          key={modulo.codigo}
-                          className={`opcion ${activo ? "activa" : ""}`}
-                          onClick={() => alternar(modulo)}
-                          aria-pressed={activo}
-                          // El nombre accesible no se arma solo: el texto vive en
-                          // spans anidados y un lector de pantalla anuncia el botón
-                          // sin decir qué función es ni cuánto sale.
-                          aria-label={`${modulo.nombre}, ${formatearGs(modulo.precio_mensual_pyg)} por mes`}
-                        >
-                          <span className={`marca ${activo ? "marcada" : ""}`}>
-                            {activo && <Check size={13} />}
-                          </span>
-
-                          <span className="opcion-texto">
-                            <span className="opcion-nombre">
-                              {modulo.nombre}
-                              {yaLoTiene && <span className="pill">ya lo tenés</span>}
-                              {agregado && !yaLoTiene && <span className="pill">necesaria</span>}
-                            </span>
-                            <span className="opcion-desc">{modulo.descripcion}</span>
-                          </span>
-
-                          <span className="opcion-precio">
-                            {precioVisible(modulo.precio_mensual_pyg, periodicidad)}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-
-            <aside className="cuenta">
-              <div className="cuenta-caja">
-                {/*
-                  Se llama por su nombre.
-
-                  Comercialmente hay dos cosas y nada en el medio: el plan Free
-                  con el que se prueba, y el EOS Personalizado que cada uno arma.
-                  Ningún paquete cerrado, ninguna combinación sugerida como
-                  producto. El tope de Gs. 500.000 es la única frontera.
-
-                  (Los puntos de partida de arriba, si la bandera está
-                  prendida, no cambian esto: solo pre-llenan esta misma
-                  cuenta. Ver lib/modulos/presets.ts.)
-                */}
-                <span className="cuenta-eyebrow">EOS PERSONALIZADO</span>
-
-                {armado.modulos.length === 0 ? (
-                  <p className="cuenta-vacia">
-                    Sin nada prendido seguís en <strong>EOS Free</strong>: {MENSAJES_GRATIS_POR_DIA} mensajes por día
-                    para probar, sin costo y sin tarjeta. Prendé una función cuando quieras
-                    más.
-                  </p>
-                ) : (
-                  <ul className="cuenta-lista">
-                    {armado.modulos.map((codigo) => {
-                      const modulo = catalogo.find((m) => m.codigo === codigo);
-                      if (!modulo) return null;
-
-                      return (
-                        <li key={codigo}>
-                          <span>{modulo.nombre}</span>
-                          <span>{precioVisible(modulo.precio_mensual_pyg, periodicidad)}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                {armado.tope_aplicado && (
-                  <p className="cuenta-tope">
-                    Sumaba {formatearGs(armado.subtotal)}. Se te cobra el tope.
-                  </p>
-                )}
-
-                {/*
-                  El total cambia al tocar cualquier módulo, y ese cambio es la
-                  única respuesta a lo que la persona acaba de hacer. Quien ve
-                  la pantalla lo nota solo; quien usa un lector no se enteraba
-                  de nada: no había una sola región viva en toda la página.
-
-                  Va `polite` y no `assertive` para que espere a que el lector
-                  termine de anunciar el módulo que se acaba de elegir, en vez
-                  de interrumpirlo con el número.
-                */}
-                <div className="cuenta-total" aria-live="polite" aria-atomic="true">
-                  <span>Total</span>
-                  <strong>{formatearGs(armado.total)}</strong>
-                  {/* Solo para el lector: sin esto anuncia "Total 120.000" y
-                      no queda dicho si es por mes o por año. */}
-                  <span className="solo-lectores">
-                    {periodicidad === "anual" ? " por año" : " por mes"}
-                  </span>
-                </div>
-                <div className="cuenta-periodo" aria-hidden="true">
-                  {periodicidad === "anual" ? "por año" : "por mes"}
-                </div>
-
-                {/* Un error que aparece sin anunciarse deja a la persona
-                    esperando una respuesta que ya llegó. */}
-                {error && (
-                  <p className="cuenta-error" role="alert">
-                    {error}
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  className="cuenta-btn"
-                  disabled={armado.modulos.length === 0 || enviando}
-                  onClick={irAPagar}
-                >
-                  {enviando ? (
-                    <>
-                      <Loader2 className="spin" size={14} />
-                      Preparando...
-                    </>
-                  ) : contratados.length > 0 ? (
-                    "Actualizar mi EOS →"
-                  ) : (
-                    "Contratar →"
-                  )}
-                </button>
-
-                <p className="cuenta-nota">
-                  Podés cambiar tu selección cuando quieras. Lo que ya pagaste no se pierde.
-                </p>
-              </div>
-
-              <div className="cuenta-caja secundaria">
-                <span className="cuenta-eyebrow">¿SOS UNA EMPRESA?</span>
-                <p className="cuenta-vacia">
-                  Si necesitás varios usuarios, integraciones propias o facturación a nombre de tu
-                  organización, hablamos.
-                </p>
-                <button
-                  type="button"
-                  className="cuenta-btn fantasma"
-                  onClick={() => {
-                    setContactoEnviado(false);
-                    setErrorContacto("");
-                    setMostrarContacto(true);
-                  }}
-                >
-                  Hablar con ventas →
-                </button>
-              </div>
-            </aside>
-          </div>
-          </>
+        {error && (
+          <p className="plans-error" role="alert">
+            {error}
+          </p>
         )}
 
+        <div className="plans">
+          <article className="plan">
+            <div className="plan-ic">
+              <MessageCircle />
+            </div>
+            <div className="plan-tag">Para probar</div>
+            <h2 className="plan-name">Gratis</h2>
+            <p className="plan-desc">Conocé EOS sin tarjeta y sin compromiso.</p>
+            <div className="plan-price">
+              Gs. 0 <span className="per">{periodicidad === "anual" ? "/ año" : "/ mes"}</span>
+            </div>
+            <div className="plan-price-sub">Sin tarjeta</div>
+            <a className="plan-btn" href="/eos">
+              Empezar gratis
+            </a>
+            <div className="plan-includes-label">Incluye</div>
+            <div className="plan-feat">
+              <Check />
+              {MENSAJES_GRATIS_POR_DIA} mensajes por día con EOS
+            </div>
+            <div className="plan-feat">
+              <Check />
+              Panel de tu plata
+            </div>
+          </article>
+
+          {PLANES.map((plan) => {
+            const Icono = ICONOS[plan.codigo];
+            const actual = planActual === plan.codigo;
+            const precio = precioDelPlan(plan, periodicidad);
+
+            return (
+              <article key={plan.codigo} className={`plan ${plan.destacado ? "premium" : ""}`}>
+                {plan.destacado && <div className="plan-badge">Recomendado para negocios</div>}
+                <div className="plan-ic">
+                  <Icono />
+                </div>
+                <div className="plan-tag">{plan.codigo === "full" ? "Todo junto" : plan.codigo === "emprendedor" ? "Tu negocio" : "Tu plata"}</div>
+                <h2 className="plan-name">{plan.nombre}</h2>
+                <p className="plan-desc">{plan.para}</p>
+                <div className="plan-price">
+                  {formatearGs(precio)}{" "}
+                  <span className="per">{periodicidad === "anual" ? "/ año" : "/ mes"}</span>
+                </div>
+                <div className="plan-price-sub">
+                  {periodicidad === "anual"
+                    ? `Equivale a ${formatearGs(Math.round(precio / 12))} por mes`
+                    : `${formatearGs(plan.precio_anual_pyg)} pagando el año`}
+                </div>
+                <button
+                  type="button"
+                  className={`plan-btn ${actual ? "current" : "primary"}`}
+                  disabled={actual || enviando !== null}
+                  onClick={() => contratar(plan.codigo)}
+                  aria-label={`${actual ? "Tu plan actual" : "Elegir"} ${plan.nombre}, ${formatearGs(precio)} ${
+                    periodicidad === "anual" ? "por año" : "por mes"
+                  }`}
+                >
+                  {enviando === plan.codigo ? (
+                    <>
+                      <Loader2 className="spin" />
+                      Preparando...
+                    </>
+                  ) : actual ? (
+                    "Tu plan actual"
+                  ) : (
+                    "Elegir este plan"
+                  )}
+                </button>
+                <div className="plan-includes-label">Incluye</div>
+                {plan.incluye.map((item) => (
+                  <div className="plan-feat" key={item}>
+                    <Check />
+                    {item}
+                  </div>
+                ))}
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="empresa-caja">
+          <div>
+            <strong>¿Necesitás algo a medida para tu organización?</strong>
+            <p>Integraciones propias, muchos usuarios o facturación a nombre de tu empresa.</p>
+          </div>
+          <button
+            type="button"
+            className="plan-btn fantasma"
+            onClick={() => {
+              setContactoEnviado(false);
+              setErrorContacto("");
+              setMostrarContacto(true);
+            }}
+          >
+            Hablar con ventas →
+          </button>
+        </div>
+
         <p className="note">
-          Precios en guaraníes, calculados por EOS al momento de contratar.
+          Precios en guaraníes. El plan Finanzas Personales es
+          para tu plata personal: los gastos y ventas de un negocio van en Emprendedor / Empresas o
+          en Full.
         </p>
       </div>
 
@@ -675,7 +383,6 @@ export default function PlanesPage() {
           <a href="mailto:soporte@transtech.com.py">soporte@transtech.com.py</a>
         </div>
       </footer>
-
       {mostrarContacto && (
         <div
           className="contact-overlay"
@@ -705,7 +412,7 @@ export default function PlanesPage() {
                   Te responderemos al correo <strong>{contacto.email}</strong>.
                 </p>
                 <button type="button" onClick={() => setMostrarContacto(false)}>
-                  Volver a las funciones
+                  Volver a los planes
                 </button>
               </div>
             ) : (
@@ -1410,428 +1117,80 @@ export default function PlanesPage() {
           color: var(--blue);
         }
 
-        @media (max-width: 900px) {
+
+        .plans {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px;
+        }
+        .planes-page :global(.plan) {
+          padding: 28px 22px;
+        }
+        .plans .plan-price {
+          font-size: 26px;
+          white-space: nowrap;
+        }
+        a.plan-btn {
+          box-sizing: border-box;
+        }
+        .plan-btn:disabled:not(.current) {
+          opacity: 0.6;
+          cursor: wait;
+        }
+        .plan-btn.fantasma {
+          width: auto;
+          margin: 0;
+          padding: 12px 18px;
+          color: var(--blue-dark);
+        }
+        .plans-error {
+          max-width: 620px;
+          margin: 0 auto 24px;
+          padding: 11px 14px;
+          border: 1px solid #fecaca;
+          border-radius: 12px;
+          background: #fef2f2;
+          color: #b42318;
+          font-size: 13px;
+          text-align: center;
+        }
+        .empresa-caja {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          flex-wrap: wrap;
+          margin: 0 0 36px;
+          padding: 20px 22px;
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          background: var(--surface);
+        }
+        .empresa-caja p {
+          margin: 4px 0 0;
+          font-size: 13px;
+          color: var(--muted);
+        }
+        @media (max-width: 1100px) {
+          .plans {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 640px) {
           .plans {
             grid-template-columns: 1fr;
           }
-        }
-
-        /* ============================================================
-           EL ARMADOR
-
-           Dos columnas: la lista de funciones a la izquierda y la cuenta a la
-           derecha, pegada al scroll. En el teléfono la cuenta se va abajo: el
-           precio es la única información que el usuario necesita ver mientras
-           prende y apaga cosas.
-           ============================================================ */
-        .armador {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 320px;
-          gap: 28px;
-          align-items: start;
-        }
-
-        /* ============================================================
-           LOS PUNTOS DE PARTIDA (punto 9, detras de una bandera)
-
-           Tres tarjetas arriba del armador. No son planes: tocarlas solo
-           prende modulos en la lista de abajo. Mismos tokens que las
-           opciones, para que se lean como parte del mismo armador.
-           ============================================================ */
-        .presets {
-          margin-bottom: 28px;
-        }
-        .presets-lista {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .preset {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 4px;
-          width: 100%;
-          padding: 14px 16px;
-          text-align: left;
-          background: var(--bg);
-          color: var(--text);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
-        }
-        .preset:hover {
-          border-color: var(--border-hover);
-          background: var(--surface);
-        }
-        .preset.activa {
-          border-color: var(--blue);
-          background: var(--blue-light);
-        }
-        .preset-nombre {
-          font-size: 14px;
-          font-weight: 800;
-        }
-        .preset-precio {
-          font-size: 15px;
-          font-weight: 800;
-          color: var(--blue-dark);
-          font-variant-numeric: tabular-nums;
-        }
-        .preset-periodo {
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--muted);
-        }
-        .preset-para {
-          font-size: 12.5px;
-          line-height: 1.45;
-          color: var(--muted);
-        }
-        .preset.activa .preset-para,
-        .preset.activa .preset-periodo {
-          color: #5a6373;
-        }
-        @media (max-width: 900px) {
-          .presets-lista {
-            grid-template-columns: 1fr;
+          .head-title {
+            font-size: 32px;
+          }
+          .wrap {
+            padding: 0 16px;
           }
         }
-
-        .bloque {
-          margin-bottom: 26px;
-        }
-        .bloque-titulo {
-          margin: 0;
-          font-size: 15px;
-          font-weight: 800;
-          letter-spacing: -0.2px;
-        }
-        .bloque-sub {
-          margin: 3px 0 12px;
-          font-size: 13px;
-          color: var(--muted);
-        }
-
-        .opciones {
-          display: grid;
-          gap: 8px;
-        }
-        .opcion {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          width: 100%;
-          padding: 14px 16px;
-          text-align: left;
-          background: var(--bg);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          transition: border-color 0.18s var(--ease), background 0.18s var(--ease),
-            box-shadow 0.18s var(--ease);
-        }
-        .opcion:hover {
-          border-color: var(--border-hover);
-          background: var(--surface);
-        }
-        .opcion.activa {
-          border-color: var(--blue);
-          background: var(--blue-light);
-          box-shadow: 0 1px 0 rgba(22, 86, 189, 0.08);
-        }
-
-        .marca {
-          flex: none;
-          width: 19px;
-          height: 19px;
-          margin-top: 1px;
-          border: 1.5px solid var(--border);
-          border-radius: 6px;
-          background: var(--bg);
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: #fff;
-        }
-        .marca.marcada {
-          background: var(--blue);
-          border-color: var(--blue);
-        }
-
-        .opcion-texto {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-        }
-        .opcion-nombre {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-          font-size: 14px;
-          font-weight: 700;
-        }
-        /*
-          Se lee, no se ve.
-
-          Esconderlo con display none o visibility hidden lo sacaría también
-          del lector de pantalla, que es lo contrario de lo que se busca. La
-          receta es sacarlo del flujo con un rectángulo de un píxel: sigue
-          estando en el árbol de accesibilidad.
-
-          (Ojo: nada de acentos graves en estos comentarios. Están adentro de
-          un template literal y lo cortan; ya rompió esta página dos veces.)
-        */
-        .solo-lectores {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip-path: inset(50%);
-          white-space: nowrap;
-          border: 0;
-        }
-
-        .opcion-desc {
-          font-size: 12.5px;
-          line-height: 1.45;
-          color: var(--muted);
-        }
-        /*
-          Al seleccionar una opción el fondo pasa de blanco al azul claro, y el
-          gris apagado sobre ese tinte cae a 4,2:1 — por debajo del 4,5 que
-          exige un texto de este tamaño. Medido en el navegador, no estimado.
-
-          Efecto: elegir un módulo hacía su descripción MENOS legible, que es
-          exactamente al revés de lo que uno espera al seleccionarlo.
-        */
-        .opcion.activa .opcion-desc {
-          color: #5a6373;
-        }
-        .pill {
-          padding: 2px 8px;
-          border-radius: 999px;
-          background: var(--green-light);
-          color: var(--green);
-          font-size: 10.5px;
-          font-weight: 800;
-          letter-spacing: 0.2px;
-          text-transform: uppercase;
-        }
-
-        .opcion-precio {
-          flex: none;
-          font-size: 13.5px;
-          font-weight: 800;
-          color: var(--blue-dark);
-          font-variant-numeric: tabular-nums;
-        }
-
-        .cuenta {
-          position: sticky;
-          top: 92px;
-          display: grid;
-          gap: 12px;
-        }
-        .cuenta-caja {
-          padding: 18px;
-          border: 1px solid var(--border);
-          border-radius: 14px;
-          background: var(--bg);
-          box-shadow: 0 10px 30px rgba(7, 19, 42, 0.05);
-        }
-        .cuenta-caja.secundaria {
-          box-shadow: none;
-          background: var(--surface);
-        }
-        .cuenta-eyebrow {
-          display: block;
-          font-size: 10.5px;
-          font-weight: 800;
-          letter-spacing: 0.6px;
-          color: var(--muted);
-        }
-        .cuenta-vacia {
-          margin: 10px 0 0;
-          font-size: 13px;
-          line-height: 1.5;
-          color: var(--muted);
-        }
-        .cuenta-lista {
-          list-style: none;
-          margin: 12px 0 0;
-          padding: 0;
-          display: grid;
-          gap: 6px;
-        }
-        .cuenta-lista li {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          font-size: 12.5px;
-          color: var(--muted);
-        }
-        .cuenta-lista li span:last-child {
-          font-variant-numeric: tabular-nums;
-          color: var(--text);
-        }
-        .cuenta-tope {
-          margin: 10px 0 0;
-          padding: 8px 10px;
-          border-radius: 8px;
-          background: var(--green-light);
-          color: var(--green);
-          font-size: 12px;
-          font-weight: 600;
-        }
-        .cuenta-total {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          margin-top: 14px;
-          padding-top: 12px;
-          border-top: 1px solid var(--border);
-          font-size: 13px;
-          font-weight: 700;
-        }
-        .cuenta-total strong {
-          font-size: 26px;
-          font-weight: 800;
-          letter-spacing: -0.5px;
-          font-variant-numeric: tabular-nums;
-        }
-        .cuenta-periodo {
-          text-align: right;
-          font-size: 11.5px;
-          color: var(--muted);
-        }
-        .cuenta-error {
-          margin: 10px 0 0;
-          font-size: 12.5px;
-          color: #b42318;
-        }
-        .cuenta-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          margin-top: 14px;
-          padding: 12px 16px;
-          border: none;
-          border-radius: 10px;
-          background: var(--blue);
-          color: #fff;
-          font-size: 13.5px;
-          font-weight: 700;
-          transition: background 0.18s var(--ease), opacity 0.18s var(--ease);
-        }
-        .cuenta-btn:hover:not(:disabled) {
-          background: var(--blue-dark);
-        }
-        .cuenta-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .cuenta-btn.fantasma {
-          background: transparent;
-          border: 1px solid var(--border);
-          color: var(--blue-dark);
-        }
-        .cuenta-btn.fantasma:hover {
-          background: var(--bg);
-          border-color: var(--blue);
-        }
-        .cuenta-nota {
-          margin: 10px 0 0;
-          font-size: 11.5px;
-          line-height: 1.5;
-          color: var(--muted);
-        }
-
-        @media (max-width: 900px) {
-          .armador {
-            grid-template-columns: 1fr;
-          }
-          .cuenta {
-            position: static;
-          }
-        }
-
       `}</style>
     </main>
   );
 }
 
-/**
- * Cómo se agrupan las funciones en la pantalla.
- *
- * No es el orden del catálogo: es el orden en que alguien decide. Primero
- * "¿cuánto voy a hablar con EOS?", que es la única pregunta que casi todos se
- * hacen; después la plata, que es el corazón del producto; y al final las
- * herramientas de negocio, que solo miran los que las necesitan.
- *
- * Los grupos salen de los códigos y no de una columna de la base a propósito:
- * es una decisión de presentación, no del catálogo. Un módulo nuevo cae en
- * "Para tu negocio" hasta que alguien decida dónde va mejor, y eso es un cambio
- * de una línea acá y no una migración.
- */
-function agruparCatalogo(catalogo: ModuloCatalogo[]) {
-  const de = (codigos: string[]) =>
-    catalogo.filter((m) => codigos.includes(m.codigo)).sort((a, b) => a.orden - b.orden);
-
-  const conversaciones = catalogo
-    .filter((m) => m.grupo === "conversaciones")
-    .sort((a, b) => a.orden - b.orden);
-
-  const dinero = de(["dashboard", "lectura", "alertas", "documentos", "briefing", "decisiones"]);
-
-  const ubicados = new Set([...conversaciones, ...dinero].map((m) => m.codigo));
-  const negocio = catalogo
-    .filter((m) => !ubicados.has(m.codigo))
-    .sort((a, b) => a.orden - b.orden);
-
-  return [
-    {
-      clave: "conversaciones",
-      titulo: "Hablar con EOS",
-      sub: "Gratis para probar, o Conversacional para hablar con EOS todos los días.",
-      modulos: conversaciones,
-    },
-    {
-      clave: "dinero",
-      titulo: "Tu plata",
-      sub: "Lo que EOS mira, lee y te avisa sin que le preguntes.",
-      modulos: dinero,
-    },
-    {
-      clave: "negocio",
-      titulo: "Para tu negocio",
-      sub: "Gestión completa, conectada a lo que EOS ya sabe de vos.",
-      modulos: negocio,
-    },
-  ].filter((grupo) => grupo.modulos.length > 0);
-}
-
-/**
- * El precio de una función, como se lee en la lista.
- *
- * Una función que hoy no se cobra dice "Incluida" y no "Gs. 0": el cero se lee
- * como un error de la pantalla, y encima invita a preguntarse si va a empezar a
- * costar sin aviso. "Incluida" dice lo mismo sin las dos dudas.
- */
-function precioVisible(mensual: number, periodicidad: "mensual" | "anual") {
-  if (mensual <= 0) return "Incluida";
-
-  return formatearGs(periodicidad === "anual" ? mensual * MESES_DEL_ANUAL : mensual);
-}
-
-function formatearGs(valor?: number | null) {
-  if (valor === null || valor === undefined) return "";
-
+function formatearGs(valor: number) {
   return `Gs. ${new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 }).format(valor)}`;
 }

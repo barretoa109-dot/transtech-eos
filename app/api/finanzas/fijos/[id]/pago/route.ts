@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { exigirModulo } from "@/lib/modulos/acceso";
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { registrarAuditoria, resumirMovimiento } from "@/lib/auditoria/registrar";
@@ -41,6 +43,12 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
   const { id } = await contexto.params;
   const fijo = await leerFijo(supabase, user.id, id, ambitoDe(request));
   if (!fijo) return NextResponse.json({ error: "No encontramos ese fijo." }, { status: 404, headers: noStore() });
+
+  // Pagar un fijo del negocio carga un gasto del negocio: es del ERP (v263).
+  if (fijo.ambito === "negocio") {
+    const puerta = await exigirModulo("erp");
+    if (puerta.respuesta) return puerta.respuesta;
+  }
 
   let cuerpo: { monto?: unknown; fecha?: unknown; periodo?: unknown } = {};
   try {

@@ -2,31 +2,26 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { esCodigoPreset } from "@/lib/modulos/presets";
+import { esCodigoPlan } from "@/lib/modulos/planes";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Guardar el EOS que el usuario armó, y decirle cuánto sale.
+ * Guardar el plan que el usuario eligió, y decirle cuánto sale.
  *
  * ============================================================
- * EL TOTAL QUE MANDA EL CLIENTE NO SE MIRA
+ * SOLO PLANES (v263)
  * ============================================================
  *
- * La pantalla calcula el mismo total mientras el usuario prende y apaga
- * funciones, para que el número cambie sin ir y volver al servidor. Ese número
- * es de adorno: acá se recalcula todo desde cero contra `eos_modulos`, y lo que
- * haya llegado en el cuerpo se descarta sin comparar.
+ * Desde el 20/11/2026 se venden cuatro planes cerrados y no módulos sueltos.
+ * Esta ruta es la única puerta para guardar una compra, así que acá se cierra
+ * el armador: llega un código de plan o nada. Una lista de módulos suelta se
+ * rechaza, porque cobrarla al precio de cada módulo abriría un camino más
+ * barato que los planes (el ERP solo, por ejemplo).
  *
- * No es paranoia: el precio es lo único que separa "elegí estas seis funciones"
- * de "elegí estas seis funciones por mil guaraníes". La cuenta la hace la base
- * (`eos_precio_armado`), que además resuelve las dependencias y los tramos con
- * las mismas reglas para todos los caminos que lleguen a cobrar.
+ * El precio lo pone la base (`eos_guardar_paquete_v263`, desde
+ * `eos_paquetes`). Un total que llegue en el cuerpo no se mira.
  */
-
-/** Un armado honesto no tiene más ítems que módulos hay. */
-const MAX_MODULOS = 40;
-
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -46,80 +41,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: noStore() });
   }
 
-  const modulos = Array.isArray(cuerpo.modulos)
-    ? cuerpo.modulos
-        .filter((m): m is string => typeof m === "string")
-        .map((m) => m.trim().toLowerCase())
-        .filter(Boolean)
-        .slice(0, MAX_MODULOS)
-    : [];
+  const plan = typeof cuerpo.plan === "string" ? cuerpo.plan.trim().toLowerCase() : "";
 
-  if (modulos.length === 0) {
-    return NextResponse.json(
-      { error: "Elegí al menos una función para armar tu EOS." },
-      { status: 400, headers: noStore() },
-    );
+  if (!esCodigoPlan(plan)) {
+    return NextResponse.json({ error: "Elegí un plan." }, { status: 400, headers: noStore() });
   }
 
   const periodicidad = cuerpo.periodicidad === "anual" ? "anual" : "mensual";
 
   // El cliente tipado no conoce las funciones nuevas; mismo escape que usan
   // las rutas de pagos con sus RPC.
-  const { data, error } = await adminSinTipos().rpc("eos_guardar_armado", {
+  const { data, error } = await adminSinTipos().rpc("eos_guardar_paquete_v263", {
     p_usuario_id: user.id,
-    p_modulos: modulos,
+    p_paquete: plan,
     p_periodicidad: periodicidad,
   });
 
   if (error) {
     const texto = String(error.message ?? "");
 
-    if (texto.includes("EOS_ARMADO_VACIO")) {
+    if (texto.includes("EOS_PAQUETE_NO_EXISTE") || texto.includes("EOS_PAQUETE_MODULO_INACTIVO")) {
+      console.error("Planes: el plan no se puede vender así:", error);
       return NextResponse.json(
-        { error: "Ninguna de las funciones que elegiste está disponible." },
+        { error: "Ese plan no está disponible en este momento." },
         { status: 400, headers: noStore() },
       );
     }
 
-    console.error("Armado: no se pudo guardar:", error);
+    console.error("Planes: no se pudo guardar la compra:", error);
     return NextResponse.json(
-      { error: "No pudimos guardar tu selección." },
+      { error: "No pudimos guardar tu plan." },
       { status: 503, headers: noStore() },
     );
   }
 
-  await anotarPreset(data, user.id, cuerpo);
-
   return NextResponse.json(data, { headers: noStore() });
-}
-
-/**
- * Desde qué combinación armada se llegó (v193), solo para medir.
- *
- * Va en un update APARTE y después de guardar, a propósito: si falla, el
- * armado y su precio quedan exactamente igual — se pierde el dato de medición,
- * nunca la compra. Un código que no es un preset conocido se ignora.
- */
-async function anotarPreset(data: unknown, usuarioId: string, cuerpo: Record<string, unknown>) {
-  if (!esCodigoPreset(cuerpo.preset)) return;
-
-  const armadoId =
-    data && typeof data === "object" && !Array.isArray(data)
-      ? String((data as Record<string, unknown>).armado_id ?? "")
-      : "";
-  if (!armadoId) return;
-
-  try {
-    const { error } = await adminSinTipos()
-      .from("eos_planes_armados")
-      .update({ preset_origen: cuerpo.preset, preset_editado: cuerpo.preset_editado === true })
-      .eq("id", armadoId)
-      .eq("usuario_id", usuarioId);
-
-    if (error) console.error("Armado: no se pudo anotar el preset de origen:", error);
-  } catch (err) {
-    console.error("Armado: no se pudo anotar el preset de origen:", err);
-  }
 }
 
 /**

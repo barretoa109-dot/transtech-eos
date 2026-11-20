@@ -5,7 +5,7 @@ import { metadatosDePagina } from "@/lib/seo/metadatos";
 export const metadata: Metadata = metadatosDePagina({
   titulo: "Planes y precios · TransTech EOS",
   descripcion:
-    "Armá el EOS que vas a usar y pagá solo eso: prendé las funciones que te sirven y apagá las que no.",
+    "Gratis para probar, Finanzas Personales por Gs. 50.000, Emprendedor / Empresas por Gs. 100.000 y Full por Gs. 130.000 al mes.",
   ruta: "/planes",
 });
 
