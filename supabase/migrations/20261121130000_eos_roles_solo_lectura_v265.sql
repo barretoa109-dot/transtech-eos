@@ -23,8 +23,7 @@
 -- 2) El ejecutor de acciones del chat (`eos_execute_internal_effect_v64`)
 --    rechaza las acciones del negocio de esas personas con
 --    `EOS_ACCION_SOLO_LECTURA`. Las de su plata personal siguen andando.
---    Se parcha en su lugar desde `pg_get_functiondef`, con un ancla que tiene
---    que aparecer una sola vez (mismo método que la v228).
+--    Se envuelve, sin tocar su cuerpo (ver la sección 2).
 -- 3) El candado del ámbito negocio de la v263 también frena a esos roles.
 --
 -- Las rutas web hacen el mismo chequeo con `exigirModuloParaEscribir`
@@ -34,7 +33,10 @@
 -- ROLLBACK
 -- ============================================================
 --
---   Volver a crear eos_execute_internal_effect_v64 desde la v248 y
+--   drop function public.eos_execute_internal_effect_v64(uuid);
+--   alter function public.eos_execute_internal_effect_v64_base_v265(uuid)
+--     rename to eos_execute_internal_effect_v64;
+--   (y volver a dar execute a service_role); volver a crear
 --   eos_negocio_exige_erp_v263 desde la v263; después
 --   drop function public.eos_rol_solo_lectura_v265(uuid);
 
@@ -68,47 +70,77 @@ grant execute on function public.eos_rol_solo_lectura_v265(uuid) to service_role
 -- ============================================================
 -- 2) El ejecutor del chat
 -- ============================================================
+--
+-- La primera versión de esta migración parchaba el cuerpo del ejecutor desde
+-- `pg_get_functiondef`, buscando una línea exacta. En producción esa línea no
+-- estaba igual que en el repo (el `db push` del 21/11/2026 cortó con "el ancla
+-- aparece 0 veces" y no cambió nada). En vez de depender del texto, se
+-- envuelve: el ejecutor de siempre pasa a llamarse
+-- `eos_execute_internal_effect_v64_base_v265` y el nombre original queda en
+-- una función que primero mira el rol y después le pasa la orden, sin tocar
+-- una línea de su cuerpo. Todo lo que llama al ejecutor por su nombre (la ruta
+-- `/api/internal/action-effects/v1`, n8n) pasa por la puerta sin enterarse.
 
-do $parche$
-declare
-  v_oid regprocedure := 'public.eos_execute_internal_effect_v64(uuid)'::regprocedure;
-  v_def text;
-  v_ancla text := $a$    raise exception 'EOS_INTERNAL_EFFECT_NOT_AUTHORIZED';
-  end if;$a$;
-  v_veces integer;
+do $renombrar$
 begin
-  v_def := replace(pg_get_functiondef(v_oid), chr(13), '');
-
-  if position('eos_rol_solo_lectura_v265' in v_def) > 0 then
-    raise notice 'v265: el ejecutor ya frena a los roles de solo lectura; no se toca.';
-    return;
+  -- Correrla dos veces no envuelve dos veces: si la base ya existe, el
+  -- ejecutor ya está envuelto.
+  if to_regprocedure('public.eos_execute_internal_effect_v64_base_v265(uuid)') is null then
+    alter function public.eos_execute_internal_effect_v64(uuid)
+      rename to eos_execute_internal_effect_v64_base_v265;
   end if;
+end;
+$renombrar$;
 
-  v_veces := (length(v_def) - length(replace(v_def, v_ancla, ''))) / length(v_ancla);
-  if v_veces <> 1 then
-    raise exception 'v265: el ancla aparece % veces, no 1. No se cambió nada.', v_veces;
-  end if;
+revoke all on function public.eos_execute_internal_effect_v64_base_v265(uuid) from public;
+revoke all on function public.eos_execute_internal_effect_v64_base_v265(uuid) from anon, authenticated;
+grant execute on function public.eos_execute_internal_effect_v64_base_v265(uuid) to service_role;
 
-  execute replace(
-    v_def,
-    v_ancla,
-    v_ancla || $n$
+create or replace function public.eos_execute_internal_effect_v64(p_command_id uuid)
+returns table(
+  command_id uuid,
+  accion text,
+  effect_type text,
+  effect_id uuid,
+  idempotent boolean,
+  estado text,
+  resultado jsonb
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_accion text;
+  v_usuario uuid;
+begin
+  select c.accion, c.usuario_id
+    into v_accion, v_usuario
+  from public.eos_action_commands c
+  where c.id = p_command_id;
 
   -- v265: Contabilidad y Solo lectura no cambian los números del negocio.
-  if v_command.accion in (
+  if v_accion in (
     'REGISTRAR_VENTA', 'AJUSTAR_STOCK', 'CREAR_CONTACTO', 'CREAR_PRODUCTO',
     'ACTUALIZAR_PRODUCTO', 'REGISTRAR_COMPRA', 'REGISTRAR_COBRO',
     'REGISTRAR_PAGO_COMPRA', 'REGISTRAR_OPORTUNIDAD', 'ANULAR_VENTA',
     'CORREGIR_VENTA', 'ANULAR_COMPRA', 'CORREGIR_COMPRA',
     'ENVIAR_WHATSAPP_CLIENTE', 'REGISTRAR_RETIRO_PERSONAL'
-  ) and public.eos_rol_solo_lectura_v265(v_command.usuario_id) then
+  ) and public.eos_rol_solo_lectura_v265(v_usuario) then
     raise exception 'EOS_ACCION_SOLO_LECTURA';
-  end if;$n$
-  );
+  end if;
 
-  raise notice 'v265: el ejecutor frena las acciones del negocio de los roles de solo lectura.';
+  return query
+  select * from public.eos_execute_internal_effect_v64_base_v265(p_command_id);
 end;
-$parche$;
+$$;
+
+comment on function public.eos_execute_internal_effect_v64(uuid) is
+  'Puerta del ejecutor de acciones del chat (v265): frena las del negocio de los roles de solo lectura y le pasa el resto a eos_execute_internal_effect_v64_base_v265.';
+
+revoke all on function public.eos_execute_internal_effect_v64(uuid) from public;
+revoke all on function public.eos_execute_internal_effect_v64(uuid) from anon, authenticated;
+grant execute on function public.eos_execute_internal_effect_v64(uuid) to service_role;
 
 -- ============================================================
 -- 3) El candado del ámbito negocio (v263), también para estos roles

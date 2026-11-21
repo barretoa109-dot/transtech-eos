@@ -125,19 +125,32 @@ test("el Worker conoce todas las acciones que el modelo puede pedir", () => {
 // 8º lugar: la rama del ejecutor, en la base
 // ============================================================
 
-/** La migración MÁS RECIENTE que redefine el ejecutor, no una fijada a mano. */
+/**
+ * La migración MÁS RECIENTE que redefine el CUERPO del ejecutor, no una fijada
+ * a mano.
+ *
+ * Desde la v265 el nombre `eos_execute_internal_effect_v64` es una puerta que
+ * mira el rol y le pasa la orden a `eos_execute_internal_effect_v64_base_v265`,
+ * donde quedó el cuerpo de siempre con sus ramas. La puerta no cuenta: se
+ * busca la última definición del cuerpo, con cualquiera de los dos nombres.
+ */
 function ejecutorVigente(): string {
   const carpeta = path.join(RAIZ, "supabase", "migrations");
+  const esLaPuerta = (sql: string) =>
+    /select \* from public\.eos_execute_internal_effect_v64_base_v265\(p_command_id\)/i.test(sql) &&
+    !/CREATE OR REPLACE FUNCTION public\.eos_execute_internal_effect_v64_base_v265/i.test(sql);
 
   const conElEjecutor = fs
     .readdirSync(carpeta)
     .filter((a) => a.endsWith(".sql"))
     .sort()
-    .filter((a) =>
-      /CREATE OR REPLACE FUNCTION public\.eos_execute_internal_effect_v64/i.test(
-        fs.readFileSync(path.join(carpeta, a), "utf8"),
-      ),
-    );
+    .filter((a) => {
+      const sql = fs.readFileSync(path.join(carpeta, a), "utf8");
+      return (
+        /CREATE OR REPLACE FUNCTION public\.eos_execute_internal_effect_v64(_base_v265)?\s*\(/i.test(sql) &&
+        !esLaPuerta(sql)
+      );
+    });
 
   assert.ok(conElEjecutor.length > 0, "ninguna migración define eos_execute_internal_effect_v64");
 
