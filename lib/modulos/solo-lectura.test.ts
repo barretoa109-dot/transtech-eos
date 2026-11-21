@@ -39,3 +39,22 @@ test("toda ruta del negocio que escribe pasa por la puerta de escritura", () => 
     }
   }
 });
+
+test("ninguna migración posterior pisa la puerta del ejecutor sin el control de rol", () => {
+  const carpeta = path.join(process.cwd(), "supabase", "migrations");
+  const posteriores = fs
+    .readdirSync(carpeta)
+    .filter((a) => a.endsWith(".sql") && a > "20261121130000")
+    .sort();
+
+  for (const archivo of posteriores) {
+    const sql = fs.readFileSync(path.join(carpeta, archivo), "utf8");
+    if (!/CREATE OR REPLACE FUNCTION public\.eos_execute_internal_effect_v64\s*\(/i.test(sql)) continue;
+    assert.match(
+      sql,
+      /eos_rol_solo_lectura_v265/,
+      `${archivo} redefine eos_execute_internal_effect_v64 sin el control de rol. ` +
+        "Las ramas nuevas van en eos_execute_internal_effect_v64_base_v265 (ver la v265).",
+    );
+  }
+});
