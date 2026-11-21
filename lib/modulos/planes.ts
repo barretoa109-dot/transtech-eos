@@ -2,7 +2,9 @@
  * Los planes que se venden (v263).
  *
  * El 20/11/2026 el dueño cambió "armá tu EOS" por cuatro planes cerrados:
- * Gratis, Finanzas Personales, Emprendedor / Empresas y Full. La pantalla de
+ * Gratis, Finanzas Personales, Emprendedor / Empresas y Full. El 21/11/2026
+ * sumó Emprendedor Inicial (Gs. 70.000, v266) para el micronegocio de una
+ * persona: el negocio sin equipo, sin CRM y sin comprobantes. La pantalla de
  * planes los muestra desde acá para que se vean sin esperar a la base (la
  * página se prerenderiza entera).
  *
@@ -14,7 +16,7 @@
  * tiene tope interno y al cliente no se le promete lo contrario.
  */
 
-export type CodigoPlan = "finanzas_personales" | "emprendedor" | "full";
+export type CodigoPlan = "finanzas_personales" | "inicial" | "emprendedor" | "full";
 
 export type Plan = {
   codigo: CodigoPlan;
@@ -39,11 +41,10 @@ const PERSONALES = [
   "Avisos antes de que no te alcance",
 ] as const;
 
-const NEGOCIO = [
-  "Ventas, compras y stock hablando o por audio",
-  "Clientes y quién te debe",
-  "Comprobantes de venta (beta)",
+const NEGOCIO_EXTRA = [
   "Usuarios para tu equipo, con roles",
+  "Oportunidades y seguimiento de clientes",
+  "Comprobantes de venta (beta)",
 ] as const;
 
 const COMUNES = ["Resumen diario en tu correo", "Documentos a pedido: Excel, PDF o Word"] as const;
@@ -59,6 +60,21 @@ export const PLANES: readonly Plan[] = [
     incluye: ["Hablar con EOS todos los días", ...PERSONALES, ...COMUNES],
   },
   {
+    codigo: "inicial",
+    nombre: "Emprendedor Inicial",
+    para: "Para tu negocio, si lo llevás vos sola o vos solo.",
+    precio_mensual_pyg: 70_000,
+    precio_anual_pyg: 700_000,
+    modulos: ["conversaciones_full", "dashboard", "erp", "briefing", "decisiones", "documentos"],
+    incluye: [
+      "Hablar con EOS todos los días",
+      "Ventas, compras y stock hablando o por audio",
+      "Tus clientes y quién te debe",
+      "Tu contador puede ver tus números",
+      ...COMUNES,
+    ],
+  },
+  {
     codigo: "emprendedor",
     nombre: "Emprendedor / Empresas",
     para: "Para llevar tu negocio hablando, sin planillas.",
@@ -70,11 +86,12 @@ export const PLANES: readonly Plan[] = [
       "erp",
       "crm",
       "facturacion",
+      "equipo",
       "briefing",
       "decisiones",
       "documentos",
     ],
-    incluye: ["Hablar con EOS todos los días", ...NEGOCIO, ...COMUNES],
+    incluye: ["Todo lo de Emprendedor Inicial", ...NEGOCIO_EXTRA],
     destacado: true,
   },
   {
@@ -91,6 +108,7 @@ export const PLANES: readonly Plan[] = [
       "erp",
       "crm",
       "facturacion",
+      "equipo",
       "briefing",
       "decisiones",
       "documentos",

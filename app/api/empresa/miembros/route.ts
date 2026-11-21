@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
+import { verificarModulo } from "@/lib/modulos/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,34 @@ const ERRORES: Record<string, { estado: number; mensaje: string }> = {
 const ROLES = new Set([
   "administrador", "ventas", "compras", "deposito", "caja", "contabilidad", "solo_lectura",
 ]);
+
+/**
+ * Los roles que trabajan en la empresa: cargan, venden, cobran (v266).
+ *
+ * Sumarlos pide el módulo `equipo`, que traen Emprendedor y Full y no
+ * Emprendedor Inicial: si no, un negocio con cinco vendedores pagaría el plan
+ * de una persona. Contabilidad y Solo lectura NO lo piden: el contador entra
+ * por sus clientes en cualquier plan (v265).
+ */
+const ROLES_DE_TRABAJO = new Set(["administrador", "ventas", "compras", "deposito", "caja"]);
+
+async function puedeSumarEquipo(rol: string): Promise<NextResponse | null> {
+  if (!ROLES_DE_TRABAJO.has(rol)) return null;
+
+  const acceso = await verificarModulo("equipo");
+  if (acceso.permitido) return null;
+
+  return NextResponse.json(
+    {
+      error:
+        "Sumar gente que trabaje en tu negocio está en los planes Emprendedor / Empresas y Full. " +
+        "A tu contador lo podés invitar igual, como Contabilidad.",
+      motivo: "sin-modulo",
+      modulo: "equipo",
+    },
+    { status: 403, headers: noStore() },
+  );
+}
 
 function traducir(mensaje: string) {
   for (const [clave, salida] of Object.entries(ERRORES)) {
@@ -106,6 +135,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Elegí un rol válido." }, { status: 400, headers: noStore() });
   }
 
+  const sinEquipo = await puedeSumarEquipo(rol);
+  if (sinEquipo) return sinEquipo;
+
   const empresaId = await empresaActiva(user.id);
   if (!empresaId) {
     return NextResponse.json({ error: "No tenés una empresa activa." }, { status: 409, headers: noStore() });
@@ -137,6 +169,9 @@ export async function PATCH(request: Request) {
   if (!ROLES.has(rol)) {
     return NextResponse.json({ error: "Elegí un rol válido." }, { status: 400, headers: noStore() });
   }
+
+  const sinEquipo = await puedeSumarEquipo(rol);
+  if (sinEquipo) return sinEquipo;
 
   const empresaId = await empresaActiva(user.id);
   if (!empresaId) {

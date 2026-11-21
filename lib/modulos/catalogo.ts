@@ -66,6 +66,15 @@ export const MODULOS = {
     nombre: "CRM",
     resumen: "Clientes, oportunidades y seguimiento comercial, con el mismo contexto.",
   },
+  /**
+   * Sumar gente que trabaje en la empresa (v266). Lo traen Emprendedor y Full;
+   * Emprendedor Inicial no. Invitar al contador (Contabilidad, Solo lectura)
+   * no lo pide.
+   */
+  equipo: {
+    nombre: "Usuarios para tu equipo",
+    resumen: "Sumá a la gente que trabaja en tu negocio, cada una con su rol.",
+  },
 } as const;
 
 export type CodigoModulo = keyof typeof MODULOS;

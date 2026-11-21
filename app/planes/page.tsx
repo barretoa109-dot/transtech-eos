@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Briefcase, Check, Layers, Loader2, Mail, MessageCircle, Send, Wallet, X } from "lucide-react";
+import { Briefcase, Check, Layers, Loader2, Mail, MessageCircle, Send, Store, Wallet, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
@@ -51,8 +51,16 @@ const PERIODOS = [
 
 const ICONOS: Record<CodigoPlan, typeof Wallet> = {
   finanzas_personales: Wallet,
+  inicial: Store,
   emprendedor: Briefcase,
   full: Layers,
+};
+
+const ETIQUETAS: Record<CodigoPlan, string> = {
+  finanzas_personales: "Tu plata",
+  inicial: "Tu negocio, solo",
+  emprendedor: "Tu negocio, con equipo",
+  full: "Todo junto",
 };
 
 /**
@@ -291,36 +299,23 @@ export default function PlanesPage() {
           </p>
         )}
 
-        <div className="plans">
-          <article className="plan">
-            <div className="plan-ic">
-              <MessageCircle />
-            </div>
-            <div className="plan-tag">Para probar</div>
-            <h2 className="plan-name">Gratis</h2>
-            <p className="plan-desc">Conocé EOS sin tarjeta y sin compromiso.</p>
-            <div className="plan-price">
-              Gs. 0 <span className="per">{periodicidad === "anual" ? "/ año" : "/ mes"}</span>
-            </div>
-            <div className="plan-price-sub">Sin tarjeta</div>
-            <a className="plan-btn" href="/eos">
-              Empezar gratis
-            </a>
-            <div className="plan-includes-label">Incluye</div>
-            <div className="plan-feat">
-              <Check />
-              {MENSAJES_GRATIS_POR_DIA} mensajes por día con EOS
-            </div>
-            <div className="plan-feat">
-              <Check />
-              Panel de tu plata
-            </div>
-            <div className="plan-feat">
-              <Check />
-              Tu primer mes, todo Full gratis
-            </div>
-          </article>
+        <div className="gratis-caja">
+          <span className="gratis-ic">
+            <MessageCircle />
+          </span>
+          <div>
+            <strong>Gratis, sin tarjeta.</strong>
+            <p>
+              Tu primer mes, todo Full. Después, {MENSAJES_GRATIS_POR_DIA} mensajes por día con EOS y el
+              panel de tu plata, mientras quieras.
+            </p>
+          </div>
+          <a className="plan-btn gratis-btn" href="/eos">
+            Empezar gratis
+          </a>
+        </div>
 
+        <div className="plans">
           {PLANES.map((plan) => {
             const Icono = ICONOS[plan.codigo];
             const actual = planActual === plan.codigo;
@@ -332,7 +327,7 @@ export default function PlanesPage() {
                 <div className="plan-ic">
                   <Icono />
                 </div>
-                <div className="plan-tag">{plan.codigo === "full" ? "Todo junto" : plan.codigo === "emprendedor" ? "Tu negocio" : "Tu plata"}</div>
+                <div className="plan-tag">{ETIQUETAS[plan.codigo]}</div>
                 <h2 className="plan-name">{plan.nombre}</h2>
                 <p className="plan-desc">{plan.para}</p>
                 <div className="plan-price">
@@ -1177,6 +1172,41 @@ export default function PlanesPage() {
           margin: 0;
           padding: 12px 18px;
           color: var(--blue-dark);
+        }
+        .gratis-caja {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          margin: 0 0 28px;
+          padding: 18px 22px;
+          border: 1px solid var(--border);
+          border-radius: 16px;
+          background: #fff;
+        }
+        .gratis-caja > div {
+          flex: 1;
+          min-width: 220px;
+        }
+        .gratis-caja p {
+          margin: 4px 0 0;
+          font-size: 13px;
+          color: var(--muted);
+        }
+        .gratis-ic {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: var(--blue-light);
+          color: var(--blue);
+          display: grid;
+          place-items: center;
+          flex: none;
+        }
+        .gratis-btn {
+          width: auto;
+          margin: 0;
+          padding: 11px 20px;
         }
         .plans-prueba {
           max-width: 620px;
