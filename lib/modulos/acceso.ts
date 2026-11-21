@@ -194,3 +194,67 @@ export function leerCodigo(valor: string | null): CodigoModulo | null {
   const limpio = (valor ?? "").trim().toLowerCase();
   return esCodigoModulo(limpio) ? limpio : null;
 }
+
+/**
+ * La puerta de las rutas que ESCRIBEN datos del negocio (v265).
+ *
+ * Además del módulo, mira el rol en la empresa activa: Contabilidad y Solo
+ * lectura ven los números y no los cambian. Antes nada lo hacía cumplir y la
+ * pantalla de invitación lo prometía.
+ *
+ * Falla cerrado ante un error de lectura, salvo uno: que la función de la base
+ * todavía no exista (el rato entre el deploy y `supabase db push`). Ahí deja
+ * pasar, para que un deploy no apague la carga de ventas de todos; la base
+ * frena igual las acciones del chat apenas se aplica la migración.
+ */
+export async function exigirEscritura(
+  usuarioId: string,
+): Promise<{ respuesta: NextResponse; usuarioId?: undefined } | { respuesta?: undefined; usuarioId: string }> {
+  const { data, error } = await createAdminClient().rpc(
+    "eos_rol_solo_lectura_v265" as never,
+    { p_usuario_id: usuarioId } as never,
+  );
+
+  const headers = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie" };
+
+  if (error) {
+    const sinFuncion = error.code === "PGRST202" || error.code === "42883";
+    if (sinFuncion) return { usuarioId };
+
+    console.error("Módulos: no se pudo leer el rol en la empresa:", error);
+    return {
+      respuesta: NextResponse.json(
+        { error: "No pudimos confirmar tus permisos. Probá de nuevo." },
+        { status: 503, headers },
+      ),
+    };
+  }
+
+  if (data === true) {
+    return {
+      respuesta: NextResponse.json(
+        {
+          error: "Tu rol en esta empresa es de solo lectura: podés ver los números, no cambiarlos.",
+          motivo: "solo-lectura",
+        },
+        { status: 403, headers },
+      ),
+    };
+  }
+
+  return { usuarioId };
+}
+
+/** `exigirModulo` + `exigirEscritura`: para POST, PUT, PATCH y DELETE del negocio. */
+export async function exigirModuloParaEscribir(codigo: CodigoModulo) {
+  const puerta = await exigirModulo(codigo);
+  if (puerta.respuesta) return puerta;
+  return exigirEscritura(puerta.usuarioId);
+}
+
+/** `exigirAlgunModulo` + `exigirEscritura`. */
+export async function exigirAlgunModuloParaEscribir(codigos: CodigoModulo[]) {
+  const puerta = await exigirAlgunModulo(codigos);
+  if (puerta.respuesta) return puerta;
+  return exigirEscritura(puerta.usuarioId);
+}

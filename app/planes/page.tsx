@@ -396,6 +396,16 @@ export default function PlanesPage() {
           </button>
         </div>
 
+        <div className="empresa-caja">
+          <div>
+            <strong>¿Sos contador o llevás los números de varios negocios?</strong>
+            <p>
+              Tus clientes te invitan desde Mi empresa con el rol Contabilidad y ves los números de
+              cada uno desde tu cuenta, sin pagar un plan aparte. Mirás, no cambiás nada.
+            </p>
+          </div>
+        </div>
+
         <p className="note">
           Precios en guaraníes. El plan Finanzas Personales es
           para tu plata personal: los gastos y ventas de un negocio van en Emprendedor / Empresas o

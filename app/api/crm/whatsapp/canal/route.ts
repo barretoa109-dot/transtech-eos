@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { administrarCanal, conectarCanal, validarAjustes, validarConexion } from "@/lib/whatsapp-crm/canal";
 
@@ -37,7 +37,7 @@ async function cuerpoJson(request: Request): Promise<unknown> {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   const validacion = validarConexion(await cuerpoJson(request));
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   const cuerpo = (await cuerpoJson(request)) as Record<string, unknown> | null;

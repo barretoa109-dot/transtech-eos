@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { formatearMonto } from "@/lib/finanzas/formato";
@@ -42,7 +42,7 @@ function traducir(mensaje: string): { estado: number; mensaje: string } {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 
 /** Revertir un cobro mal cargado. Borra también su movimiento financiero. */
 export async function DELETE(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { searchParams } = new URL(request.url);

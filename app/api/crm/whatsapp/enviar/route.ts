@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { enviarPorCanal, type Contenido } from "@/lib/whatsapp-crm/enviar";
 
@@ -25,7 +25,7 @@ const noStore = { "Cache-Control": "private, no-store, max-age=0" };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;

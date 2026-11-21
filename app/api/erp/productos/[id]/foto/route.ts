@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import {
   BUCKET_FOTOS_PRODUCTO,
@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
  * no existe; así, lo peor que puede pasar es un archivo huérfano en el bucket.
  */
 export async function POST(request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;
@@ -111,7 +111,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;

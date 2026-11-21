@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
@@ -40,7 +40,7 @@ const COLUMNAS =
   "controla_stock,stock_actual,stock_minimo,activo,creado_en,categoria,marca,foto_ruta";
 
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;
@@ -189,7 +189,7 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 
 /* Baja lógica: el producto deja de ofrecerse pero el historial lo sigue nombrando. */
 export async function DELETE(_request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;

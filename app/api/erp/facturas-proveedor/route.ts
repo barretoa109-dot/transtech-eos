@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { registrarAuditoria } from "@/lib/auditoria/registrar";
 import { POST as comprasPOST } from "@/app/api/erp/compras/route";
 
@@ -42,7 +42,7 @@ export async function GET() {
 
 /** `{ id, accion: "confirmar" | "descartar" }`. */
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   let body: { id?: unknown; accion?: unknown };

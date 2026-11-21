@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { tasaValida } from "@/lib/erp/impuestos";
 import { normalizarItemsErp } from "@/lib/erp/entrada";
@@ -33,7 +33,7 @@ const MAX_ITEMS = 200;
  * nuevo. `venta_anterior_id` en la respuesta es el rastro de esa diferencia.
  */
 export async function POST(request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);

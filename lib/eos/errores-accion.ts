@@ -553,6 +553,12 @@ const REGLAS: Regla[] = [
     mensaje: () => "Esa compra no tiene renglones para corregir. Anulala y volvé a cargarla.",
   },
   {
+    codigo: "EOS_ACCION_SOLO_LECTURA",
+    mensaje: () =>
+      "Tu rol en esta empresa es de solo lectura: podés ver los números del negocio, no cambiarlos. " +
+      "Si necesitás cargar algo, pedíselo a quien administra la empresa.",
+  },
+  {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
       "Tu plan no incluye las funciones de negocio: ventas, compras, stock y gastos del negocio. " +

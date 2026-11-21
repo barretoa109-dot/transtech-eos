@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { hoyEnParaguay } from "@/lib/fecha";
 import { estadoDelFijo, periodoAnterior, periodoDe, type PagoDeFijo } from "@/lib/finanzas/estado-fijo";
 
@@ -156,7 +156,7 @@ export async function PUT(request: Request) {
   // carga gastos de negocio. La base lo frena igual con un trigger; esto solo
   // lo dice antes y con un mensaje en castellano.
   if (ambito === "negocio") {
-    const puerta = await exigirModulo("erp");
+    const puerta = await exigirModuloParaEscribir("erp");
     if (puerta.respuesta) return puerta.respuesta;
   }
 

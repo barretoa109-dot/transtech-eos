@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirAlgunModulo } from "@/lib/modulos/acceso";
+import { exigirAlgunModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -30,7 +30,7 @@ const COLUMNAS =
   "es_cliente,es_proveedor,etiquetas,notas,activo,creado_en";
 
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirAlgunModulo(["crm", "erp"]);
+  const puerta = await exigirAlgunModuloParaEscribir(["crm", "erp"]);
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;
@@ -171,7 +171,7 @@ export async function PATCH(request: Request, contexto: { params: Promise<{ id: 
 }
 
 export async function DELETE(_request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirAlgunModulo(["crm", "erp"]);
+  const puerta = await exigirAlgunModuloParaEscribir(["crm", "erp"]);
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;

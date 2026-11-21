@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const puerta = await exigirModulo("facturacion");
+  const puerta = await exigirModuloParaEscribir("facturacion");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;
