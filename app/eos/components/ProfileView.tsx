@@ -123,7 +123,7 @@ export default function ProfileView({ nombre, email, usuarioId, conversaciones }
           </div>
           <SoloEnWeb>
             <Link href="/planes" className="ghost-btn">
-              Cambiar mis funciones
+              Ver planes
             </Link>
           </SoloEnWeb>
         </div>

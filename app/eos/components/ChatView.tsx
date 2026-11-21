@@ -24,6 +24,8 @@ type PromptCard = {
   prompt?: string;
   /** Se escribe en la caja y se deja para que la persona lo complete. */
   relleno?: string;
+  /** Además de escribir el relleno, abre el selector de fotos. */
+  adjuntar?: boolean;
 };
 
 const PROMPTS: PromptCard[] = [
@@ -108,12 +110,25 @@ const PROMPTS_CUENTA_NUEVA: PromptCard[] = [
     subtitle: "Agregá un cliente",
     relleno: "Agregá a mi cliente ",
   },
+  /*
+   * La foto del cuaderno (punto 2 del plan de aceptación, 21/11/2026).
+   * Cargar el catálogo a mano es lo que más frena a una cuenta nueva, y EOS ya
+   * carga una lista de 20 productos desde una foto con su precio (20/20 en
+   * `evals/bateria/foto-catalogo.mts`). Lo que faltaba era decirlo. Reemplaza
+   * a "Tareas", que no es lo primero que hace un negocio en EOS.
+   */
   {
-    key: "recordatorio",
-    icon: PROMPTS[3].icon,
-    title: "Tareas",
-    subtitle: "Pedile que te recuerde algo",
-    relleno: "Recordame ",
+    key: "foto-lista",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+        <circle cx="12" cy="13" r="4" />
+      </svg>
+    ),
+    title: "Tu lista de productos",
+    subtitle: "Mandá una foto del cuaderno y la cargo",
+    relleno: "Cargá los productos de esta foto, con su precio y stock",
+    adjuntar: true,
   },
 ];
 
@@ -301,6 +316,7 @@ export default function ChatView({
     }
 
     onMensajeChange(tarjeta.relleno ?? "");
+    if (tarjeta.adjuntar) fileInputRef.current?.click();
     requestAnimationFrame(() => {
       const caja = document.querySelector<HTMLTextAreaElement>("#view-chat textarea");
       if (!caja) return;

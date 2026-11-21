@@ -1,5 +1,6 @@
 "use client";
 
+import Testimonios from "@/components/ventas/Testimonios";
 import { useState } from "react";
 import Link from "next/link";
 import AmbientBackground from "@/components/effects/AmbientBackground";
@@ -480,17 +481,21 @@ export default function Home() {
 
           <Reveal className="business-footer">
             <div>
-              <strong>Empezá con las funciones que tu negocio necesita.</strong>
-              <span> Podés sumar ERP, CRM y facturación a tu EOS personalizado.</span>
+              <strong>Tu primer mes es gratis, con todo incluido.</strong>
+              <span> Después, el plan Emprendedor / Empresas trae ventas, compras, stock, clientes y comprobantes.</span>
             </div>
             <SoloEnWeb>
               <Link className="btn btn-primary" href="/planes">
-                Armar mi EOS →
+                Ver planes →
               </Link>
             </SoloEnWeb>
           </Reveal>
         </div>
       </section>
+
+      <div className="wrap">
+        <Testimonios />
+      </div>
 
       {/* Methodology */}
       <section id="metodologia">

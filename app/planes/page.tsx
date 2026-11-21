@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import AmbientBackground from "@/components/effects/AmbientBackground";
 import { planesTechCanvas } from "@/components/effects/techCanvasPresets";
 import { useNavScrolled } from "@/components/effects/useNavScrolled";
+import Testimonios from "@/components/ventas/Testimonios";
 import {
   esCodigoPlan,
   MENSAJES_GRATIS_POR_DIA,
@@ -374,6 +375,8 @@ export default function PlanesPage() {
             );
           })}
         </div>
+
+        <Testimonios />
 
         <div className="empresa-caja">
           <div>
