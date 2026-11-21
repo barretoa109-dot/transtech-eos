@@ -299,6 +299,8 @@ export const TEXTO_AL_VINCULAR = [
   "",
   "También me lo podés mandar en un audio. Yo lo anoto y te digo cómo quedan tu stock y tu caja.",
   "",
+  "¿Tenés tus productos anotados en un cuaderno? Mandame una foto y los cargo yo.",
+  "",
   "Si lo que querés es ordenar tu plata personal, escribime «mi plata».",
 ].join("\n");
 
@@ -311,6 +313,8 @@ const TEXTOS: Record<string, string> = {
     "• «Compré 10 cajas de gaseosa a 120 mil»",
     "",
     "Yo lo anoto y te digo cómo quedan tu stock y tu caja.",
+    "",
+    "¿Ya tenés tus productos anotados en un cuaderno o una planilla? Mandame una foto y los cargo yo, con su precio.",
     "",
     "Si además querés que ordene tu plata personal (cuentas, deudas, gastos fijos), escribime «mi plata» cuando quieras.",
   ].join("\n"),
