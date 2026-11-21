@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { registrarOperacionErp } from "@/lib/auditoria/registrar";
 import { empresaDe } from "@/lib/empresa/acceso";
@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic";
  * las dos cosas.
  */
 export async function PATCH(request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);

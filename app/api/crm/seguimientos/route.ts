@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { hoyEnParaguay, sumarDias } from "@/lib/fecha";
 import { leerSeguimientos } from "@/lib/crm/seguimientos-datos";
 import { titularDeSeguimientos } from "@/lib/crm/seguimientos";
@@ -44,7 +44,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;

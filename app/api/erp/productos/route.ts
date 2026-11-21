@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { ivaIncluido, tasaValida } from "@/lib/erp/impuestos";
 import { monedaConocida } from "@/lib/finanzas/monedas";
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;

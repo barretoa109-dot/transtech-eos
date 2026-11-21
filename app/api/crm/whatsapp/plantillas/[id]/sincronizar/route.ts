@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
 import { sincronizarPlantilla } from "@/lib/whatsapp-crm/plantillas";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * plan B, a un clic de distancia.
  */
 export async function POST(_request: Request, contexto: { params: Promise<{ id: string }> }) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   const { id } = await contexto.params;

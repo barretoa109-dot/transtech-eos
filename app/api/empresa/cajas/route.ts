@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { miEmpresa } from "@/lib/empresa/acceso";
 import { saldoDeHoy, type Caja, type MovimientoCaja } from "@/lib/empresa/caja";
 import { hoyEnParaguay } from "@/lib/fecha";
@@ -186,7 +186,7 @@ async function calcularSegunMovimientos(
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const supabase = await createClient();
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
 
 /** Actualizar el saldo declarado, o cerrar la caja. */
 export async function PATCH(request: Request) {
-  const puerta = await exigirModulo("erp");
+  const puerta = await exigirModuloParaEscribir("erp");
   if (puerta.respuesta) return puerta.respuesta;
 
   const supabase = await createClient();

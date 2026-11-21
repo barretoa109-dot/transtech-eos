@@ -239,6 +239,9 @@ export default function MiEmpresa() {
           <p className="emp-advertencia">
             Quien acepte va a ver las ventas, los costos y los márgenes de este negocio.
           </p>
+          <p className="emp-advertencia">
+            ¿Tu contador lleva tus números? Invitalo como Contabilidad: ve todo y no puede cambiar nada.
+          </p>
 
           <div className="neg-form">
             <input

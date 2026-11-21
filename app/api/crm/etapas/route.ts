@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { combinarConfig, validarConfig, type FilaConfig } from "@/lib/crm/etapas-config";
 
@@ -48,7 +48,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: unknown;
@@ -81,7 +81,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE() {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   const supabase = await createClient();

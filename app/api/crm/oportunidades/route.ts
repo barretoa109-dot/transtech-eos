@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModulo, exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { monedaConocida } from "@/lib/finanzas/monedas";
 import { ETAPAS, embudoPorMoneda, esEtapa } from "@/lib/crm/embudo";
@@ -111,7 +111,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
  * próximo paso, monto…) viaja por el mismo camino y solo toca lo que vino.
  */
 export async function PATCH(request: Request) {
-  const puerta = await exigirModulo("crm");
+  const puerta = await exigirModuloParaEscribir("crm");
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;

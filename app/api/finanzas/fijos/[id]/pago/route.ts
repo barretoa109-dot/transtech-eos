@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -46,7 +46,7 @@ export async function POST(request: Request, contexto: { params: Promise<{ id: s
 
   // Pagar un fijo del negocio carga un gasto del negocio: es del ERP (v263).
   if (fijo.ambito === "negocio") {
-    const puerta = await exigirModulo("erp");
+    const puerta = await exigirModuloParaEscribir("erp");
     if (puerta.respuesta) return puerta.respuesta;
   }
 

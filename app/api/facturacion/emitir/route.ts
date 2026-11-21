@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
-import { exigirModulo } from "@/lib/modulos/acceso";
+import { exigirModuloParaEscribir } from "@/lib/modulos/acceso";
 import { generarCdc, numeroFormateado } from "@/lib/facturacion/cdc";
 import { armarComprobante } from "@/lib/facturacion/comprobante";
 import { guardarDocumento } from "@/lib/documentos/guardar";
@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
  */
 
 export async function POST(request: Request) {
-  const puerta = await exigirModulo("facturacion");
+  const puerta = await exigirModuloParaEscribir("facturacion");
   if (puerta.respuesta) return puerta.respuesta;
 
   const empresaId = await empresaDe(adminSinTipos(), puerta.usuarioId);

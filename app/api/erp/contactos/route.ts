@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
-import { exigirAlgunModulo } from "@/lib/modulos/acceso";
+import { exigirAlgunModulo, exigirAlgunModuloParaEscribir } from "@/lib/modulos/acceso";
 import { filtroDeEmpresa, miEmpresa } from "@/lib/empresa/acceso";
 import { digitoVerificador } from "@/lib/facturacion/cdc";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const puerta = await exigirAlgunModulo(["crm", "erp"]);
+  const puerta = await exigirAlgunModuloParaEscribir(["crm", "erp"]);
   if (puerta.respuesta) return puerta.respuesta;
 
   let cuerpo: Record<string, unknown>;
