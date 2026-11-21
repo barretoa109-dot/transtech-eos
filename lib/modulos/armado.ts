@@ -81,13 +81,11 @@ export type Armado = {
 export const TOPE_MENSUAL_PYG = 500_000;
 
 /**
- * Los mensajes por día de quien no prende ningún tramo de conversaciones.
- *
- * La autoridad es `planes.limite_mensajes` del plan `free` (v201: 7 por día,
- * decidido por el dueño el 26/09/2026); esto es lo que dice la pantalla de
- * planes. Si cambia uno, cambia el otro.
+ * Los mensajes por día del plan Gratis. Vive en `planes.ts` desde la v263
+ * (10 por día, decidido por el dueño el 20/11/2026); la autoridad sigue siendo
+ * `planes.limite_mensajes` del plan `free`.
  */
-export const MENSAJES_GRATIS_POR_DIA = 7;
+export { MENSAJES_GRATIS_POR_DIA } from "./planes.ts";
 
 /** Doce meses al precio de diez: el mismo descuento que tenían los planes. */
 export const MESES_DEL_ANUAL = 10;

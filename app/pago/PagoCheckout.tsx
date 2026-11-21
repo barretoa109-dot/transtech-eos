@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CUENTA } from "@/lib/pagos/cuenta";
+import { planPorCodigo, type Plan as PlanCerrado } from "@/lib/modulos/planes";
 
 type PlanPago = {
   codigo: string;
@@ -40,6 +41,8 @@ type ArmadoPago = {
   modulos: string[];
   periodicidad: "mensual" | "anual";
   monto: number;
+  /** El plan comprado (v263), o null en un armado anterior módulo por módulo. */
+  paquete: string | null;
 };
 
 type PedidoCreado = {
@@ -142,12 +145,12 @@ export default function PagoCheckout() {
            // precio de otro.
           const { data: armadoData, error: armadoError } = await supabase
             .from("eos_planes_armados")
-            .select("id,modulos,periodicidad,monto,estado")
+            .select("id,modulos,periodicidad,monto,estado,paquete")
             .eq("id", armadoId)
             .maybeSingle();
 
           if (armadoError || !armadoData) {
-            throw new Error("No encontramos el EOS que armaste. Volvé a elegir tus funciones.");
+            throw new Error("No encontramos el plan que elegiste. Volvé a elegirlo.");
           }
 
           if (activo) setArmado(armadoData as unknown as ArmadoPago);
@@ -477,6 +480,7 @@ export default function PagoCheckout() {
               periodicidad={periodicidad}
               montoFormateado={montoFormateado}
               modulos={armado?.modulos ?? null}
+              paquete={planPorCodigo(armado?.paquete)}
             />
           </section>
         ) : (
@@ -1360,6 +1364,7 @@ function Resumen({
   periodicidad,
   montoFormateado,
   modulos,
+  paquete,
 }: {
   plan: PlanPago | null;
   planCodigo: string;
@@ -1367,6 +1372,8 @@ function Resumen({
   montoFormateado: string;
   /** Las funciones del EOS armado a medida, o null si se compró un plan. */
   modulos: string[] | null;
+  /** El plan cerrado que se compró (v263), si fue un plan. */
+  paquete: PlanCerrado | null;
 }) {
   return (
     <aside className="summary-card">
@@ -1380,12 +1387,14 @@ function Resumen({
             RESUMEN DEL PEDIDO
           </span>
 
-          <h2>{modulos ? "Tu EOS" : plan?.nombre || `EOS ${planCodigo}`}</h2>
+          <h2>{paquete ? `EOS ${paquete.nombre}` : modulos ? "Tu EOS" : plan?.nombre || `EOS ${planCodigo}`}</h2>
         </div>
       </div>
 
       <p className="summary-description">
-        {modulos
+        {paquete
+          ? paquete.para
+          : modulos
           ? `${modulos.length} ${modulos.length === 1 ? "función elegida" : "funciones elegidas"} por vos.`
           : plan?.descripcion || "Suscripción a TransTech EOS."}
       </p>
@@ -1409,7 +1418,9 @@ function Resumen({
           <div>
             <strong>Precio validado en la plataforma</strong>
             <small>
-              {modulos
+              {paquete
+                ? "El importe corresponde al plan seleccionado."
+                : modulos
                 ? "El importe lo calculó EOS con las funciones que elegiste."
                 : "El importe corresponde al plan seleccionado."}
             </small>

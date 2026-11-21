@@ -555,8 +555,8 @@ const REGLAS: Regla[] = [
   {
     codigo: "EOS_ACCION_SIN_MODULO_ERP",
     mensaje: () =>
-      "Tu cuenta no tiene activo el módulo ERP, que es el que registra ventas y stock. " +
-      "Lo podés agregar desde Planes.",
+      "Tu plan no incluye las funciones de negocio: ventas, compras, stock y gastos del negocio. " +
+      "Están en los planes Emprendedor / Empresas y Full, desde Planes.",
   },
   {
     codigo: "EOS_ACCION_SIN_MODULO_CRM",
