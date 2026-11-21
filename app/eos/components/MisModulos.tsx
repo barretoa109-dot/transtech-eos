@@ -63,7 +63,14 @@ export default function MisModulos() {
   if (modulos === null) return null;
 
   const activos = modulos.filter((m) => m.contratado);
-  const porVencerPronto = activos.filter((m) => m.por_vencer === true);
+  // La prueba de un mes (v264) avisa sola, con su propio texto: no es una
+  // función que "vence" y hay que renovar, es un mes gratis que se termina.
+  const enPrueba = activos.filter((m) => m.origen === "prueba");
+  const diasDePrueba = enPrueba.reduce<number | null>(
+    (max, m) => (typeof m.dias_restantes === "number" && (max === null || m.dias_restantes > max) ? m.dias_restantes : max),
+    null,
+  );
+  const porVencerPronto = activos.filter((m) => m.por_vencer === true && m.origen !== "prueba");
 
   return (
     <div className="card">
@@ -76,7 +83,8 @@ export default function MisModulos() {
 
       {activos.length === 0 ? (
         <p className="prose">
-          EOS se arma por partes: elegís las funciones que vas a usar y pagás solo esas.
+          Estás en el plan Gratis: 10 mensajes por día y el panel de tu plata. Cuando quieras más,
+          elegí el plan para tu plata, para tu negocio o los dos.
         </p>
       ) : (
         <div className="mod-lista">
@@ -107,6 +115,8 @@ export default function MisModulos() {
                   */}
                   {m.origen === "empresa"
                     ? "de tu empresa"
+                    : m.origen === "prueba" && dias !== null && dias > 0
+                      ? `prueba, ${dias} ${dias === 1 ? "día" : "días"}`
                     : dias === null
                       ? m.origen === "cortesia"
                         ? "de cortesía"
@@ -121,6 +131,14 @@ export default function MisModulos() {
         </div>
       )}
 
+      {diasDePrueba !== null && diasDePrueba > 0 && (
+        <p className="prose" style={{ marginTop: 10, fontSize: 13 }}>
+          Estás probando EOS Full gratis. Te {diasDePrueba === 1 ? "queda 1 día" : `quedan ${diasDePrueba} días`};
+          después seguís en el plan Gratis, sin cobros.
+          <SoloEnWeb> Si te está sirviendo, elegí tu plan antes de que termine.</SoloEnWeb>
+        </p>
+      )}
+
       {porVencerPronto.length > 0 && (
         <p className="prose" style={{ marginTop: 10, color: "var(--amber)", fontSize: 13 }}>
           {porVencerPronto.length === 1
@@ -132,7 +150,7 @@ export default function MisModulos() {
 
       <SoloEnWeb>
         <Link className="reco-btn" href="/planes" style={{ display: "inline-flex", marginTop: 12 }}>
-          {activos.length === 0 ? "Armar mi EOS" : "Cambiar mis funciones"}
+          {activos.length === 0 || diasDePrueba !== null ? "Ver planes" : "Cambiar de plan"}
         </Link>
       </SoloEnWeb>
 
