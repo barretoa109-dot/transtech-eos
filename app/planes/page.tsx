@@ -76,6 +76,8 @@ export default function PlanesPage() {
 
   const [periodicidad, setPeriodicidad] = useState<"mensual" | "anual">("mensual");
   const [planActual, setPlanActual] = useState<CodigoPlan | null>(null);
+  /** Días que le quedan de la prueba de un mes (v264), o null si no está probando. */
+  const [diasDePrueba, setDiasDePrueba] = useState<number | null>(null);
   const [enviando, setEnviando] = useState<CodigoPlan | null>(null);
   const [error, setError] = useState("");
   const [mostrarContacto, setMostrarContacto] = useState(false);
@@ -167,6 +169,14 @@ export default function PlanesPage() {
 
       const paquete = (data as { paquete?: unknown } | null)?.paquete;
       if (activo && esCodigoPlan(paquete)) setPlanActual(paquete);
+
+      const mios = await fetch("/api/modulos", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+      const dias = ((mios?.modulos ?? []) as { origen?: string; contratado?: boolean; dias_restantes?: number | null }[])
+        .filter((m) => m.contratado && m.origen === "prueba" && typeof m.dias_restantes === "number")
+        .reduce<number | null>((max, m) => (max === null || m.dias_restantes! > max ? m.dias_restantes! : max), null);
+      if (activo && dias !== null && dias > 0) setDiasDePrueba(dias);
     }
 
     cargar().catch((err) => console.error("Planes: no se pudo leer el plan actual:", err));
@@ -244,7 +254,8 @@ export default function PlanesPage() {
       <div className="head wrap">
         <h1 className="head-title">Un plan para tu plata, otro para tu negocio, o los dos.</h1>
         <p className="head-sub">
-          Probá gratis y pasate a un plan cuando EOS ya te esté sirviendo.
+          Al crear tu cuenta tenés un mes del plan Full gratis, sin tarjeta. Después elegís el plan
+          que te sirva, o seguís en Gratis.
         </p>
         <div className="toggle-wrap">
           <div className="toggle">
@@ -265,6 +276,14 @@ export default function PlanesPage() {
       </div>
 
       <div className="wrap">
+        {diasDePrueba !== null && (
+          <p className="plans-prueba">
+            Estás probando EOS Full gratis: te{" "}
+            {diasDePrueba === 1 ? "queda 1 día" : `quedan ${diasDePrueba} días`}. Si elegís un plan
+            ahora, los días que te quedan se suman.
+          </p>
+        )}
+
         {error && (
           <p className="plans-error" role="alert">
             {error}
@@ -294,6 +313,10 @@ export default function PlanesPage() {
             <div className="plan-feat">
               <Check />
               Panel de tu plata
+            </div>
+            <div className="plan-feat">
+              <Check />
+              Tu primer mes, todo Full gratis
             </div>
           </article>
 
@@ -1141,6 +1164,17 @@ export default function PlanesPage() {
           margin: 0;
           padding: 12px 18px;
           color: var(--blue-dark);
+        }
+        .plans-prueba {
+          max-width: 620px;
+          margin: 0 auto 24px;
+          padding: 11px 14px;
+          border-radius: 12px;
+          background: var(--green-light);
+          color: var(--green);
+          font-size: 13px;
+          font-weight: 600;
+          text-align: center;
         }
         .plans-error {
           max-width: 620px;
