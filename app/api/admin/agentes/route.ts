@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { esAgente } from "@/lib/agentes/agentes";
+import { esAgente, tieneInterruptor } from "@/lib/agentes/agentes";
 import { VERSIONES } from "@/lib/agentes/versiones.generado";
 import { createClient } from "@/lib/supabase/server";
 import { adminSinTipos } from "@/lib/supabase/sin-tipos";
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   let resultado: { error: { message: string } | null };
 
   if (accion === "prender" || accion === "apagar") {
-    if (!esAgente(cuerpo.agente)) return NextResponse.json({ error: "Agente desconocido." }, { status: 400 });
+    if (!tieneInterruptor(cuerpo.agente)) return NextResponse.json({ error: "Agente desconocido." }, { status: 400 });
     resultado = await admin.rpc("eos_agentes_cambiar_v267", {
       p_agente: cuerpo.agente,
       p_activo: accion === "prender",
@@ -80,6 +80,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "El tope es un número entre 0 y 50." }, { status: 400 });
     }
     resultado = await admin.rpc("eos_agentes_tope_v267", { p_tope: tope, p_quien: quien });
+  } else if (accion === "tope_sistema") {
+    const tope = Number(cuerpo.tope);
+    if (!Number.isInteger(tope) || tope < 0 || tope > 50) {
+      return NextResponse.json({ error: "El tope es un número entre 0 y 50." }, { status: 400 });
+    }
+    resultado = await admin.rpc("eos_agentes_tope_sistema_v268", { p_tope: tope, p_quien: quien });
   } else if (accion === "resolver") {
     if (typeof cuerpo.id !== "string") return NextResponse.json({ error: "Falta el caso." }, { status: 400 });
     resultado = await admin.rpc("eos_agentes_resolver_v267", {

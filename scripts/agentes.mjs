@@ -7,6 +7,8 @@
  *   npm run agentes -- prender cobranza
  *   npm run agentes -- aprobar cobranza     (aprueba la versión de origin/main)
  *   npm run agentes -- tope 4
+ *   npm run agentes -- tope-sistema 2   (cuántos del tope pueden ser avisos automáticos)
+ *   npm run agentes -- apagar sistema   (corta el push de las franjas y los correos automáticos)
  *   npm run agentes -- clave cobranza       (le da login al rol y arma su conexión)
  *
  * Habla con PRODUCCIÓN por la Management API, con el mismo
@@ -84,7 +86,8 @@ async function estado() {
 }
 
 async function cambiar(activo) {
-  const agente = exigirAgente(argumento);
+  // `sistema` (v268) también tiene interruptor: los avisos automáticos de siempre.
+  const agente = argumento === "sistema" ? "sistema" : exigirAgente(argumento);
   await sql(`select public.eos_agentes_cambiar_v267(${literal(agente)}, ${activo}, ${literal(quien())})`);
   console.log(`${agente}: ${activo ? "PRENDIDO" : "apagado"}. Rige desde ahora, sin deploy.`);
 }
@@ -116,6 +119,13 @@ async function tope() {
   console.log(`Tope semanal: ${n} mensajes por persona, sumando todos los agentes.`);
 }
 
+async function topeSistema() {
+  const n = Number(argumento);
+  if (!Number.isInteger(n) || n < 0 || n > 50) salir("El tope es un número entero entre 0 y 50.");
+  await sql(`select public.eos_agentes_tope_sistema_v268(${n}, ${literal(quien())})`);
+  console.log(`Avisos automáticos: hasta ${n} por persona por semana, dentro del tope semanal.`);
+}
+
 async function clave() {
   const agente = exigirAgente(argumento);
   const contrasena = randomBytes(24).toString("base64url");
@@ -129,7 +139,7 @@ async function clave() {
   );
 }
 
-const comandos = { estado, apagar: () => cambiar(false), prender: () => cambiar(true), aprobar, tope, clave };
+const comandos = { estado, apagar: () => cambiar(false), prender: () => cambiar(true), aprobar, tope, "tope-sistema": topeSistema, clave };
 const elegido = comandos[comando];
 if (!elegido) salir(`Uso: npm run agentes -- <${Object.keys(comandos).join("|")}> [agente|número]`);
 await elegido();

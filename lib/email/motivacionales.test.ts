@@ -92,6 +92,10 @@ type Estado = {
   usuarios: { id: string; nombre: string | null; email: string | null }[];
   reclamados: { usuario_id: string; ciclo: number }[];
   bajas: string[];
+  /** A quién el tope semanal compartido con los agentes (v268) le dice que no. */
+  sinCupo?: string[];
+  /** Lo que se le preguntó y anotó a la puerta del tope. */
+  pedidosDeCupo?: Record<string, unknown>[];
   fallaReclamo?: string;
   // Objetivos monetarios activos, para probar la personalización de punta a
   // punta. Vacío por default: es lo que hoy tienen 6 de 6 cuentas reales.
@@ -100,6 +104,12 @@ type Estado = {
 
 function clienteFalso(estado: Estado) {
   return {
+    // La puerta del tope (lib/agentes/sistema.ts → v268).
+    async rpc(fn: string, args: Record<string, unknown>) {
+      (estado.pedidosDeCupo ??= []).push({ fn, ...args });
+      if (fn !== "eos_agentes_autorizar_sistema_v268") return { data: null, error: null };
+      return { data: (estado.sinCupo ?? []).includes(String(args.p_usuario_id)) ? null : "m", error: null };
+    },
     from(tabla: string) {
       const filtros: Record<string, unknown> = {};
       let op: "select" | "insert" | "delete" = "select";
@@ -275,6 +285,28 @@ test("con un objetivo activo, el correo habla de él y no del consejo genérico"
 
   assert.match(deAna!.texto, /Moto para reparto/);
   assert.doesNotMatch(deOtro!.texto, /Moto para reparto/);
+});
+
+test("sin cupo en el tope semanal no se manda, y ese ciclo queda tomado", async () => {
+  const { cliente, opciones, enviados, completo } = armar({ sinCupo: ["u1"] });
+  const r = await enviarMotivacionales(cliente, opciones);
+
+  assert.deepEqual(enviados.map((e) => e.para), ["dos@test.py"]);
+  assert.equal(r.sinCupo, 1);
+  assert.ok(completo.reclamados.some((x) => x.usuario_id === "u1"));
+});
+
+test("cada correo pide cupo espaciado y anota que salió", async () => {
+  const { cliente, opciones, completo } = armar({ usuarios: [{ id: "u1", nombre: "Ana", email: "ana@test.py" }] });
+  await enviarMotivacionales(cliente, opciones);
+
+  const [pedido, entrega] = completo.pedidosDeCupo ?? [];
+  assert.equal(pedido.fn, "eos_agentes_autorizar_sistema_v268");
+  assert.equal(pedido.p_canal, "email");
+  assert.match(String(pedido.p_plantilla), /^correo\/motivacional\/\d+$/);
+  assert.equal(pedido.p_espaciar_dias, 3);
+  assert.equal(entrega.fn, "eos_agentes_entrega_sistema_v268");
+  assert.equal(entrega.p_estado, "enviado");
 });
 
 test("quien se dio de baja no recibe nada", async () => {
