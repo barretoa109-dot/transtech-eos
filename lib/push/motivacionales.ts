@@ -1,13 +1,6 @@
 import { hoyEnParaguay, sumarDias } from "../fecha.ts";
-import {
-  avisoDeRacha,
-  avisoRachaEnRiesgo,
-  avisoSemanal,
-  diasActivos,
-  diasActivosEnLaSemana,
-  esLunes,
-  rachaHasta,
-} from "./seguimiento.ts";
+import { cupoDelSistema, ESPACIADO_MOTIVACIONAL_DIAS, type Cupo } from "../agentes/sistema.ts";
+import { avisoSemanal, diasActivos, diasActivosEnLaSemana, esLunes } from "./seguimiento.ts";
 import { objetivoPrincipal } from "../email/consejoDeObjetivo.ts";
 import type { EstadoObjetivo } from "../finanzas/objetivos.ts";
 import { avisarNativo } from "./nativo.ts";
@@ -33,6 +26,13 @@ import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
  * Idempotencia: `eos_push_motivacionales_v258` tiene
  * `unique (usuario_id, fecha, franja)`. Se reclama la fila ANTES de mandar,
  * mismo patrón que el correo motivacional y que los avisos de agenda.
+ *
+ * Tope (v268, 27/11/2026): cada push pide cupo antes de salir
+ * (`lib/agentes/sistema.ts`). Comparte el tope semanal con los agentes, tiene
+ * un techo propio dentro de ese tope y va espaciado: como mucho uno cada 3
+ * días por persona, entre push y correo motivacional. Las tres franjas siguen
+ * existiendo, pero ya no llegan las tres todos los días: llega la primera que
+ * encuentra cupo.
  *
  * Horario: no corre en un cron de Vercel (Hobby solo da dos, ya usados por
  * briefing y renovaciones). Un workflow de GitHub Actions llama a
@@ -144,13 +144,12 @@ async function diasSinAccion(admin: ClienteSinTipos, usuarioId: string, hoy: str
   return dias >= 0 ? dias : 0;
 }
 
-/** Hasta dónde se mira para atrás al contar una racha: alcanza para el hito de 90 días. */
-const DIAS_DE_HISTORIA = 95;
+/** Hasta dónde se mira para atrás: la semana del resumen del lunes, con margen. */
+const DIAS_DE_HISTORIA = 8;
 
 /**
- * Los días en que la persona hizo algo con EOS, para las rachas y el resumen
- * del lunes. Si no se puede leer, devuelve vacío: sin dato no hay festejo ni
- * aviso de racha, y cada franja cae a su texto de siempre.
+ * Los días en que la persona hizo algo con EOS, para el resumen del lunes. Si
+ * no se puede leer, devuelve vacío y el resumen dice "semana nueva".
  */
 async function leerDiasActivos(admin: ClienteSinTipos, usuarioId: string, hoy: string): Promise<Set<string>> {
   const { data, error } = await admin
@@ -173,10 +172,6 @@ async function contenidoMediodia(admin: ClienteSinTipos, usuarioId: string, hoy:
   const dias = await diasSinAccion(admin, usuarioId, hoy);
 
   if (dias === 0) {
-    // Ya anotó hoy: si con esto llega a un hito (3, 7, 14, 30 días…), se festeja.
-    const festejo = avisoDeRacha(rachaHasta(await leerDiasActivos(admin, usuarioId, hoy), hoy));
-    if (festejo) return festejo;
-
     return {
       titulo: "Vas bien hoy",
       cuerpo: "Ya le contaste algo a EOS hoy. Cada cosa que anotás ahora es una decisión más fácil mañana.",
@@ -261,11 +256,6 @@ async function contenidoDeFranja(
   }
   if (franja === "mediodia") return { indice: 0, aviso: await contenidoMediodia(admin, usuarioId, hoy) };
 
-  // A la noche, antes que el cierre genérico: si hay una racha y hoy todavía
-  // no se anotó nada, eso es lo que la persona querría saber mientras puede.
-  const enRiesgo = avisoRachaEnRiesgo(await leerDiasActivos(admin, usuarioId, hoy), hoy);
-  if (enRiesgo) return { indice: 0, aviso: enRiesgo };
-
   const indice = ((dia % CIERRES_NOCHE.length) + CIERRES_NOCHE.length) % CIERRES_NOCHE.length;
   return { indice, aviso: contenidoNoche(dia) };
 }
@@ -278,6 +268,8 @@ export type ResumenMotivacionalesPush = {
   /** Tenía teléfono y el servicio de push lo rechazó. Distinto de no tener dónde mandar. */
   fallidos: number;
   apagados: number;
+  /** Tenía todo para recibirlo y el tope semanal (o el espaciado) dijo que no. */
+  sin_cupo: number;
   con_error: number;
   /**
    * Por qué fallaron los que fallaron, sin repetir y sin tokens.
@@ -327,10 +319,11 @@ async function enviarDeVerdad(admin: ClienteSinTipos, usuarioId: string, aviso: 
 export async function enviarMotivacionalesPush(
   admin: ClienteSinTipos,
   franja: Franja,
-  opciones: { hoy?: string; enviar?: Enviar } = {},
+  opciones: { hoy?: string; enviar?: Enviar; cupo?: Cupo } = {},
 ): Promise<ResumenMotivacionalesPush> {
   const hoy = opciones.hoy ?? hoyEnParaguay();
   const enviar = opciones.enviar ?? enviarDeVerdad;
+  const cupo = opciones.cupo ?? cupoDelSistema(admin);
   const dia = diaDesdeEpoca(hoy);
 
   const resumen: ResumenMotivacionalesPush = {
@@ -340,6 +333,7 @@ export async function enviarMotivacionalesPush(
     sin_dispositivo: 0,
     fallidos: 0,
     apagados: 0,
+    sin_cupo: 0,
     con_error: 0,
     razones: [],
   };
@@ -385,7 +379,23 @@ export async function enviarMotivacionalesPush(
         continue;
       }
 
+      // El cupo se pide DESPUÉS de reclamar la franja: si se pidiera antes, un
+      // reintento que encuentra la franja ya tomada habría gastado un lugar del
+      // tope por un aviso que no sale. Sin cupo, la franja queda tomada: no se
+      // vuelve a preguntar hasta mañana.
+      const mensajeId = await cupo.pedir({
+        usuarioId: uid,
+        canal: "push",
+        plantilla: `push/${franja}`,
+        espaciarDias: ESPACIADO_MOTIVACIONAL_DIAS,
+      });
+      if (!mensajeId) {
+        resumen.sin_cupo += 1;
+        continue;
+      }
+
       const resultado = await enviar(admin, uid, aviso);
+      await cupo.entregado(mensajeId, resultado.enviados > 0, (resultado.razones ?? []).map(razonSinToken).join("; ") || undefined);
 
       if (resultado.enviados > 0) {
         resumen.enviados += 1;

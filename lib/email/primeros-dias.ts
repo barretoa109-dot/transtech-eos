@@ -1,4 +1,5 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { cupoDelSistema, type Cupo } from "../agentes/sistema.ts";
 import { rubroDe } from "../eos/rubros.ts";
 import { formatearMonto } from "../finanzas/formato.ts";
 import { hoyEnParaguay } from "../fecha.ts";
@@ -159,7 +160,8 @@ export function redactarPrimerosDias(
 }
 
 export type CorreoPrimerosDias = { para: string; asunto: string; html: string; texto: string; urlBaja: string; replyTo: string };
-export type ResumenPrimerosDias = { enviados: number; fallidos: number; porPaso: Record<Paso, number> };
+/** `sinCupo`: el tope semanal compartido con los agentes dijo que no (v268); se reintenta mañana dentro de la ventana. */
+export type ResumenPrimerosDias = { enviados: number; fallidos: number; sinCupo: number; porPaso: Record<Paso, number> };
 
 function diasEntre(desde: string, hasta: string): number {
   return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000);
@@ -173,11 +175,14 @@ export async function enviarPrimerosDias(
     secreto: string;
     enviar: (correo: CorreoPrimerosDias) => Promise<void>;
     ahora?: Date;
+    /** El tope compartido con los agentes (v268). */
+    cupo?: Cupo;
   },
 ): Promise<ResumenPrimerosDias> {
   const { appUrl, secreto, enviar, ahora = new Date() } = opciones;
+  const cupo = opciones.cupo ?? cupoDelSistema(admin);
   const hoy = hoyEnParaguay(ahora);
-  const resumen: ResumenPrimerosDias = { enviados: 0, fallidos: 0, porPaso: { dia1: 0, dia3: 0, dia7: 0 } };
+  const resumen: ResumenPrimerosDias = { enviados: 0, fallidos: 0, sinCupo: 0, porPaso: { dia1: 0, dia3: 0, dia7: 0 } };
 
   // mensajes.created_at y usuarios.created_at son timestamp sin zona, en UTC.
   const desde = new Date(ahora.getTime() - 11 * 86_400_000).toISOString().replace("Z", "");
@@ -236,6 +241,16 @@ export async function enviarPrimerosDias(
       continue;
     }
 
+    // Sin cupo se suelta el reclamo: cada paso tiene unos días de ventana y
+    // mañana puede haber lugar. Sin espaciado: el día 1 y el día 3 son de la
+    // misma semana a propósito.
+    const mensajeId = await cupo.pedir({ usuarioId: u.id, canal: "email", plantilla: `correo/primeros-dias/${paso}` });
+    if (!mensajeId) {
+      resumen.sinCupo += 1;
+      await admin.from(TABLA).delete().eq("usuario_id", u.id).eq("paso", paso);
+      continue;
+    }
+
     const [ventas, vinculo, rubro] = await Promise.all([
       admin.from("eos_erp_ventas").select("total").eq("usuario_id", u.id).neq("estado", "anulada").eq("moneda", "PYG").limit(5000),
       admin.from("eos_whatsapp_vinculos_v162").select("verificado_at").eq("usuario_id", u.id).not("verificado_at", "is", null).maybeSingle(),
@@ -261,9 +276,11 @@ export async function enviarPrimerosDias(
 
     try {
       await enviar({ para: u.email, asunto, html, texto, urlBaja, replyTo: RESPONDER_A });
+      await cupo.entregado(mensajeId, true);
       resumen.enviados += 1;
       resumen.porPaso[paso] += 1;
     } catch (e) {
+      await cupo.entregado(mensajeId, false, e instanceof Error ? e.message : String(e));
       resumen.fallidos += 1;
       console.error(`Primeros días: falló el envío (${paso}) a ${u.id}:`, e instanceof Error ? e.message : e);
       await admin.from(TABLA).delete().eq("usuario_id", u.id).eq("paso", paso);

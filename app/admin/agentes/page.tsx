@@ -39,6 +39,7 @@ type Caso = {
 
 type Panel = {
   tope_semanal: number;
+  tope_sistema?: number;
   agentes: FilaAgente[];
   escalamientos: Caso[];
   versiones_desplegadas: Record<string, string>;
@@ -51,6 +52,7 @@ const NOMBRES: Record<string, string> = {
   soporte: "Soporte",
   retencion: "Retención",
   contenido: "Contenido",
+  sistema: "Avisos automáticos",
 };
 
 export default function AgentesPage() {
@@ -60,6 +62,7 @@ export default function AgentesPage() {
   const [error, setError] = useState("");
   const [respuestas, setRespuestas] = useState<Record<string, string>>({});
   const [tope, setTope] = useState("");
+  const [topeSistema, setTopeSistema] = useState("");
 
   /*
    * Los `setState` van en el `.then`, no en el cuerpo del efecto: así lo pide
@@ -77,6 +80,7 @@ export default function AgentesPage() {
           (datos) => {
             setPanel(datos);
             setTope(String(datos.tope_semanal));
+            setTopeSistema(String(datos.tope_sistema ?? ""));
             setError("");
           },
           (e: unknown) => setError(e instanceof Error ? e.message : "No se pudo cargar."),
@@ -176,8 +180,10 @@ export default function AgentesPage() {
             <h2>Agentes</h2>
             <ul className="tarjetas">
               {panel.agentes.map((a) => {
+                // `sistema` no es un agente: no tiene versión que aprobar (v268).
+                const esSistema = a.agente === "sistema";
                 const desplegada = panel.versiones_desplegadas[a.agente];
-                const aprobada = a.version_aprobada === desplegada;
+                const aprobada = esSistema || a.version_aprobada === desplegada;
                 const estado = !a.activo ? "Apagado" : aprobada ? "Prendido" : "Prendido, pero frenado: versión sin aprobar";
                 return (
                   <li key={a.agente} className={a.activo && aprobada ? "prendido" : a.activo ? "frenado" : "apagado"}>
@@ -189,12 +195,18 @@ export default function AgentesPage() {
                       7 días: {a.corridas_7d} corridas · {a.errores_7d} errores · {a.mensajes_7d} mensajes ·{" "}
                       {a.bloqueados_tope_7d} frenados por el tope · mes: USD {Number(a.costo_mes_usd).toFixed(4)}
                     </p>
-                    <p className="detalle">
-                      Versión desplegada {desplegada} ·{" "}
-                      {a.version_aprobada
-                        ? `aprobada ${a.version_aprobada}${a.aprobado_por ? ` por ${a.aprobado_por}` : ""}`
-                        : "nunca aprobada"}
-                    </p>
+                    {esSistema ? (
+                      <p className="detalle">
+                        El push de las franjas, el correo motivacional y los de la primera semana. Apagado, no sale ninguno.
+                      </p>
+                    ) : (
+                      <p className="detalle">
+                        Versión desplegada {desplegada} ·{" "}
+                        {a.version_aprobada
+                          ? `aprobada ${a.version_aprobada}${a.aprobado_por ? ` por ${a.aprobado_por}` : ""}`
+                          : "nunca aprobada"}
+                      </p>
+                    )}
                     <div className="acciones">
                       <button
                         type="button"
@@ -225,10 +237,25 @@ export default function AgentesPage() {
 
           <section>
             <h2>Tope semanal por persona</h2>
-            <p className="detalle">Mensajes en 7 días, sumando todos los agentes. Las respuestas de Soporte a una pregunta no cuentan.</p>
+            <p className="detalle">
+              Mensajes en 7 días, sumando los agentes y los avisos automáticos. Las respuestas de Soporte a una pregunta no cuentan.
+            </p>
             <div className="acciones">
               <input type="number" min={0} max={50} value={tope} onChange={(e) => setTope(e.target.value)} />
               <button type="button" disabled={ocupado === "tope"} onClick={() => void hacer("tope", { accion: "tope", tope: Number(tope) })}>
+                Guardar
+              </button>
+            </div>
+            <p className="detalle">
+              De ese tope, cuántos pueden ser avisos automáticos (el resto queda para los agentes). Lo motivacional sale como mucho uno cada 3 días.
+            </p>
+            <div className="acciones">
+              <input type="number" min={0} max={50} value={topeSistema} onChange={(e) => setTopeSistema(e.target.value)} />
+              <button
+                type="button"
+                disabled={ocupado === "tope_sistema"}
+                onClick={() => void hacer("tope_sistema", { accion: "tope_sistema", tope: Number(topeSistema) })}
+              >
                 Guardar
               </button>
             </div>

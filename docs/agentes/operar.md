@@ -44,9 +44,31 @@ Cambiar `reglas-comunes.md` deja a los seis sin aprobar.
 
 ## El tope semanal
 
-4 mensajes por persona en 7 días, sumando todos los agentes. Las respuestas de
-Soporte a una pregunta que hizo la persona no cuentan; todo lo demás, sí. Se
-cambia en **/admin/agentes** o con `npm run agentes -- tope 4`.
+4 mensajes por persona en 7 días, sumando todos los agentes **y los avisos
+automáticos de siempre** (v268). Las respuestas de Soporte a una pregunta que
+hizo la persona no cuentan; todo lo demás, sí. Se cambia en **/admin/agentes**
+o con `npm run agentes -- tope 4`.
+
+### Los avisos automáticos ("sistema")
+
+Son el push de las tres franjas, el correo motivacional cada 3 días y los
+correos de la primera semana. Desde la v268:
+
+- Comparten el tope de 4, pero pueden usar **como mucho 2** (`npm run agentes
+  -- tope-sistema 2`). El resto queda para los agentes, así un push de la
+  mañana no le saca el lugar a un aviso de Cobranza.
+- Lo motivacional (push y correo) sale **como mucho uno cada 3 días** por
+  persona. Las tres franjas siguen existiendo, pero llega la primera que
+  encuentra lugar, no las tres.
+- **Apagar todo:** **/admin/agentes** → *Avisos automáticos* → *Apagar*, o
+  `npm run agentes -- apagar sistema`.
+- Ya no hay rachas: ni "7 días seguidos" ni "tu racha está en riesgo"
+  (regla 4). El resumen del lunes sigue.
+
+No pasan por el tope, porque frenarlos haría daño: lo transaccional (pagos,
+confirmaciones, contraseña), la respuesta a algo que la persona escribió, el
+briefing diario (lo pidió ella), sus recordatorios de agenda y los avisos de
+riesgo de su plata ("no te alcanza para el 28").
 
 ## Darle conexión a un agente (una vez por agente, antes de prenderlo)
 

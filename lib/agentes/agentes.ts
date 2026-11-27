@@ -14,6 +14,19 @@ export function esAgente(valor: unknown): valor is Agente {
 }
 
 /**
+ * `sistema` no es un agente: es la fila de `agent_config` de los avisos
+ * automáticos que ya existían (push de las franjas, correo motivacional,
+ * primera semana; v268). Tiene interruptor y comparte el tope, pero no corre,
+ * no tiene rol ni versión que aprobar.
+ */
+export const SISTEMA = "sistema";
+
+/** Lo que se puede prender y apagar desde el panel: los seis agentes y el sistema. */
+export function tieneInterruptor(valor: unknown): valor is Agente | typeof SISTEMA {
+  return esAgente(valor) || valor === SISTEMA;
+}
+
+/**
  * La variable de entorno con la conexión del agente a la base, con SU rol.
  * Ejemplo: `AGENTE_COBRANZA_DB_URL`. Nunca la service role.
  */

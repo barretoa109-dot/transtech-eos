@@ -7,6 +7,12 @@ const HOY = "2026-11-10";
 const VIEJA = "2026-01-01T00:00:00Z";
 const RECIEN_NACIDA = new Date().toISOString();
 
+type Registro = {
+  insertados: unknown[];
+  devueltos?: number;
+  rpc?: { fn: string; args: Record<string, unknown> }[];
+};
+
 /** Un cliente de servicio de mentira, con lo justo para este módulo. */
 function admin(opciones: {
   dispositivos?: string[];
@@ -14,14 +20,25 @@ function admin(opciones: {
   reclamados?: { usuario_id: string; fecha: string; franja: string }[];
   creadaEn?: Record<string, string>;
   sinAccionDesde?: Record<string, string | null>;
-  /** Días (AAAA-MM-DD) con actividad, para rachas y resumen semanal. */
+  /** Días (AAAA-MM-DD) con actividad, para el resumen semanal. */
   diasActivos?: Record<string, string[]>;
-  registro?: { insertados: unknown[]; devueltos?: number };
+  /** Cuentas a las que el tope semanal (v268) les dice que no. */
+  sinCupo?: string[];
+  registro?: Registro;
 }) {
-  const registro: { insertados: unknown[]; devueltos?: number } = opciones.registro ?? { insertados: [] };
+  const registro: Registro = opciones.registro ?? { insertados: [] };
   const reclamados = opciones.reclamados ?? [];
 
   return {
+    // La puerta del tope (lib/agentes/sistema.ts → v268).
+    rpc(fn: string, args: Record<string, unknown>) {
+      (registro.rpc ??= []).push({ fn, args });
+      if (fn === "eos_agentes_autorizar_sistema_v268") {
+        const sin = (opciones.sinCupo ?? []).includes(String(args.p_usuario_id));
+        return Promise.resolve({ data: sin ? null : `m-${String(args.p_usuario_id)}`, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    },
     from(tabla: string) {
       const cadena: Record<string, unknown> = {};
       let uid = "";
@@ -117,7 +134,7 @@ test("una cuenta recién nacida no recibe nada todavía", async () => {
 
 test("la misma franja el mismo día no se repite", async () => {
   const mandados: string[] = [];
-  const registro = { insertados: [] as unknown[] };
+  const registro: Registro = { insertados: [] };
 
   const r = await enviarMotivacionalesPush(
     admin({ dispositivos: ["u1"], reclamados: [{ usuario_id: "u1", fecha: HOY, franja: "manana" }], registro }) as never,
@@ -202,7 +219,7 @@ test("noche: el mismo día siempre da el mismo mensaje del pool", async () => {
 });
 
 test("si el servicio de push lo rechaza, se cuenta como fallido, se dice por qué y se devuelve el reclamo", async () => {
-  const registro = { insertados: [] as unknown[], devueltos: 0 };
+  const registro: Registro = { insertados: [], devueltos: 0 };
 
   const r = await enviarMotivacionalesPush(
     admin({ dispositivos: ["u1", "u2"], registro }) as never,
@@ -262,25 +279,61 @@ const capturar = async (franja: "manana" | "mediodia" | "noche", hoy: string, op
   return capturado.aviso;
 };
 
-test("mediodía: al llegar a 3 días seguidos se festeja la racha", async () => {
+// Regla 4 de los agentes (27/11/2026): sin rachas.
+test("mediodía: tres días seguidos ya no se festejan como racha", async () => {
   const aviso = await capturar("mediodia", HOY, {
     sinAccionDesde: { u1: HOY },
     diasActivos: { u1: ["2026-11-10", "2026-11-09", "2026-11-08"] },
   });
-  assert.equal(aviso?.titulo, "Tres días seguidos");
-});
-
-test("mediodía: una racha que no es hito no interrumpe el texto de siempre", async () => {
-  const aviso = await capturar("mediodia", HOY, {
-    sinAccionDesde: { u1: HOY },
-    diasActivos: { u1: ["2026-11-10", "2026-11-09", "2026-11-08", "2026-11-07"] },
-  });
   assert.equal(aviso?.titulo, "Vas bien hoy");
 });
 
-test("noche: con racha y sin nada anotado hoy, avisa antes de que se corte", async () => {
+test("noche: con días seguidos y nada anotado hoy, no hay aviso de racha en riesgo", async () => {
   const aviso = await capturar("noche", HOY, { diasActivos: { u1: ["2026-11-09", "2026-11-08", "2026-11-07"] } });
-  assert.equal(aviso?.titulo, "Llevás 3 días seguidos");
+  assert.ok(aviso);
+  assert.doesNotMatch(`${aviso.titulo} ${aviso.cuerpo}`, /racha|seguidos/i);
+});
+
+test("sin cupo en el tope semanal no se manda, y la franja queda tomada hasta mañana", async () => {
+  const mandados: string[] = [];
+  const registro: Registro = { insertados: [], devueltos: 0 };
+
+  const r = await enviarMotivacionalesPush(admin({ dispositivos: ["u1", "u2"], sinCupo: ["u1"], registro }) as never, "manana", {
+    hoy: HOY,
+    enviar: async (_a, uid) => { mandados.push(uid); return { enviados: 1 }; },
+  });
+
+  assert.deepEqual(mandados, ["u2"]);
+  assert.equal(r.sin_cupo, 1);
+  assert.equal(r.enviados, 1);
+  assert.equal(registro.devueltos, 0);
+});
+
+test("cada push pide cupo espaciado y anota cómo le fue", async () => {
+  const registro: Registro = { insertados: [] };
+  await enviarMotivacionalesPush(admin({ dispositivos: ["u1"], registro }) as never, "noche", {
+    hoy: HOY,
+    enviar: async () => ({ enviados: 0, fallidos: 1, razones: ["HTTP 410 Unregistered · ...ABC123"] }),
+  });
+
+  const [pedido, entrega] = registro.rpc ?? [];
+  assert.equal(pedido.fn, "eos_agentes_autorizar_sistema_v268");
+  assert.deepEqual(pedido.args, { p_usuario_id: "u1", p_canal: "push", p_plantilla: "push/noche", p_espaciar_dias: 3 });
+  assert.equal(entrega.fn, "eos_agentes_entrega_sistema_v268");
+  assert.equal(entrega.args.p_estado, "fallado");
+  assert.equal(entrega.args.p_detalle, "HTTP 410 Unregistered");
+});
+
+test("si la puerta del tope no contesta, no se manda (cierra, no abre)", async () => {
+  const mandados: string[] = [];
+  const base = admin({ dispositivos: ["u1"] });
+  const roto = { ...base, rpc: () => Promise.resolve({ data: null, error: { message: "función inexistente" } }) };
+  const r = await enviarMotivacionalesPush(roto as never, "manana", {
+    hoy: HOY,
+    enviar: async (_a, uid) => { mandados.push(uid); return { enviados: 1 }; },
+  });
+  assert.deepEqual(mandados, []);
+  assert.equal(r.sin_cupo, 1);
 });
 
 test("lunes a la mañana: el resumen de la semana, no el consejo", async () => {

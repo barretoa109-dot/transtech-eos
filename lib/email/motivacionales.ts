@@ -1,4 +1,5 @@
 import type { ClienteSinTipos } from "../supabase/sin-tipos.ts";
+import { cupoDelSistema, ESPACIADO_MOTIVACIONAL_DIAS, type Cupo } from "../agentes/sistema.ts";
 import { crearTokenBaja } from "./baja.ts";
 import { envolverEmailDeMarca, escaparHtml, primerNombre } from "./marca.ts";
 import { lineaPersonal } from "./consejoDeObjetivo.ts";
@@ -230,6 +231,8 @@ export type ResumenMotivacionales = {
   ciclo: number;
   enviados: number;
   fallidos: number;
+  /** El tope semanal o el espaciado dijeron que no (v268). Ese ciclo no se le manda. */
+  sinCupo: number;
   /** Quedaron cuentas sin correo por el tope de la ejecución: siguen mañana. */
   pendientes: boolean;
 };
@@ -250,13 +253,16 @@ export async function enviarMotivacionales(
     enviar: (correo: CorreoMotivacional) => Promise<void>;
     ahora?: Date;
     max?: number;
+    /** El tope compartido con los agentes (v268). */
+    cupo?: Cupo;
   },
 ): Promise<ResumenMotivacionales> {
   const { hoy, appUrl, secreto, enviar, ahora = new Date(), max = 200 } = opciones;
+  const cupo = opciones.cupo ?? cupoDelSistema(admin);
 
   const ciclo = cicloDe(hoy);
   const { indice, mensaje } = mensajeDelCiclo(ciclo);
-  const resumen: ResumenMotivacionales = { ciclo, enviados: 0, fallidos: 0, pendientes: false };
+  const resumen: ResumenMotivacionales = { ciclo, enviados: 0, fallidos: 0, sinCupo: 0, pendientes: false };
 
   const [{ data: reclamados, error: errReclamados }, { data: bajas, error: errBajas }] =
     await Promise.all([
@@ -314,6 +320,19 @@ export async function enviarMotivacionales(
         continue;
       }
 
+      // Después del reclamo, como en el push: sin cupo, el ciclo queda tomado
+      // y no se vuelve a preguntar hasta el próximo.
+      const mensajeId = await cupo.pedir({
+        usuarioId: u.id,
+        canal: "email",
+        plantilla: `correo/motivacional/${indice}`,
+        espaciarDias: ESPACIADO_MOTIVACIONAL_DIAS,
+      });
+      if (!mensajeId) {
+        resumen.sinCupo += 1;
+        continue;
+      }
+
       const urlBaja = urlDeBaja(appUrl, u.id, secreto);
       // Nunca lanza por un problema de datos: sin objetivo, o si algo falla al
       // leerlo, cae sola al consejo financiero del ciclo (ver consejoDeObjetivo.ts).
@@ -328,8 +347,10 @@ export async function enviarMotivacionales(
 
       try {
         await enviar({ para: u.email, asunto, html, texto, urlBaja });
+        await cupo.entregado(mensajeId, true);
         resumen.enviados += 1;
       } catch (e) {
+        await cupo.entregado(mensajeId, false, e instanceof Error ? e.message : String(e));
         resumen.fallidos += 1;
         console.error(`Motivacionales: falló el envío a ${u.id}:`, e instanceof Error ? e.message : e);
 
