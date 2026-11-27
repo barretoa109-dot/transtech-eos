@@ -90,6 +90,10 @@ const PERMITIDAS = new Map([
     "Lo llama el worker de n8n con su Bearer, no una persona con sesión. Lee UNA fila por su clave primaria (`command_id`) para repetir el motivo de negocio de una orden ya cerrada cuando n8n reintenta; no hay lista ni dueño que filtrar, y la misma ruta ya ejecuta esa orden por ese id.",
   ],
   [
+    "app/api/cron/agentes-escalamientos/route.ts::usuarios",
+    "El aviso al DUEÑO de lo que escalan los agentes (lo llaman pg_cron y el trigger de la v267, con el CRON_SECRET). Busca la cuenta de EOS de cada correo de `ADMIN_EMAILS` para mandarle el push a su iPhone: el filtro es la lista de administradores, no una persona con sesión, y lee solo `id`.",
+  ],
+  [
     "app/api/admin/pagos/listar/route.ts::solicitudes_pago",
     "El panel de administración: existe para ver las solicitudes de TODOS, que es su función. La puerta es `ADMIN_EMAILS`, verificada en la misma ruta y antes de consultar.",
   ],

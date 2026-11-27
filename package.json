@@ -28,7 +28,9 @@
     "primeros-pasos": "node scripts/primeros-pasos.mjs",
     "tablero": "node --experimental-strip-types scripts/tablero-semanal.mjs",
     "bateria": "node --experimental-strip-types evals/bateria/correr.mts",
-    "bateria:claude": "node --experimental-strip-types evals/bateria/correr-claude.mts"
+    "bateria:claude": "node --experimental-strip-types evals/bateria/correr-claude.mts",
+    "agentes": "node --experimental-strip-types scripts/agentes.mjs",
+    "agentes:versiones": "node --experimental-strip-types scripts/agentes-versiones.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -48,6 +50,7 @@
     "lucide-react": "^1.25.0",
     "next": "^16.2.12",
     "pdfkit": "^0.20.1",
+    "postgres": "3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.18.1",
